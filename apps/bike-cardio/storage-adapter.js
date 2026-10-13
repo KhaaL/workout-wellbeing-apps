@@ -2,7 +2,7 @@
 globalThis.BikeStorage = (() => {
   'use strict';
   const key='bike-cardio.state.v1', namespace='bike-cardio.v1';
-  const fields={'bike-cardio.settings.v1':'settings','bike-cardio.history.v1':'history','bike-cardio.active.v1':'active'};
+  const fields={'bike-cardio.settings.v1':'settings','bike-cardio.history.v1':'history','bike-cardio.active.v1':'active','bike-cardio.presets.v1':'presets','bike-cardio.machines.v1':'machines'};
   const comparable=value=>WorkoutStorage.stableStringify(value);
   function create(options){
     const C=options.core, copy=WorkoutStorage.copy;
@@ -17,6 +17,16 @@ globalThis.BikeStorage = (() => {
       if(!Array.isArray(raw.history)||!raw.settings||typeof raw.settings!=='object')fail('Missing session history or settings');
       number(raw.updatedAt,'Backup revision');
       const s=copy(raw),ids=new Set();s.version=2;s.settings=C.config(s.settings);
+      for(const kind of ['presets','machines']){
+        const rows=s[kind]??[];if(!Array.isArray(rows)||rows.length>50)fail('Invalid saved '+kind);
+        const seen=new Set();s[kind]=rows.map(row=>{
+          if(!row||typeof row.id!=='string'||!row.id.trim()||seen.has(row.id)||typeof row.name!=='string'||!row.name.trim()||row.name.length>80)fail('Invalid saved '+kind);
+          seen.add(row.id);
+          if(kind==='presets'){if(!row.config||typeof row.config!=='object')fail('Invalid preset configuration');return {id:row.id,name:row.name.trim(),config:C.config(row.config)};}
+          if(!['matrix','touchscreen'].includes(row.bike)||typeof row.bikeId!=='string'||!row.bikeId.trim()||row.bikeId.length>80)fail('Invalid machine profile');
+          return {id:row.id,name:row.name.trim(),bike:row.bike,bikeId:row.bikeId.trim()};
+        });
+      }
       for(const r of s.history){
         if(!r||typeof r.id!=='string'||!r.id.trim()||ids.has(r.id))fail('Session IDs must be present and unique');ids.add(r.id);
         timestamp(r.startedAt,'Session date');if(r.endedAt!=null)timestamp(r.endedAt,'Session end');
@@ -48,7 +58,7 @@ globalThis.BikeStorage = (() => {
       if(s.active!=null){if(ids.has(s.active.id))s.active=null;else if(!C.restore(s.active,Date.now()))fail('Invalid active session');}
       delete s.kind;delete s.exportedAt;return s;
     }
-    const seed=()=>({app:'bike-cardio',version:2,updatedAt:0,settings:C.config(),history:[],active:null});
+    const seed=()=>({app:'bike-cardio',version:2,updatedAt:0,settings:C.config(),history:[],active:null,presets:[],machines:[]});
     function legacy(){
       const s=seed();let found=false;
       for(const [old,name]of Object.entries(fields)){
@@ -94,7 +104,7 @@ globalThis.BikeStorage = (() => {
       if(isActive())throw new Error('Finish or end the saved session before restoring a backup.');
       const expected=JSON.stringify(state),candidate=prepare(raw);
       remote.pauseRemoteSync('Local restore in progress');
-      if(!await options.confirm('Restore backup?','This replaces the local session log. A recovery copy will be kept. Cloud sync stays paused until you choose which copy to keep.'))return false;
+      if(!await options.confirm('Restore backup?','This replaces the local session log. A recovery copy will be kept. Cloud sync stays paused until you choose which copy to keep.','Restore backup',true))return false;
       if(expected!==JSON.stringify(state))throw new Error('Local data changed during review. Restore cancelled.');
       if(isActive())throw new Error('A session started during review. Restore cancelled.');
       candidate.updatedAt=Math.max(Date.now(),state.updatedAt+1,candidate.updatedAt+1);
@@ -153,7 +163,7 @@ globalThis.BikeStorage = (() => {
       if(!summary.added)return summary;
       history.sort((a,b)=>b.startedAt-a.startedAt);
       const candidate=prepare({...copy(state),history,updatedAt:Math.max(Date.now(),state.updatedAt+1)});
-      if(!await options.confirm('Merge ride history?',`${summary.added} new rides will be added. Existing rides, settings and any saved ride are kept. ${summary.conflicts} conflicts will keep the local copy. Cloud sync will be paused for review.`))return null;
+      if(!await options.confirm('Merge ride history?',`${summary.added} new rides will be added. Existing rides, settings and any saved ride are kept. ${summary.conflicts} conflicts will keep the local copy. Cloud sync will be paused for review.`,'Merge history'))return null;
       if(expected!==JSON.stringify(state))fail('Local data changed during review. Import cancelled.');
       remote.pauseRemoteSync('History import needs cloud review');
       if(!local.commit(candidate,{key:namespace+'.before-remote-restore',payload:backup()}))fail('History import could not be saved. Previous data retained.');
@@ -163,7 +173,7 @@ globalThis.BikeStorage = (() => {
       if(isActive())fail('Finish or end the saved session before clearing history.');
       if(!state.history.length)return false;
       const expected=JSON.stringify(state);
-      if(!await options.confirm('Clear ride history?','All finished rides will be removed from this device. Settings and cloud credentials are kept. A recovery copy is saved and cloud sync stays paused for review.'))return false;
+      if(!await options.confirm('Clear ride history?','All finished rides will be removed from this device. Settings and cloud credentials are kept. A recovery copy is saved and cloud sync stays paused for review.','Clear history',true))return false;
       if(expected!==JSON.stringify(state)||isActive())fail('Local data changed during review. Clear cancelled.');
       remote.pauseRemoteSync('History cleared locally — review before updating cloud');
       if(!remote.commitSnapshot({...copy(state),history:[],updatedAt:Math.max(Date.now(),state.updatedAt+1)}))fail('History could not be cleared. Previous data retained.');

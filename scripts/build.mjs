@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {resolve,join} from 'node:path';
 const root=resolve(import.meta.dirname,'..');
 const selected=process.argv[2];
-const engine=(await Promise.all(['local.js','remote.js','handoff.js'].map(name=>readFile(join(root,'packages/storage-engine',name),'utf8')))).join('\n');
+const engine=(await Promise.all(['local.js','remote.js','handoff.js','undo.js'].map(name=>readFile(join(root,'packages/storage-engine',name),'utf8')))).join('\n');
 const presentation=(await Promise.all(['remote-tools.js','handoff.js'].map(name=>readFile(join(root,'packages/storage-ui',name),'utf8')))).join('\n');
 const updates=await readFile(join(root,'packages/app-ui/updates.js'),'utf8');
 const updateWorker=await readFile(join(root,'packages/app-ui/update-worker.js'),'utf8');
@@ -12,7 +12,7 @@ const uiStyles=(await Promise.all(['themes.css','components.css'].map(name=>read
 const start='/* storage-engine:start */',end='/* storage-engine:end */';
 const appModules={
   'bike-cardio':[
-    ['targets.js','bike-targets'],['heart-rate.js','bike-heart-rate'],
+    ['presets.js','bike-presets'],['targets.js','bike-targets'],['heart-rate.js','bike-heart-rate'],
     ['bluetooth.js','bike-bluetooth'],['workout-core.js','bike-workout-core']
   ],
   liftlog:[['storage-adapter.js','liftlog-storage-adapter'],['screens/settings.js','liftlog-settings-screen'],['comparisons.js','liftlog-comparisons']]

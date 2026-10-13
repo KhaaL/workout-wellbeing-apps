@@ -8,6 +8,28 @@ Builds produce two standalone app folders:
 - `dist/liftlog`
 - `dist/bike-cardio`
 
+## Everyday controls
+
+- **Undo:** set edits/deletions in Liftlog and session edits/deletions in both
+  apps offer Undo. History → **Recent changes & recently deleted** keeps up to
+  30 changes for 30 days (bounded to roughly 1 MiB), on that device only.
+  Recovery checks for newer edits before applying and keeps unrelated records.
+  Deleted sets require their parent workout/exercise to remain identifiable.
+  Recovery is not part of exported or cloud backups; bulk clearing/restoring
+  still uses the existing full recovery copy. Restoring an individual record
+  follows the current cloud backup settings.
+- **Bike presets:** Workout → **Saved workout presets** saves the current
+  machine, context, targets, durations and sound preferences. **Machine profiles**
+  reuse bike identifiers. Save, update or delete named entries; applying them
+  affects the next ride only. Both collections are included in full backups;
+  older backups start with empty collections.
+- **Comparisons:** completed session summaries select an earlier matching
+  session and show three key readings first. Expand **Detailed comparison &
+  notes** for the full table and caveats. History retains manual selection.
+  Missing readings stay unknown and incompatible measurements have no delta.
+- Both apps use the same confirmation layout, with Cancel focused first and
+  explicit action buttons; keyboard Escape cancels.
+
 ## Workouts across devices
 
 Settings → Move workout to another device prepares an explicit paused handoff.

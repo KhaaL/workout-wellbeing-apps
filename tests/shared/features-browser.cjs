@@ -1,3 +1,4 @@
+const {confirmAction}=require('./confirm-dialog.cjs');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
@@ -30,7 +31,7 @@ const root=path.resolve(__dirname,'../..');
    else{await navigate(source,'settings');await source.uncheck('#voice');await source.uncheck('#beeps');await navigate(source,'setup');await source.click('#start');await navigate(source,'settings');}
    if(app==='liftlog'){
     const click=source.click('#handoffOffer');await source.getByRole('button',{name:'Prepare handoff',exact:true}).click();await click;
-   }else{source.once('dialog',dialog=>dialog.accept());await source.click('#handoffOffer');}
+   }else{await confirmAction(source,()=>source.click('#handoffOffer'));}
    await source.waitForFunction(()=>document.getElementById('handoffCode')!==null);
    const payload=await source.evaluate(key=>key==='liftlog'?window.testAPI.workoutHandoff.held().payload:window.testAPI.storage.handoff.held().payload,app);
    assert.equal(app==='liftlog'?payload.backup.activeWorkout.timer.running:payload.backup.active.status,app==='liftlog'?false:'paused');
@@ -39,7 +40,7 @@ const root=path.resolve(__dirname,'../..');
    await navigate(target,'settings');
    if(app==='liftlog'){
     await target.setInputFiles('#handoffImport',{name:'handoff.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(payload))});await target.getByRole('button',{name:'Receive workout',exact:true}).click();
-   }else{target.once('dialog',dialog=>dialog.accept());await target.setInputFiles('#handoffImport',{name:'handoff.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(payload))});}
+   }else{await confirmAction(target,()=>target.setInputFiles('#handoffImport',{name:'handoff.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(payload))}));}
    await target.waitForFunction(app=>{const s=window.testAPI.state;return !!(app==='liftlog'?s.activeWorkout:s.active);},app);
    assert.equal(await target.locator('#handoffImport').isDisabled(),true,'another active workout blocks receipt');
    if(app==='liftlog'){

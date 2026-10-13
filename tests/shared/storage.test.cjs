@@ -327,3 +327,11 @@ test('switching an existing connection to automatic mode creates a separate back
   assert.equal(d.bike.remote.readRemoteWork().pending,true);await d.bike.remote.remoteBackup();assert.equal(store.objects.size,1);assert.equal(d.bike.remote.loadRemoteConfig().lastBackupMode,'immutable');
   await d.bike.remote.remoteStartupSync();assert.equal(d.bike.remote.readRemoteWork().pending,false);
 });
+
+test('Bike presets and machine profiles roundtrip backups without changing older rides',()=>{
+ const d=setup(),backup=d.bike.backup();backup.history=[legacyRecord()];backup.presets=[{id:'p',name:'Steady ride',config:{mode:'zone2',mainMinutes:40,bikeId:'bike-a',voice:false}}];backup.machines=[{id:'m',name:'Bike A',bike:'matrix',bikeId:'bike-a'}];
+ const normalized=d.bike.prepare(backup);assert.equal(normalized.presets[0].config.mainMinutes,40);assert.equal(normalized.history[0].config.mainMinutes,25);assert.equal(normalized.machines[0].bikeId,'bike-a');
+ assert.deepEqual(d.bike.prepare(normalized),normalized);
+ backup.presets.push(backup.presets[0]);assert.throws(()=>d.bike.prepare(backup),/Invalid saved presets/);backup.presets=[];backup.machines[0].bikeId='';assert.throws(()=>d.bike.prepare(backup),/machine profile/);
+ delete backup.machines;delete backup.presets;assert.equal(d.bike.prepare(backup).presets.length,0);
+});

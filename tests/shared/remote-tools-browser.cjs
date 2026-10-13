@@ -1,3 +1,4 @@
+const {confirmAction}=require('./confirm-dialog.cjs');
 const {navigate: navigateUI}=require('./ui-navigation.cjs');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
@@ -75,7 +76,7 @@ function verifySignature(url,headers,body,region=cfg.region){
         }
       };
       const acceptRestore=async accept=>{
-        if(app==='bike-cardio'){page.once('dialog',dialog=>accept?dialog.accept():dialog.dismiss());await page.click('#snapshotRestore0');}
+        if(app==='bike-cardio'){await confirmAction(page,()=>page.click('#snapshotRestore0'),accept);}
         else{await page.click('#snapshotRestore0');await page.getByRole('button',{name:accept?'Restore locally':'Cancel',exact:true}).click();}
       };
       await page.goto(origin+'/');await openTools();
@@ -117,7 +118,7 @@ function verifySignature(url,headers,body,region=cfg.region){
       await page.click('#providerCheck');await page.waitForFunction(()=>document.getElementById('providerResults')?.textContent.includes('Stale-version protection: failed')&&!document.getElementById('providerCheck').disabled);
       const report=await page.evaluate(namespace=>JSON.parse(localStorage.getItem(namespace+'.provider-check')).report,namespace);assert.equal(report.mode,'immutable');assert.equal(report.compatible,true);
       const rootBefore=objects.get(cfg.objectKey).raw;
-      if(app==='bike-cardio'){page.once('dialog',dialog=>dialog.accept());await page.click('#cloudKeepLocal');}
+      if(app==='bike-cardio'){await confirmAction(page,()=>page.click('#cloudKeepLocal'));}
       else{await page.locator('[data-action="remote-publish-local"]').click();await page.getByRole('button',{name:'Back up local copy & resume',exact:true}).click();}
       await page.waitForFunction(namespace=>localStorage.getItem(namespace+'.remote-paused')===null,namespace);
       assert.ok(calls.some(call=>call.method==='PUT'&&call.key.startsWith(cfg.objectKey+'.snapshots/')));assert.equal(objects.get(cfg.objectKey).raw,rootBefore);

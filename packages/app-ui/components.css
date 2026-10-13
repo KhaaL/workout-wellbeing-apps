@@ -107,3 +107,20 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
 @media(max-width:500px){.comparison-selectors{grid-template-columns:1fr}}
 
 .bike-app .grid>.field{min-width:0}.bike-app .grid>.field>input,.bike-app .grid>.field>select{min-width:0;max-width:100%}
+
+/* Shared secondary actions, recovery and compact result summaries. */
+.shared-dialog{box-sizing:border-box;width:min(94vw,520px);max-height:85dvh;overflow:auto;padding:24px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:16px}
+.shared-dialog::backdrop{background:rgb(0 0 0 / .55)}
+.shared-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:20px;flex-wrap:wrap}
+.shared-actions button{margin:0;min-height:48px}
+.shared-dialog .btn-primary{background:var(--accent);color:var(--on-accent)}
+.shared-dialog .btn-danger-solid{background:var(--danger);color:#fff}
+.recent-change{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--border);padding:10px 0}
+.recent-change span{overflow-wrap:anywhere;min-width:0}
+.undo-bar{position:relative;width:fit-content;max-width:calc(100vw - 24px);margin:12px auto;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);box-shadow:0 5px 25px #0005}
+.undo-bar span{max-width:40vw;overflow-wrap:anywhere}.undo-bar button{min-height:48px}
+.comparison-highlights{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:16px 0}.comparison-highlight{padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px}.comparison-highlight strong{display:block;font-size:1.2rem}.comparison-details>summary{min-height:48px;cursor:pointer;padding:12px 0}
+@media(max-width:500px){.shared-actions{display:grid;grid-template-columns:1fr 1fr}.undo-bar{flex-wrap:wrap}.undo-bar span{max-width:none;flex-basis:100%}.comparison-highlights{grid-template-columns:1fr 1fr}}
+@media(min-width:900px){.bike-app main:not(#run){max-width:900px}.bike-app #setup>.card,.bike-app #setup>fieldset{margin-top:14px}.bike-app #summary .stats{gap:24px}}
+
+.field-error{display:block;color:var(--danger);font-size:var(--fs-sm);margin-top:4px}input[aria-invalid=true],select[aria-invalid=true],textarea[aria-invalid=true]{border-color:var(--danger)}

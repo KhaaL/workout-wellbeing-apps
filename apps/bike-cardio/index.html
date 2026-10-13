@@ -327,6 +327,23 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
 
 .bike-app .grid>.field{min-width:0}.bike-app .grid>.field>input,.bike-app .grid>.field>select{min-width:0;max-width:100%}
 
+/* Shared secondary actions, recovery and compact result summaries. */
+.shared-dialog{box-sizing:border-box;width:min(94vw,520px);max-height:85dvh;overflow:auto;padding:24px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:16px}
+.shared-dialog::backdrop{background:rgb(0 0 0 / .55)}
+.shared-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:20px;flex-wrap:wrap}
+.shared-actions button{margin:0;min-height:48px}
+.shared-dialog .btn-primary{background:var(--accent);color:var(--on-accent)}
+.shared-dialog .btn-danger-solid{background:var(--danger);color:#fff}
+.recent-change{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--border);padding:10px 0}
+.recent-change span{overflow-wrap:anywhere;min-width:0}
+.undo-bar{position:relative;width:fit-content;max-width:calc(100vw - 24px);margin:12px auto;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);box-shadow:0 5px 25px #0005}
+.undo-bar span{max-width:40vw;overflow-wrap:anywhere}.undo-bar button{min-height:48px}
+.comparison-highlights{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:16px 0}.comparison-highlight{padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px}.comparison-highlight strong{display:block;font-size:1.2rem}.comparison-details>summary{min-height:48px;cursor:pointer;padding:12px 0}
+@media(max-width:500px){.shared-actions{display:grid;grid-template-columns:1fr 1fr}.undo-bar{flex-wrap:wrap}.undo-bar span{max-width:none;flex-basis:100%}.comparison-highlights{grid-template-columns:1fr 1fr}}
+@media(min-width:900px){.bike-app main:not(#run){max-width:900px}.bike-app #setup>.card,.bike-app #setup>fieldset{margin-top:14px}.bike-app #summary .stats{gap:24px}}
+
+.field-error{display:block;color:var(--danger);font-size:var(--fs-sm);margin-top:4px}input[aria-invalid=true],select[aria-invalid=true],textarea[aria-invalid=true]{border-color:var(--danger)}
+
 </style>
 </head>
 <body class="bike-app" data-kind="setup">
@@ -336,6 +353,7 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
 <section id="setup">
   <div class="view-head"><h1>Workout</h1><button id="openHistory" class="text-button" hidden>History</button></div>
   <div id="restoreCard" class="card" hidden><h2>Session saved</h2><p id="restoreText"></p><div class="stack"><button id="restoreSession" class="primary">Review &amp; resume</button><button id="endSaved" class="secondary">End saved session</button></div></div>
+  <div id="saved-setups"></div>
   <fieldset class="card"><legend>Workout</legend><div class="segments"><label><input type="radio" name="mode" value="zone2" checked><span>Zone 2</span></label><label><input type="radio" name="mode" value="sprint"><span>Sprint intervals</span></label></div></fieldset>
   <div id="sensorSetup" class="card"><div class="row"><h2>Polar H10</h2><span id="setupHR" class="sensor-number">— <small>bpm</small></span></div><p id="sensorStatus" class="small" role="status" aria-live="polite"></p><div class="sensor-actions"><button id="connectH10">Connect H10</button><button id="disconnectH10" class="text-button" hidden>Disconnect</button></div><details><summary>Using H10 alongside Polar</summary><p class="small">Wear the strap and enable “2 receiving BLE devices” in Polar Beat, or “2 Bluetooth devices” in Flow’s sensor settings. Start Polar’s recording, then connect here. Keep this app visible during the ride; check that Polar continues recording on your phone.</p><p class="small">H10 uses an HTTPS page in Android Chrome. The downloaded file supports manual HR. Live samples are processed on this device. Saved ride summaries are included in backups.</p></details></div>
   <div class="card stack">
@@ -409,6 +427,8 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
 <section id="summary" hidden>
   <span class="eyebrow">Session log</span><h1 id="summaryTitle">Session finished</h1><p id="summaryContext" class="muted"></p>
   <dl class="stats"><div><dt>Active time</dt><dd id="summaryTime"></dd></div><div><dt id="summaryWorkLabel">Main block</dt><dd id="summaryWork"></dd></div><div><dt>Outcome</dt><dd id="summaryOutcome" style="font-size:19px"></dd></div></dl>
+  <div id="finished-comparison"></div>
+  <button id="deleteSession" class="secondary danger">Delete session…</button>
   <button id="editSession" class="secondary">Edit session details</button>
   <div id="sensorSummary" class="card" hidden><h2>Measured by H10</h2><div class="grid"><div><span class="small">Average HR</span><p id="sensorAverage" class="sensor-number"></p></div><div><span id="sensorZoneLabel" class="small">Time in recorded zone</span><p id="sensorZone" class="sensor-number"></p></div></div><p id="sensorCoverage" class="small"></p><p class="small">Includes measured active riding in every phase. Missing readings and pauses are excluded.</p></div>
   <p id="summaryCaution" class="notice" hidden></p><p class="notice">Stop the Indoor cycling recording in Polar when you finish spinning.</p>
@@ -433,7 +453,7 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
 <label class="field">Machine<select id="historyMachine"><option value="">All machines</option></select></label><label class="field">Context<select id="historyContext"><option value="">All contexts</option><option value="fresh">Fresh legs</option><option value="post-lifting">After lifting</option></select></label>
 <label class="field">Workout<select id="historyMode"><option value="">All workouts</option><option value="zone2">Zone 2</option><option value="sprint">Sprints</option></select></label><label class="field">Outcome<select id="historyOutcome"><option value="">All outcomes</option><option value="complete">Complete</option><option value="partial">Partial</option></select></label>
 <label class="field">From<input id="historyFrom" type="date"></label><label class="field">Through<input id="historyTo" type="date"></label></div><label class="check"><input id="historyUninterrupted" type="checkbox">Hide interrupted rides</label><button id="resetHistoryFilters" class="secondary">Reset filters</button></details>
-<p id="historyCount" class="small" role="status"></p><div class="card"><h2>Progress</h2><label class="field">Measure<select id="historyMetric"><option value="fixedHRWatts">Watts at recorded comparison HR</option><option value="averageWatts">Main-block average watts</option><option value="mainAverageHR">Main-block average HR</option><option value="mainMinutes">Main-block duration</option><option value="coverage">H10 measurement coverage</option></select></label><p id="chartNote" class="small"></p><div id="progressChart"></div><details><summary>Chart readings</summary><div id="chartTable" style="overflow-x:auto"></div></details></div><div id="workout-comparison"></div><div id="historyList"></div><div class="stack"><button id="exportHistory" class="secondary">Export CSV</button><button id="exportHistoryJSON" class="secondary">Download ride history</button><label class="field">Merge history from a Bike Cardio JSON file<input id="importHistory" type="file" accept=".json,application/json"></label><p id="historyImportStatus" class="small" role="status"></p><button id="clearHistory" class="secondary danger">Clear ride history…</button></div><p class="small">History imports add rides without replacing your settings. Local rides win conflicts. Browser data can be cleared by your phone or browser; keep a full backup.</p></section>
+<p id="historyCount" class="small" role="status"></p><div class="card"><h2>Progress</h2><label class="field">Measure<select id="historyMetric"><option value="fixedHRWatts">Watts at recorded comparison HR</option><option value="averageWatts">Main-block average watts</option><option value="mainAverageHR">Main-block average HR</option><option value="mainMinutes">Main-block duration</option><option value="coverage">H10 measurement coverage</option></select></label><p id="chartNote" class="small"></p><div id="progressChart"></div><details><summary>Chart readings</summary><div id="chartTable" style="overflow-x:auto"></div></details></div><div id="workout-comparison"></div><div id="recent-changes"></div><div id="historyList"></div><div class="stack"><button id="exportHistory" class="secondary">Export CSV</button><button id="exportHistoryJSON" class="secondary">Download ride history</button><label class="field">Merge history from a Bike Cardio JSON file<input id="importHistory" type="file" accept=".json,application/json"></label><p id="historyImportStatus" class="small" role="status"></p><button id="clearHistory" class="secondary danger">Clear ride history…</button></div><p class="small">History imports add rides without replacing your settings. Local rides win conflicts. Browser data can be cleared by your phone or browser; keep a full backup.</p></section>
 </main>
 <dialog id="pauseDialog" aria-labelledby="pauseTitle"><h2 id="pauseTitle">Paused</h2><p id="pauseMessage"></p><div class="dialog-actions"><button id="resume" class="primary">Resume</button><button id="end" class="secondary danger">End session &amp; save log</button></div></dialog>
 <dialog id="skipDialog" aria-labelledby="skipTitle"><h2 id="skipTitle">Skip this phase?</h2><p>Its time will be recorded, and the phase will be marked skipped. A skipped effort is not a completed effort.</p><div class="dialog-actions"><button id="cancelSkip" class="primary">Keep riding this phase</button><button id="confirmSkip" class="secondary danger">Skip phase</button></div></dialog>
@@ -474,6 +494,7 @@ const WorkoutUI = (() => {
   }
   const paths={workout:'M4 9v6m3-9v12m10-12v12m3-9v6M7 12h10',routines:'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',history:'M4 5v5h5M4 10a8 8 0 1 1 1 7M12 7v5l3 2',exercises:'M4 6h6v6H4zM14 6h6v6h-6zM4 16h6M14 16h6',settings:'M4 7h16M4 17h16M8 4v6M16 14v6'};
   function createShell({name,items,onNavigate}){
+    installValidation();
     const header=document.querySelector('.app-header'),nav=header.querySelector('.main-nav'),list=nav.querySelector('ul');
     nav.style.setProperty('--nav-count',String(items.length));list.replaceChildren();
     for(const item of items){
@@ -541,33 +562,78 @@ const WorkoutUI = (() => {
       }
     }
   }
-  return {themes,schemes,applyTheme,createShell,attachSteppers};
+  let validationInstalled=false,validationId=0;
+  function installValidation(){
+    if(validationInstalled)return;validationInstalled=true;
+    function clear(input){
+      const id=input.dataset.validationMessage;if(!id)return;
+      document.getElementById(id)?.remove();input.removeAttribute('aria-invalid');
+      const described=(input.getAttribute('aria-describedby')||'').split(' ').filter(value=>value&&value!==id).join(' ');
+      if(described)input.setAttribute('aria-describedby',described);else input.removeAttribute('aria-describedby');delete input.dataset.validationMessage;
+    }
+    document.addEventListener('invalid',event=>{
+      const input=event.target;if(!input.matches('input,select,textarea'))return;clear(input);
+      const message=document.createElement('span');message.id='field-error-'+(++validationId);message.className='field-error';message.textContent=input.validationMessage;
+      const anchor=input.closest('.numeric-stepper')||input;anchor.after(message);input.dataset.validationMessage=message.id;input.setAttribute('aria-invalid','true');input.setAttribute('aria-describedby',((input.getAttribute('aria-describedby')||'')+' '+message.id).trim());
+    },true);
+    document.addEventListener('input',event=>{const input=event.target;if(input.matches('input,select,textarea')&&input.validity.valid)clear(input);});
+  }
+  function dialog({title,body,buttons=[{label:'OK',value:true,cls:'btn-primary'}]}){
+    let dlg=document.getElementById('dlg');
+    if(!dlg){dlg=document.createElement('dialog');dlg.id='dlg';dlg.innerHTML='<h2 id="dlg-title"></h2><p id="dlg-body"></p><div id="dlg-actions"></div>';document.body.append(dlg);}
+    // Never replace the contents of an unanswered confirmation.
+    if(dlg.open)return Promise.resolve(null);
+    const opener=document.activeElement;dlg.classList.add('shared-dialog');dlg.setAttribute('aria-labelledby','dlg-title');dlg.setAttribute('aria-describedby','dlg-body');
+    document.getElementById('dlg-title').textContent=title;document.getElementById('dlg-body').textContent=body;
+    const actions=document.getElementById('dlg-actions');actions.className='shared-actions';actions.replaceChildren();let result=null;
+    for(const option of buttons){const button=document.createElement('button');button.type='button';button.className='btn '+(option.cls||'');button.textContent=option.label;button.autofocus=!!option.autofocus;button.addEventListener('click',()=>{result=option.value;dlg.close();});actions.append(button);}
+    return new Promise(resolve=>{dlg.addEventListener('close',()=>{if(opener?.isConnected)opener.focus();resolve(result);},{once:true});dlg.showModal();(actions.querySelector('[autofocus]')||actions.querySelector('button'))?.focus();});
+  }
+  const confirm=(title,body,label='Confirm',danger=false)=>dialog({title,body,buttons:[{label:'Cancel',value:false,autofocus:true},{label,value:true,cls:danger?'btn-danger-solid':'btn-primary'}]});
+  function renderRecent(container,journal,notify){
+    if(!container)return;container.replaceChildren();
+    const details=document.createElement('details'),heading=document.createElement('summary');heading.textContent='Recent changes & recently deleted';details.append(heading);container.append(details);
+    const hint=document.createElement('p');hint.className='hint';hint.textContent='Up to 30 changes from the last 30 days, on this device only. Undo keeps unrelated records and refuses to overwrite newer edits. Restored records follow your current backup settings.';details.append(hint);
+    let entries;try{entries=journal.list();}catch(error){hint.textContent=error.message;return;}
+    if(!entries.length){const p=document.createElement('p');p.textContent='No recent changes.';details.append(p);}
+    for(const entry of entries){const row=document.createElement('div');row.className='recent-change';const text=document.createElement('span');text.textContent=entry.label+' · '+new Date(entry.at).toLocaleString();const button=document.createElement('button');button.type='button';button.className='btn';button.textContent=entry.deleted?'Restore':'Undo';button.setAttribute('aria-label',button.textContent+' '+entry.label);button.addEventListener('click',()=>{try{journal.undo(entry.id);notify('Change restored.');}catch(error){notify(error.message);}renderRecent(container,journal,notify);details.open=true;});row.append(text,button);details.append(row);}
+  }
+  function offerUndo(journal,entry,notify){
+    if(!entry)return;
+    let bar=document.getElementById('undo-bar');if(!bar){bar=document.createElement('div');bar.id='undo-bar';bar.className='undo-bar';bar.setAttribute('role','status');(document.querySelector('main')||document.body.lastElementChild).before(bar);}
+    bar.replaceChildren();const text=document.createElement('span');text.textContent=entry.label;const button=document.createElement('button');button.type='button';button.className='btn';button.textContent='Undo';button.addEventListener('click',()=>{try{journal.undo(entry.id);bar.remove();notify('Change restored.');}catch(error){notify(error.message);}});const close=document.createElement('button');close.type='button';close.className='btn';close.textContent='Dismiss';close.addEventListener('click',()=>bar.remove());bar.append(text,button,close);
+  }
+  return {themes,schemes,applyTheme,createShell,attachSteppers,dialog,confirm,renderRecent,offerUndo};
 })();
 
 /* Side-by-side results; missing readings are never presented as zero. */
 /* exported WorkoutComparisons */
 const WorkoutComparisons = (()=>{
   function render(container,options){
-    if(!container)return;container.replaceChildren();const items=options.items;if(items.length<2)return;
-    container.className='comparison-panel';const title=document.createElement('h3');title.textContent='Compare two workouts';container.append(title);
+    if(!container)return;container.replaceChildren();const items=options.items;if(!items.length)return;if(items.length<2&&!options.compact)return;
+    container.className='comparison-panel';const title=document.createElement('h3');title.textContent=options.compact?'Compared with your previous session':'Compare two workouts';container.append(title);
     let first=items.find(item=>item.id===options.first)||items[0];
     const candidates=options.candidates?options.candidates(first):items;
-    let second=candidates.find(item=>item.id===options.second&&item.id!==first.id)||candidates.find(item=>item.id!==first.id);
-    const selectors=document.createElement('div');selectors.className='comparison-selectors';container.append(selectors);
+    let second=candidates.find(item=>item.id===options.second&&item.id!==first.id)||candidates.filter(item=>item.id!==first.id&&(!options.compact||item.startedAt<first.startedAt)).sort((a,b)=>b.startedAt-a.startedAt)[0];
+    const selectors=document.createElement('div');selectors.className='comparison-selectors';if(!options.compact)container.append(selectors);
     for(const [id,label,list,selected]of [['compareFirst','Workout A',items,first],['compareSecond','Workout B',candidates,second]]){
       const field=document.createElement('label');field.className='field';field.textContent=label;
       const select=document.createElement('select');select.id=id;
       for(const item of list){if(id==='compareSecond'&&item.id===first.id)continue;const option=document.createElement('option');option.value=item.id;option.textContent=options.label(item);option.selected=item.id===selected?.id;select.append(option);}
       select.addEventListener('change',()=>{options.onSelect(id==='compareFirst'?select.value:first.id,id==='compareSecond'?select.value:second?.id);});field.append(select);selectors.append(field);
     }
-    if(!second){const hint=document.createElement('p');hint.textContent='No other workout matches this routine. Choose a different workout.';container.append(hint);return;}
-    const model=options.compare(first,second);
-    for(const detail of model.details||[]){const p=document.createElement('p');p.className='hint';p.textContent=detail;container.append(p);}
-    for(const warning of model.warnings||[]){const p=document.createElement('p');p.className='hint';p.textContent=warning;container.append(p);}
-    const wrap=document.createElement('div');wrap.className='comparison-scroll';container.append(wrap);
+    if(!second){const hint=document.createElement('p');hint.textContent=options.compact?'No earlier matching session yet. Future sessions with the same setup will appear here.':'No other workout matches this setup. Choose a different workout.';container.append(hint);return;}
+    const model=options.compare(first,second),notes=document.createElement('div');
+    const previous=document.createElement('p');previous.className='hint';previous.textContent='Previous: '+options.label(model.before);container.append(previous);
+    for(const detail of model.details||[]){const p=document.createElement('p');p.className='hint';p.textContent=detail;notes.append(p);}
+    for(const warning of model.warnings||[]){const p=document.createElement('p');p.className='hint';p.textContent=warning;notes.append(p);}
+    const format=value=>value==null||!Number.isFinite(Number(value))?'Unknown':Number(value).toLocaleString(undefined,{maximumFractionDigits:2});
+    const highlights=document.createElement('div');highlights.className='comparison-highlights';container.append(highlights);
+    for(const row of [...model.rows.filter(row=>row.after!=null),...model.rows.filter(row=>row.after==null)].slice(0,3)){const card=document.createElement('div');card.className='comparison-highlight';const label=document.createElement('span');label.textContent=row.label;const value=document.createElement('strong');value.textContent=format(row.after)+(row.after==null?'':' '+row.unit);const delta=document.createElement('span');delta.textContent=row.delta==null?'No comparable difference':(row.delta>0?'+':'')+format(row.delta)+' '+row.unit+' from previous';card.append(label,value,delta);highlights.append(card);}
+    const details=document.createElement('details');details.className='comparison-details';details.open=false;const summary=document.createElement('summary');summary.textContent='Detailed comparison & notes';details.append(summary,notes);container.append(details);
+    const wrap=document.createElement('div');wrap.className='comparison-scroll';details.append(wrap);
     const table=document.createElement('table');table.className='comparison-table';const caption=document.createElement('caption');caption.textContent='Earlier to later: '+options.label(model.before)+' → '+options.label(model.after);table.append(caption);
     const head=document.createElement('tr');for(const label of ['Measure','Earlier','Later','Difference']){const th=document.createElement('th');th.scope='col';th.textContent=label;head.append(th);}table.append(head);
-    const format=value=>value==null||!Number.isFinite(Number(value))?'Unknown':Number(value).toLocaleString(undefined,{maximumFractionDigits:2});
     for(const row of model.rows){const tr=document.createElement('tr');for(const [index,text]of [row.label+(row.unit?' ('+row.unit+')':''),format(row.before),format(row.after),row.delta==null?'—':(row.delta>0?'+':'')+format(row.delta)].entries()){const cell=document.createElement(index===0?'th':'td');if(index===0)cell.scope='row';cell.textContent=text;tr.append(cell);}table.append(tr);}wrap.append(table);
   }
   return {render};
@@ -581,7 +647,7 @@ const WorkoutComparisons = (()=>{
 globalThis.BikeStorage = (() => {
   'use strict';
   const key='bike-cardio.state.v1', namespace='bike-cardio.v1';
-  const fields={'bike-cardio.settings.v1':'settings','bike-cardio.history.v1':'history','bike-cardio.active.v1':'active'};
+  const fields={'bike-cardio.settings.v1':'settings','bike-cardio.history.v1':'history','bike-cardio.active.v1':'active','bike-cardio.presets.v1':'presets','bike-cardio.machines.v1':'machines'};
   const comparable=value=>WorkoutStorage.stableStringify(value);
   function create(options){
     const C=options.core, copy=WorkoutStorage.copy;
@@ -596,6 +662,16 @@ globalThis.BikeStorage = (() => {
       if(!Array.isArray(raw.history)||!raw.settings||typeof raw.settings!=='object')fail('Missing session history or settings');
       number(raw.updatedAt,'Backup revision');
       const s=copy(raw),ids=new Set();s.version=2;s.settings=C.config(s.settings);
+      for(const kind of ['presets','machines']){
+        const rows=s[kind]??[];if(!Array.isArray(rows)||rows.length>50)fail('Invalid saved '+kind);
+        const seen=new Set();s[kind]=rows.map(row=>{
+          if(!row||typeof row.id!=='string'||!row.id.trim()||seen.has(row.id)||typeof row.name!=='string'||!row.name.trim()||row.name.length>80)fail('Invalid saved '+kind);
+          seen.add(row.id);
+          if(kind==='presets'){if(!row.config||typeof row.config!=='object')fail('Invalid preset configuration');return {id:row.id,name:row.name.trim(),config:C.config(row.config)};}
+          if(!['matrix','touchscreen'].includes(row.bike)||typeof row.bikeId!=='string'||!row.bikeId.trim()||row.bikeId.length>80)fail('Invalid machine profile');
+          return {id:row.id,name:row.name.trim(),bike:row.bike,bikeId:row.bikeId.trim()};
+        });
+      }
       for(const r of s.history){
         if(!r||typeof r.id!=='string'||!r.id.trim()||ids.has(r.id))fail('Session IDs must be present and unique');ids.add(r.id);
         timestamp(r.startedAt,'Session date');if(r.endedAt!=null)timestamp(r.endedAt,'Session end');
@@ -627,7 +703,7 @@ globalThis.BikeStorage = (() => {
       if(s.active!=null){if(ids.has(s.active.id))s.active=null;else if(!C.restore(s.active,Date.now()))fail('Invalid active session');}
       delete s.kind;delete s.exportedAt;return s;
     }
-    const seed=()=>({app:'bike-cardio',version:2,updatedAt:0,settings:C.config(),history:[],active:null});
+    const seed=()=>({app:'bike-cardio',version:2,updatedAt:0,settings:C.config(),history:[],active:null,presets:[],machines:[]});
     function legacy(){
       const s=seed();let found=false;
       for(const [old,name]of Object.entries(fields)){
@@ -673,7 +749,7 @@ globalThis.BikeStorage = (() => {
       if(isActive())throw new Error('Finish or end the saved session before restoring a backup.');
       const expected=JSON.stringify(state),candidate=prepare(raw);
       remote.pauseRemoteSync('Local restore in progress');
-      if(!await options.confirm('Restore backup?','This replaces the local session log. A recovery copy will be kept. Cloud sync stays paused until you choose which copy to keep.'))return false;
+      if(!await options.confirm('Restore backup?','This replaces the local session log. A recovery copy will be kept. Cloud sync stays paused until you choose which copy to keep.','Restore backup',true))return false;
       if(expected!==JSON.stringify(state))throw new Error('Local data changed during review. Restore cancelled.');
       if(isActive())throw new Error('A session started during review. Restore cancelled.');
       candidate.updatedAt=Math.max(Date.now(),state.updatedAt+1,candidate.updatedAt+1);
@@ -732,7 +808,7 @@ globalThis.BikeStorage = (() => {
       if(!summary.added)return summary;
       history.sort((a,b)=>b.startedAt-a.startedAt);
       const candidate=prepare({...copy(state),history,updatedAt:Math.max(Date.now(),state.updatedAt+1)});
-      if(!await options.confirm('Merge ride history?',`${summary.added} new rides will be added. Existing rides, settings and any saved ride are kept. ${summary.conflicts} conflicts will keep the local copy. Cloud sync will be paused for review.`))return null;
+      if(!await options.confirm('Merge ride history?',`${summary.added} new rides will be added. Existing rides, settings and any saved ride are kept. ${summary.conflicts} conflicts will keep the local copy. Cloud sync will be paused for review.`,'Merge history'))return null;
       if(expected!==JSON.stringify(state))fail('Local data changed during review. Import cancelled.');
       remote.pauseRemoteSync('History import needs cloud review');
       if(!local.commit(candidate,{key:namespace+'.before-remote-restore',payload:backup()}))fail('History import could not be saved. Previous data retained.');
@@ -742,7 +818,7 @@ globalThis.BikeStorage = (() => {
       if(isActive())fail('Finish or end the saved session before clearing history.');
       if(!state.history.length)return false;
       const expected=JSON.stringify(state);
-      if(!await options.confirm('Clear ride history?','All finished rides will be removed from this device. Settings and cloud credentials are kept. A recovery copy is saved and cloud sync stays paused for review.'))return false;
+      if(!await options.confirm('Clear ride history?','All finished rides will be removed from this device. Settings and cloud credentials are kept. A recovery copy is saved and cloud sync stays paused for review.','Clear history',true))return false;
       if(expected!==JSON.stringify(state)||isActive())fail('Local data changed during review. Clear cancelled.');
       remote.pauseRemoteSync('History cleared locally — review before updating cloud');
       if(!remote.commitSnapshot({...copy(state),history:[],updatedAt:Math.max(Date.now(),state.updatedAt+1)}))fail('History could not be cleared. Previous data retained.');
@@ -1717,6 +1793,46 @@ WorkoutStorage.createHandoff = function(options){
   return {offer,receive,validate,cancel,held,get hasActive(){return !!active();},get configured(){return !!options.remote.loadRemoteConfig();},get busy(){return busy;},upload:payload=>options.remote.remoteUploadHandoff(payload),receiveCode:async code=>receive(await options.remote.remoteReadHandoff(code))};
 };
 
+/* Device-local, bounded record recovery. Adapters validate and commit mutations. */
+WorkoutStorage.createUndo = function(options){
+  const storage=options.storage||localStorage,copy=WorkoutStorage.copy,same=(a,b)=>WorkoutStorage.stableStringify(a)===WorkoutStorage.stableStringify(b);
+  function list(){
+    const raw=storage.getItem(options.key);if(!raw)return [];
+    try{const entries=JSON.parse(raw);if(!Array.isArray(entries))throw Error();return entries.filter(e=>e&&typeof e.id==='string'&&Number.isFinite(e.at)&&e.at>Date.now()-30*86400000&&e.target&&typeof e.label==='string'&&'before'in e&&'after'in e).slice(0,30);}
+    catch{throw new Error('Recent changes could not be read. Existing recovery data was kept.');}
+  }
+  function record({target,before,after,label,deleted=false,coalesce=false},silent=false){
+    if(same(before,after))return null;
+    try{
+      let entries=list();const previous=entries[0];
+      const combine=coalesce&&previous&&!previous.deleted&&previous.label===label&&same(previous.target,target)&&same(previous.after,before)&&Date.now()-previous.at<30000;
+      const entry={id:combine?previous.id:crypto.randomUUID(),at:Date.now(),target:copy(target),before:copy(combine?previous.before:before),after:copy(after),label,deleted};
+      if(combine)entries.shift();entries.unshift(entry);entries=entries.slice(0,30);
+      while(new TextEncoder().encode(JSON.stringify(entries)).length>1024*1024&&entries.length>1)entries.pop();
+      if(new TextEncoder().encode(JSON.stringify(entries)).length>1024*1024)throw Error('Recovery record is too large');
+      storage.setItem(options.key,JSON.stringify(entries));if(!silent)options.onRecord?.(entry);return entry;
+    }catch{if(!silent)options.notify?.('Saved, but Undo could not be stored. Download a backup if needed.');return null;}
+  }
+  function protect(change,commit){
+    const previous=storage.getItem(options.key),entry=record(change,true);
+    if(!entry)throw new Error('Could not save a recovery copy. Nothing deleted.');
+    const staged=storage.getItem(options.key);
+    try{if(!commit())throw new Error('Deletion could not be saved. Current data was kept.');}
+    catch(error){try{if(storage.getItem(options.key)===staged){if(previous===null)storage.removeItem(options.key);else storage.setItem(options.key,previous);}}catch{}throw error;}
+    options.onRecord?.(entry);return entry;
+  }
+  function undo(id){
+    if(options.blocked?.())throw new Error('Finish the handoff or resolve the save warning before restoring changes.');
+    const entries=list(),entry=entries.find(e=>e.id===id);if(!entry)throw new Error('This change is no longer available.');
+    if(!same(options.read(entry.target),entry.after))throw new Error('This record changed since that edit. Newer changes were kept.');
+    if(!options.apply(entry.target,copy(entry.before)))throw new Error('Restoring could not be saved. Current data was kept.');
+    // A crash between commit and removal is harmless: the equality guard stops reapplication.
+    try{storage.setItem(options.key,JSON.stringify(entries.filter(e=>e.id!==id)));}catch{}
+    options.onRestore?.();return true;
+  }
+  return {list,record,protect,undo};
+};
+
 /* storage-engine:end */
 /* storage-ui:start */
 /* Shared storage tools presentation. Provider responses and keys stay inert text. */
@@ -1889,6 +2005,46 @@ globalThis.WorkoutUpdates = (() => {
 
 /* app-updates:end */
 'use strict';
+/* bike-presets:start */
+/* Named setup snapshots; applying one never mutates a running workout. */
+/* exported BikePresets */
+const BikePresets = {
+  mount(host,options){
+    const selections={presets:'',machines:''};
+    function render(){
+      host.replaceChildren();
+      for(const kind of ['presets','machines']){
+        const machine=kind==='machines',section=document.createElement('details');section.className='card';
+        const summary=document.createElement('summary');summary.textContent=machine?'Machine profiles':'Saved workout presets';section.append(summary);
+        const help=document.createElement('p');help.className='hint';help.textContent=machine?'Reuse the same bike and identifier for consistent comparisons.':'Save a named copy of the current setup, including targets, durations and sound preferences. Presets travel with full backups.';section.append(help);
+        const label=document.createElement('label');label.className='field';label.textContent=machine?'Saved machine':'Saved preset';
+        const select=document.createElement('select');select.id=kind+'-select';select.add(new Option('Choose…',''));
+        for(const row of options.get(kind))select.add(new Option(row.name,row.id));select.value=selections[kind];label.append(select);section.append(label);
+        const nameLabel=document.createElement('label');nameLabel.className='field';nameLabel.textContent=machine?'Machine profile name':'Preset name';const name=document.createElement('input');name.id=kind+'-name';name.maxLength=80;nameLabel.append(name);section.append(nameLabel);
+        const status=document.createElement('p');status.className='save-status';status.setAttribute('role','status');
+        const actions=document.createElement('div');actions.className='shared-actions';section.append(actions,status);
+        const add=(text,fn)=>{const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=text;b.addEventListener('click',async()=>{try{await fn();}catch(error){status.textContent=error.message;}});actions.append(b);return b;};
+        const chosen=()=>options.get(kind).find(row=>row.id===select.value);
+        const load=add(machine?'Use machine':'Use preset',()=>{const row=chosen();if(!row)return;if(machine)options.applyMachine(row);else options.apply(row.config);status.textContent='Applied to the next ride. Running rides keep their original setup.';});
+        add('Save new',async()=>{
+          const title=name.value.trim();if(!title){name.setCustomValidity('Enter a name.');name.reportValidity();return;}name.setCustomValidity('');
+          const rows=options.get(kind);if(rows.length>=50)throw Error('Keep at most 50 entries. Delete an unused entry first.');
+          if(rows.some(row=>row.name.toLocaleLowerCase()===title.toLocaleLowerCase()))throw Error('That name exists. Select it and choose Update selected.');
+          const cfg=options.current(),row=machine?{id:crypto.randomUUID(),name:title,bike:cfg.bike,bikeId:cfg.bikeId||title}:{id:crypto.randomUUID(),name:title,config:cfg};
+          if(!options.save(kind,[...rows,row]))throw Error('Could not save. Your existing entries were kept.');
+          selections[kind]=row.id;render();options.notify('Saved '+title+'.');
+        });
+        const update=add('Update selected',async()=>{const row=chosen();if(!row)return;const title=name.value.trim()||row.name;if(options.get(kind).some(other=>other.id!==row.id&&other.name.toLocaleLowerCase()===title.toLocaleLowerCase()))throw Error('That name already exists.');const cfg=options.current();const expected=JSON.stringify(options.get(kind));if(!await options.confirm('Update '+row.name+'?','Replace this saved setup with the values currently selected for your next ride?','Update'))return;if(expected!==JSON.stringify(options.get(kind)))throw Error('Saved setups changed. Review them and try again.');const updated=machine?{...row,name:title,bike:cfg.bike,bikeId:cfg.bikeId||title}:{...row,name:title,config:cfg};if(!options.save(kind,options.get(kind).map(item=>item.id===row.id?updated:item)))throw Error('Could not save the update.');render();options.notify('Saved setup updated.');});
+        const remove=add('Delete selected',async()=>{const row=chosen();if(!row)return;const expected=JSON.stringify(options.get(kind));if(!await options.confirm('Delete '+row.name+'?','Existing rides keep their recorded setup.','Delete',true))return;if(expected!==JSON.stringify(options.get(kind)))throw Error('Saved setups changed. Review them and try again.');if(!options.save(kind,options.get(kind).filter(item=>item.id!==row.id)))throw Error('Could not delete the saved setup.');selections[kind]='';render();options.notify('Saved setup deleted.');});
+        function selected(){const row=chosen();selections[kind]=row?.id||'';name.value=row?.name||'';for(const b of [load,update,remove])b.disabled=!row;}
+        select.addEventListener('change',selected);name.addEventListener('input',()=>name.setCustomValidity(''));selected();host.append(section);
+      }
+    }
+    render();return {render};
+  }
+};
+
+/* bike-presets:end */
 /* bike-targets:start */
 /* exported BikeTargets */
 const BikeTargets = (() => {
@@ -2190,11 +2346,33 @@ const BikeHistory = (() => {
     onLocalStatus:status=>{if(status.failed||status.blocked)storageWarning(status.warning||'Changes are not being saved. Keep this page open and download a full backup.');else if(!status.warning){storageOK=true;$('storageNotice').hidden=true;}},
     onRemoteStatus:(status,text)=>{ $('cloudStatus').textContent=text||'Cloud backup is not configured.'; $('cloudStatus').dataset.status=status; renderBackupControls(); },
     onBusy:busy=>{cloudBusy=busy;renderBackupControls();},
-    toast,confirm:async(title,body)=>window.confirm(title+'\n\n'+body),onRefresh:renderBackupControls,
+    toast,confirm:WorkoutUI.confirm,onRefresh:renderBackupControls,
     pauseForHandoff:()=>{let paused=session?session:C.restore(read(KEYS.active,null),Date.now());if(!paused)throw new Error('No recoverable workout.');C.pause(paused,Date.now(),'Paused for handoff. Review on the receiving device.');if(paused.status!=='paused')throw new Error('Workout has ended; save it before transferring.');H.breakSeries(paused.hr);write(KEYS.active,paused,{remote:false});if(session)session=paused;release();cancelVoice();},
     onHandoffChange:()=>{renderHandoff();updateRestore();},onHandoffReceived:()=>h10.disconnect(),
-    onRestore:()=>{records=storage.state.history;selected=null;session=null;phaseKey='';applySavedSettings();show(currentView==='settings'?'settings':'setup');updateRestore();buildDefaultFields();renderBackupControls();}
+    onRestore:()=>{records=storage.state.history;selected=null;session=null;phaseKey='';applySavedSettings();presetUI.render();show(currentView==='settings'?'settings':'setup');updateRestore();buildDefaultFields();renderBackupControls();}
   });
+  const journal=WorkoutStorage.createUndo({key:'bike-cardio.v1.recent-changes',notify:toast,
+    blocked:()=>!!storage.handoff.held()||storage.local.failed,
+    read:target=>storage.state.history.find(r=>r.id===target.id)||null,
+    apply:(target,value)=>{if(storage.state.active?.id===target.id)return false;const next=storage.state.history.filter(r=>r.id!==target.id);if(value)next.push(value);next.sort((a,b)=>b.startedAt-a.startedAt);const validated=storage.prepare({...storage.backup(),history:next}).history;return write(KEYS.history,validated,{atomic:true});},
+    onRecord:entry=>WorkoutUI.offerUndo(journal,entry,toast),
+    onRestore:()=>{records=storage.state.history;if(selected){selected=records.find(r=>r.id===selected.id)||null;if(selected&&currentView==='summary')showSummary(selected);else if(currentView==='summary')showHistory();}if(currentView==='history')showHistory();}
+  });
+  const presetUI=BikePresets.mount($('saved-setups'),{get:kind=>storage.state[kind]||[],
+    save:(kind,rows)=>{const checked=storage.prepare({...storage.backup(),[kind]:rows});return write('bike-cardio.'+kind+'.v1',checked[kind],{atomic:true});},
+    current:()=>{if(!targetsValid)throw Error('Correct the workout setup before saving a preset.');return settings();},apply:applySavedSettings,
+    applyMachine:row=>{$('bike').value=row.bike;$('bikeId').value=row.bikeId;renderPlan();},confirm:WorkoutUI.confirm,notify:toast});
+  function recordEdit(before,after,label,deleted=false,coalesce=false){journal.record({target:{id:(before||after).id},before,after,label,deleted,coalesce});}
+  async function deleteSelected(){
+    if(!selected)return;if(saveMetrics(true)===false)return;
+    const before=WorkoutStorage.copy(selected);
+    if(!await WorkoutUI.confirm('Delete session?','The session will be kept in Recently deleted on this device for up to 30 days.','Delete session',true))return;
+    if(JSON.stringify(records.find(r=>r.id===before.id))!==JSON.stringify(before)){toast('Session changed during review. Nothing deleted.');return;}
+    const next=records.filter(r=>r.id!==before.id);
+    try{journal.protect({target:{id:before.id},before,after:null,label:'Deleted session',deleted:true},()=>write(KEYS.history,next,{atomic:true}));}catch(error){toast(error.message);return;}
+    records=next;selected=null;showHistory();
+  }
+  $('deleteSession').addEventListener('click',deleteSelected);
   function renderHandoff(){WorkoutStorage.renderHandoff($('handoffTools'),storage.handoff,downloadJSON,toast);const held=!!storage.handoff.held();$('restoreSession').disabled=held;$('resumeSaved').disabled=held;$('endSaved').disabled=held;for(const id of ['resume','pause','end','skip','gate','gateConfirm','lowHR','holdHR','highHR','cancelSkip','confirmSkip'])$(id).disabled=held;}
   function storageWarning(message){storageOK=false;$('storageNotice').textContent=message;$('storageNotice').hidden=false;}
   function read(key,fallback){return storage.get(key,fallback);}
@@ -2258,7 +2436,7 @@ const BikeHistory = (() => {
   }
   function maybeRemindBackup(){if(backupReminded||!storage.backupInfo().stale)return;backupReminded=true;toast('Your backup needs refreshing. Download a full backup under Backups & cloud storage.');}
   function loadCloudFields(){const cfg=storage.remote.loadRemoteConfig();if(!cfg)return;for(const [id,name]of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId']])$(id).value=cfg[name]||'';$('cloudMode').value=cfg.syncMode||'auto';$('cloudPathStyle').checked=cfg.pathStyle;}
-  function applySavedSettings(){const c=C.config(read(KEYS.settings,{}));document.querySelector(`input[name=mode][value=${c.mode}]`).checked=true;$('bike').value=c.bike;$('bikeId').value=c.bikeId;$('context').value=c.context;$('cooldown').value=c.cooldown;$('efforts').value=c.n;$('effortLength').value=c.eff;$('voice').checked=c.voice;$('beeps').checked=c.beeps;for(const name of targetFields)$(name).value=c.targets[name];for(const name of durationFields)$(name).value=c[name];renderPlan();}
+  function applySavedSettings(config){const c=C.config(config||read(KEYS.settings,{}));document.querySelector(`input[name=mode][value=${c.mode}]`).checked=true;$('bike').value=c.bike;$('bikeId').value=c.bikeId;$('context').value=c.context;$('cooldown').value=c.cooldown;$('efforts').value=c.n;$('effortLength').value=c.eff;$('voice').checked=c.voice;$('beeps').checked=c.beeps;for(const name of targetFields)$(name).value=c.targets[name];for(const name of durationFields)$(name).value=c[name];renderPlan();}
   function updateShell(){
     const active=!!(session||read(KEYS.active,null));shell?.update(currentView==='run'?'setup':currentView,active,currentView==='run');
     document.documentElement.classList.toggle('setup-screen',currentView==='setup');
@@ -2400,8 +2578,16 @@ const BikeHistory = (() => {
   function finish(){if(!session||session.status!=='finished')return;clearInterval(interval);interval=null;release();cancelVoice();$('pauseDialog').close();$('skipDialog').close();const r=C.record(session);const existing=records.find(x=>x.id===r.id);if(!existing)records.unshift(r);const stored=write(KEYS.history,records);if(stored)remove(KEYS.active);selected=existing||r;session=null;phaseKey='';beep();say('Session finished. Stop the Polar recording when you finish spinning.');showSummary(selected);updateRestore();renderBackupControls();maybeRemindBackup();}
   function showSummary(r){selected=r;show('summary');const t=C.config(r.config).targets;$('sensorZoneLabel').textContent=`Time at ${t.zoneMin}–${t.zoneMax}`;$('polarZoneLabel').textContent=`Polar time at ${t.zoneMin}–${t.zoneMax} · minutes`;$('comparisonLabel').textContent=`Watts near ${t.comparisonHR} bpm`;$('comparisonNote').textContent=`Compare the same machine, context and targets. This ride used ${t.zoneMin}–${t.zoneMax} bpm and a comparison HR of ${t.comparisonHR}. Missing readings remain unknown.`;$('summaryTitle').textContent=r.outcome==='complete'?'Session finished':'Session ended early';$('summaryContext').textContent=`${dateLabel(r.startedAt)} · ${r.config.mode==='zone2'?'Zone 2':'Sprint intervals'} · ${bikeName(r.config)} · ${contextName(r.config)}`;$('summaryTime').textContent=fmt(r.activeMs);$('summaryWorkLabel').textContent=r.config.mode==='zone2'?'Main block':'Full efforts';$('summaryWork').textContent=r.config.mode==='zone2'?fmt(r.mainMs):`${r.effortsCompleted} / ${r.config.n}`;$('summaryOutcome').textContent=r.outcome==='complete'?'Complete':'Partial';$('summaryCaution').hidden=!r.hadInterruption;$('summaryCaution').textContent='This session was interrupted. Review timing against Polar before comparing it with other sessions. Unconfirmed time beyond a phase boundary was not counted.';$('sensorSummary').hidden=!r.hr?.samples;
     if(r.hr?.samples){$('sensorAverage').textContent=r.hr.averageHR===null?'—':`${r.hr.averageHR} bpm`;$('sensorZone').textContent=r.hr.measuredMs?fmt(r.hr.zoneMs):'—';$('sensorCoverage').textContent=`${fmt(r.hr.measuredMs)} measured · ${r.hr.coverage}% of active riding covered. ${r.hr.measuredMs?'HR averages use measured time only.':'Not enough consecutive readings to calculate an average.'}`;}
-    for(const key of fields)$(key).value=r.metrics?.[key]??'';$('logStatus').textContent=storageOK?'Session saved. Readings save as you enter them.':'Session is in memory only. Export before closing.';}
-  function saveMetrics(report=false){if(!selected)return;const form=$('logForm');if(!form.checkValidity()){$('logStatus').textContent='Check the value outside its allowed range before saving.';if(report)form.reportValidity();return false;}const metrics={...selected.metrics};for(const key of fields){const value=$(key).value.trim();if(value!==String(metrics[key]??'')){if(value==='')delete metrics[key];else metrics[key]=value;}}if(JSON.stringify(metrics)===JSON.stringify(selected.metrics))return !storage.local.failed;selected.metrics=metrics;selected.editedAt=Date.now();const ok=write(KEYS.history,records);if(ok&&read(KEYS.active,null)?.id===selected.id)remove(KEYS.active);$('logStatus').textContent=ok?'Saved on this device.':'Saving failed. Export your log before closing.';return ok;}
+    renderSummaryComparison();for(const key of fields)$(key).value=r.metrics?.[key]??'';$('logStatus').textContent=storageOK?'Session saved. Readings save as you enter them.':'Session is in memory only. Export before closing.';}
+  function saveMetrics(report=false){
+    if(!selected)return;const form=$('logForm');if(!form.checkValidity()){$('logStatus').textContent='Check the value outside its allowed range before saving.';if(report)form.reportValidity();return false;}
+    const before=WorkoutStorage.copy(selected),metrics={...selected.metrics};for(const key of fields){const value=$(key).value.trim();if(value!==String(metrics[key]??'')){if(value==='')delete metrics[key];else metrics[key]=value;}}
+    if(JSON.stringify(metrics)===JSON.stringify(selected.metrics))return !storage.local.failed;
+    const updated={...selected,metrics,editedAt:Date.now()},next=records.map(r=>r.id===selected.id?updated:r),ok=write(KEYS.history,next,{atomic:true});
+    if(ok){records=next;selected=updated;recordEdit(before,updated,'Edited session readings',false,true);if(read(KEYS.active,null)?.id===selected.id)remove(KEYS.active);renderSummaryComparison();}
+    $('logStatus').textContent=ok?'Saved on this device.':'Saving failed. Keep this page open and download a backup.';return ok;
+  }
+
   const localDateValue=ms=>{const d=new Date(ms),pad=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}${d.getSeconds()?':'+pad(d.getSeconds()):''}`;};
   function openEdit(){
     if(!selected||saveMetrics(true)===false&&!$('logForm').checkValidity())return;
@@ -2418,11 +2604,12 @@ const BikeHistory = (() => {
     const updated={...r,startedAt,endedAt:Number.isFinite(r.endedAt)?r.endedAt+startedAt-r.startedAt:r.endedAt,activeMs,mainMs,effortsCompleted:zone?r.effortsCompleted:Number($('editEfforts').value),outcome:$('editOutcome').value,config:C.config({...r.config,bike:$('editBike').value,bikeId:$('editBikeId').value.trim(),context:$('editContext').value}),editedAt:Date.now()};
     const updatedRecords=records.map(item=>item.id===r.id?updated:item).sort((a,b)=>b.startedAt-a.startedAt);
     if(!write(KEYS.history,updatedRecords,{atomic:true})){$('editStatus').textContent='Changes could not be saved. Keep this dialog open and try again.';return;}
-    records=updatedRecords;$('editDialog').close();showSummary(updated);toast('Session details saved.');
+    records=updatedRecords;recordEdit(r,updated,'Edited session details');$('editDialog').close();showSummary(updated);toast('Session details saved.');
   }
+  function renderSummaryComparison(){if(!selected)return;WorkoutComparisons.render($('finished-comparison'),{items:records,first:selected.id,compact:true,label:r=>dateLabel(r.startedAt)+' · '+bikeName(r.config),candidates:first=>records.filter(r=>BikeHistory.seriesKey(r)===BikeHistory.seriesKey(first)),compare:BikeHistory.compare});}
   let comparisonPair=[];
   function renderComparisons(){WorkoutComparisons.render($('workout-comparison'),{items:filteredHistory(),first:comparisonPair[0],second:comparisonPair[1],label:r=>dateLabel(r.startedAt)+' · '+bikeName(r.config)+' · '+(r.config.mode==='zone2'?'Zone 2':'Sprints'),compare:BikeHistory.compare,onSelect:(a,b)=>{comparisonPair=[a,b];renderComparisons();}});}
-  function showHistory(){show('history');renderComparisons();populateHistoryMachines();renderHistoryChart();const filtered=filteredHistory();$('historyCount').textContent=`${filtered.length} of ${records.length} rides shown.`;$('historyList').replaceChildren();if(!filtered.length){const p=document.createElement('p');p.textContent=records.length?'No rides match these filters.':'No sessions yet. Your first ride will appear here.';$('historyList').append(p);}for(const r of filtered){const b=document.createElement('button');b.className='history-item';const title=document.createElement('strong'),detail=document.createElement('span'),metric=document.createElement('span');title.textContent=`${dateLabel(r.startedAt)} · ${r.config.mode==='zone2'?'Zone 2':'Sprints'}`;detail.textContent=`${bikeName(r.config)} · ${contextName(r.config)} · ${fmt(r.activeMs)} · ${r.outcome==='complete'?'Complete':'Partial'}${r.hadInterruption?' · Interrupted':''}`;
+  function showHistory(){show('history');WorkoutUI.renderRecent($('recent-changes'),journal,toast);renderComparisons();populateHistoryMachines();renderHistoryChart();const filtered=filteredHistory();$('historyCount').textContent=`${filtered.length} of ${records.length} rides shown.`;$('historyList').replaceChildren();if(!filtered.length){const p=document.createElement('p');p.textContent=records.length?'No rides match these filters.':'No sessions yet. Your first ride will appear here.';$('historyList').append(p);}for(const r of filtered){const b=document.createElement('button');b.className='history-item';const title=document.createElement('strong'),detail=document.createElement('span'),metric=document.createElement('span');title.textContent=`${dateLabel(r.startedAt)} · ${r.config.mode==='zone2'?'Zone 2':'Sprints'}`;detail.textContent=`${bikeName(r.config)} · ${contextName(r.config)} · ${fmt(r.activeMs)} · ${r.outcome==='complete'?'Complete':'Partial'}${r.hadInterruption?' · Interrupted':''}`;
     const m=r.metrics||{},comparisons=[];
     if(m.averageWatts!==undefined&&m.averageWatts!=='')comparisons.push(`${m.averageWatts} W main-block average${m.mainAverageHR?` at ${m.mainAverageHR} bpm average HR`:''}`);
     else if(m.mainAverageHR)comparisons.push(`${m.mainAverageHR} bpm main-block average HR`);
@@ -2508,13 +2695,13 @@ const BikeHistory = (() => {
   });
   $('exportCloudConfig').addEventListener('click',()=>$('configExportDialog').showModal());
   $('cancelConfigExport').addEventListener('click',()=>$('configExportDialog').close());
-  for(const [id,includeSecret]of [['exportConfigSafe',false],['exportConfigSecret',true]])$(id).addEventListener('click',()=>{
-    if(includeSecret&&!window.confirm('Include the secret access key? Anyone with this file can access your bucket.'))return;
+  for(const [id,includeSecret]of [['exportConfigSafe',false],['exportConfigSecret',true]])$(id).addEventListener('click',async()=>{
+    if(includeSecret&&!await WorkoutUI.confirm('Include the secret access key?','Anyone with this file can access your bucket.','Include secret key',true))return;
     try{downloadJSON(storage.configPayload(includeSecret),`bike-cardio-connection-${new Date().toISOString().slice(0,10)}.json`);$('configExportDialog').close();}catch(error){toast(error.message);}
   });
   for(const [id,method]of [['cloudTest','remoteTestConnection'],['cloudBackup','remoteBackup'],['cloudPause','pauseRemoteSyncAction'],['cloudResume','remoteResumeSync'],['cloudKeepLocal','remotePublishLocal'],['cloudUseRemote','remoteRestore']])$(id).addEventListener('click',async()=>{try{await storage.remote[method]();renderBackupControls();}catch(error){toast(error.message);}});
-  $('cloudForget').addEventListener('click',()=>{
-    if(!window.confirm('Forget cloud connection? Saved credentials will be removed from this browser. Local rides and cloud backups are kept.'))return;
+  $('cloudForget').addEventListener('click',async()=>{
+    if(!await WorkoutUI.confirm('Forget cloud connection?','Saved credentials will be removed from this browser. Local rides and cloud backups are kept.','Forget connection',true))return;
     storage.remote.clearRemoteConfig();$('cloudForm').reset();$('cloudConfigStatus').textContent='Connection forgotten.';renderBackupControls();
   });
   $('requestPersistence').addEventListener('click',()=>requestPersistence(true));
