@@ -74,7 +74,7 @@ for(const app of selected?[selected]:['liftlog','bike-cardio']){
   // Include every runtime asset in the visible release version.
   const assets=app==='liftlog'
     ? ['index.html','manifest.webmanifest','sw.js','icons']
-    : ['index.html','manifest.webmanifest','service-worker.js','icon.svg','icon-192.png','icon-512.png','404.html','_redirects'];
+    : ['index.html','manifest.webmanifest','service-worker.js','icon-32.png','icon-192.png','icon-512.png','apple-touch-icon-180.png','404.html','_redirects'];
   const releaseHash=createHash('sha256').update(html).update(sourceWorker);
   async function hashReleaseAsset(relative){
     if(relative==='index.html'||relative===workerName)return;

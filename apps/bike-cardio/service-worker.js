@@ -2,7 +2,7 @@
 // The Pages build versions CACHE from all deployed assets.
 const CACHE = 'bike-cardio-shell-source';
 const ENTRY = './';
-const FILES = [ENTRY, './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
+const FILES = [ENTRY, './manifest.webmanifest', './icon-32.png', './icon-192.png', './icon-512.png', './apple-touch-icon-180.png'];
 const PAGE_PATHS = ['./', './index.html', './sprint-intervals', './sprint-intervals.html'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES)));
