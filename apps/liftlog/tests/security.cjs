@@ -1,0 +1,292 @@
+// Security and recovery suite: `npm test`, or node tests/security.cjs. See tests/README.md.
+const assert = require('node:assert/strict');
+const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
+const html = appWithTestAPI(`{ prepareBackup, validateBackup, backupPayload, applyFullBackup, importData, importHistory, readJSONFile, remoteRestore, navigate, render, save, get state(){return state}, get ui(){return ui} }`);
+const origin = 'https://liftlog.test/';
+const fixture = () => ({
+  app:'liftlog', kind:'backup', version:11,
+  settings:{ theme:'system', unit:'kg', defaultRest:90, autoRest:false, sound:false, vibrate:false, effortMetric:'rir' },
+  exercises:[{id:'ex', name:'Squat', unit:'kg'}, {id:'time', name:'Plank', unit:'time'}],
+  routines:[{id:'routine', name:'Routine', items:[{id:'item',exerciseId:'ex',sets:3,repsMin:5,repsMax:8,targetRir:2,weight:20}]}],
+  workouts:[{id:'history', routineId:'routine', routineName:'History', startedAt:1700000000000, finishedAt:1700000300000,
+    exercises:[{exerciseId:'ex',name:'Squat',unit:'kg',sets:[{id:'set',weight:20,reps:5,rpe:8,completed:true}]},
+      {exerciseId:'time',name:'Plank',unit:'time',sets:[{id:'timed-set',durationSeconds:45,reps:null,completed:true}]}]}],
+  exerciseLinks:[], historySeparateIds:[], bodyweights:[],
+  activeWorkout:null
+});
+(async () => {
+  const browser = await launchBrowser();
+  const errors = [];
+  const newPage = async (options = {}) => {
+    const context = await browser.newContext({serviceWorkers:'block'});
+    const page = await context.newPage();
+    page.on('pageerror', e => errors.push(e.message));
+    await page.route('**/*', route => route.request().url().startsWith(origin)
+      ? route.fulfill({contentType:'text/html',body:html}) : route.abort());
+    if (options.raw !== undefined) await page.addInitScript(({raw,rescue,failRescue}) => {
+      localStorage.setItem('liftlog.v1', raw);
+      if (rescue !== undefined) localStorage.setItem('liftlog.v1.unreadable', rescue);
+      if (failRescue){
+        const original = Storage.prototype.setItem;
+        Storage.prototype.setItem = function(key,value){
+          if (key === 'liftlog.v1.unreadable') throw new DOMException('Full', 'QuotaExceededError');
+          return original.call(this,key,value);
+        };
+      }
+    }, options);
+    await page.goto(origin);
+    return page;
+  };
+  try {
+    const page = await newPage();
+    const good = fixture();
+    const cases = [
+      ['missing collection', s => delete s.workouts],
+      ['missing routine items', s => delete s.routines[0].items],
+      ['null exercise', s => s.exercises.push(null)],
+      ['array instead of settings', s => s.settings = []],
+      ['blank name', s => s.exercises[0].name = ' '],
+      ['duplicate exercise ID', s => s.exercises.push({...s.exercises[0]})],
+      ['duplicate routine ID', s => s.routines.push(structuredClone(s.routines[0]))],
+      ['duplicate item ID', s => s.routines[0].items.push({...s.routines[0].items[0]})],
+      ['duplicate workout ID', s => s.workouts.push(structuredClone(s.workouts[0]))],
+      ['duplicate set ID across workout blocks', s => s.workouts[0].exercises[1].sets[0].id = 'set'],
+      ['active ID already in history', s => s.activeWorkout = structuredClone(s.workouts[0])],
+      ['missing sets', s => delete s.workouts[0].exercises[0].sets],
+      ['null set', s => s.workouts[0].exercises[0].sets.push(null)],
+      ['object ID', s => s.workouts[0].id = {}],
+      ['control character ID', s => s.routines[0].id = 'a\u0000b'],
+      ['string version', s => s.version = '3'],
+      ['fractional version', s => s.version = 3.5],
+      ['future version', s => s.version = 15],
+      ['non-boolean plan flag', s => s.routines[0].plan = 'yes'],
+      ['impossible plan day', s => { s.routines[0].plan = true; s.routines[0].plannedFor = '2026-02-30'; }],
+      ['markup as plan day', s => { s.routines[0].plan = true; s.routines[0].plannedFor = '<img src=x onerror=alert(1)>'; }],
+      ['timestamp as plan day', s => { s.routines[0].plan = true; s.routines[0].plannedFor = 1790000000000; }],
+      ['duplicate progression preference', s => s.progressionPreferences = [
+        {exerciseId:'ex',loadCuesOff:true,dismissedExposureKey:''},
+        {exerciseId:'ex',loadCuesOff:false,dismissedExposureKey:''}]],
+      ['malformed progression preference', s => s.progressionPreferences = [{exerciseId:'ex',loadCuesOff:'yes',dismissedExposureKey:''}]],
+      ['non-boolean archive flag', s => s.exercises[0].archived = 'yes'],
+      ['non-string load mode', s => s.exercises[0].loadMode = 7],
+      ['non-string workout equipment key', s => s.workouts[0].exercises[0].equipmentKey = {}],
+      ['malformed history link', s => s.exerciseLinks = [{sourceId:'old',targetId:7}]],
+      ['self history link', s => s.exerciseLinks = [{sourceId:'ex',targetId:'ex'}]],
+      ['duplicate history link source', s => s.exerciseLinks = [{sourceId:'old',targetId:'ex'},{sourceId:'old',targetId:'time'}]],
+      ['duplicate separate history ID', s => s.historySeparateIds = ['old','old']],
+      ['duplicate bodyweight ID', s => s.bodyweights = [{id:'bw',loggedAt:1,weight:80,unit:'kg'},{id:'bw',loggedAt:2,weight:81,unit:'kg'}]],
+      ['wrong app', s => s.app = 'other'],
+      ['wrong kind', s => s.kind = 'remote-config'],
+      ['missing timestamp', s => delete s.workouts[0].startedAt],
+      ['out of range date', s => s.workouts[0].startedAt = 1e30],
+      ['HTML in measurement', s => s.workouts[0].exercises[0].sets[0].rpe = '<img src=x onerror=alert(1)>'],
+      ['string boolean', s => s.workouts[0].exercises[0].sets[0].completed = 'false'],
+      ['out of range active index', s => {s.activeWorkout=structuredClone(s.workouts[0]);s.activeWorkout.id='active';s.activeWorkout.currentExerciseIndex=10;}],
+      ['malformed active workout', s => s.activeWorkout = {id:'active'}],
+      ['malformed timer', s => s.workouts[0].timer = {running:true,remaining:'oops'}]
+    ].map(([label,mutate]) => {const value=structuredClone(good);mutate(value);return {label,value};});
+    const validation = await page.evaluate(({good,cases}) => {
+      const t=window.testAPI;
+      const before=JSON.stringify(t.state), stored=localStorage.getItem('liftlog.v1');
+      for (const {label,value} of cases){
+        let rejected=false;
+        try { t.prepareBackup(value); } catch(e){ rejected=true; }
+        if (!rejected) throw Error('Accepted ' + label);
+        t.applyFullBackup(value);
+        if (document.querySelector('dialog[open]')) throw Error('Asked for confirmation: ' + label);
+        if (JSON.stringify(t.state)!==before || localStorage.getItem('liftlog.v1')!==stored) throw Error('Changed state: ' + label);
+      }
+      const historical=structuredClone(good); historical.workouts[0].currentExerciseIndex=10;
+      if(t.prepareBackup(historical).workouts[0].currentExerciseIndex!==2) throw Error('Stale history cursor not clamped');
+      const serialized=JSON.stringify(good), prepared=t.prepareBackup(good);
+      if (JSON.stringify(good)!==serialized || prepared===good) throw Error('Mutated input');
+      const dangling=structuredClone(good); dangling.exercises=[];
+      t.prepareBackup(dangling); // users can delete definitions without deleting history/routines
+      const incompatible=structuredClone(good);
+      incompatible.workouts[0].exercises[1].exerciseId='old-timed';
+      incompatible.exerciseLinks=[{sourceId:'old-timed',targetId:'ex'}];
+      if(t.prepareBackup(incompatible).exerciseLinks.length) throw Error('Kept incompatible history link');
+      return cases.length;
+    }, {good,cases});
+    console.log('PASS ' + validation + ' invalid backup cases reject before confirmation without changing memory/storage');
+    // Test actual file parsing separately from structural validation and callback errors.
+    await page.evaluate(value => window.testAPI.importData(new File([JSON.stringify(value)],'bad.json')), cases[0].value);
+    await page.waitForFunction(() => [...document.querySelectorAll('.toast')].some(e => e.textContent.includes('Invalid backup')));
+    await page.evaluate(() => {
+      document.getElementById('toast-region').replaceChildren();
+      window.testAPI.importData(new File(['{'],'parse.json'));
+    });
+    await page.waitForFunction(() => document.getElementById('toast-region').textContent.includes('not valid JSON'));
+    await page.evaluate(() => {
+      document.getElementById('toast-region').replaceChildren();
+      window.testAPI.readJSONFile(new File(['{}'],'callback.json'), () => {throw Error('callback failure');});
+    });
+    await page.waitForFunction(() => document.getElementById('toast-region').textContent.includes('Could not import'));
+    assert.equal(await page.locator('#toast-region').textContent().then(x => x.includes('not valid JSON')),false);
+    console.log('PASS JSON parsing errors and import errors are distinct');
+    for (let version=1;version<=14;version++){
+      const legacy=fixture(); legacy.version=version; delete legacy.app; delete legacy.kind;
+      if(version<=9) delete legacy.bodyweights;
+      if(version<=8){delete legacy.exerciseLinks;delete legacy.historySeparateIds;}
+      if(version<=7){const item=legacy.routines[0].items[0];item.reps=item.repsMin;delete item.repsMin;delete item.repsMax;delete item.targetRir;}
+      if(version<=2){const set=legacy.workouts[0].exercises[1].sets[0];set.reps=set.durationSeconds;delete set.durationSeconds;}
+      if(version<=3) delete legacy.settings.effortMetric;
+      if(version<=5){legacy.routines[0].items[0].rest=60;legacy.workouts[0].exercises[0].restSeconds=60;}
+      const prepared=await page.evaluate(s => window.testAPI.prepareBackup(s),legacy);
+      assert.equal(prepared.version,14);
+      assert.equal(prepared.routines[0].items[0].repsMin,version===1 ? 10 : 5);
+      assert.equal(prepared.routines[0].items[0].repsMax,version===1 ? 15 : (version<=7 ? 5 : 8));
+      assert.equal(prepared.workouts[0].exercises[1].sets[0].durationSeconds,45);
+      assert.equal(prepared.workouts[0].exercises[1].sets[0].reps,null);
+      assert.equal(prepared.workouts[0].exercises[0].sets[0].rpe,8);
+      if(version<=3) assert.equal(prepared.settings.effortMetric,'rpe');
+      if(version<=5) assert.equal('restSeconds' in prepared.workouts[0].exercises[0],false);
+    }
+    console.log('PASS v1–v14 backups migrate and preserve history');
+    const beforeCancel=await page.evaluate(() => JSON.stringify(window.testAPI.state));
+    await page.evaluate(s => {window.testAPI.applyFullBackup(s);},good);
+    await page.getByRole('button',{name:'Cancel',exact:true}).click();
+    assert.equal(await page.evaluate(() => JSON.stringify(window.testAPI.state)),beforeCancel);
+    console.log('PASS cancelling valid restore leaves state untouched');
+
+    const attack=`opaque" data-injected="yes" onclick="window.__injected=true"><img data-injected src=x onerror="window.__injected=true"> &'<`;
+    const malicious=fixture();
+    malicious.exercises[0].id='ex-'+attack;
+    malicious.routines[0].id='routine-'+attack;
+    malicious.routines[0].items[0].id='item-'+attack;
+    malicious.routines[0].items[0].exerciseId=malicious.exercises[0].id;
+    malicious.workouts[0].id='history-'+attack;
+    malicious.workouts[0].routineId=malicious.routines[0].id;
+    malicious.workouts[0].exercises[0].exerciseId=malicious.exercises[0].id;
+    malicious.workouts[0].exercises[0].sets[0].id='set-'+attack;
+    malicious.activeWorkout=structuredClone(malicious.workouts[0]);
+    malicious.activeWorkout.id='active-'+attack;
+    malicious.activeWorkout.currentExerciseIndex=0;
+    malicious.activeWorkout.finishedAt=null;
+    malicious.activeWorkout.exercises.forEach(ex=>ex.sets.forEach(set=>set.completed=false));
+    await page.evaluate(s => {window.testAPI.importData(new File([JSON.stringify(s)],'hostile-ids.json'));},malicious);
+    await page.getByRole('button',{name:'Import & replace',exact:true}).click();
+    const assertInert = async () => {
+      assert.equal(await page.locator('[data-injected]').count(),0);
+      assert.equal(await page.evaluate(() => !!window.__injected),false);
+    };
+    await assertInert();
+    const setId=malicious.activeWorkout.exercises[0].sets[0].id;
+    assert.equal(await page.locator('[data-action="toggle-set"]').first().getAttribute('data-id'),setId);
+    await page.locator('[data-action="toggle-set"]').first().click();
+    assert.equal(await page.evaluate(() => window.testAPI.state.activeWorkout.exercises[0].sets[0].completed),true);
+    await page.evaluate(() => window.testAPI.navigate('routines'));
+    await assertInert();
+    await page.locator('[data-action="detail-open"][data-kind="routine"]').first().click();
+    await assertInert();
+    await page.getByRole('button',{name:'Edit Routine',exact:true}).click();
+    assert.equal(await page.locator('#routine-add-select option').filter({hasText:'Squat'}).getAttribute('value'),malicious.exercises[0].id);
+    await page.getByRole('button',{name:'Cancel',exact:true}).click();
+    await page.evaluate(() => window.testAPI.navigate('exercises'));
+    await assertInert();
+    await page.locator('[data-action="detail-open"][data-kind="exercise"]').filter({hasText:'Squat'}).first().click();
+    await assertInert();
+    await page.getByRole('button',{name:'Edit Squat',exact:true}).click();
+    await assertInert();
+    await page.evaluate(() => window.testAPI.navigate('history'));
+    await assertInert();
+    assert.equal(await page.locator('option').evaluateAll((els,id)=>els.some(e=>e.value===id),malicious.exercises[0].id),true);
+    await page.locator('[data-action="detail-open"][data-kind="workout"]').click();
+    await assertInert();
+    await page.getByRole('button',{name:'Edit session',exact:true}).click();
+    await assertInert();
+    assert.equal(await page.locator('select[data-bind="hexsel"]').count(),0,
+      'history measurement kind is not mutable through a unit dropdown');
+    assert.equal(await page.locator('.hedit-unit .field-value').first().innerText(),'Weighted');
+    const weight=page.locator('[data-bind="hset"][data-field="weight"]').first();
+    assert.equal(await weight.getAttribute('data-sid'),setId);
+    assert.equal(await weight.getAttribute('id'),'hw-'+setId);
+    await weight.fill('-5');
+    assert.equal(await page.evaluate(() => window.testAPI.state.workouts[0].exercises[0].sets[0].weight),null);
+    await weight.fill('42');
+    assert.equal(await page.evaluate(() => window.testAPI.state.workouts[0].exercises[0].sets[0].weight),42);
+    const finished=page.getByLabel('Finished');
+    await finished.fill('2020-01-01T00:00');
+    await finished.press('Tab');
+    assert.equal(await page.evaluate(() => {
+      const w=window.testAPI.state.workouts[0]; return w.finishedAt === w.startedAt;
+    }),true, 'history editor prevents a negative workout duration');
+    await page.reload();
+    await assertInert();
+    assert.equal(await page.evaluate(() => window.testAPI.state.workouts[0].id),malicious.workouts[0].id);
+    console.log('PASS hostile IDs remain inert and usable through full restore, every affected view, editing and reload');
+
+    // Transfer import uses a separate normalizer; test it too, including numeric/duplicate set IDs.
+    const imported=fixture().workouts[0]; imported.id='transfer-'+attack;
+    imported.routineId='invalid\u0000id';
+    imported.exercises[1].exerciseId='invalid\u0000id';
+    imported.exercises[0].sets[0].id='transfer-set-'+attack;
+    imported.exercises[1].sets=[{id:17,durationSeconds:30,completed:true,completedAt:1e30},{id:17,durationSeconds:40,completed:true}];
+    await page.evaluate(w=>window.testAPI.importHistory(new File([JSON.stringify({workouts:[w]})],'history.json')),imported);
+    await page.waitForFunction(id=>window.testAPI.state.workouts.some(w=>w.id===id),imported.id);
+    await page.evaluate(() => window.testAPI.navigate('history'));
+    await assertInert();
+    await page.locator('[data-action="detail-open"][data-kind="workout"]').evaluateAll((els,id)=>els.find(e=>e.dataset.id===id).click(),imported.id);
+    await page.locator('[data-action="history-edit"]').click();
+    await assertInert();
+    await page.evaluate(() => window.testAPI.prepareBackup(window.testAPI.backupPayload()));
+    const countBefore=await page.evaluate(()=>window.testAPI.state.workouts.length);
+    await page.evaluate(()=>{
+      const active=window.testAPI.state.activeWorkout;
+      const invalidDate={...active,id:'bad-date',startedAt:1e30};
+      window.testAPI.importHistory(new File([JSON.stringify({workouts:[active,invalidDate]})],'duplicates.json'));
+    });
+    await page.waitForFunction(()=>document.getElementById('toast-region').textContent.includes('0 new · 1 already present · 1 invalid'));
+    assert.equal(await page.evaluate(()=>window.testAPI.state.workouts.length),countBefore);
+    console.log('PASS hostile transfer IDs stay inert; numeric/duplicate set IDs produce valid backups');
+
+    // Exercise the remote restore entry point with mocked HTTP, real JSON/signing/validation.
+    await page.route('https://storage.test/**',route=>route.fulfill({json:cases[1].value}));
+    const remoteBefore=await page.evaluate(() => JSON.stringify(window.testAPI.state));
+    await page.evaluate(async () => {
+      document.getElementById('toast-region').replaceChildren();
+      localStorage.setItem('liftlog.v1.remote',JSON.stringify({endpoint:'https://storage.test',bucket:'test',region:'test',syncMode:'conditional',accessKeyId:'test',secretAccessKey:'test',pathStyle:true}));
+      await window.testAPI.remoteRestore();
+    });
+    assert.equal(await page.evaluate(() => JSON.stringify(window.testAPI.state)),remoteBefore);
+    assert.match(await page.locator('#toast-region').textContent(), /Invalid backup — routines\[0\]\.items/);
+    assert.equal(await page.locator('dialog[open]').count(),0);
+    console.log('PASS remote restore rejects invalid backup before confirmation');
+
+    // Startup must preserve every byte of failed input, including if rescue storage cannot be written.
+    for (const raw of ['{broken',JSON.stringify(cases[1].value),JSON.stringify({...good,version:99})]){
+      const recovery=await newPage({raw});
+      assert.equal(await recovery.evaluate(()=>localStorage.getItem('liftlog.v1.unreadable')),raw);
+      assert.equal(await recovery.evaluate(()=>window.testAPI.state.version),14);
+      await recovery.context().close();
+    }
+    const rescued=await newPage({raw:'{broken'});
+    await rescued.evaluate(()=>window.testAPI.navigate('settings'));
+    assert.equal(await rescued.getByRole('button',{name:'Download rescued data'}).count(),1);
+    const downloadPromise=rescued.waitForEvent('download');
+    await rescued.getByRole('button',{name:'Download rescued data'}).click();
+    const download=await downloadPromise;
+    assert.match(download.suggestedFilename(),/^liftlog-rescued-data-.*\.txt$/);
+    await rescued.getByRole('button',{name:'Discard rescued data…'}).click();
+    await rescued.getByRole('dialog',{name:'Discard rescued data?'}).getByRole('button',{name:'Discard',exact:true}).click();
+    await rescued.waitForFunction(()=>localStorage.getItem('liftlog.v1.unreadable')===null);
+    assert.equal(await rescued.evaluate(()=>localStorage.getItem('liftlog.v1.unreadable')),null);
+    await rescued.context().close();
+    console.log('PASS rescued unreadable data can be downloaded unchanged and explicitly discarded');
+    for (const options of [{failRescue:true},{rescue:'previous recovery copy'}]){
+      const raw=JSON.stringify(cases[1].value);
+      const recovery=await newPage({raw,...options});
+      await recovery.evaluate(()=>{window.testAPI.state.settings.defaultRest=120;window.testAPI.save();});
+      assert.equal(await recovery.evaluate(()=>localStorage.getItem('liftlog.v1')),raw);
+      assert.equal(await recovery.locator('#save-banner').isVisible(),true);
+      if(options.rescue) assert.equal(await recovery.evaluate(()=>localStorage.getItem('liftlog.v1.unreadable')),options.rescue);
+      await recovery.evaluate(s=>{window.testAPI.applyFullBackup(s);},good);
+      await recovery.getByRole('button',{name:'Import & replace',exact:true}).click();
+      assert.equal(await recovery.evaluate(()=>JSON.parse(localStorage.getItem('liftlog.v1')).routines[0].id),'routine');
+      await recovery.context().close();
+    }
+    console.log('PASS corrupt/malformed/future startup data is rescued; rescue failures preserve original storage until explicit restore');
+    assert.deepEqual(errors,[]);
+    console.log('PASS no browser errors');
+  } finally {await browser.close();}
+})().catch(e=>{console.error(e);process.exit(1);});

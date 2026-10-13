@@ -1,0 +1,109 @@
+/* Common furniture; workout-specific layouts remain in each app. */
+:root{--radius:8px;--radius-lg:12px;--control-h:40px;--nav-h:68px;--action-h:80px;--panel:var(--surface);--line:var(--border);--ink:var(--text);--warm:var(--warning);--red:var(--danger)}
+html{color-scheme:light dark;-webkit-text-size-adjust:100%;background:var(--bg);scroll-padding-top:var(--header-h,64px)}
+body{font-family:var(--font-ui);font-size:var(--fs-base);line-height:1.5;color:var(--text);background:var(--bg)}
+[hidden]{display:none!important}
+button,input,select,textarea{font:inherit}
+.btn,.bike-app button{min-height:var(--control-h);border-radius:var(--radius);font-size:var(--fs-sm);font-weight:600}
+.btn-primary,.bike-app .primary{background:var(--accent-strong);border-color:var(--accent-strong);color:var(--on-accent)}
+.btn-danger,.bike-app .danger{color:var(--danger)}
+input:not([type=checkbox]):not([type=radio]):not([type=file]),select,textarea{font-family:var(--font-ui);font-size:var(--fs-sm);min-height:var(--control-h);border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--surface);color:var(--text)}
+.panel,.bike-app .card{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow-sm)}
+.bike-app h1{font-size:var(--fs-xl);line-height:1.2;letter-spacing:-.022em}
+.bike-app h2{font-size:var(--fs-lg)}
+.bike-app .small,.bike-app .field,.bike-app .text-button{font-size:var(--fs-sm)}
+.bike-app .segments input:checked+span{background:var(--accent-strong);color:var(--on-accent);border-color:var(--accent-strong)}
+dialog{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);color:var(--text);max-height:calc(100dvh - 32px);overflow:auto}
+dialog::backdrop{background:rgb(15 17 20 / .6)}
+:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.shell-title{display:none;align-items:center;justify-content:space-between;gap:12px;padding:8px 16px;max-width:920px;margin:auto;min-height:52px}
+.shell-title strong{font-size:var(--fs-md)}
+.app-header{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;padding-top:env(safe-area-inset-top)}
+.app-header::before{content:"";position:absolute;inset:0 0 auto;height:env(safe-area-inset-top);pointer-events:none}
+
+.app-header .header-inner{max-width:920px;margin:auto;padding:0 16px;min-height:52px}
+.main-nav{width:100%;min-width:0}
+.main-nav ul{display:grid;grid-template-columns:repeat(var(--nav-count,3),minmax(0,1fr));list-style:none;margin:0;padding:0}
+.main-nav li{min-width:0}
+.main-nav .nav-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:8px 2px;border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;color:var(--muted);font-size:var(--fs-sm);white-space:nowrap}
+.main-nav .nav-btn[aria-current=page]{color:var(--accent);border-color:var(--accent);font-weight:700}
+.nav-icon{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.return-workout{display:block;margin:12px auto;max-width:calc(100% - 32px);min-height:48px}
+.shell-menu{padding:24px;width:min(440px,calc(100vw - 32px))}
+.shell-menu h2{font-size:var(--fs-lg);margin:0 0 16px}
+.shell-menu .menu-items{display:grid;gap:8px}
+.shell-menu button{width:100%;min-height:48px;margin:0}
+.shell-menu .menu-close{margin-top:16px}
+.workout-actions{background:var(--surface);border-top:1px solid var(--border);padding:12px 16px calc(12px + env(safe-area-inset-bottom));z-index:25}
+.workout-actions .actions-row{display:flex;gap:12px;align-items:center;max-width:580px;margin:auto}
+.workout-actions .actions-row button{flex:1;min-width:0}
+.workout-actions .icon{flex:0 0 48px}
+.numeric-stepper{display:flex;gap:8px;align-items:center;min-width:0}
+.numeric-stepper input{flex:1;width:0;min-width:0}
+.numeric-stepper button{flex:0 0 48px;width:48px;height:48px;padding:0;font-size:22px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);border-radius:var(--radius)}
+.numeric-editor{width:min(440px,calc(100vw - 24px));padding:24px}
+.numeric-editor h2{font-size:var(--fs-lg);margin:0 0 12px}
+.numeric-editor .field{margin-bottom:16px}
+.numeric-editor .editor-actions{display:grid;gap:8px}
+.numeric-editor button{min-height:48px}
+.set-edit-btn{min-width:48px;min-height:48px;padding-inline:0;border:1px solid var(--border);border-radius:var(--radius);color:var(--muted)}
+.set-edit-btn .ic{width:18px;height:18px}
+@media(hover:hover){.set-edit-btn:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}}
+.set-done-btn,.strip-step,.strip-num{min-width:48px;min-height:48px}
+.bike-app .view-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.bike-app main{padding-top:20px}
+.bike-app .run-header{align-items:center}
+.bike-app .run-foot button{min-height:48px}
+.bike-app #gate{margin-bottom:12px}
+.bike-app .workout-actions .primary{font-size:var(--fs-md);padding:12px 16px}
+.bike-app .field{gap:8px}
+.bike-app .targets dd{color:var(--text)}
+.bike-app #run .phase-title{color:var(--phase,var(--text))}
+@media(max-width:700px),(pointer:coarse){
+  :root{--control-h:48px;--fs-base:16px}
+  .btn,.btn-sm,.icon-btn,.bike-app button{min-height:48px}
+  input:not([type=checkbox]):not([type=radio]):not([type=file]),select,textarea{font-size:16px;min-height:48px}
+  .radio-pill span{display:flex;align-items:center;justify-content:center;min-height:48px}
+}
+@media(max-width:700px),(max-height:550px) and (pointer:coarse){
+  body{padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px)}
+  .shell-title{display:flex}
+  .app-header .header-inner{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:0 8px env(safe-area-inset-bottom);z-index:30;max-width:none}
+  .main-nav .nav-btn{flex-direction:column;gap:3px;min-height:var(--nav-h);font-size:12px;padding:8px 1px;border:0;border-top:3px solid transparent}
+  .main-nav .nav-btn .dot{position:absolute;top:8px;margin:0 0 0 25px}
+  html.workout-screen .app-header .header-inner{display:none}
+  html.workout-screen body,html.session-active.workout-screen body{padding-bottom:calc(var(--action-h) + env(safe-area-inset-bottom) + 16px)}
+  html.setup-screen body{padding-bottom:calc(var(--nav-h) + var(--action-h) + env(safe-area-inset-bottom) + 16px)}
+  html.setup-screen .workout-actions{bottom:calc(var(--nav-h) + env(safe-area-inset-bottom))}
+  .actionbar,.workout-actions{position:fixed;bottom:0;left:0;right:0;margin:0;z-index:25}
+  .actionbar .ab-rows{max-width:600px;margin:auto}
+  .actionbar .ab-row{gap:8px}
+  .keyboard-open .app-header .header-inner,.keyboard-open .actionbar,.keyboard-open .workout-actions{display:none}
+  html.keyboard-open body{padding-bottom:16px!important}
+  html.keyboard-open dialog{max-height:calc(var(--visible-h,100dvh) - 32px)!important;overflow:auto}
+  html.workout-screen .toast{bottom:calc(var(--action-h) + env(safe-area-inset-bottom) + 12px)}
+  .bike-app .toast{bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px)}
+}
+@media(max-width:400px){
+  .sets{--sets-cols:minmax(0,1.4fr) minmax(0,1fr) 44px 48px 48px;gap:4px}
+  .sets.no-rpe{--sets-cols:minmax(0,1.4fr) minmax(0,1fr) 48px 48px}
+  .sets.no-weight{--sets-cols:minmax(0,1fr) 44px 48px 48px}
+  .sets.no-weight.no-rpe{--sets-cols:minmax(0,1fr) 48px 48px}
+  .sets .set-num,.sets-head span:first-child{display:none}
+  .sets-head,.set-row{gap:4px}
+  .set-row input{padding-inline:4px}
+  .set-done-btn{min-width:48px}
+  .ab-time{font-size:23px;min-width:64px}
+}
+@media(max-width:600px){.bike-app .grid:has(.numeric-stepper){grid-template-columns:1fr}}
+@media(min-width:701px){.shell-menu-button{display:none}.workout-actions{position:sticky;bottom:0;margin-top:24px;border-radius:var(--radius)}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+.handoff-tools{display:grid;gap:12px}.handoff-tools p{margin:0}.handoff-tools input{width:100%}
+.comparison-panel{padding:16px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);margin:16px 0}
+.comparison-selectors{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.comparison-selectors select{width:100%}
+.comparison-scroll{overflow-x:auto}.comparison-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}.comparison-table th,.comparison-table td{padding:10px 8px;text-align:left;border-bottom:1px solid var(--border)}
+@media(max-width:500px){.comparison-selectors{grid-template-columns:1fr}}
+
+.bike-app .grid>.field{min-width:0}.bike-app .grid>.field>input,.bike-app .grid>.field>select{min-width:0;max-width:100%}

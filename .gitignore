@@ -1,0 +1,9 @@
+node_modules/
+dist/
+release/
+__pycache__/
+.env*
+*.s3cfg
+*-connection-*.json
+*-remote-config-*.json
+storage-diagnostics.json

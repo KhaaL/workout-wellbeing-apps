@@ -1,0 +1,162 @@
+:root{
+  --bg:#fbfbf9;
+  --surface:#ffffff;
+  --surface-2:#f2f2ee;
+  --text:#20242a;
+  --muted:#616a76;
+  --border:#dcdcd5;
+  --border-strong:#c3c3ba;
+  --accent:#2b5fd9;
+  --accent-strong:#2b5fd9;
+  --on-accent:#ffffff;
+  --accent-soft:#e9effc;
+  --danger:#b3271e;
+  --danger-strong:#b3271e;
+  --danger-soft:#faeae8;
+  --success:#1e7a44;
+  --success-soft:#e4f3ea;
+  --either:#7650a8;
+  /* resolved on :root, so every theme's own --success carries through */
+  --superset:var(--success);
+  --warning:#8a5800;
+  --warning-soft:#f9efd9;
+  --focus:#2b5fd9;
+
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:48px;
+  --fs-xs:11.5px; --fs-sm:13px; --fs-base:15px; --fs-md:17px; --fs-lg:21px; --fs-xl:28px;
+  --radius-sm:4px; --radius:6px; --radius-lg:10px;
+  --shadow-sm:0 1px 2px rgb(32 36 42 / .06);
+  --shadow-md:0 4px 14px rgb(32 36 42 / .10);
+
+  /* Open-source, sans-serif, legible at the sizes a phone uses in a gym.
+     Every named family is OFL or Apache-2.0 licensed; the previous stacks
+     led with proprietary system faces (SF, Segoe) and a serif display face.
+     No webfont is fetched: the app makes no network calls and ships as one
+     document, so this is a preference list and the generic `sans-serif` /
+     `monospace` keywords are the guaranteed floor. Order is by how likely a
+     family is to be installed already — Roboto and Noto cover Android, Inter
+     and Source Sans most Linux desktops, Liberation and DejaVu the rest.
+     Of those last two, Liberation goes first because it is the narrower:
+     it has Arial's metrics, near the Roboto and Helvetica widths the layout
+     is drawn against, where DejaVu's overflows the five tabs at 320px.
+     There is no separate display face: headings are the same family,
+     separated by size, weight and tracking. */
+  --font-ui:"Inter","Roboto","Noto Sans","Open Sans","Source Sans 3","Liberation Sans","DejaVu Sans",sans-serif;
+  --font-mono:"JetBrains Mono","Fira Mono","Roboto Mono","Noto Sans Mono","DejaVu Sans Mono","Liberation Mono",monospace;
+
+  /* Height of the sticky header, remeasured by trackHeaderHeight() so the
+     session strip can stick directly beneath it at any width. */
+  --header-h:54px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#16181b;
+    --surface:#1d2024;
+    --surface-2:#24282d;
+    --text:#e4e7ea;
+    --muted:#9aa4ae;
+    --border:#34393f;
+    --border-strong:#4a5158;
+    --accent:#8ab1f2;
+    --accent-strong:#3d74d4;
+    --on-accent:#ffffff;
+    --accent-soft:#263349;
+    --danger:#e07a70;
+    --danger-strong:#a83a32;
+    --danger-soft:#3a2422;
+    --success:#5fc48c;
+    --success-soft:#1f3329;
+    --either:#c6a2e8;
+    --warning:#dfb45e;
+    --warning-soft:#37301d;
+    --focus:#8ab1f2;
+    --shadow-sm:0 1px 2px rgb(0 0 0 / .35);
+    --shadow-md:0 4px 14px rgb(0 0 0 / .45);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16181b;
+  --surface:#1d2024;
+  --surface-2:#24282d;
+  --text:#e4e7ea;
+  --muted:#9aa4ae;
+  --border:#34393f;
+  --border-strong:#4a5158;
+  --accent:#8ab1f2;
+  --accent-strong:#3d74d4;
+  --on-accent:#ffffff;
+  --accent-soft:#263349;
+  --danger:#e07a70;
+  --danger-strong:#a83a32;
+  --danger-soft:#3a2422;
+  --success:#5fc48c;
+  --success-soft:#1f3329;
+  --either:#c6a2e8;
+  --warning:#dfb45e;
+  --warning-soft:#37301d;
+  --focus:#8ab1f2;
+  --shadow-sm:0 1px 2px rgb(0 0 0 / .35);
+  --shadow-md:0 4px 14px rgb(0 0 0 / .45);
+}
+/* community color themes */
+:root[data-theme="dracula"]{
+  --bg:#282a36; --surface:#2f3140; --surface-2:#383b4c;
+  --text:#f8f8f2; --muted:#a9b0c6;
+  --border:#44475a; --border-strong:#585c74;
+  --accent:#bd93f9; --accent-strong:#b183f7; --on-accent:#282a36; --accent-soft:#3d3559;
+  --danger:#ff5555; --danger-strong:#e04545; --danger-soft:#4b2b33;
+  --success:#50fa7b; --success-soft:#23402e;
+  --either:#bd93f9;
+  --warning:#f1fa8c; --warning-soft:#454426;
+  --focus:#bd93f9;
+  --shadow-sm:0 1px 2px rgb(0 0 0 / .35); --shadow-md:0 4px 14px rgb(0 0 0 / .45);
+}
+:root[data-theme="gruvbox"]{
+  --bg:#282828; --surface:#32302f; --surface-2:#3c3836;
+  --text:#ebdbb2; --muted:#a89984;
+  --border:#504945; --border-strong:#665c54;
+  --accent:#fe8019; --accent-strong:#f07312; --on-accent:#282828; --accent-soft:#4d3a26;
+  --danger:#fb4934; --danger-strong:#d83a27; --danger-soft:#4b2a25;
+  --success:#b8bb26; --success-soft:#3c3d21;
+  --either:#d7a6df;
+  --warning:#fabd2f; --warning-soft:#4b4122;
+  --focus:#fe8019;
+  --shadow-sm:0 1px 2px rgb(0 0 0 / .35); --shadow-md:0 4px 14px rgb(0 0 0 / .45);
+}
+:root[data-theme="nord"]{
+  --bg:#2e3440; --surface:#353c49; --surface-2:#3b4252;
+  --text:#eceff4; --muted:#a6b1c2;
+  --border:#434c5e; --border-strong:#546076;
+  --accent:#88c0d0; --accent-strong:#79b4c6; --on-accent:#2e3440; --accent-soft:#3a4a55;
+  --danger:#bf616a; --danger-strong:#ad5059; --danger-soft:#45333c;
+  --success:#a3be8c; --success-soft:#394230;
+  --either:#c7a6d8;
+  --warning:#ebcb8b; --warning-soft:#4a4230;
+  --focus:#88c0d0;
+  --shadow-sm:0 1px 2px rgb(0 0 0 / .35); --shadow-md:0 4px 14px rgb(0 0 0 / .45);
+}
+:root[data-theme="solarized"]{
+  --bg:#002b36; --surface:#073642; --surface-2:#0c4250;
+  --text:#eee8d5; --muted:#90a4a6;
+  --border:#135060; --border-strong:#1e6477;
+  --accent:#268bd2; --accent-strong:#2380c2; --on-accent:#ffffff; --accent-soft:#0d3f56;
+  --danger:#e5544f; --danger-strong:#c42b28; --danger-soft:#42232b;
+  --success:#b3c63a; --success-soft:#323f17;
+  --either:#c5a0df;
+  --warning:#d9a921; --warning-soft:#423617;
+  --focus:#268bd2;
+  --shadow-sm:0 1px 2px rgb(0 0 0 / .4); --shadow-md:0 4px 14px rgb(0 0 0 / .5);
+}
+:root[data-theme="monokai"]{
+  --bg:#272822; --surface:#2e2f28; --surface-2:#36382f;
+  --text:#f8f8f2; --muted:#a7a396;
+  --border:#49483e; --border-strong:#5f5d4f;
+  --accent:#66d9ef; --accent-strong:#4fcbe4; --on-accent:#272822; --accent-soft:#2b4548;
+  --danger:#f92672; --danger-strong:#e01f63; --danger-soft:#4b2536;
+  --success:#a6e22e; --success-soft:#39451e;
+  --either:#ae81ff;
+  --warning:#e6db74; --warning-soft:#474325;
+  --focus:#66d9ef;
+  --shadow-sm:0 1px 2px rgb(0 0 0 / .35); --shadow-md:0 4px 14px rgb(0 0 0 / .45);
+}
+

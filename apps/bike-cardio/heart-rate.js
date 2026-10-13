@@ -1,0 +1,49 @@
+/* exported HeartRateCore */
+const HeartRateCore = (() => {
+  const FRESH_MS = 5000, MAX_GAP_MS = 5000;
+  // Bluetooth SIG Heart Rate Measurement (0x2A37), little endian.
+  function parse(value) {
+    if(!value || typeof value.getUint8!=='function' || value.byteLength<2)return null;
+    const flags=value.getUint8(0), wide=Boolean(flags&1);
+    let offset=wide?3:2;
+    if(value.byteLength<offset)return null;
+    const bpm=wide?value.getUint16(1,true):value.getUint8(1);
+    if(flags&8){offset+=2;if(value.byteLength<offset)return null;}
+    const rr=[];
+    if(flags&16){if((value.byteLength-offset)%2)return null;for(;offset<value.byteLength;offset+=2)rr.push(value.getUint16(offset,true)*1000/1024);}
+    else if(value.byteLength!==offset)return null;
+    const contact=(flags&4)?Boolean(flags&2):null;
+    return {bpm,contact,rr,valid:bpm>0 && bpm<=300 && contact!==false};
+  }
+  function fresh(reading,now) {return Boolean(reading?.valid && Number.isFinite(reading.at) && now>=reading.at && now-reading.at<=FRESH_MS);}
+  function advice(reading,now,targets) {
+    if(!fresh(reading,now))return null;
+    const t=BikeTargets.normalize(targets);
+    return reading.bpm>t.zoneMax ? {action:'high',text:`Above ${t.zoneMax} · reduce one level`} : reading.bpm<t.adjustBelow ? {action:'low',text:`Below ${t.adjustBelow} · add one level`} : {action:'hold',text:`Hold resistance · aim for ${t.targetMin}–${t.targetMax}`};
+  }
+  function createStats(targets){return {targets:BikeTargets.normalize(targets),version:1,measuredMs:0,bpmMs:0,zoneMs:0,samples:0,last:null};}
+  function breakSeries(stats){if(stats)stats.last=null;}
+  function sample(stats,reading,now,activeMs,eligible=true) {
+    if(!stats)return;
+    if(!eligible || !fresh(reading,now) || !Number.isFinite(activeMs)){breakSeries(stats);return;}
+    const previous=stats.last, wall=previous?now-previous.at:0, active=previous?activeMs-previous.activeMs:0;
+    // Only join adjacent, visible, valid samples. Never fill a pause or missing interval.
+    if(previous && wall>0 && wall<=MAX_GAP_MS && active>0 && active<=wall+1){
+      stats.measuredMs+=active;stats.bpmMs+=previous.bpm*active;
+      if(previous.bpm>=stats.targets.zoneMin && previous.bpm<=stats.targets.zoneMax)stats.zoneMs+=active;
+    }
+    stats.samples++;stats.last={at:now,activeMs,bpm:reading.bpm};
+  }
+  function restoreStats(raw,targets) {
+    const stats=createStats(raw?.targets||targets);
+    if(raw?.version===1 && ['measuredMs','bpmMs','zoneMs','samples'].every(k=>Number.isFinite(raw[k])&&raw[k]>=0) && raw.zoneMs<=raw.measuredMs && raw.bpmMs<=raw.measuredMs*300){
+      for(const k of ['measuredMs','bpmMs','zoneMs','samples'])stats[k]=raw[k];
+    }
+    return stats;
+  }
+  function summary(stats,activeMs) {
+    const s=restoreStats(stats);
+    return {source:'H10 Bluetooth',targets:s.targets,averageHR:s.measuredMs?Math.round(s.bpmMs/s.measuredMs*10)/10:null,zoneMs:s.zoneMs,measuredMs:s.measuredMs,samples:s.samples,coverage:activeMs>0?Math.min(100,Math.round(s.measuredMs/activeMs*1000)/10):0};
+  }
+  return {FRESH_MS,MAX_GAP_MS,parse,fresh,advice,createStats,breakSeries,sample,restoreStats,summary};
+})();

@@ -1,0 +1,95 @@
+# Runs storage checks and all browser suites on pull requests and main.
+#
+# The suites run inside Playwright's own image rather than on a bare runner:
+# they assert layout at phone widths, and those results depend on which fonts
+# are installed. The image fixes the font set as well as the browser, so a run
+# means the same thing every time. Its tag is read from package.json by the
+# first job, so bumping Playwright there (by hand or by Dependabot) is the only
+# edit an upgrade needs.
+name: Shared storage and browser tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright-version:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      # the exact version package.json pins, which the image tags follow
+      - id: read
+        run: |
+          version=$(node -p "require('./package.json').devDependencies.playwright")
+          echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "playwright must be pinned to an exact version, got '$version'"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  browser-tests:
+    needs: playwright-version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v${{ needs.playwright-version.outputs.version }}-noble
+      options: --user 1001
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+        env:
+          # The Playwright container runs as an unprivileged user.
+          RUNNER_TOOL_CACHE: ${{ runner.temp }}/python-tool-cache
+      - run: npm ci
+      - name: Lint canonical JavaScript
+        run: npm run lint
+      - name: S3 CORS generation and rollback checks
+        run: npm run test:s3-cors
+      - name: Build both Pages apps and test storage
+        run: npm test
+      - name: Regression suite
+        run: node apps/liftlog/tests/regression.cjs
+      # runs even when the regression suite failed, so one red run reports both
+      - name: Security suite
+        if: ${{ !cancelled() }}
+        run: node apps/liftlog/tests/security.cjs
+      - name: Local recovery browser suite
+        if: ${{ !cancelled() }}
+        run: node apps/liftlog/tests/recovery.cjs
+      - name: Bike Cardio browser suite
+        if: ${{ !cancelled() }}
+        run: npm run test:bike-browser
+      - name: Shared provider and snapshot browser suite
+        if: ${{ !cancelled() }}
+        run: npm run test:remote-tools-browser
+      - name: Offline update and multiple-tab safety suite
+        if: ${{ !cancelled() }}
+        run: npm run test:updates-browser
+      - name: Shared mobile navigation and controls suite
+        if: ${{ !cancelled() }}
+        run: npm run test:app-ui-browser
+      - name: Keep screenshots from a failed run
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshots
+          path: |
+            /tmp/liftlog-*.png
+            /tmp/bike-cardio-*.png
+            /tmp/wellbeing-*.png
+          if-no-files-found: ignore
