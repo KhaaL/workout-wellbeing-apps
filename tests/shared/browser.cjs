@@ -64,7 +64,9 @@ const csp=fs.readFileSync(path.join(root,'dist/bike-cardio/_headers'),'utf8').ma
     assert.equal(await page.evaluate(()=>localStorage.getItem('bike-cardio.v1.remote-paused')),null);
     const json=JSON.stringify(await saved());assert.doesNotMatch(json,/synthetic|secretAccessKey/);
     await confirmAction(page,()=>page.click('#cloudForget'),false);assert.notEqual(await page.evaluate(()=>localStorage.getItem('bike-cardio.v1.remote')),null);
-    await confirmAction(page,()=>page.click('#cloudForget'));assert.equal(await page.evaluate(()=>localStorage.getItem('bike-cardio.v1.remote')),null);
+    await confirmAction(page,()=>page.click('#cloudForget'));
+    await page.waitForFunction(()=>localStorage.getItem('bike-cardio.v1.remote')===null&&document.getElementById('cloudConfigStatus').textContent==='Connection forgotten.');
+    assert.equal(await page.evaluate(()=>localStorage.getItem('bike-cardio.v1.remote')),null);
     await navigateUI(page,'settings');await page.locator('summary').filter({hasText:'Backups & cloud storage'}).click();
     await page.evaluate(()=>localStorage.setItem('bike-cardio.v1.last-file-backup',String(Date.now()-15*86400000)));
     for(const mode of ['zone2','sprint']){

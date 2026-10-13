@@ -108,9 +108,24 @@ const WorkoutUI = (() => {
     if(dlg.open)return Promise.resolve(null);
     const opener=document.activeElement;dlg.classList.add('shared-dialog');dlg.setAttribute('aria-labelledby','dlg-title');dlg.setAttribute('aria-describedby','dlg-body');
     document.getElementById('dlg-title').textContent=title;document.getElementById('dlg-body').textContent=body;
-    const actions=document.getElementById('dlg-actions');actions.className='shared-actions';actions.replaceChildren();let result=null;
-    for(const option of buttons){const button=document.createElement('button');button.type='button';button.className='btn '+(option.cls||'');button.textContent=option.label;button.autofocus=!!option.autofocus;button.addEventListener('click',()=>{result=option.value;dlg.close();});actions.append(button);}
-    return new Promise(resolve=>{dlg.addEventListener('close',()=>{if(opener?.isConnected)opener.focus();resolve(result);},{once:true});dlg.showModal();(actions.querySelector('[autofocus]')||actions.querySelector('button'))?.focus();});
+    const actions=document.getElementById('dlg-actions');actions.className='shared-actions';actions.replaceChildren();
+    return new Promise(resolve=>{
+      let settled=false;
+      function finish(value){
+        if(settled)return;settled=true;
+        dlg.removeEventListener('close',onClose);dlg.removeEventListener('cancel',onCancel);
+        if(dlg.open)dlg.close();
+        if(opener?.isConnected)opener.focus();
+        resolve(value);
+      }
+      // close() hides immediately but queues its event. Settle button/keyboard
+      // choices now; an older queued event must not cancel a reopened dialog.
+      function onClose(){if(!dlg.open)finish(null);}
+      function onCancel(event){event.preventDefault();finish(null);}
+      dlg.addEventListener('close',onClose);dlg.addEventListener('cancel',onCancel);
+      for(const option of buttons){const button=document.createElement('button');button.type='button';button.className='btn '+(option.cls||'');button.textContent=option.label;button.autofocus=!!option.autofocus;button.addEventListener('click',()=>finish(option.value));actions.append(button);}
+      dlg.showModal();(actions.querySelector('[autofocus]')||actions.querySelector('button'))?.focus();
+    });
   }
   const confirm=(title,body,label='Confirm',danger=false)=>dialog({title,body,buttons:[{label:'Cancel',value:false,autofocus:true},{label,value:true,cls:danger?'btn-danger-solid':'btn-primary'}]});
   function renderRecent(container,journal,notify){

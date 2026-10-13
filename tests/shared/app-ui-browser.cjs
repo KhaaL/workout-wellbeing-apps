@@ -14,6 +14,21 @@ const root=path.resolve(__dirname,'../..');
       page.on('pageerror',error=>errors.push(error.message));
       await page.route('https://ui.test/**',route=>route.fulfill({contentType:'text/html',body:html}));
       await page.goto('https://ui.test/'+app);
+      const confirmation=await page.evaluate(async()=>{
+        let applied=false;
+        const first=WorkoutUI.confirm('Confirm test','Check completion timing.').then(value=>{applied=value;});
+        document.querySelector('#dlg-actions button:last-child').click();
+        await Promise.resolve();const appliedBeforeCloseEvent=applied;
+        await first;
+        // The previous native close event may still be queued when a new dialog opens.
+        let secondSettled=false;
+        const second=WorkoutUI.confirm('Second test','Keep this decision separate.').then(value=>{secondSettled=true;return value;});
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        const premature=secondSettled;
+        document.querySelector('#dlg-actions button:first-child').click();
+        return {appliedBeforeCloseEvent,premature,cancelled:await second};
+      });
+      assert.deepEqual(confirmation,{appliedBeforeCloseEvent:true,premature:false,cancelled:false},app+' confirmations finish with the button action and ignore stale close events');
       const workout=app==='liftlog'?'today':'setup';
       for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,height:390},{width:1024,height:768},{width:1440,height:900}]){
         await page.setViewportSize(viewport);
