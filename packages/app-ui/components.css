@@ -124,3 +124,5 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
 @media(min-width:900px){.bike-app main:not(#run){max-width:900px}.bike-app #setup>.card,.bike-app #setup>fieldset{margin-top:14px}.bike-app #summary .stats{gap:24px}}
 
 .field-error{display:block;color:var(--danger);font-size:var(--fs-sm);margin-top:4px}input[aria-invalid=true],select[aria-invalid=true],textarea[aria-invalid=true]{border-color:var(--danger)}
+
+.storage-summary{padding:18px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);margin:16px 0}.storage-summary h2{margin:0 0 8px}.storage-summary-title{font-size:var(--fs-lg)}.storage-summary-title[data-tone=danger]{color:var(--danger)}.storage-summary-title[data-tone=warning]{color:var(--warning)}.storage-summary-title[data-tone=success]{color:var(--success)}.storage-summary p{margin:8px 0}.storage-summary .hint{font-size:var(--fs-sm);color:var(--muted)}.storage-summary .shared-actions{justify-content:flex-start}.storage-summary button{min-height:48px}

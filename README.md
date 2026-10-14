@@ -55,17 +55,19 @@ Backups at an already uploaded revision create no additional snapshot.
 
 | Location | Purpose |
 |---|---|
-| `apps/liftlog/index.html` | Liftlog controller, remaining screens and schema migrations |
+| `apps/liftlog/index.html` | Liftlog composition, remaining screens, event routing and schema migrations |
+| `apps/liftlog/controllers/` | Workout, routine/plan and exercise controllers with live context getters |
 | `apps/liftlog/storage-adapter.js` | Liftlog storage policy, revisions and comparable backup identity |
 | `apps/liftlog/screens/settings.js` | Settings templates with explicit state and helper inputs |
-| `apps/bike-cardio/index.html` | Bike interface and app controller |
+| `apps/bike-cardio/index.html` | Bike interface and app composition |
+| `apps/bike-cardio/controllers/storage.js` | Backup controls, recovery copies and device-storage diagnostics |
 | `apps/bike-cardio/targets.js`, `workout-core.js` | Target validation, plans, timing and active-session migration |
 | `apps/bike-cardio/heart-rate.js`, `bluetooth.js` | HR packet interpretation, measured coverage and H10 connection lifecycle |
 | `apps/bike-cardio/storage-adapter.js` | Bike schema, legacy migration and engine adapter |
 | `packages/storage-engine/local.js` | Saving, failure reporting, recovery and durable replacement |
 | `packages/storage-engine/handoff.js` | Paused transfer validation, source holds, reviewed receipt and recovery |
 | `packages/storage-engine/remote.js` | S3 signing, separate-file backups, conditional sync, retries and recovery |
-| `packages/storage-ui/remote-tools.js` | Shared provider-check and backup-browser presentation |
+| `packages/storage-ui/` | Shared storage summary, provider checks, backup browser and handoff presentation |
 | `packages/app-ui/` | Shared themes, controls, navigation, numeric adjustments and safe updates |
 | `apps/bike-cardio/history.js`, `apps/liftlog/comparisons.js` | Comparable workout interpretation |
 | `scripts/build.mjs` | Standalone Pages builds, security headers and offline cache versions |
@@ -218,6 +220,14 @@ on the storage server after verifying an off-device recovery copy. Compatibility
 probe cleanup additionally needs DELETE; ordinary backups do not.
 
 ## Shared interface
+
+Settings begins with the same storage summary in both apps: saved on this device,
+upload pending, backed up, uploads paused, offline, or needs attention. Local save
+failures take priority over cloud success. **Backed up** requires a confirmed
+cloud backup of the current revision, with no pending changes. Connection tests
+alone cannot produce it. The summary shows the last cloud backup and file export
+separately, with a relevant next action and expandable **Storage options**.
+Review actions open the existing choices; they do not resume or replace data.
 
 Both apps use the same themes, common controls and navigation. Phones use labeled
 bottom navigation; active workouts replace it with an action bar and a Menu button.

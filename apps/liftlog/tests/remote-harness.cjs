@@ -7,7 +7,7 @@ const source = [...fs.readFileSync(require('node:path').join(__dirname,'../index
 function device(storage = new Map()) {
   const timers = new Map(); let tid = 0;
   const node = new Proxy(function(){}, {get:(_,k) => k === 'querySelectorAll' ? () => [] : k === 'then' ? undefined : node, apply:() => node, set:() => true});
-  const ctx = { console, URL, TextEncoder, TextDecoder, AbortController, Headers, Response, ReadableStream, Blob,
+  const ctx = { console, queueMicrotask, URL, TextEncoder, TextDecoder, AbortController, Headers, Response, ReadableStream, Blob,
     crypto:webcrypto, navigator:{onLine:true}, location:{protocol:'https:',hostname:'liftlog.test'},
     document:node, localStorage:{getItem:k=>storage.get(k) ?? null, setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k)},
     setTimeout:(fn,delay)=>{timers.set(++tid,{fn,delay}); return tid;},clearTimeout:id=>timers.delete(id),setInterval:()=>0,
@@ -15,7 +15,7 @@ function device(storage = new Map()) {
   ctx.window=ctx; ctx.addEventListener=()=>{};
   vm.createContext(ctx);
   const seam = `
-    render=()=>{}; applyTheme=()=>{}; drawTimer=()=>{}; cancelRestBeep=()=>{}; restoreTimer=()=>{};
+    render=()=>{}; renderStorageStatus=()=>{}; applyTheme=()=>{}; drawTimer=()=>{}; cancelRestBeep=()=>{}; restoreTimer=()=>{};
     toast=(text)=>messages.push(text); announce=()=>{}; updateSaveBanner=()=>{};
     confirmDlg=async()=>true; dialog=async()=>true;
     window.api={workoutHandoff,localStore,remoteEngine,beginWorkout,newWorkout, pauseTimer, timer, LiftlogComparisons,workoutVolume,workoutDuration,sameProgressionContract,canonicalExerciseId,setWeight,addedSetWeight,save,flushSave,clearWorkoutData,prepareBackup,backupPayload,backupDataKey,remoteStartupSync,autoRemoteBackup,remoteBackup,remoteRestore,remotePublishLocal,remoteResumeSync,pauseRemoteSync,remoteSyncPaused,remoteStorageHTML,

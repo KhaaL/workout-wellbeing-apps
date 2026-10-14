@@ -1518,6 +1518,8 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
 
 .field-error{display:block;color:var(--danger);font-size:var(--fs-sm);margin-top:4px}input[aria-invalid=true],select[aria-invalid=true],textarea[aria-invalid=true]{border-color:var(--danger)}
 
+.storage-summary{padding:18px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);margin:16px 0}.storage-summary h2{margin:0 0 8px}.storage-summary-title{font-size:var(--fs-lg)}.storage-summary-title[data-tone=danger]{color:var(--danger)}.storage-summary-title[data-tone=warning]{color:var(--warning)}.storage-summary-title[data-tone=success]{color:var(--success)}.storage-summary p{margin:8px 0}.storage-summary .hint{font-size:var(--fs-sm);color:var(--muted)}.storage-summary .shared-actions{justify-content:flex-start}.storage-summary button{min-height:48px}
+
 </style>
 </head>
 <body>
@@ -1935,7 +1937,7 @@ globalThis.WorkoutStorage = (() => {
       options.setState(candidate); notify(); return true;
     }
     return {load, save, flush, commit, rescue, get failed(){return failed;}, get blocked(){return blocked;},
-      get warning(){return warning;}, get existing(){return existing;}, set existing(value){existing = value;}};
+      get pending(){return pending;}, get warning(){return warning;}, get existing(){return existing;}, set existing(value){existing = value;}};
   }
   return {version:'1.0.0', copy, stableStringify, enforceLimits, createLocal};
 })();
@@ -2888,6 +2890,51 @@ WorkoutStorage.renderHandoff = function(container,handoff,download,notify){
   button('handoffReceive','Review cloud handoff…',()=>handoff.receiveCode(code.value.trim()),!handoff.configured||handoff.hasActive);
 };
 
+/* Presentation state only: never performs a save, upload or reconciliation. */
+WorkoutStorage.storageSummary = function(input){
+  const cloudAt=Number(input.cloudAt)||null,fileAt=Number(input.fileAt)||null;
+  const base={cloudAt,fileAt,action:'download',actionLabel:'Download backup',tone:'neutral',detail:'Your data is saved on this device.'};
+  const state=(id,title,detail,action=base.action,actionLabel=base.actionLabel,tone=base.tone)=>({...base,id,title,detail,action,actionLabel,tone});
+  if(input.failed||input.blocked)return state('attention','Needs attention','Changes may only be in memory. Keep this page open and download a backup.','download','Download backup','danger');
+  if(input.localPending)return state('saving','Saving on this device…','Keep this page open until saving finishes.',null,null);
+  if(input.held)return state('paused','Uploads paused','A workout is held for transfer. Finish or cancel the handoff before resuming uploads.','handoff','Review handoff','warning');
+  if(!input.configured)return state('local','Saved on this device','Cloud backup is not configured. Download a backup or connect cloud storage.','configure','Set up cloud backup');
+  if(input.status==='conflict')return state('attention','Needs attention','Local and cloud copies differ. Review them before choosing which copy to keep.','review','Review copies','warning');
+  if(input.paused)return state('paused','Uploads paused','Local changes are kept on this device. Review your copies before resuming.','review','Review & resume','warning');
+  if(input.online===false)return state('offline','Offline',input.pending?'Your changes are saved here. Uploads will retry when a connection is available.':'Your local data is available. Cloud storage cannot be checked while offline.','download','Download backup','warning');
+  if(input.busy||input.status==='checking')return state('checking','Checking cloud storage…','Your data remains on this device while the storage request completes.',null,null);
+  if(input.status==='error'||input.status==='warning'){
+    const hints={credentials:'Check the access key and matching secret in connection settings.',permissions:'Check that your storage key has permission for this operation.',bucket:'Check the bucket name in connection settings.',region:'Check the region and endpoint in connection settings.',clock:'Check this device’s date and time.',
+      'network-or-cors':'Check your connection and the storage service’s browser access settings.',timeout:'The storage service did not respond in time. Check your connection and retry.'};
+    const category=input.errorCategory,configuration=['credentials','permissions','bucket','region'].includes(category);
+    return state('attention','Needs attention',hints[category]||'Cloud backup did not finish. Your local data is kept. Review the connection details and retry.',configuration?'configure':'retry',configuration?'Review connection':input.mode==='conditional'?'Retry sync':'Retry backup','danger');
+  }
+  const backed=cloudAt&&input.cloudRevision!=null&&input.revision!=null&&Number(input.cloudRevision)===Number(input.revision)&&!input.pending;
+  if(backed)return state('backed-up','Backed up','The current saved data has a verified cloud backup.','download','Download backup','success');
+  const conditional=input.mode==='conditional';
+  return state('pending','Upload pending',conditional?(input.active?'Your workout is saved here. A cloud comparison may wait until the workout finishes.':'Your data is saved here. Sync compares both copies; a newer cloud copy may replace local data.'):'Your data is saved here. Changes are waiting for a verified cloud backup.','backup',conditional?'Sync now':'Back up now');
+};
+WorkoutStorage.renderStorageSummary = function(container,input,actions){
+  if(!container)return;
+  const model=WorkoutStorage.storageSummary(input),signature=JSON.stringify(model);
+  if(container.dataset.summary===signature)return;
+  container.dataset.summary=signature;container.dataset.state=model.id;container.className='storage-summary';
+  let heading=container.querySelector('h2');
+  if(!heading){heading=document.createElement('h2');heading.textContent='Storage';container.append(heading);const live=document.createElement('div');live.className='storage-summary-live';live.setAttribute('role','status');live.setAttribute('aria-live','polite');container.append(live);const buttons=document.createElement('div');buttons.className='shared-actions';container.append(buttons);}
+  const live=container.querySelector('.storage-summary-live');live.replaceChildren();
+  const title=document.createElement('strong');title.className='storage-summary-title';title.dataset.tone=model.tone;title.textContent=model.title;
+  const detail=document.createElement('p');detail.textContent=model.detail;
+  const date=value=>new Date(value).toLocaleString();const backup=document.createElement('p');backup.className='hint';backup.textContent=model.cloudAt?'Last verified cloud backup: '+date(model.cloudAt):'No verified cloud backup yet.';
+  if(model.fileAt){const file=document.createElement('span');file.textContent=' Last file export: '+date(model.fileAt)+'.';backup.append(file);}
+  live.append(title,detail,backup);
+  const buttons=container.querySelector('.shared-actions'),focused=document.activeElement?.closest('.storage-summary')===container?document.activeElement.dataset.storageAction:null;buttons.replaceChildren();
+  function button(id,label,primary){const b=document.createElement('button');b.type='button';b.className='btn'+(primary?' btn-primary':'');b.dataset.storageAction=id;b.textContent=label;b.addEventListener('click',()=>Promise.resolve().then(()=>actions[id]?.()).catch(error=>actions.error?.(error)));buttons.append(b);}
+  if(model.action)button(model.action,model.actionLabel,true);
+  if(model.action&&model.action!=='download')button('download','Download backup',false);
+  button('details','Storage options',false);
+  if(focused)(buttons.querySelector('[data-storage-action="'+focused+'"]')||buttons.lastElementChild)?.focus();
+};
+
 /* storage-ui:end */
 /* app-updates:start */
 /* Explicit app updates; storage and workout state are supplied by each app. */
@@ -3212,7 +3259,7 @@ const LiftlogSettings = (() => {
     function settingsDisclosure(id, title, summary, body){
       const remembered = ui.settingsSections[id];
       const compact = window.matchMedia && window.matchMedia('(max-width:600px)').matches;
-      const open = remembered == null ? !compact : remembered;
+      const open = remembered == null ? id!=='storage'&&!compact : remembered;
       return '<details class="settings-disclosure" data-settings-section="' + esc(id) + '"' + (open ? ' open' : '') + '>' +
         '<summary><span class="settings-summary">' + esc(title) + '<small>' + esc(summary) + '</small></span></summary>' +
         body + '</details>';
@@ -3223,6 +3270,7 @@ const LiftlogSettings = (() => {
       const storage = storageSize();
       const backup = lastBackupInfo();
       return '<div class="view-head"><div><h1>Settings</h1><p class="view-sub">Preferences, data<span class="keyboard-only">, shortcuts</span></p></div></div>' +
+      '<div id="storage-summary"></div>' +
       '<section class="panel" aria-label="Preferences">' +
         '<div class="setting-block">' +
           '<h3>Appearance</h3><p class="desc">Theme follows your system by default. Color themes apply instantly and are remembered on this device.</p>' +
@@ -3387,6 +3435,1226 @@ const LiftlogComparisons=(()=>{
 (function(){
 'use strict';
 
+/* liftlog-workout-controller:start */
+/* liftlog workout controller. Context getters always read current app state. */
+/* exported LiftlogWorkoutController */
+const LiftlogWorkoutController = {
+  create(context){
+/* A planned set leaves its count blank: the input shows the target range as
+   its placeholder, and logging an untouched set records the lower bound
+   (fillSetDefaults). Pre-filling the lower bound hid the range and made every
+   row look already decided, which also stopped a typed count cascading. */
+function newSetFrom(ex, copyFrom){
+  const timed = ex.unit === 'time';
+  const bodyweight = ex.unit === 'bw';
+  return {
+    id:context.uid(),
+    weight: copyFrom ? copyFrom.weight : null,
+    ...(bodyweight ? {
+      addedWeight:copyFrom ? copyFrom.addedWeight : null,
+      addedWeightUnit:copyFrom ? (copyFrom.addedWeightUnit || context.unitLabel()) : context.unitLabel()
+    } : {}),
+    /* reps stays a pure count; timed work lives in durationSeconds */
+    reps:   copyFrom && !timed ? copyFrom.reps : null,
+    durationSeconds: copyFrom && timed ? copyFrom.durationSeconds : null,
+    rpe:null, rir:null, completed:false, completedAt:null,
+    unit: ex.unit === 'bw' ? 'bw' : (timed ? 'time' : context.state.settings.unit)
+  };
+}
+/* item is a routine item ({exerciseId, sets, repsMin, repsMax, targetRir, weight}); the returned block
+   is the workout-local copy that logging writes into. */
+function buildWorkoutExercise(item){
+  const exDef = context.exerciseById(item.exerciseId) || { name:'Unknown exercise', category:'', unit:context.state.settings.unit, notes:'' };
+  const prev = context.lastPerformance(item.exerciseId);
+  const ex = {
+    exerciseId:item.exerciseId, name:exDef.name, category:exDef.category || '',
+    unit:exDef.unit || 'kg', loadMode:context.normalizeLoadMode(exDef.loadMode, exDef.unit),
+    equipmentKey:exDef.equipmentKey || '', movementFamily:exDef.movementFamily || context.inferMovementFamily(exDef.name, exDef.category),
+    plannedSets:item.sets || 3,
+    targetRepsMin:item.repsMin != null ? item.repsMin : 8,
+    targetRepsMax:item.repsMax != null ? item.repsMax : (item.repsMin != null ? item.repsMin : 8),
+    targetRir:item.targetRir != null ? item.targetRir : null,
+    targetWeight:item.weight != null ? item.weight : null,
+    ...(item.eitherOf ? { eitherOf:item.eitherOf } : {}),
+    ...(item.supersetOf ? { supersetOf:item.supersetOf } : {}),
+    notes:exDef.notes || '', skipped:false, sets:[]
+  };
+  const n = Math.max(1, item.sets || 3);
+  for (let i = 0; i < n; i++){
+    const set = newSetFrom(ex, null);
+    /* seed the bar with the plan, else with what was lifted last time */
+    const prevSet = prev && (prev.sets[i] || prev.sets[0]);
+    if (ex.unit === 'bw'){
+      if (item.weight != null){ set.addedWeight = item.weight; set.addedWeightUnit = context.unitLabel(); }
+      else if (prevSet && prevSet.addedWeight != null){
+        set.addedWeight = context.convertWeight(prevSet.addedWeight, prevSet.addedWeightUnit || context.unitLabel(), context.unitLabel());
+        set.addedWeightUnit = context.unitLabel();
+      }
+    } else if (item.weight != null) set.weight = item.weight;
+    else if (prevSet && prevSet.weight != null) set.weight = prevSet.weight;
+    ex.sets.push(set);
+  }
+  return ex;
+}
+function beginWorkout(workout){
+  if(context.workoutHandoff.held()){context.toast('Cancel the handoff before starting another workout');return;}
+  if(context.appUpdates&&!context.appUpdates.canStart()){context.toast('App update in progress — wait before starting a workout');return;}
+  context.state.activeWorkout = workout;
+  context.save();
+  context.requestPersistence(false);   /* a user gesture, and the point data starts mattering */
+  context.restoreTimer();
+  context.ui.view = 'today';
+  context.ui.selectedRoutineId = null;
+  /* nothing to log yet means the sheet is where the user needs to be — and the
+     focus with it: everything outside an open modal is inert. */
+  context.ui.overviewOpen = workout.exercises.length === 0;
+  context.ui.notesOpen = false;
+  context.ui.focus = context.ui.overviewOpen ? 'add-ex-select' : 'workout-title';
+  context.render();
+}
+/* startRoutine and startEmpty differ only in the workout they build and the
+   wording of the "you already have one running" prompt. */
+function startSession(build, replaceBody, started){
+  if(context.workoutHandoff.held()){context.toast('Cancel the handoff in Settings before starting another workout');return;}
+  const go = () => { beginWorkout(build()); context.toast(started); };
+  if (!context.state.activeWorkout){ go(); return; }
+  context.confirmDlg('Replace current workout?', replaceBody, 'Discard & start', true)
+    .then(ok => { if (ok){ context.state.activeWorkout = null; go(); } });
+}
+function newWorkout(routine){
+  return {
+    id:context.uid(),
+    routineId:routine ? routine.id : null,
+    routineName:routine ? routine.name : 'Quick session',
+    startedAt:Date.now(), finishedAt:null, notes:'', currentExerciseIndex:0, supersetSide:0,
+    exercises:routine ? routine.items.map(buildWorkoutExercise) : [],
+    timer:null
+  };
+}
+function startRoutine(id){
+  const r = context.routineById(id);
+  if (!r) return;
+  startSession(() => newWorkout(r),
+    'You already have a workout in progress. Starting “' + r.name + '” will discard it.',
+    'Workout started — ' + r.name);
+}
+function startEmpty(){
+  startSession(() => newWorkout(null),
+    'Starting a new session will discard the workout in progress.',
+    'Quick session started');
+}
+/* Default plan for a freshly added exercise: timed work is measured in
+   seconds, everything else in reps. */
+function newRoutineItem(exId){
+  const def = context.exerciseById(exId);
+  return { id:context.uid(), exerciseId:exId, sets:3,
+    repsMin:(def && def.unit === 'time') ? 30 : 8,
+    repsMax:(def && def.unit === 'time') ? 30 : 12,
+    targetRir:null, weight:null };
+}
+function addExerciseToWorkout(exId){
+  if(context.workoutHandoff.held())return;
+  const w = context.state.activeWorkout;
+  if (!w || !exId) return;
+  const def = context.exerciseById(exId);
+  /* The picker already leaves out what is in the session, so this catches the
+     stale-value case (a submit against a list rendered before another add).
+     One movement, one panel: a second copy would split its sets and its volume
+     across two rows of the same session. */
+  if (w.exercises.some(x => x.exerciseId === exId)){
+    context.toast((def ? def.name : 'That exercise') + ' is already in this session');
+    return;
+  }
+  w.exercises.push(buildWorkoutExercise(newRoutineItem(exId)));
+  if (w.currentExerciseIndex >= w.exercises.length - 1 || allSetsDone(currentExercise()))
+    pointAt(w, w.exercises.length - 1);
+  context.save(); context.render();
+  context.toast('Added ' + (def ? def.name : 'exercise'));
+}
+/* The group cursor. currentExerciseIndex always names the first block of a
+   superset (or a lone block), so everything that reasons about "before the
+   cursor is settled" keeps working unchanged; supersetSide picks which member
+   of that superset is on screen. A superset is a run of adjacent blocks
+   sharing supersetOf — settleSupersets() keeps that true. */
+function supersetRun(w, i){
+  const ex = w.exercises[i];
+  if (!ex || !ex.supersetOf) return [i];
+  let lo = i, hi = i;
+  while (lo > 0 && w.exercises[lo - 1].supersetOf === ex.supersetOf) lo--;
+  while (hi < w.exercises.length - 1 && w.exercises[hi + 1].supersetOf === ex.supersetOf) hi++;
+  const run = [];
+  for (let k = lo; k <= hi; k++) run.push(k);
+  return run;
+}
+function currentMemberIndex(w){
+  const run = supersetRun(w, w.currentExerciseIndex);
+  return run[Math.min(w.supersetSide || 0, run.length - 1)];
+}
+/* The one way to move the cursor to a block: it lands on that block's
+   superset and selects the block within it. */
+function pointAt(w, idx){
+  const run = supersetRun(w, idx);
+  w.currentExerciseIndex = run[0];
+  w.supersetSide = idx - run[0];
+}
+/* Moving onto a superset starts with its first member that still has work. */
+function enterAt(w, idx){
+  const run = supersetRun(w, idx);
+  const open = run.find(i => !w.exercises[i].skipped && !allSetsDone(w.exercises[i]));
+  pointAt(w, open != null ? open : idx);
+}
+/* Alternation only works between neighbours. A session change that separates
+   or orphans a member (a reorder, a removal) ends that superset for this
+   session only; the saved routine keeps it. Returns whether any ended. */
+function settleSupersets(w){
+  const members = new Map();
+  w.exercises.forEach((ex, i) => {
+    if (typeof ex.supersetOf !== 'string' || !ex.supersetOf){ delete ex.supersetOf; return; }
+    if (!members.has(ex.supersetOf)) members.set(ex.supersetOf, []);
+    members.get(ex.supersetOf).push(i);
+  });
+  let ended = false;
+  members.forEach(idx => {
+    if (idx.length >= 2 && idx[idx.length - 1] - idx[0] === idx.length - 1) return;
+    idx.forEach(i => delete w.exercises[i].supersetOf);
+    ended = true;
+  });
+  return ended;
+}
+/* Whose turn it is after a set in the current superset: the next member, in
+   order, that still has work. `wrapped` means the round is over — the one
+   point at which a superset rests. Null outside a superset or once every
+   member is finished. */
+function supersetTurn(w){
+  const run = supersetRun(w, w.currentExerciseIndex);
+  if (run.length < 2) return null;
+  const side = run.indexOf(currentMemberIndex(w));
+  for (let k = 1; k <= run.length; k++){
+    const j = (side + k) % run.length, ex = w.exercises[run[j]];
+    if (!ex.skipped && !allSetsDone(ex)) return { index:run[j], wrapped:j <= side };
+  }
+  return null;
+}
+function currentExercise(){
+  const w = context.state.activeWorkout;
+  return w ? w.exercises[currentMemberIndex(w)] || null : null;
+}
+function allSetsDone(ex){ return ex && ex.sets.length > 0 && ex.sets.every(s => s.completed); }
+/* Finishing one alternative settles only this session's copy of the plan.
+   Keep the current block's identity stable when its partner was before it. */
+function settleEitherOf(w, ex){
+  if (!ex.eitherOf) return null;
+  const partnerIndex = w.exercises.findIndex(other => other !== ex && other.eitherOf === ex.eitherOf);
+  delete ex.eitherOf;
+  if (partnerIndex < 0) return null;
+  const [partner] = w.exercises.splice(partnerIndex, 1);
+  if (partnerIndex < w.currentExerciseIndex) w.currentExerciseIndex--;
+  return partner;
+}
+
+/* A set left blank falls back to the target. Timed work must land in
+   durationSeconds — writing it to `reps` is exactly the v2 bug v3 undid. */
+function fillSetDefaults(ex, s){
+  const field = ex.unit === 'time' ? 'durationSeconds' : 'reps';
+  if (context.toNum(s[field]) == null) s[field] = ex.targetRepsMin != null ? ex.targetRepsMin : 0;
+  if (!s.unit) s.unit = ex.unit === 'time' ? 'time' : (ex.unit === 'bw' ? 'bw' : context.state.settings.unit);
+}
+function toggleWarmup(setId, focusId){
+  if(context.workoutHandoff.held())return;
+  const ex = currentExercise(); if (!ex) return;
+  const s = ex.sets.find(x => x.id === setId); if (!s) return;
+  const on = !context.isWarmup(s);
+  context.trackChange(context.setUndoTarget(context.state.activeWorkout,ex,s),'Edited set type',()=>{context.setWarmup(s,on);context.save({changed:['activeWorkout']});});
+  context.ui.focus = focusId || 'sn-' + setId;
+  context.render();
+  context.announce(on ? 'Marked as a warm-up: it no longer counts toward volume or records.'
+              : 'Marked as a working set.');
+}
+/* The one way a set is logged: its own box in the done column. It therefore
+   also owns what used to hang off the "Set N done" button — the announcement
+   and the auto-rest that starts the moment a set lands. */
+function toggleSet(setId){
+  if(context.workoutHandoff.held())return;
+  const ex = currentExercise(); if (!ex) return;
+  const i = ex.sets.findIndex(x => x.id === setId);
+  if (i === -1) return;
+  const s = ex.sets[i];
+  const w = context.state.activeWorkout;
+  s.completed = !s.completed;
+  if (s.completed){ s.completedAt = Date.now(); fillSetDefaults(ex, s); }
+  else s.completedAt = null;
+  let finished = s.completed && allSetsDone(ex);
+  const removed = finished ? settleEitherOf(w, ex) : null;
+  /* In a superset a logged set hands over to the partner, and rest waits for
+     the end of the round. The superset is finished only when every member is.
+     A warm-up is not part of the round: it stays on this exercise and rests
+     as a straight set would — unless it was this member's last open set. */
+  const inSuperset = s.completed && supersetRun(w, w.currentExerciseIndex).length > 1;
+  const turn = inSuperset ? supersetTurn(w) : null;
+  if (inSuperset) finished = !turn;
+  const holdForWarmup = context.isWarmup(s) && !allSetsDone(ex);
+  const handOver = turn && !holdForWarmup && turn.index !== currentMemberIndex(w) ? w.exercises[turn.index] : null;
+  context.save({changed:['activeWorkout']});
+  if (removed) context.toast('Either of: removed ' + removed.name + ' from this workout');
+  if (s.completed){
+    context.announce('Set ' + (i+1) + ' of ' + ex.sets.length + ' complete.' + (handOver ? ' Now: ' + handOver.name + '.' : ''));
+    if (context.state.settings.autoRest && (!turn || turn.wrapped || holdForWarmup)){
+      context.loadTimer(context.currentRestSeconds());
+      context.startTimer();
+    }
+  }
+  /* checking the last open box leaves nothing to log here, so move on rather
+     than sit on a fully-done set list */
+  if (finished) advanceExercise(false, true);
+  else if (handOver){ pointAt(w, turn.index); context.save({changed:['activeWorkout']}); context.ui.focus = 'ex-panel-top'; context.render(); }
+  else { context.ui.focus = 'sd-' + setId; context.render(); }
+}
+/* The manual override: work on another member of the current superset now,
+   say because its station just came free. */
+function switchSupersetMember(idx){
+  const w = context.state.activeWorkout; if (!w) return;
+  if (!supersetRun(w, w.currentExerciseIndex).includes(idx) || idx === currentMemberIndex(w)) return;
+  pointAt(w, idx);
+  w.exercises[idx].skipped = false;
+  context.save();
+  context.ui.focus = 'ex-panel-top';
+  context.render();
+  context.announce('Now: ' + w.exercises[idx].name + '.');
+}
+/* Setting a weight or a rep/duration target is nearly always a decision about
+   the rest of the exercise rather than about one row, so it flows down to
+   later sets — but only into rows that are still blank. A row that already
+   holds a number (typed, pre-filled from the plan or last session, or a
+   deliberately different warm-up or back-off load) is a decision of its own
+   and is never overwritten. Completed sets are left alone too — they record
+   what was actually done, not what is planned.
+
+   Two deliberate choices. It runs on commit rather than per keystroke, so
+   typing "100" does not walk the rows below through 1 and 10. And it writes
+   the other inputs directly rather than calling render(), because a re-render
+   here would take the focus with it as the user tabs to the next field. */
+function cascadeSetField(setId, field, value, elPrefix, unitSuffix){
+  if(context.workoutHandoff.held())return;
+  const ex = currentExercise(); if (!ex) return;
+  const i = ex.sets.findIndex(x => x.id === setId);
+  if (i === -1) return;
+  value = context.normalizeSetNumber(field, value);
+  ex.sets[i][field] = value;
+  /* clearing a field is not "setting" it, and must not wipe the rest */
+  if (value == null){ context.save({changed:['activeWorkout']}); return; }
+  let changed = 0;
+  for (let j = i + 1; j < ex.sets.length; j++){
+    const s = ex.sets[j];
+    if (s.completed || s[field] != null) continue;
+    s[field] = value;
+    const el = document.getElementById(elPrefix + s.id);
+    if (el) el.value = value;
+    changed++;
+  }
+  context.save({changed:['activeWorkout']});
+  /* the rows visibly change, so this is for screen readers only */
+  if (changed) context.announce(context.plural(changed, 'later set') + ' set to ' + context.fmtNum(value) + (unitSuffix ? ' ' + unitSuffix : '') + '.');
+}
+function cascadeWeight(setId, value){
+  const ex = currentExercise(); if (!ex) return;
+  const field = ex.unit === 'bw' ? 'addedWeight' : 'weight';
+  if (ex.unit === 'bw') ex.sets.forEach(s => { s.addedWeightUnit = context.unitLabel(); });
+  cascadeSetField(setId, field, value, 'sw-', context.unitLabel());
+}
+function cascadeReps(setId, value){
+  const ex = currentExercise(); if (!ex) return;
+  const field = ex.unit === 'time' ? 'durationSeconds' : 'reps';
+  cascadeSetField(setId, field, value, 'sr-', ex.unit === 'time' ? 'sec' : '');
+}
+
+/* Numeric edits stay in the dialog draft until Save. Less frequent warm-up
+   and delete actions share this editor. */
+function openSetEditor(setId){
+  if(context.workoutHandoff.held())return;
+  const ex=currentExercise(),set=ex?.sets.find(s=>s.id===setId);if(!set)return;
+  const number=ex.sets.indexOf(set)+1,opener=document.querySelector('[data-action="edit-set"][data-id="'+CSS.escape(setId)+'"]');
+  const dialog=document.createElement('dialog');dialog.className='numeric-editor';dialog.setAttribute('aria-label','Edit set '+number);
+  const heading=document.createElement('h2');heading.textContent='Set '+number;dialog.append(heading);
+  const inputs=[];
+  for(const original of opener.closest('.set-row').querySelectorAll('input')){
+    const label=document.createElement('label');label.className='field';const cap=document.createElement('span');cap.textContent=original.getAttribute('aria-label');
+    const input=original.cloneNode();input.removeAttribute('id');input.removeAttribute('data-bind');input.removeAttribute('data-change');input.removeAttribute('data-id');input.value=original.value;input.dataset.stepper='';
+    if(['weight','addedWeight'].includes(original.dataset.field)){input.dataset.increment=context.state.settings.loadStep||original.step;input.step='any';}
+    label.append(cap,input);dialog.append(label);inputs.push({input,field:original.dataset.field});
+  }
+  const actions=document.createElement('div');actions.className='editor-actions';dialog.append(actions);
+  const button=(text,css,action)=>{const b=document.createElement('button');b.type='button';b.className='btn '+css;b.textContent=text;b.addEventListener('click',action);actions.append(b);};
+  button('Save changes','btn-primary',()=>{if(inputs.some(({input})=>!input.reportValidity()))return;context.trackChange(context.setUndoTarget(context.state.activeWorkout,ex,set),'Edited set',()=>{for(const {input,field}of inputs)set[field]=context.normalizeSetNumber(field,input.value);context.save();});dialog.close();context.ui.focus='sd-'+setId;context.render();});
+  button(context.isWarmup(set)?'Mark as working set':'Mark as warm-up','',()=>{dialog.close();toggleWarmup(setId);});
+  button('Cancel','',()=>dialog.close());
+  const divider=document.createElement('hr');actions.append(divider);
+  button('Delete set '+number+'…','btn-danger',()=>{dialog.close();deleteSet(setId);});
+  button('Remove exercise…','btn-danger',()=>{dialog.close();confirmExerciseRemoval(context.state.activeWorkout,ex);});
+  dialog.addEventListener('close',()=>{dialog.remove();if(opener?.isConnected)opener.focus();},{once:true});document.body.append(dialog);context.WorkoutUI.attachSteppers(dialog);dialog.showModal();
+}
+
+function deleteSet(setId){
+  if(context.workoutHandoff.held())return;
+  const w = context.state.activeWorkout, ex = currentExercise();
+  if (!w || !ex) return;
+  const i = ex.sets.findIndex(s => s.id === setId);
+  if (i === -1) return;
+  const s = ex.sets[i];
+  const go = () => {
+    if(!context.deleteRecoverableSet(w,ex,s))return;
+    const remaining=currentExercise()?.sets||[];
+    context.ui.focus=remaining.length?'sd-'+remaining[Math.min(i,remaining.length-1)].id:'ex-panel-top';
+    context.render();
+    context.toast('Set ' + (i + 1) + ' deleted');
+  };
+  /* Only a logged set is worth a dialog. An uncompleted row is a plan, and
+     "+ Set" puts it back — asking about one would also be misleading, since
+     addSet() pre-fills a new row from the set above it, so "this row has a
+     weight in it" says nothing about whether the user typed anything. */
+  if (!s.completed){ go(); return; }
+  context.confirmDlg('Delete set ' + (i + 1) + '?',
+    'This set is logged as done. Deleting it removes it from this session\u2019s totals.',
+    'Delete set', true).then(ok => { if (ok) go(); });
+}
+
+/* Removing the exercise from the session is the local answer; if it came from
+   a routine, the user may well mean the plan itself, so that is offered as a
+   separate, clearly-labelled choice rather than assumed either way. */
+function confirmExerciseRemoval(w, ex){
+  const idx = w.exercises.indexOf(ex);
+  const routine = w.routineId ? context.routineById(w.routineId) : null;
+  const inRoutine = routine ? routine.items.filter(it => it.exerciseId === ex.exerciseId).length : 0;
+
+  const buttons = [
+    { label:'Cancel', value:'cancel', cls:'', autofocus:true },
+    { label:'Remove from session', value:'session', cls:'btn-danger' }
+  ];
+  if (inRoutine) buttons.push({ label:'Remove from routine too', value:'routine', cls:'btn-danger-solid' });
+
+  context.dialog({
+    title:'Remove \u201C' + ex.name + '\u201D?',
+    body:'Remove this exercise and its sets from the current session.' +
+      (inRoutine
+        ? ' You can drop it from this session only, or also remove it from \u201C' + routine.name +
+          '\u201D so it stops appearing in future sessions.'
+        : ''),
+    buttons
+  }).then(v => {
+    if (v !== 'session' && v !== 'routine') return;
+    const run = supersetRun(w, idx);
+    const partners = run.filter(i => i !== idx).map(i => w.exercises[i]);
+    w.exercises.splice(idx, 1);
+    if (ex.eitherOf){
+      const partner = w.exercises.find(other => other.eitherOf === ex.eitherOf);
+      if (partner) delete partner.eitherOf;
+    }
+    settleSupersets(w);
+    /* a superset partner with work left takes over; otherwise move on past
+       whatever remains of it, which for a lone block is the old position */
+    const heir = partners.find(p => !p.skipped && !allSetsDone(p));
+    if (heir) pointAt(w, w.exercises.indexOf(heir));
+    else pointAt(w, Math.min(run[run.length - 1], w.exercises.length));
+    let msg = 'Removed ' + ex.name + ' from this session';
+    if (v === 'routine'){
+      /* the workout block does not record which routine item built it, so
+         every item for this exercise goes — reported, not silent */
+      routine.items = routine.items.filter(it => it.exerciseId !== ex.exerciseId);
+      context.cleanRoutinePairs(routine.items);
+      msg = 'Removed ' + ex.name + ' from this session and from ' + routine.name +
+        (inRoutine > 1 ? ' (' + inRoutine + ' entries)' : '');
+    }
+    /* removing the last exercise leaves the same empty session that starting a
+       quick session does, so land in the same place: the drawer, which is
+       where exercises are added */
+    if (!w.exercises.length){ context.ui.overviewOpen = true; context.ui.focus = 'add-ex-select'; }
+    else context.ui.focus = 'ex-panel-top';
+    context.save();
+    context.render();
+    context.toast(msg);
+  });
+}
+
+function addSet(){
+  if(context.workoutHandoff.held())return;
+  const ex = currentExercise(); if (!ex) return;
+  const s = newSetFrom(ex, ex.sets[ex.sets.length - 1]);
+  ex.sets.push(s);
+  context.save();
+  context.ui.focus = (ex.unit === 'time' ? 'sr-' : 'sw-') + s.id;
+  context.render();
+  context.toast('Set ' + ex.sets.length + ' added');
+}
+/* `toOpen` is the move a finished exercise makes: on to the next one with
+   work left (nextOpenBlock), rather than the next one in the list. */
+function advanceExercise(markSkipped, toOpen){
+  if(context.workoutHandoff.held())return;
+  const w = context.state.activeWorkout; const ex = currentExercise();
+  if (!w || !ex) return;
+  if (markSkipped){ ex.skipped = true; context.announce(ex.name + ' skipped.'); }
+  /* a skipped superset member leaves its partner to finish as straight sets */
+  const turn = markSkipped ? supersetTurn(w) : null;
+  const open = toOpen && !turn ? nextOpenBlock(w) : null;
+  if (turn) pointAt(w, turn.index);
+  else if (open != null){
+    if (open < 0){ w.currentExerciseIndex = w.exercises.length; w.supersetSide = 0; }
+    else enterAt(w, open);
+  } else {
+    /* the cursor moves a superset at a time, so "next" is past its last member */
+    const run = supersetRun(w, w.currentExerciseIndex);
+    const next = run[run.length - 1] + 1;
+    if (next >= w.exercises.length){ w.currentExerciseIndex = w.exercises.length; w.supersetSide = 0; }
+    else enterAt(w, next);
+  }
+  context.save();
+  if (!markSkipped && w.currentExerciseIndex < w.exercises.length)
+    context.announce('Now: ' + currentExercise().name);
+  context.ui.focus = 'ex-panel-top';
+  context.render();
+}
+/* Back one exercise. `reopenExercise` is the same move the drawer makes, so
+   stepping back into a skipped exercise un-skips it: the exercise you are
+   looking at is never one the session has written off. From the end-of-session
+   state the index sits one past the last exercise, hence the clamp. */
+function goToPreviousExercise(){
+  if(context.workoutHandoff.held())return;
+  const w = context.state.activeWorkout; if (!w) return;
+  const i = Math.min(w.currentExerciseIndex, w.exercises.length) - 1;
+  if (i < 0) return;
+  reopenExercise(i);
+  context.announce('Back to ' + w.exercises[i].name + '.');
+}
+function reopenExercise(idx){
+  const w = context.state.activeWorkout; if (!w) return;
+  if (idx < 0 || idx >= w.exercises.length) return;
+  w.exercises[idx].skipped = false;
+  pointAt(w, idx);
+  context.save();
+  context.ui.focus = 'ex-panel-top';
+  context.render();
+}
+/* An exercise the session has finished with: skipped, or every set logged and
+   not the one on screen. It is a matter of status, not of position — an
+   exercise passed over by jumping ahead still has work in it, and a finished
+   one can sit anywhere once the list has been rearranged. The sheet draws
+   these with their logged sets and a Reopen button; automatic advancing steps
+   over them. */
+function isSettledRow(w, ex, i){
+  return ex.skipped || (allSetsDone(ex) && i !== currentMemberIndex(w));
+}
+const hasWorkLeft = ex => !!ex && !ex.skipped && !allSetsDone(ex);
+/* Move one exercise to another position in the session. Every row moves —
+   finished, skipped, current and still to come alike — so the sheet is one
+   list with one set of rules, and ordering it never depends on how far the
+   session has got.
+
+   "Now" stays with the exercise being worked on, wherever it or anything else
+   moves, with one exception that is the point of moving it: dragging the
+   current exercise later means "I'll come back to this one", standing in front
+   of an occupied machine. Then the first exercise with work left that it was
+   moved past takes over. Moved past nothing but finished work, it stays. A move
+   within its own superset never hands over: that is reordering the round.
+
+   A move that separates a superset ends it for this session (settleSupersets).
+   Returns { landed, ended }: where the exercise ended up and whether a
+   superset ended. */
+function moveSessionExercise(w, from, to){
+  const cur = w.exercises[currentMemberIndex(w)] || null;
+  const [moved] = w.exercises.splice(from, 1);
+  w.exercises.splice(to, 0, moved);
+  const ended = settleSupersets(w);
+  let next = cur;
+  if (cur && moved === cur && to > from){
+    const own = supersetRun(w, w.exercises.indexOf(cur)).map(i => w.exercises[i]);
+    for (let k = from; k < to; k++){
+      const ex = w.exercises[k];
+      if (hasWorkLeft(ex) && !own.includes(ex)){ next = ex; break; }
+    }
+  }
+  if (next) pointAt(w, w.exercises.indexOf(next));
+  else w.currentExerciseIndex = w.exercises.length;
+  return { landed:w.exercises.indexOf(moved), ended };
+}
+/* After an exercise is finished: the next block that still has work, looking
+   forward first and then back to anything passed over earlier — rearranging
+   can leave finished exercises later in the list, and jumping ahead can leave
+   unfinished ones earlier. -1 when nothing is left. The pager's Next stays a
+   plain step to the following exercise; this is only the automatic move. */
+function nextOpenBlock(w){
+  const run = supersetRun(w, w.currentExerciseIndex);
+  const n = w.exercises.length, after = run[run.length - 1];
+  for (let k = 1; k <= n; k++){
+    const i = (after + k) % n;
+    if (!run.includes(i) && hasWorkLeft(w.exercises[i])) return i;
+  }
+  return -1;
+}
+/* The arrow buttons are a drag of exactly one place, and they commit the same
+   way — through the list's own drop. All they add is where the focus goes
+   afterwards: it stays on the button being held, unless the move disabled it,
+   in which case the other one takes over. */
+function overviewStep(idx, dir){
+  const w = context.state.activeWorkout; if (!w) return;
+  const to = idx + dir, last = w.exercises.length - 1;
+  if (idx < 0 || idx > last || to < 0 || to > last) return;
+  const atBound = dir < 0 ? to === 0 : to === last;
+  const keep = atBound ? (dir < 0 ? 'ov-down-' : 'ov-up-') : (dir < 0 ? 'ov-up-' : 'ov-down-');
+  context.SORTABLES['session-exercises'].drop(idx, to, keep + to);
+}
+/* A superset made mid-session: the second exercise moves to just after the
+   first, and the pair lasts for this workout only — the routine keeps its plan,
+   the same as a superset a reorder ends. Both must still have work in them and
+   belong to no pair; the dialog offers nothing else. */
+function pairSessionExercises(a, b){
+  const w = context.state.activeWorkout; if (!w) return false;
+  const first = w.exercises[a], second = w.exercises[b];
+  const free = ex => hasWorkLeft(ex) && !ex.eitherOf && !ex.supersetOf;
+  if (!first || !second || first === second || !free(first) || !free(second)) return false;
+  const cur = w.exercises[currentMemberIndex(w)] || null;
+  w.exercises.splice(b, 1);
+  w.exercises.splice(w.exercises.indexOf(first) + 1, 0, second);
+  first.supersetOf = second.supersetOf = context.uid();
+  if (cur) pointAt(w, w.exercises.indexOf(cur));
+  context.save();
+  return true;
+}
+function unpairSessionExercises(key){
+  const w = context.state.activeWorkout; if (!w || !key) return false;
+  const cur = w.exercises[currentMemberIndex(w)] || null;
+  let removed = false;
+  w.exercises.forEach(ex => { if (ex.supersetOf === key){ delete ex.supersetOf; removed = true; } });
+  if (!removed) return false;
+  if (cur) pointAt(w, w.exercises.indexOf(cur));
+  context.save();
+  return true;
+}
+function finishWorkout(){
+  if(context.workoutHandoff.held()){context.toast('Workout held for handoff');return;}
+  const w = context.state.activeWorkout; if (!w) return;
+  const done = context.workoutSets(w);
+  const commit = discard => {
+    if (discard){
+      context.state.activeWorkout = null; context.save(); context.loadTimer(context.state.settings.defaultRest); context.render();
+      context.toast('Workout discarded'); return;
+    }
+    w.finishedAt = Date.now();
+    /* how the plan was performed stays with the session in progress */
+    delete w.supersetSide;
+    w.exercises.forEach(ex => { delete ex.supersetOf; });
+    /* drop rows never touched, then exercises left with nothing to show */
+    w.exercises.forEach(ex => {
+      ex.sets = ex.sets.filter(s => s.completed || s.weight != null || s.reps != null || s.durationSeconds != null);
+    });
+    w.exercises = w.exercises.filter(ex => ex.sets.length > 0 || ex.skipped);
+    context.state.workouts.push(w);
+    context.sortWorkouts();
+    /* A plan is spent once its session is saved; the workout keeps what it
+       prescribed. Discarding the session leaves the plan in place. */
+    const plan = w.routineId ? context.routineById(w.routineId) : null;
+    const planDone = context.isPlan(plan);
+    if (planDone) context.state.routines = context.state.routines.filter(r => r !== plan);
+    context.state.activeWorkout = null;
+    context.save(); context.loadTimer(context.state.settings.defaultRest);
+    /* the finished session opens in its sheet, as the summary of what was
+       done; a search left in History would hide its row once it closed */
+    context.ui.historyQuery = '';
+    context.ui.focus = 'detail-title';
+    context.navigate('history', { kind:'workout', id:w.id });
+    window.scrollTo(0,0);
+    context.toast('Workout saved — ' + context.fmtNum(context.workoutVolume(w)) + ' ' + context.unitLabel() + ' total' + (planDone ? ' · plan done' : ''));
+    context.maybeNagBackup();
+  };
+  if (done === 0){
+    context.dialog({ title:'No sets completed', body:'This workout has no completed sets. Do you want to save it anyway?',
+      buttons:[
+        { label:'Discard', value:'discard', cls:'btn-danger' },
+        { label:'Cancel', value:'cancel', cls:'', autofocus:true },
+        { label:'Save anyway', value:'save', cls:'btn-primary' }
+      ]}).then(v => { if (v === 'save') commit(false); else if (v === 'discard') commit(true); });
+  } else commit(false);
+}
+function discardWorkout(){
+  if(context.workoutHandoff.held()){context.toast('Cancel the handoff in Settings before discarding the workout');return;}
+  context.confirmDlg('Discard workout?','All sets logged in this session will be lost. This cannot be undone.','Discard workout',true)
+    .then(ok => {
+      if (!ok) return;
+      context.state.activeWorkout = null; context.save(); context.loadTimer(context.state.settings.defaultRest);
+      context.render(); context.toast('Workout discarded');
+    });
+}
+    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,cascadeReps,openSetEditor,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,discardWorkout};
+  }
+};
+
+/* liftlog-workout-controller:end */
+let workoutControllerInstance;
+/* liftlog-routines-controller:start */
+/* liftlog routines controller. Context getters always read current app state. */
+/* exported LiftlogRoutineController */
+const LiftlogRoutineController = {
+  create(context){
+function pairKeyOf(it){
+  return it.eitherOf ? 'e:' + it.eitherOf : it.supersetOf ? 's:' + it.supersetOf : '';
+}
+/* A pair key is local to a routine, independent of item order and IDs. */
+function cleanRoutinePairs(items){
+  items.forEach(it => context.PAIR_KEYS.forEach(key => {
+    if (typeof it[key] !== 'string' || !it[key].trim()) delete it[key];
+  }));
+  items.forEach(it => { if (it.eitherOf) delete it.supersetOf; });
+  context.PAIR_KEYS.forEach(key => {
+    const groups = new Map();
+    items.forEach(it => {
+      if (!it[key]) return;
+      if (!groups.has(it[key])) groups.set(it[key], []);
+      groups.get(it[key]).push(it);
+    });
+    groups.forEach(pair => {
+      if (pair.length !== 2 || pair[0].exerciseId === pair[1].exerciseId)
+        pair.forEach(it => delete it[key]);
+    });
+  });
+}
+function routineGroups(items){
+  const groups = [], pairs = new Map();
+  items.forEach(it => {
+    const key = pairKeyOf(it);
+    if (key && pairs.has(key)) pairs.get(key).push(it);
+    else { const group = [it]; groups.push(group); if (key) pairs.set(key, group); }
+  });
+  return groups;
+}
+/* Either-of plans the larger alternative; a superset plans every member. */
+function groupPlannedSets(group, count){
+  return group[0].supersetOf ? group.reduce((n, it) => n + count(it), 0) : Math.max(...group.map(count));
+}
+function keepRoutinePairsAdjacent(items){
+  items.splice(0, items.length, ...routineGroups(items).flat());
+}
+function routineSummary(items){
+  const groups = routineGroups(items);
+  const sum = (g, pick) => g[0].supersetOf ? g.reduce((n, it) => n + it.sets, 0) : pick(...g.map(it => it.sets));
+  const low = groups.reduce((n, g) => n + sum(g, Math.min), 0);
+  const high = groups.reduce((n, g) => n + sum(g, Math.max), 0);
+  const exercises = groups.reduce((n, g) => n + (g[0].supersetOf ? g.length : 1), 0);
+  return context.plural(exercises, 'exercise') + ' · ' + low + (high !== low ? '–' + high : '') + ' planned sets';
+}
+function normalizeRoutineItem(it){
+  it.sets = context.clamp(parseInt(it.sets, 10) || context.ITEM_LIMITS.sets[0], ...context.ITEM_LIMITS.sets);
+  const legacy = context.toNum(it.reps);
+  let low = context.toNum(it.repsMin), high = context.toNum(it.repsMax);
+  if (low == null) low = legacy == null ? 0 : legacy;
+  if (high == null) high = legacy == null ? low : legacy;
+  low = context.clamp(Math.round(low), ...context.ITEM_LIMITS.reps);
+  high = context.clamp(Math.round(high), ...context.ITEM_LIMITS.reps);
+  if (high < low) [low, high] = [high, low];
+  it.repsMin = low;
+  it.repsMax = high;
+  const rir = context.toNum(it.targetRir);
+  it.targetRir = rir == null ? null : context.clamp(Math.round(rir), 0, 10);
+  it.weight = context.toNum(it.weight);
+  if (it.weight != null && it.weight < 0) it.weight = null;
+  delete it.reps;
+  delete it.rest;
+  return it;
+}
+function normalizeWorkoutTargets(ex){
+  const legacy = context.toNum(ex.targetReps);
+  let low = context.toNum(ex.targetRepsMin), high = context.toNum(ex.targetRepsMax);
+  if (low == null && legacy != null) low = legacy;
+  if (high == null && legacy != null) high = legacy;
+  if (low == null && high != null) low = high;
+  if (high == null && low != null) high = low;
+  if (low != null){
+    low = context.clamp(Math.round(low), ...context.ITEM_LIMITS.reps);
+    high = context.clamp(Math.round(high), ...context.ITEM_LIMITS.reps);
+    if (high < low) [low, high] = [high, low];
+    ex.targetRepsMin = low;
+    ex.targetRepsMax = high;
+  } else {
+    delete ex.targetRepsMin;
+    delete ex.targetRepsMax;
+  }
+  const rir = context.toNum(ex.targetRir);
+  ex.targetRir = rir == null ? null : context.clamp(Math.round(rir), 0, 10);
+  delete ex.targetReps;
+  delete ex.restSeconds;
+  return ex;
+}
+/* Where a logged count sits against the target range. Warm-ups are not held
+   to the working target. */
+function repRangeState(ex, s){
+  const v = context.toNum(ex.unit === 'time' ? s.durationSeconds : s.reps);
+  const low = context.toNum(ex.targetRepsMin), high = context.toNum(ex.targetRepsMax);
+  if (v == null || low == null || context.isWarmup(s)) return null;
+  const target = targetRangeLabel(ex);
+  if (v < low) return { cls:'reps-under', title:'Below the ' + target + ' target' };
+  if (high != null && v > high) return { cls:'reps-over', title:'Above the ' + target + ' target — time for more load?' };
+  return null;
+}
+/* The count inputs commit without a re-render, so the mark is repainted here. */
+function paintRepRange(ex){
+  ex.sets.forEach(s => {
+    const el = document.getElementById('sr-' + s.id); if (!el) return;
+    const st = repRangeState(ex, s);
+    el.classList.remove('reps-under', 'reps-over');
+    if (st){ el.classList.add(st.cls); el.title = st.title; } else el.removeAttribute('title');
+  });
+}
+/* The routine editor takes a range as one field: "8", "8-12", "8–12",
+   "8 to 12". Null when the text is not a count or a range. */
+function parseRepRange(text){
+  const m = String(text == null ? '' : text).trim().match(/^(\d+)(?:\s*(?:-|–|—|to)\s*(\d+))?$/i);
+  if (!m) return null;
+  const a = Number(m[1]), b = m[2] != null ? Number(m[2]) : a;
+  return { min:Math.min(a, b), max:Math.max(a, b) };
+}
+function targetRangeLabel(ex){
+  const low = context.toNum(ex.targetRepsMin), high = context.toNum(ex.targetRepsMax);
+  if (low == null && high == null) return '–';
+  if (low == null || high == null || low === high) return context.fmtNum(low == null ? high : low);
+  return context.fmtNum(low) + '–' + context.fmtNum(high);
+}
+function pairRoutineItems(firstId, secondId, key = 'eitherOf'){
+  const items = context.ui.routineDraft && context.ui.routineDraft.items;
+  if (!items || !context.PAIR_KEYS.includes(key)) return false;
+  const first = items.find(it => it.id === firstId);
+  const second = items.find(it => it.id === secondId);
+  if (!first || !second || first === second || pairKeyOf(first) || pairKeyOf(second) ||
+      first.exerciseId === second.exerciseId) return false;
+  first[key] = second[key] = context.uid();
+  keepRoutinePairsAdjacent(items);
+  return true;
+}
+function unpairRoutineItems(groupId){
+  const items = context.ui.routineDraft && context.ui.routineDraft.items;
+  if (!items || !groupId) return false;
+  let removed = false;
+  items.forEach(it => context.PAIR_KEYS.forEach(key => {
+    if (it[key] === groupId){ delete it[key]; removed = true; }
+  }));
+  return removed;
+}
+/* One dialog serves both kinds of pair; only its words change. */
+const PAIR_KINDS = {
+  eitherOf:{ title:'Either of', second:'Or this exercise', add:'Pair exercises',
+    desc:'Choose two exercises already in this routine. Completing either one removes the other from that workout only.',
+    current:'Current pairs', join:' or ', unpair:'Unpair', empty:'Add two unpaired exercises to create another pair.' },
+  supersetOf:{ title:'Superset', second:'Alternate with', add:'Create superset',
+    desc:'Choose two exercises already in this routine. In a workout you alternate between them set by set, resting after each round.',
+    current:'Current supersets', join:' + ', unpair:'Split', empty:'Add two unpaired exercises to create a superset.' }
+};
+/* …and both places that pair: the routine being edited, and the workout in
+   progress. A scope names its list, which entries in it may pair, how a pair
+   is made and undone, and the button focus returns to. The picker's values are
+   positions in the list, which nothing can move while the dialog is open. */
+const PAIR_SCOPES = {
+  routine:{
+    list:() => context.ui.routineDraft ? context.ui.routineDraft.items : [],
+    name:it => (context.exerciseById(it.exerciseId) || {}).name || '(removed exercise)',
+    free:it => !pairKeyOf(it) && !!context.exerciseById(it.exerciseId),
+    pair:(a, b, kind) => { const items = context.ui.routineDraft.items; return pairRoutineItems(items[a].id, items[b].id, kind); },
+    unpair:key => unpairRoutineItems(key),
+    opener:kind => kind === 'supersetOf' ? 'routine-superset-open' : 'routine-pair-open'
+  },
+  session:{
+    list:() => context.state.activeWorkout ? context.state.activeWorkout.exercises : [],
+    name:ex => ex.name,
+    free:ex => context.hasWorkLeft(ex) && !ex.eitherOf && !ex.supersetOf,
+    pair:(a, b) => context.pairSessionExercises(a, b),
+    unpair:key => context.unpairSessionExercises(key),
+    opener:() => 'session-superset-open',
+    copy:{ desc:'Choose two exercises with sets still to do. You alternate between them set by set, resting after each round. ' +
+      'This workout only: the routine keeps its plan.', empty:'A superset needs two unpaired exercises with sets still to do.' }
+  }
+};
+const pairScope = () => PAIR_SCOPES[context.ui.pairScope] || PAIR_SCOPES.routine;
+/* Positions of the entries that can pair with something, in list order. */
+function pairCandidates(scopeName, first){
+  const scope = PAIR_SCOPES[scopeName], list = scope.list();
+  const free = list.map((it, i) => i).filter(i => scope.free(list[i]));
+  const fits = (i, j) => i !== j && list[i].exerciseId !== list[j].exerciseId;
+  return first == null ? free.filter(i => free.some(j => fits(i, j))) : free.filter(j => fits(first, j));
+}
+function pairPickerOptions(positions){
+  const scope = pairScope(), list = scope.list();
+  return positions.map(i => '<option value="' + i + '">' + context.esc(scope.name(list[i])) + ' · #' + (i + 1) + '</option>').join('');
+}
+function refreshSecondPairPicker(){
+  const first = context.$('#pair-first').value;
+  const second = context.$('#pair-second');
+  const selected = second.value;
+  const choices = first === '' ? [] : pairCandidates(context.ui.pairScope, Number(first));
+  second.innerHTML = pairPickerOptions(choices);
+  if (choices.includes(Number(selected))) second.value = selected;
+}
+function openPairDialog(scopeName, kind){
+  context.ui.pairScope = PAIR_SCOPES[scopeName] ? scopeName : 'routine';
+  context.ui.pairKind = PAIR_KINDS[kind] ? kind : 'eitherOf';
+  const scope = pairScope(), list = scope.list();
+  if (list.length < 2) return;
+  const copy = { ...PAIR_KINDS[context.ui.pairKind], ...(scope.copy || {}) };
+  context.$('#pair-title').textContent = copy.title;
+  context.$('#pair-desc').textContent = copy.desc;
+  context.$('#pair-second-cap').textContent = copy.second;
+  context.$('#pair-add').textContent = copy.add;
+  context.$('#pair-empty').textContent = copy.empty;
+  const groups = new Map();
+  list.forEach(it => { const key = it[context.ui.pairKind]; if (key) groups.set(key, (groups.get(key) || []).concat([it])); });
+  const paired = [...groups].filter(([, group]) => group.length === 2);
+  context.$('#pair-existing').innerHTML = paired.length
+    ? '<h3>' + copy.current + '</h3>' + paired.map(([key, group]) =>
+      '<div class="routine-pair-existing-row"><span>' + group.map(it => context.esc(scope.name(it))).join(copy.join) +
+        '</span><button type="button" class="btn btn-sm" data-action="pair-unpair" data-group="' +
+        context.esc(key) + '">' + copy.unpair + '</button></div>').join('') : '';
+  const firstChoices = pairCandidates(context.ui.pairScope);
+  const canPair = firstChoices.length > 0;
+  context.$('#pair-picker').hidden = !canPair;
+  context.$('#pair-empty').hidden = canPair;
+  context.$('#pair-add').disabled = !canPair;
+  context.$('#pair-error').hidden = true;
+  context.$('#pair-first').innerHTML = pairPickerOptions(firstChoices);
+  refreshSecondPairPicker();
+  context.$('#pair-dlg').showModal();
+  (canPair ? context.$('#pair-first') : context.$('#pair-dlg [data-action="pair-close"]')).focus();
+}
+function closePairDialog(changed){
+  const opener = pairScope().opener(context.ui.pairKind);
+  context.$('#pair-dlg').close();
+  if (changed){ context.ui.focus = opener; context.render(); }
+  else { const el = document.getElementById(opener); if (el) el.focus(); }
+}
+function addPair(){
+  const a = context.$('#pair-first').value, b = context.$('#pair-second').value;
+  if (a !== '' && b !== '' && pairScope().pair(Number(a), Number(b), context.ui.pairKind)){
+    closePairDialog(true);
+    if (context.ui.pairScope === 'session') context.toast('Superset created for this workout');
+    return;
+  }
+  const error = context.$('#pair-error');
+  error.textContent = 'Choose two different, unpaired exercises.';
+  error.hidden = false;
+}
+/* ---------- plans ----------
+   A plan is a routine marked one-off, optionally for a calendar day. Saving
+   the session started from it removes it: the workout already copied its
+   prescription, so History is where it lives on. The day is a local calendar
+   date string, never a timestamp, so time zones cannot move it. */
+const isPlan = r => !!r && r.plan === true;
+const stableRoutines = () => context.state.routines.filter(r => !isPlan(r));
+function localDay(ts = Date.now()){
+  const d = new Date(ts);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function validPlanDay(v){
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [y, m, d] = v.split('-').map(Number), date = new Date(y, m - 1, d);
+  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
+}
+/* Stable routines carry no plan fields at all, so their exports stay as before. */
+function normalizePlanFields(r){
+  if (r.plan === true) r.plannedFor = validPlanDay(r.plannedFor) ? r.plannedFor : null;
+  else { delete r.plan; delete r.plannedFor; }
+  return r;
+}
+function planDay(r){
+  if (!r.plannedFor) return { rank:2, label:'Anytime', overdue:false };
+  const [y, m, d] = r.plannedFor.split('-').map(Number);
+  const when = context.fmtDate(new Date(y, m - 1, d).getTime()), today = localDay();
+  if (r.plannedFor < today) return { rank:0, label:'Overdue · ' + when, when, overdue:true };
+  if (r.plannedFor === today) return { rank:1, label:'Today', overdue:false };
+  return { rank:3, label:when, overdue:false };
+}
+/* Overdue (oldest first), today, anytime, then later days in order. */
+function sortedPlans(){
+  return context.state.routines.filter(isPlan).map(r => ({ r, day:planDay(r) }))
+    .sort((a, b) => a.day.rank - b.day.rank || String(a.r.plannedFor || '').localeCompare(String(b.r.plannedFor || '')) ||
+      a.r.name.localeCompare(b.r.name));
+}
+/* A plan is known by its name on its day, so "Day B" can be a routine and
+   next week's plan at once; a stable routine by its name alone. */
+const routineKey = r => isPlan(r)
+  ? 'plan|' + context.normalizedExerciseName(r.name) + '|' + (validPlanDay(r.plannedFor) ? r.plannedFor : '')
+  : context.normalizedExerciseName(r.name);
+function defaultRoutineId(){
+  const first = sortedPlans()[0];
+  return first ? first.r.id : (stableRoutines()[0] || {}).id || null;
+}
+function newRoutineDraft(r){
+  return r ? context.deepCopy(r) : { id:null, name:'', items:[] };
+}
+/* The stable routine stays as it is; the copy is that one day's version. */
+function newPlanDraft(r){
+  const draft = context.deepCopy(r);
+  draft.id = null; draft.plan = true; draft.plannedFor = localDay();
+  draft.items.forEach(it => { it.id = context.uid(); });
+  return draft;
+}
+function saveRoutineDraft(){
+  const d = context.ui.routineDraft; if (!d) return;
+  if (!d.name.trim()){ context.ui.routineError = 'Give the routine a name.'; context.render(); return; }
+  if (d.items.length === 0){ context.ui.routineError = 'Add at least one exercise.'; context.render(); return; }
+  d.items.forEach(normalizeRoutineItem);
+  cleanRoutinePairs(d.items);
+  keepRoutinePairsAdjacent(d.items);
+  if (d.plan && d.plannedFor && !validPlanDay(d.plannedFor)){ context.ui.routineError = 'Choose a valid day, or leave it empty for anytime.'; context.render(); return; }
+  const routine = normalizePlanFields({ id:d.id || context.uid(), name:d.name.trim(), items:d.items,
+    plan:d.plan === true, plannedFor:d.plannedFor || null });
+  const i = d.id ? context.state.routines.findIndex(r => r.id === d.id) : -1;
+  if (i !== -1) context.state.routines[i] = routine;
+  else context.state.routines.push(routine);
+  context.ui.routineDraft = null; context.ui.routineError = '';
+  context.save(); context.render(); context.toast(isPlan(routine) ? 'Plan saved — ' + planDay(routine).label : 'Routine saved');
+}
+function duplicateRoutine(id){
+  const r = context.routineById(id); if (!r) return;
+  const copy = context.deepCopy(r);
+  copy.id = context.uid(); copy.name = r.name + ' (copy)';
+  copy.items.forEach(it => it.id = context.uid());
+  context.state.routines.push(copy);
+  /* from its sheet, the copy is what you want to look at (and edit) next */
+  if (context.ui.detail && context.ui.detail.kind === 'routine' && context.ui.detail.id === id) context.ui.detail = { kind:'routine', id:copy.id };
+  context.save(); context.render(); context.toast('Duplicated “' + r.name + '”');
+}
+function deleteRoutine(id){
+  const r = context.routineById(id); if (!r) return;
+  context.confirmDlg('Delete routine?','“' + r.name + '” will be removed. Past workouts in History are not affected.','Delete routine',true)
+    .then(ok => {
+      if (!ok) return;
+      context.state.routines = context.state.routines.filter(x => x.id !== id);
+      if (context.ui.routineDraft && context.ui.routineDraft.id === id) context.ui.routineDraft = null;
+      context.save(); context.render(); context.toast('Routine deleted');
+    });
+}
+function routineStep(idx, dir){
+  const d = context.ui.routineDraft; if (!d) return;
+  const groups = routineGroups(d.items);
+  const groupIndex = groups.findIndex(group => group.includes(d.items[idx]));
+  const next = groupIndex + dir;
+  if (groupIndex < 0 || next < 0 || next >= groups.length) return;
+  const target = groups[next];
+  const row = dir < 0 ? d.items.indexOf(target[0]) : d.items.indexOf(target[target.length - 1]);
+  const offset = groups[groupIndex].indexOf(d.items[idx]);
+  const landed = (dir < 0 ? d.items.indexOf(target[0]) : d.items.indexOf(groups[groupIndex][0]) + target.length) + offset;
+  const atBound = dir < 0 ? next === 0 : next === groups.length - 1;
+  const keep = atBound ? (dir < 0 ? 'ri-down-' : 'ri-up-') : (dir < 0 ? 'ri-up-' : 'ri-down-');
+  context.SORTABLES['routine-items'].drop(idx, row, keep + landed);
+}
+function removeRoutineItem(idx){
+  const d = context.ui.routineDraft; if (!d) return;
+  d.items.splice(idx,1);
+  cleanRoutinePairs(d.items);
+  context.render();
+}
+function addRoutineItem(exId){
+  const d = context.ui.routineDraft; if (!d || !exId) return;
+  d.items.push(context.newRoutineItem(exId));
+  context.render();
+}
+    return {pairKeyOf,cleanRoutinePairs,routineGroups,groupPlannedSets,keepRoutinePairsAdjacent,routineSummary,normalizeRoutineItem,normalizeWorkoutTargets,repRangeState,paintRepRange,parseRepRange,targetRangeLabel,pairRoutineItems,unpairRoutineItems,PAIR_KINDS,PAIR_SCOPES,pairScope,pairCandidates,pairPickerOptions,refreshSecondPairPicker,openPairDialog,closePairDialog,addPair,isPlan,stableRoutines,localDay,validPlanDay,normalizePlanFields,planDay,sortedPlans,routineKey,defaultRoutineId,newRoutineDraft,newPlanDraft,saveRoutineDraft,duplicateRoutine,deleteRoutine,routineStep,removeRoutineItem,addRoutineItem};
+  }
+};
+
+/* liftlog-routines-controller:end */
+let routinesControllerInstance;
+/* liftlog-exercises-controller:start */
+/* liftlog exercises controller. Context getters always read current app state. */
+/* exported LiftlogExerciseController */
+const LiftlogExerciseController = {
+  create(context){
+function saveNewExercise(form){
+  const name = form.name.trim();
+  if (!name){ context.ui.exerciseFormError = 'Name is required.'; context.render(); return; }
+  if (context.exerciseNameTaken(name)){
+    context.ui.exerciseFormError = 'An exercise with this name already exists.'; context.render(); return;
+  }
+  /* A link that cannot be made into an http(s) one is dropped rather than
+     failing the save: the exercise is the thing being created, and a typo in
+     an optional field should not cost the name and the unit too. The toast
+     says so, so it is not silent. */
+  const url = context.safeUrl(form.url);
+  const badUrl = !url && String(form.url || '').trim() !== '';
+  context.state.exercises.push({
+    id:context.uid(), name,
+    category: context.normalizeCategory(form.category, name),
+    unit: context.normalizedExerciseUnit(form.unit, context.state.settings.unit),
+    loadMode: context.normalizeLoadMode(form.loadMode, form.unit),
+    equipmentKey: String(form.equipmentKey || '').trim(),
+    movementFamily: String(form.movementFamily || '').trim() || context.inferMovementFamily(name, form.category),
+    archived:false,
+    notes: form.notes.trim(),
+    url
+  });
+  context.ui.showExerciseForm = false; context.ui.exerciseFormError = '';
+  context.save(); context.render();
+  context.toast(badUrl ? 'Exercise added — ' + name + ' (the link was not a valid web address)'
+               : 'Exercise added — ' + name);
+}
+/* An active workout is not history yet. Keep its exercise identity metadata in
+   step with Exercises so a correction made mid-session is visible at once.
+   Changing between reps, bodyweight, and time would reinterpret fields that
+   may already contain work, so that unit change begins with the next workout;
+   kg/lb remain the same weighted measurement kind and are safe to refresh. */
+function syncExerciseDefinitionToActiveWorkout(previous, updated){
+  if(context.workoutHandoff.held())return;
+  if(context.workoutHandoff.held())return;
+  const w = context.state.activeWorkout;
+  if (!w) return { updated:0, unitDeferred:false, loadDeferred:false };
+  const sameMeasure = context.exerciseMeasureKind(previous.unit) === context.exerciseMeasureKind(updated.unit);
+  const sameLoadIdentity = context.normalizeLoadMode(previous.loadMode, previous.unit) === context.normalizeLoadMode(updated.loadMode, updated.unit) &&
+    String(previous.equipmentKey || '').trim().toLowerCase() === String(updated.equipmentKey || '').trim().toLowerCase();
+  let count = 0, unitDeferred = false, loadDeferred = false;
+  w.exercises.forEach(ex => {
+    if (ex.exerciseId !== updated.id) return;
+    ex.name = updated.name;
+    ex.category = updated.category;
+    ex.notes = updated.notes;
+    ex.movementFamily = updated.movementFamily;
+    if (sameMeasure) ex.unit = updated.unit;
+    else unitDeferred = true;
+    const hasEnteredLoad = ex.sets.some(set => set.completed || context.toNum(set.weight) != null || context.toNum(set.addedWeight) != null);
+    if (sameLoadIdentity || !hasEnteredLoad){ ex.loadMode = updated.loadMode; ex.equipmentKey = updated.equipmentKey; }
+    else loadDeferred = true;
+    count++;
+  });
+  return { updated:count, unitDeferred, loadDeferred };
+}
+function saveExerciseDraft(){
+  const d = context.ui.exerciseDraft; if (!d) return;
+  if (!d.name.trim()){ context.toast('Name is required'); return; }
+  const i = context.state.exercises.findIndex(e => e.id === d.id);
+  if (i === -1) return;
+  const previous = context.state.exercises[i];
+  if (context.normalizedExerciseName(d.name) !== context.normalizedExerciseName(previous.name) && context.exerciseNameTaken(d.name, d.id)){
+    context.toast('Another exercise is already named “' + d.name.trim() + '” — use Merge to combine them'); return;
+  }
+  const url = context.safeUrl(d.url);
+  const badUrl = !url && String(d.url || '').trim() !== '';
+  const updated = { id:d.id, name:d.name.trim(), category:context.normalizeCategory(d.category, d.name),
+                    unit:context.normalizedExerciseUnit(d.unit, context.state.settings.unit),
+                    loadMode:context.normalizeLoadMode(d.loadMode, d.unit), equipmentKey:String(d.equipmentKey || '').trim(),
+                    movementFamily:String(d.movementFamily || '').trim() || context.inferMovementFamily(d.name, d.category),
+                    archived:!!d.archived, notes:d.notes.trim(), url };
+  const broken = context.linksBrokenBy(d.id, updated);
+  if (!broken.length) return applyExerciseDraft(updated, badUrl ? ['the link was not a valid web address'] : []);
+  return confirmHistorySplit(previous, updated, broken).then(choice => {
+    if (!choice || !context.exerciseById(d.id) || context.ui.exerciseDraft !== d) return;
+    const notes = badUrl ? ['the link was not a valid web address'] : [];
+    if (choice === 'keep'){
+      notes.push('load convention kept so its history stays in one series');
+      applyExerciseDraft({ ...updated, unit:previous.unit, loadMode:previous.loadMode, equipmentKey:previous.equipmentKey }, notes);
+      return;
+    }
+    const gone = new Set(broken.map(link => link.sourceId));
+    context.state.exerciseLinks = context.state.exerciseLinks.filter(link => !(link.targetId === d.id && gone.has(link.sourceId)));
+    context.state.settings.historyLinksDismissedKey = '';
+    notes.push(context.plural(gone.size, 'earlier exercise') + ' separated — review them in History');
+    applyExerciseDraft(updated, notes);
+  });
+}
+/* Editing the definition of a linked exercise can change the contract its
+   links were accepted under. The next load would drop them without a word, so
+   the user chooses now: keep the convention, or separate them knowingly. */
+function confirmHistorySplit(previous, updated, broken){
+  const describe = ex => context.LOAD_MODE_TEXT[context.normalizeLoadMode(ex.loadMode, ex.unit)] +
+    (String(ex.equipmentKey || '').trim() ? ' · ' + ex.equipmentKey.trim() : ', no equipment key');
+  const ids = new Set(broken.map(link => link.sourceId));
+  const sessions = context.state.workouts.filter(w => w.exercises.some(ex => ids.has(ex.exerciseId))).length;
+  return context.dialog({ title:'Keep this exercise’s history together?',
+    body:'“' + previous.name + '” is joined with ' + context.plural(ids.size, 'earlier exercise') + ' (' + context.plural(sessions, 'session') +
+      ') recorded as ' + describe(previous) + '. Recording it as ' + describe(updated) +
+      ' separates them from its progress chart.',
+    buttons:[{ label:'Cancel', value:null },
+      { label:'Change anyway', value:'change' },
+      { label:'Keep history together', value:'keep', cls:'btn-primary', autofocus:true }] });
+}
+function applyExerciseDraft(updated, notes){
+  const i = context.state.exercises.findIndex(e => e.id === updated.id);
+  if (i === -1) return;
+  const previous = context.state.exercises[i];
+  context.state.exercises[i] = updated;
+  const activeSync = syncExerciseDefinitionToActiveWorkout(previous, updated);
+  context.ui.exerciseDraft = null;
+  context.save(); context.render();
+  if (activeSync.unitDeferred) notes.push('the new unit starts next workout');
+  if (activeSync.loadDeferred) notes.push('the new load convention starts next workout');
+  context.toast('Exercise updated' + (notes.length ? ' — ' + notes.join('; ') : ''));
+}
+function setExerciseArchived(id, archived){
+  const ex = context.exerciseById(id); if (!ex) return;
+  ex.archived = !!archived;
+  if (context.ui.exerciseDraft && context.ui.exerciseDraft.id === id) context.ui.exerciseDraft = null;
+  context.save(); context.render(); context.toast(ex.archived ? 'Exercise archived' : 'Exercise restored');
+}
+/* The same contract, or a source with nothing logged under it and not in the
+   ongoing workout: with no sets there is no series whose meaning a different
+   load convention could change. */
+function canMergeExercises(source, target){
+  if (context.exerciseMeasureKind(source.unit) !== context.exerciseMeasureKind(target.unit)) return false;
+  return context.sameProgressionContract(source, target) || (!context.exerciseHasHistory(source.id) &&
+    !(context.state.activeWorkout && context.state.activeWorkout.exercises.some(ex => ex.exerciseId === source.id)));
+}
+/* Writes state only; mergeExercises() is the Library action around it. */
+function mergeExerciseInto(sourceId, targetId){
+  const source = context.exerciseById(sourceId), target = context.exerciseById(targetId);
+  if (!source || !target || sourceId === targetId) return 'Choose a different surviving exercise.';
+  if (!canMergeExercises(source, target)) return '“' + source.name + '” has logged history under a different load convention or equipment, so it can only merge into an exercise recorded the same way.';
+  const collision = context.state.routines.find(r => r.items.some(it => it.exerciseId === sourceId) && r.items.some(it => it.exerciseId === targetId));
+  if (collision) return '“' + collision.name + '” contains both exercises. Remove or reconcile one routine item first.';
+  if (context.state.activeWorkout && context.state.activeWorkout.exercises.some(ex => ex.exerciseId === sourceId) &&
+      context.state.activeWorkout.exercises.some(ex => ex.exerciseId === targetId))
+    return 'The ongoing workout contains both exercises. Finish it or remove one exercise before merging.';
+  const keepWeight = context.sameLoadNumbers(source, target);
+  context.state.routines.forEach(r => r.items.forEach(it => {
+    if (it.exerciseId !== sourceId) return;
+    it.exerciseId = targetId;
+    if (!keepWeight) it.weight = null;
+  }));
+  if (context.state.activeWorkout) context.state.activeWorkout.exercises.forEach(ex => {
+    if (ex.exerciseId !== sourceId) return;
+    ex.exerciseId = targetId; ex.name = target.name; ex.category = target.category; ex.unit = target.unit;
+    ex.loadMode = target.loadMode; ex.equipmentKey = target.equipmentKey; ex.movementFamily = target.movementFamily;
+    ex.notes = target.notes;
+  });
+  const links = (context.state.exerciseLinks || []).filter(link => link.sourceId !== sourceId && link.sourceId !== targetId)
+    .map(link => link.targetId === sourceId ? { sourceId:link.sourceId, targetId } : link);
+  /* Normalization drops a link with no logged sets behind it anyway. */
+  if (context.state.workouts.some(w => w.exercises.some(ex => ex.exerciseId === sourceId))) links.push({ sourceId, targetId });
+  const seen = new Set();
+  context.state.exerciseLinks = links.filter(link => !seen.has(link.sourceId) && seen.add(link.sourceId));
+  context.combineProgressionPreferences(sourceId, targetId);
+  context.state.historySeparateIds = (context.state.historySeparateIds || []).filter(id => id !== sourceId);
+  context.state.exercises = context.state.exercises.filter(ex => ex.id !== sourceId);
+  context.state.settings.historyLinksDismissedKey = '';
+  return '';
+}
+function mergeExercises(sourceId, targetId){
+  const source = context.exerciseById(sourceId), target = context.exerciseById(targetId);
+  const error = mergeExerciseInto(sourceId, targetId);
+  if (error) return error;
+  context.ui.mergeExerciseId = null; context.ui.mergeExerciseError = ''; context.ui.exerciseDraft = null;
+  context.save(); context.render(); context.toast('Merged “' + source.name + '” into “' + target.name + '”');
+  return '';
+}
+function deleteExercise(id){
+  const ex = context.exerciseById(id); if (!ex) return;
+  const usedBy = context.state.routines.filter(r => r.items.some(it => it.exerciseId === id)).length;
+  const extra = usedBy ? ' It is used by ' + usedBy + ' routine' + (usedBy > 1 ? 's' : '') + ', which will show it as removed.' : '';
+  context.confirmDlg('Delete exercise?','“' + ex.name + '” will be removed from your exercises.' + extra,'Delete exercise',true)
+    .then(ok => {
+      if (!ok) return;
+      context.state.exercises = context.state.exercises.filter(e => e.id !== id);
+      context.state.exerciseLinks = (context.state.exerciseLinks || []).filter(link => link.targetId !== id);
+      context.state.settings.historyLinksDismissedKey = '';
+      if (context.ui.exerciseDraft && context.ui.exerciseDraft.id === id) context.ui.exerciseDraft = null;
+      context.save(); context.render(); context.toast('Exercise deleted');
+    });
+}
+    return {saveNewExercise,syncExerciseDefinitionToActiveWorkout,saveExerciseDraft,confirmHistorySplit,applyExerciseDraft,setExerciseArchived,canMergeExercises,mergeExerciseInto,mergeExercises,deleteExercise};
+  }
+};
+
+/* liftlog-exercises-controller:end */
+let exercisesControllerInstance;
 /* ============================================================
    UTILITIES
    ============================================================ */
@@ -3841,10 +5109,10 @@ const EXPORT_SCHEMA = '1.12.0'; /* version of the documented import/export contr
 const localStore = LiftlogStorage.createLocal({
   key:LS_KEY,rescueKey:LS_RESCUE_KEY,getState:()=>state,setState:value=>{state=value;},
   seed:seedState,prepare:prepareBackup,
-  onChange:()=>scheduleRemoteBackup(),onStatus:status=>{updateSaveBanner();const p=$('#save-banner p');if(p&&status.warning)p.textContent=status.warning;}
+  onChange:()=>scheduleRemoteBackup(),onStatus:status=>{queueMicrotask(renderStorageStatus);updateSaveBanner();const p=$('#save-banner p');if(p&&status.warning)p.textContent=status.warning;}
 });
 function flushSave(){return localStore.flush();}
-function save(options){return localStore.save(options);}
+function save(options){const result=localStore.save(options);queueMicrotask(renderStorageStatus);return result;}
 /* The banner lives in the static body, not in #main, because render() replaces
    that wholesale — a warning about losing data must not depend on the render
    loop it is warning about. */
@@ -5280,1201 +6548,210 @@ function workoutDuration(w){
 /* ============================================================
    ACTIONS — active workout
    ============================================================ */
-/* A planned set leaves its count blank: the input shows the target range as
-   its placeholder, and logging an untouched set records the lower bound
-   (fillSetDefaults). Pre-filling the lower bound hid the range and made every
-   row look already decided, which also stopped a typed count cascading. */
-function newSetFrom(ex, copyFrom){
-  const timed = ex.unit === 'time';
-  const bodyweight = ex.unit === 'bw';
-  return {
-    id:uid(),
-    weight: copyFrom ? copyFrom.weight : null,
-    ...(bodyweight ? {
-      addedWeight:copyFrom ? copyFrom.addedWeight : null,
-      addedWeightUnit:copyFrom ? (copyFrom.addedWeightUnit || unitLabel()) : unitLabel()
-    } : {}),
-    /* reps stays a pure count; timed work lives in durationSeconds */
-    reps:   copyFrom && !timed ? copyFrom.reps : null,
-    durationSeconds: copyFrom && timed ? copyFrom.durationSeconds : null,
-    rpe:null, rir:null, completed:false, completedAt:null,
-    unit: ex.unit === 'bw' ? 'bw' : (timed ? 'time' : state.settings.unit)
-  };
-}
-/* item is a routine item ({exerciseId, sets, repsMin, repsMax, targetRir, weight}); the returned block
-   is the workout-local copy that logging writes into. */
-function buildWorkoutExercise(item){
-  const exDef = exerciseById(item.exerciseId) || { name:'Unknown exercise', category:'', unit:state.settings.unit, notes:'' };
-  const prev = lastPerformance(item.exerciseId);
-  const ex = {
-    exerciseId:item.exerciseId, name:exDef.name, category:exDef.category || '',
-    unit:exDef.unit || 'kg', loadMode:normalizeLoadMode(exDef.loadMode, exDef.unit),
-    equipmentKey:exDef.equipmentKey || '', movementFamily:exDef.movementFamily || inferMovementFamily(exDef.name, exDef.category),
-    plannedSets:item.sets || 3,
-    targetRepsMin:item.repsMin != null ? item.repsMin : 8,
-    targetRepsMax:item.repsMax != null ? item.repsMax : (item.repsMin != null ? item.repsMin : 8),
-    targetRir:item.targetRir != null ? item.targetRir : null,
-    targetWeight:item.weight != null ? item.weight : null,
-    ...(item.eitherOf ? { eitherOf:item.eitherOf } : {}),
-    ...(item.supersetOf ? { supersetOf:item.supersetOf } : {}),
-    notes:exDef.notes || '', skipped:false, sets:[]
-  };
-  const n = Math.max(1, item.sets || 3);
-  for (let i = 0; i < n; i++){
-    const set = newSetFrom(ex, null);
-    /* seed the bar with the plan, else with what was lifted last time */
-    const prevSet = prev && (prev.sets[i] || prev.sets[0]);
-    if (ex.unit === 'bw'){
-      if (item.weight != null){ set.addedWeight = item.weight; set.addedWeightUnit = unitLabel(); }
-      else if (prevSet && prevSet.addedWeight != null){
-        set.addedWeight = convertWeight(prevSet.addedWeight, prevSet.addedWeightUnit || unitLabel(), unitLabel());
-        set.addedWeightUnit = unitLabel();
-      }
-    } else if (item.weight != null) set.weight = item.weight;
-    else if (prevSet && prevSet.weight != null) set.weight = prevSet.weight;
-    ex.sets.push(set);
-  }
-  return ex;
-}
-function beginWorkout(workout){
-  if(workoutHandoff.held()){toast('Cancel the handoff before starting another workout');return;}
-  if(appUpdates&&!appUpdates.canStart()){toast('App update in progress — wait before starting a workout');return;}
-  state.activeWorkout = workout;
-  save();
-  requestPersistence(false);   /* a user gesture, and the point data starts mattering */
-  restoreTimer();
-  ui.view = 'today';
-  ui.selectedRoutineId = null;
-  /* nothing to log yet means the sheet is where the user needs to be — and the
-     focus with it: everything outside an open modal is inert. */
-  ui.overviewOpen = workout.exercises.length === 0;
-  ui.notesOpen = false;
-  ui.focus = ui.overviewOpen ? 'add-ex-select' : 'workout-title';
-  render();
-}
-/* startRoutine and startEmpty differ only in the workout they build and the
-   wording of the "you already have one running" prompt. */
-function startSession(build, replaceBody, started){
-  if(workoutHandoff.held()){toast('Cancel the handoff in Settings before starting another workout');return;}
-  const go = () => { beginWorkout(build()); toast(started); };
-  if (!state.activeWorkout){ go(); return; }
-  confirmDlg('Replace current workout?', replaceBody, 'Discard & start', true)
-    .then(ok => { if (ok){ state.activeWorkout = null; go(); } });
-}
-function newWorkout(routine){
-  return {
-    id:uid(),
-    routineId:routine ? routine.id : null,
-    routineName:routine ? routine.name : 'Quick session',
-    startedAt:Date.now(), finishedAt:null, notes:'', currentExerciseIndex:0, supersetSide:0,
-    exercises:routine ? routine.items.map(buildWorkoutExercise) : [],
-    timer:null
-  };
-}
-function startRoutine(id){
-  const r = routineById(id);
-  if (!r) return;
-  startSession(() => newWorkout(r),
-    'You already have a workout in progress. Starting “' + r.name + '” will discard it.',
-    'Workout started — ' + r.name);
-}
-function startEmpty(){
-  startSession(() => newWorkout(null),
-    'Starting a new session will discard the workout in progress.',
-    'Quick session started');
-}
-/* Default plan for a freshly added exercise: timed work is measured in
-   seconds, everything else in reps. */
-function newRoutineItem(exId){
-  const def = exerciseById(exId);
-  return { id:uid(), exerciseId:exId, sets:3,
-    repsMin:(def && def.unit === 'time') ? 30 : 8,
-    repsMax:(def && def.unit === 'time') ? 30 : 12,
-    targetRir:null, weight:null };
-}
-function addExerciseToWorkout(exId){
-  if(workoutHandoff.held())return;
-  const w = state.activeWorkout;
-  if (!w || !exId) return;
-  const def = exerciseById(exId);
-  /* The picker already leaves out what is in the session, so this catches the
-     stale-value case (a submit against a list rendered before another add).
-     One movement, one panel: a second copy would split its sets and its volume
-     across two rows of the same session. */
-  if (w.exercises.some(x => x.exerciseId === exId)){
-    toast((def ? def.name : 'That exercise') + ' is already in this session');
-    return;
-  }
-  w.exercises.push(buildWorkoutExercise(newRoutineItem(exId)));
-  if (w.currentExerciseIndex >= w.exercises.length - 1 || allSetsDone(currentExercise()))
-    pointAt(w, w.exercises.length - 1);
-  save(); render();
-  toast('Added ' + (def ? def.name : 'exercise'));
-}
-/* The group cursor. currentExerciseIndex always names the first block of a
-   superset (or a lone block), so everything that reasons about "before the
-   cursor is settled" keeps working unchanged; supersetSide picks which member
-   of that superset is on screen. A superset is a run of adjacent blocks
-   sharing supersetOf — settleSupersets() keeps that true. */
-function supersetRun(w, i){
-  const ex = w.exercises[i];
-  if (!ex || !ex.supersetOf) return [i];
-  let lo = i, hi = i;
-  while (lo > 0 && w.exercises[lo - 1].supersetOf === ex.supersetOf) lo--;
-  while (hi < w.exercises.length - 1 && w.exercises[hi + 1].supersetOf === ex.supersetOf) hi++;
-  const run = [];
-  for (let k = lo; k <= hi; k++) run.push(k);
-  return run;
-}
-function currentMemberIndex(w){
-  const run = supersetRun(w, w.currentExerciseIndex);
-  return run[Math.min(w.supersetSide || 0, run.length - 1)];
-}
-/* The one way to move the cursor to a block: it lands on that block's
-   superset and selects the block within it. */
-function pointAt(w, idx){
-  const run = supersetRun(w, idx);
-  w.currentExerciseIndex = run[0];
-  w.supersetSide = idx - run[0];
-}
-/* Moving onto a superset starts with its first member that still has work. */
-function enterAt(w, idx){
-  const run = supersetRun(w, idx);
-  const open = run.find(i => !w.exercises[i].skipped && !allSetsDone(w.exercises[i]));
-  pointAt(w, open != null ? open : idx);
-}
-/* Alternation only works between neighbours. A session change that separates
-   or orphans a member (a reorder, a removal) ends that superset for this
-   session only; the saved routine keeps it. Returns whether any ended. */
-function settleSupersets(w){
-  const members = new Map();
-  w.exercises.forEach((ex, i) => {
-    if (typeof ex.supersetOf !== 'string' || !ex.supersetOf){ delete ex.supersetOf; return; }
-    if (!members.has(ex.supersetOf)) members.set(ex.supersetOf, []);
-    members.get(ex.supersetOf).push(i);
-  });
-  let ended = false;
-  members.forEach(idx => {
-    if (idx.length >= 2 && idx[idx.length - 1] - idx[0] === idx.length - 1) return;
-    idx.forEach(i => delete w.exercises[i].supersetOf);
-    ended = true;
-  });
-  return ended;
-}
-/* Whose turn it is after a set in the current superset: the next member, in
-   order, that still has work. `wrapped` means the round is over — the one
-   point at which a superset rests. Null outside a superset or once every
-   member is finished. */
-function supersetTurn(w){
-  const run = supersetRun(w, w.currentExerciseIndex);
-  if (run.length < 2) return null;
-  const side = run.indexOf(currentMemberIndex(w));
-  for (let k = 1; k <= run.length; k++){
-    const j = (side + k) % run.length, ex = w.exercises[run[j]];
-    if (!ex.skipped && !allSetsDone(ex)) return { index:run[j], wrapped:j <= side };
-  }
-  return null;
-}
-function currentExercise(){
-  const w = state.activeWorkout;
-  return w ? w.exercises[currentMemberIndex(w)] || null : null;
-}
-function allSetsDone(ex){ return ex && ex.sets.length > 0 && ex.sets.every(s => s.completed); }
-/* Finishing one alternative settles only this session's copy of the plan.
-   Keep the current block's identity stable when its partner was before it. */
-function settleEitherOf(w, ex){
-  if (!ex.eitherOf) return null;
-  const partnerIndex = w.exercises.findIndex(other => other !== ex && other.eitherOf === ex.eitherOf);
-  delete ex.eitherOf;
-  if (partnerIndex < 0) return null;
-  const [partner] = w.exercises.splice(partnerIndex, 1);
-  if (partnerIndex < w.currentExerciseIndex) w.currentExerciseIndex--;
-  return partner;
-}
-
-/* A set left blank falls back to the target. Timed work must land in
-   durationSeconds — writing it to `reps` is exactly the v2 bug v3 undid. */
-function fillSetDefaults(ex, s){
-  const field = ex.unit === 'time' ? 'durationSeconds' : 'reps';
-  if (toNum(s[field]) == null) s[field] = ex.targetRepsMin != null ? ex.targetRepsMin : 0;
-  if (!s.unit) s.unit = ex.unit === 'time' ? 'time' : (ex.unit === 'bw' ? 'bw' : state.settings.unit);
-}
-function toggleWarmup(setId, focusId){
-  if(workoutHandoff.held())return;
-  const ex = currentExercise(); if (!ex) return;
-  const s = ex.sets.find(x => x.id === setId); if (!s) return;
-  const on = !isWarmup(s);
-  trackChange(setUndoTarget(state.activeWorkout,ex,s),'Edited set type',()=>{setWarmup(s,on);save({changed:['activeWorkout']});});
-  ui.focus = focusId || 'sn-' + setId;
-  render();
-  announce(on ? 'Marked as a warm-up: it no longer counts toward volume or records.'
-              : 'Marked as a working set.');
-}
-/* The one way a set is logged: its own box in the done column. It therefore
-   also owns what used to hang off the "Set N done" button — the announcement
-   and the auto-rest that starts the moment a set lands. */
-function toggleSet(setId){
-  if(workoutHandoff.held())return;
-  const ex = currentExercise(); if (!ex) return;
-  const i = ex.sets.findIndex(x => x.id === setId);
-  if (i === -1) return;
-  const s = ex.sets[i];
-  const w = state.activeWorkout;
-  s.completed = !s.completed;
-  if (s.completed){ s.completedAt = Date.now(); fillSetDefaults(ex, s); }
-  else s.completedAt = null;
-  let finished = s.completed && allSetsDone(ex);
-  const removed = finished ? settleEitherOf(w, ex) : null;
-  /* In a superset a logged set hands over to the partner, and rest waits for
-     the end of the round. The superset is finished only when every member is.
-     A warm-up is not part of the round: it stays on this exercise and rests
-     as a straight set would — unless it was this member's last open set. */
-  const inSuperset = s.completed && supersetRun(w, w.currentExerciseIndex).length > 1;
-  const turn = inSuperset ? supersetTurn(w) : null;
-  if (inSuperset) finished = !turn;
-  const holdForWarmup = isWarmup(s) && !allSetsDone(ex);
-  const handOver = turn && !holdForWarmup && turn.index !== currentMemberIndex(w) ? w.exercises[turn.index] : null;
-  save({changed:['activeWorkout']});
-  if (removed) toast('Either of: removed ' + removed.name + ' from this workout');
-  if (s.completed){
-    announce('Set ' + (i+1) + ' of ' + ex.sets.length + ' complete.' + (handOver ? ' Now: ' + handOver.name + '.' : ''));
-    if (state.settings.autoRest && (!turn || turn.wrapped || holdForWarmup)){
-      loadTimer(currentRestSeconds());
-      startTimer();
-    }
-  }
-  /* checking the last open box leaves nothing to log here, so move on rather
-     than sit on a fully-done set list */
-  if (finished) advanceExercise(false, true);
-  else if (handOver){ pointAt(w, turn.index); save({changed:['activeWorkout']}); ui.focus = 'ex-panel-top'; render(); }
-  else { ui.focus = 'sd-' + setId; render(); }
-}
-/* The manual override: work on another member of the current superset now,
-   say because its station just came free. */
-function switchSupersetMember(idx){
-  const w = state.activeWorkout; if (!w) return;
-  if (!supersetRun(w, w.currentExerciseIndex).includes(idx) || idx === currentMemberIndex(w)) return;
-  pointAt(w, idx);
-  w.exercises[idx].skipped = false;
-  save();
-  ui.focus = 'ex-panel-top';
-  render();
-  announce('Now: ' + w.exercises[idx].name + '.');
-}
-/* Setting a weight or a rep/duration target is nearly always a decision about
-   the rest of the exercise rather than about one row, so it flows down to
-   later sets — but only into rows that are still blank. A row that already
-   holds a number (typed, pre-filled from the plan or last session, or a
-   deliberately different warm-up or back-off load) is a decision of its own
-   and is never overwritten. Completed sets are left alone too — they record
-   what was actually done, not what is planned.
-
-   Two deliberate choices. It runs on commit rather than per keystroke, so
-   typing "100" does not walk the rows below through 1 and 10. And it writes
-   the other inputs directly rather than calling render(), because a re-render
-   here would take the focus with it as the user tabs to the next field. */
-function cascadeSetField(setId, field, value, elPrefix, unitSuffix){
-  if(workoutHandoff.held())return;
-  const ex = currentExercise(); if (!ex) return;
-  const i = ex.sets.findIndex(x => x.id === setId);
-  if (i === -1) return;
-  value = normalizeSetNumber(field, value);
-  ex.sets[i][field] = value;
-  /* clearing a field is not "setting" it, and must not wipe the rest */
-  if (value == null){ save({changed:['activeWorkout']}); return; }
-  let changed = 0;
-  for (let j = i + 1; j < ex.sets.length; j++){
-    const s = ex.sets[j];
-    if (s.completed || s[field] != null) continue;
-    s[field] = value;
-    const el = document.getElementById(elPrefix + s.id);
-    if (el) el.value = value;
-    changed++;
-  }
-  save({changed:['activeWorkout']});
-  /* the rows visibly change, so this is for screen readers only */
-  if (changed) announce(plural(changed, 'later set') + ' set to ' + fmtNum(value) + (unitSuffix ? ' ' + unitSuffix : '') + '.');
-}
-function cascadeWeight(setId, value){
-  const ex = currentExercise(); if (!ex) return;
-  const field = ex.unit === 'bw' ? 'addedWeight' : 'weight';
-  if (ex.unit === 'bw') ex.sets.forEach(s => { s.addedWeightUnit = unitLabel(); });
-  cascadeSetField(setId, field, value, 'sw-', unitLabel());
-}
-function cascadeReps(setId, value){
-  const ex = currentExercise(); if (!ex) return;
-  const field = ex.unit === 'time' ? 'durationSeconds' : 'reps';
-  cascadeSetField(setId, field, value, 'sr-', ex.unit === 'time' ? 'sec' : '');
-}
-
-/* Numeric edits stay in the dialog draft until Save. Less frequent warm-up
-   and delete actions share this editor. */
-function openSetEditor(setId){
-  if(workoutHandoff.held())return;
-  const ex=currentExercise(),set=ex?.sets.find(s=>s.id===setId);if(!set)return;
-  const number=ex.sets.indexOf(set)+1,opener=document.querySelector('[data-action="edit-set"][data-id="'+CSS.escape(setId)+'"]');
-  const dialog=document.createElement('dialog');dialog.className='numeric-editor';dialog.setAttribute('aria-label','Edit set '+number);
-  const heading=document.createElement('h2');heading.textContent='Set '+number;dialog.append(heading);
-  const inputs=[];
-  for(const original of opener.closest('.set-row').querySelectorAll('input')){
-    const label=document.createElement('label');label.className='field';const cap=document.createElement('span');cap.textContent=original.getAttribute('aria-label');
-    const input=original.cloneNode();input.removeAttribute('id');input.removeAttribute('data-bind');input.removeAttribute('data-change');input.removeAttribute('data-id');input.value=original.value;input.dataset.stepper='';
-    if(['weight','addedWeight'].includes(original.dataset.field)){input.dataset.increment=state.settings.loadStep||original.step;input.step='any';}
-    label.append(cap,input);dialog.append(label);inputs.push({input,field:original.dataset.field});
-  }
-  const actions=document.createElement('div');actions.className='editor-actions';dialog.append(actions);
-  const button=(text,css,action)=>{const b=document.createElement('button');b.type='button';b.className='btn '+css;b.textContent=text;b.addEventListener('click',action);actions.append(b);};
-  button('Save changes','btn-primary',()=>{if(inputs.some(({input})=>!input.reportValidity()))return;trackChange(setUndoTarget(state.activeWorkout,ex,set),'Edited set',()=>{for(const {input,field}of inputs)set[field]=normalizeSetNumber(field,input.value);save();});dialog.close();ui.focus='sd-'+setId;render();});
-  button(isWarmup(set)?'Mark as working set':'Mark as warm-up','',()=>{dialog.close();toggleWarmup(setId);});
-  button('Cancel','',()=>dialog.close());
-  const divider=document.createElement('hr');actions.append(divider);
-  button('Delete set '+number+'…','btn-danger',()=>{dialog.close();deleteSet(setId);});
-  button('Remove exercise…','btn-danger',()=>{dialog.close();confirmExerciseRemoval(state.activeWorkout,ex);});
-  dialog.addEventListener('close',()=>{dialog.remove();if(opener?.isConnected)opener.focus();},{once:true});document.body.append(dialog);WorkoutUI.attachSteppers(dialog);dialog.showModal();
-}
-
-function deleteSet(setId){
-  if(workoutHandoff.held())return;
-  const w = state.activeWorkout, ex = currentExercise();
-  if (!w || !ex) return;
-  const i = ex.sets.findIndex(s => s.id === setId);
-  if (i === -1) return;
-  const s = ex.sets[i];
-  const go = () => {
-    if(!deleteRecoverableSet(w,ex,s))return;
-    const remaining=currentExercise()?.sets||[];
-    ui.focus=remaining.length?'sd-'+remaining[Math.min(i,remaining.length-1)].id:'ex-panel-top';
-    render();
-    toast('Set ' + (i + 1) + ' deleted');
-  };
-  /* Only a logged set is worth a dialog. An uncompleted row is a plan, and
-     "+ Set" puts it back — asking about one would also be misleading, since
-     addSet() pre-fills a new row from the set above it, so "this row has a
-     weight in it" says nothing about whether the user typed anything. */
-  if (!s.completed){ go(); return; }
-  confirmDlg('Delete set ' + (i + 1) + '?',
-    'This set is logged as done. Deleting it removes it from this session\u2019s totals.',
-    'Delete set', true).then(ok => { if (ok) go(); });
-}
-
-/* Removing the exercise from the session is the local answer; if it came from
-   a routine, the user may well mean the plan itself, so that is offered as a
-   separate, clearly-labelled choice rather than assumed either way. */
-function confirmExerciseRemoval(w, ex){
-  const idx = w.exercises.indexOf(ex);
-  const routine = w.routineId ? routineById(w.routineId) : null;
-  const inRoutine = routine ? routine.items.filter(it => it.exerciseId === ex.exerciseId).length : 0;
-
-  const buttons = [
-    { label:'Cancel', value:'cancel', cls:'', autofocus:true },
-    { label:'Remove from session', value:'session', cls:'btn-danger' }
-  ];
-  if (inRoutine) buttons.push({ label:'Remove from routine too', value:'routine', cls:'btn-danger-solid' });
-
-  dialog({
-    title:'Remove \u201C' + ex.name + '\u201D?',
-    body:'Remove this exercise and its sets from the current session.' +
-      (inRoutine
-        ? ' You can drop it from this session only, or also remove it from \u201C' + routine.name +
-          '\u201D so it stops appearing in future sessions.'
-        : ''),
-    buttons
-  }).then(v => {
-    if (v !== 'session' && v !== 'routine') return;
-    const run = supersetRun(w, idx);
-    const partners = run.filter(i => i !== idx).map(i => w.exercises[i]);
-    w.exercises.splice(idx, 1);
-    if (ex.eitherOf){
-      const partner = w.exercises.find(other => other.eitherOf === ex.eitherOf);
-      if (partner) delete partner.eitherOf;
-    }
-    settleSupersets(w);
-    /* a superset partner with work left takes over; otherwise move on past
-       whatever remains of it, which for a lone block is the old position */
-    const heir = partners.find(p => !p.skipped && !allSetsDone(p));
-    if (heir) pointAt(w, w.exercises.indexOf(heir));
-    else pointAt(w, Math.min(run[run.length - 1], w.exercises.length));
-    let msg = 'Removed ' + ex.name + ' from this session';
-    if (v === 'routine'){
-      /* the workout block does not record which routine item built it, so
-         every item for this exercise goes — reported, not silent */
-      routine.items = routine.items.filter(it => it.exerciseId !== ex.exerciseId);
-      cleanRoutinePairs(routine.items);
-      msg = 'Removed ' + ex.name + ' from this session and from ' + routine.name +
-        (inRoutine > 1 ? ' (' + inRoutine + ' entries)' : '');
-    }
-    /* removing the last exercise leaves the same empty session that starting a
-       quick session does, so land in the same place: the drawer, which is
-       where exercises are added */
-    if (!w.exercises.length){ ui.overviewOpen = true; ui.focus = 'add-ex-select'; }
-    else ui.focus = 'ex-panel-top';
-    save();
-    render();
-    toast(msg);
+function workoutController(){
+  return workoutControllerInstance ||= LiftlogWorkoutController.create({
+    get SORTABLES(){return SORTABLES;},
+    get WorkoutUI(){return WorkoutUI;},
+    get announce(){return announce;},
+    get appUpdates(){return appUpdates;},
+    get cleanRoutinePairs(){return cleanRoutinePairs;},
+    get confirmDlg(){return confirmDlg;},
+    get convertWeight(){return convertWeight;},
+    get currentRestSeconds(){return currentRestSeconds;},
+    get deleteRecoverableSet(){return deleteRecoverableSet;},
+    get dialog(){return dialog;},
+    get exerciseById(){return exerciseById;},
+    get fmtNum(){return fmtNum;},
+    get inferMovementFamily(){return inferMovementFamily;},
+    get isPlan(){return isPlan;},
+    get isWarmup(){return isWarmup;},
+    get lastPerformance(){return lastPerformance;},
+    get loadTimer(){return loadTimer;},
+    get maybeNagBackup(){return maybeNagBackup;},
+    get navigate(){return navigate;},
+    get normalizeLoadMode(){return normalizeLoadMode;},
+    get normalizeSetNumber(){return normalizeSetNumber;},
+    get plural(){return plural;},
+    get render(){return render;},
+    get requestPersistence(){return requestPersistence;},
+    get restoreTimer(){return restoreTimer;},
+    get routineById(){return routineById;},
+    get save(){return save;},
+    get setUndoTarget(){return setUndoTarget;},
+    get setWarmup(){return setWarmup;},
+    get sortWorkouts(){return sortWorkouts;},
+    get startTimer(){return startTimer;},
+    get state(){return state;},
+    get toNum(){return toNum;},
+    get toast(){return toast;},
+    get trackChange(){return trackChange;},
+    get ui(){return ui;},
+    get uid(){return uid;},
+    get unitLabel(){return unitLabel;},
+    get workoutHandoff(){return workoutHandoff;},
+    get workoutSets(){return workoutSets;},
+    get workoutVolume(){return workoutVolume;}
   });
 }
-
-function addSet(){
-  if(workoutHandoff.held())return;
-  const ex = currentExercise(); if (!ex) return;
-  const s = newSetFrom(ex, ex.sets[ex.sets.length - 1]);
-  ex.sets.push(s);
-  save();
-  ui.focus = (ex.unit === 'time' ? 'sr-' : 'sw-') + s.id;
-  render();
-  toast('Set ' + ex.sets.length + ' added');
-}
-/* `toOpen` is the move a finished exercise makes: on to the next one with
-   work left (nextOpenBlock), rather than the next one in the list. */
-function advanceExercise(markSkipped, toOpen){
-  if(workoutHandoff.held())return;
-  const w = state.activeWorkout; const ex = currentExercise();
-  if (!w || !ex) return;
-  if (markSkipped){ ex.skipped = true; announce(ex.name + ' skipped.'); }
-  /* a skipped superset member leaves its partner to finish as straight sets */
-  const turn = markSkipped ? supersetTurn(w) : null;
-  const open = toOpen && !turn ? nextOpenBlock(w) : null;
-  if (turn) pointAt(w, turn.index);
-  else if (open != null){
-    if (open < 0){ w.currentExerciseIndex = w.exercises.length; w.supersetSide = 0; }
-    else enterAt(w, open);
-  } else {
-    /* the cursor moves a superset at a time, so "next" is past its last member */
-    const run = supersetRun(w, w.currentExerciseIndex);
-    const next = run[run.length - 1] + 1;
-    if (next >= w.exercises.length){ w.currentExerciseIndex = w.exercises.length; w.supersetSide = 0; }
-    else enterAt(w, next);
-  }
-  save();
-  if (!markSkipped && w.currentExerciseIndex < w.exercises.length)
-    announce('Now: ' + currentExercise().name);
-  ui.focus = 'ex-panel-top';
-  render();
-}
-/* Back one exercise. `reopenExercise` is the same move the drawer makes, so
-   stepping back into a skipped exercise un-skips it: the exercise you are
-   looking at is never one the session has written off. From the end-of-session
-   state the index sits one past the last exercise, hence the clamp. */
-function goToPreviousExercise(){
-  if(workoutHandoff.held())return;
-  const w = state.activeWorkout; if (!w) return;
-  const i = Math.min(w.currentExerciseIndex, w.exercises.length) - 1;
-  if (i < 0) return;
-  reopenExercise(i);
-  announce('Back to ' + w.exercises[i].name + '.');
-}
-function reopenExercise(idx){
-  const w = state.activeWorkout; if (!w) return;
-  if (idx < 0 || idx >= w.exercises.length) return;
-  w.exercises[idx].skipped = false;
-  pointAt(w, idx);
-  save();
-  ui.focus = 'ex-panel-top';
-  render();
-}
-/* An exercise the session has finished with: skipped, or every set logged and
-   not the one on screen. It is a matter of status, not of position — an
-   exercise passed over by jumping ahead still has work in it, and a finished
-   one can sit anywhere once the list has been rearranged. The sheet draws
-   these with their logged sets and a Reopen button; automatic advancing steps
-   over them. */
-function isSettledRow(w, ex, i){
-  return ex.skipped || (allSetsDone(ex) && i !== currentMemberIndex(w));
-}
-const hasWorkLeft = ex => !!ex && !ex.skipped && !allSetsDone(ex);
-/* Move one exercise to another position in the session. Every row moves —
-   finished, skipped, current and still to come alike — so the sheet is one
-   list with one set of rules, and ordering it never depends on how far the
-   session has got.
-
-   "Now" stays with the exercise being worked on, wherever it or anything else
-   moves, with one exception that is the point of moving it: dragging the
-   current exercise later means "I'll come back to this one", standing in front
-   of an occupied machine. Then the first exercise with work left that it was
-   moved past takes over. Moved past nothing but finished work, it stays. A move
-   within its own superset never hands over: that is reordering the round.
-
-   A move that separates a superset ends it for this session (settleSupersets).
-   Returns { landed, ended }: where the exercise ended up and whether a
-   superset ended. */
-function moveSessionExercise(w, from, to){
-  const cur = w.exercises[currentMemberIndex(w)] || null;
-  const [moved] = w.exercises.splice(from, 1);
-  w.exercises.splice(to, 0, moved);
-  const ended = settleSupersets(w);
-  let next = cur;
-  if (cur && moved === cur && to > from){
-    const own = supersetRun(w, w.exercises.indexOf(cur)).map(i => w.exercises[i]);
-    for (let k = from; k < to; k++){
-      const ex = w.exercises[k];
-      if (hasWorkLeft(ex) && !own.includes(ex)){ next = ex; break; }
-    }
-  }
-  if (next) pointAt(w, w.exercises.indexOf(next));
-  else w.currentExerciseIndex = w.exercises.length;
-  return { landed:w.exercises.indexOf(moved), ended };
-}
-/* After an exercise is finished: the next block that still has work, looking
-   forward first and then back to anything passed over earlier — rearranging
-   can leave finished exercises later in the list, and jumping ahead can leave
-   unfinished ones earlier. -1 when nothing is left. The pager's Next stays a
-   plain step to the following exercise; this is only the automatic move. */
-function nextOpenBlock(w){
-  const run = supersetRun(w, w.currentExerciseIndex);
-  const n = w.exercises.length, after = run[run.length - 1];
-  for (let k = 1; k <= n; k++){
-    const i = (after + k) % n;
-    if (!run.includes(i) && hasWorkLeft(w.exercises[i])) return i;
-  }
-  return -1;
-}
-/* The arrow buttons are a drag of exactly one place, and they commit the same
-   way — through the list's own drop. All they add is where the focus goes
-   afterwards: it stays on the button being held, unless the move disabled it,
-   in which case the other one takes over. */
-function overviewStep(idx, dir){
-  const w = state.activeWorkout; if (!w) return;
-  const to = idx + dir, last = w.exercises.length - 1;
-  if (idx < 0 || idx > last || to < 0 || to > last) return;
-  const atBound = dir < 0 ? to === 0 : to === last;
-  const keep = atBound ? (dir < 0 ? 'ov-down-' : 'ov-up-') : (dir < 0 ? 'ov-up-' : 'ov-down-');
-  SORTABLES['session-exercises'].drop(idx, to, keep + to);
-}
-/* A superset made mid-session: the second exercise moves to just after the
-   first, and the pair lasts for this workout only — the routine keeps its plan,
-   the same as a superset a reorder ends. Both must still have work in them and
-   belong to no pair; the dialog offers nothing else. */
-function pairSessionExercises(a, b){
-  const w = state.activeWorkout; if (!w) return false;
-  const first = w.exercises[a], second = w.exercises[b];
-  const free = ex => hasWorkLeft(ex) && !ex.eitherOf && !ex.supersetOf;
-  if (!first || !second || first === second || !free(first) || !free(second)) return false;
-  const cur = w.exercises[currentMemberIndex(w)] || null;
-  w.exercises.splice(b, 1);
-  w.exercises.splice(w.exercises.indexOf(first) + 1, 0, second);
-  first.supersetOf = second.supersetOf = uid();
-  if (cur) pointAt(w, w.exercises.indexOf(cur));
-  save();
-  return true;
-}
-function unpairSessionExercises(key){
-  const w = state.activeWorkout; if (!w || !key) return false;
-  const cur = w.exercises[currentMemberIndex(w)] || null;
-  let removed = false;
-  w.exercises.forEach(ex => { if (ex.supersetOf === key){ delete ex.supersetOf; removed = true; } });
-  if (!removed) return false;
-  if (cur) pointAt(w, w.exercises.indexOf(cur));
-  save();
-  return true;
-}
-function finishWorkout(){
-  if(workoutHandoff.held()){toast('Workout held for handoff');return;}
-  const w = state.activeWorkout; if (!w) return;
-  const done = workoutSets(w);
-  const commit = discard => {
-    if (discard){
-      state.activeWorkout = null; save(); loadTimer(state.settings.defaultRest); render();
-      toast('Workout discarded'); return;
-    }
-    w.finishedAt = Date.now();
-    /* how the plan was performed stays with the session in progress */
-    delete w.supersetSide;
-    w.exercises.forEach(ex => { delete ex.supersetOf; });
-    /* drop rows never touched, then exercises left with nothing to show */
-    w.exercises.forEach(ex => {
-      ex.sets = ex.sets.filter(s => s.completed || s.weight != null || s.reps != null || s.durationSeconds != null);
-    });
-    w.exercises = w.exercises.filter(ex => ex.sets.length > 0 || ex.skipped);
-    state.workouts.push(w);
-    sortWorkouts();
-    /* A plan is spent once its session is saved; the workout keeps what it
-       prescribed. Discarding the session leaves the plan in place. */
-    const plan = w.routineId ? routineById(w.routineId) : null;
-    const planDone = isPlan(plan);
-    if (planDone) state.routines = state.routines.filter(r => r !== plan);
-    state.activeWorkout = null;
-    save(); loadTimer(state.settings.defaultRest);
-    /* the finished session opens in its sheet, as the summary of what was
-       done; a search left in History would hide its row once it closed */
-    ui.historyQuery = '';
-    ui.focus = 'detail-title';
-    navigate('history', { kind:'workout', id:w.id });
-    window.scrollTo(0,0);
-    toast('Workout saved — ' + fmtNum(workoutVolume(w)) + ' ' + unitLabel() + ' total' + (planDone ? ' · plan done' : ''));
-    maybeNagBackup();
-  };
-  if (done === 0){
-    dialog({ title:'No sets completed', body:'This workout has no completed sets. Do you want to save it anyway?',
-      buttons:[
-        { label:'Discard', value:'discard', cls:'btn-danger' },
-        { label:'Cancel', value:'cancel', cls:'', autofocus:true },
-        { label:'Save anyway', value:'save', cls:'btn-primary' }
-      ]}).then(v => { if (v === 'save') commit(false); else if (v === 'discard') commit(true); });
-  } else commit(false);
-}
-function discardWorkout(){
-  if(workoutHandoff.held()){toast('Cancel the handoff in Settings before discarding the workout');return;}
-  confirmDlg('Discard workout?','All sets logged in this session will be lost. This cannot be undone.','Discard workout',true)
-    .then(ok => {
-      if (!ok) return;
-      state.activeWorkout = null; save(); loadTimer(state.settings.defaultRest);
-      render(); toast('Workout discarded');
-    });
-}
+function newSetFrom(...args){return workoutController().newSetFrom(...args);}
+function buildWorkoutExercise(...args){return workoutController().buildWorkoutExercise(...args);}
+function beginWorkout(...args){return workoutController().beginWorkout(...args);}
+function startSession(...args){return workoutController().startSession(...args);}
+function newWorkout(...args){return workoutController().newWorkout(...args);}
+function startRoutine(...args){return workoutController().startRoutine(...args);}
+function startEmpty(...args){return workoutController().startEmpty(...args);}
+function newRoutineItem(...args){return workoutController().newRoutineItem(...args);}
+function addExerciseToWorkout(...args){return workoutController().addExerciseToWorkout(...args);}
+function supersetRun(...args){return workoutController().supersetRun(...args);}
+function currentMemberIndex(...args){return workoutController().currentMemberIndex(...args);}
+function pointAt(...args){return workoutController().pointAt(...args);}
+function enterAt(...args){return workoutController().enterAt(...args);}
+function settleSupersets(...args){return workoutController().settleSupersets(...args);}
+function supersetTurn(...args){return workoutController().supersetTurn(...args);}
+function currentExercise(...args){return workoutController().currentExercise(...args);}
+function allSetsDone(...args){return workoutController().allSetsDone(...args);}
+function settleEitherOf(...args){return workoutController().settleEitherOf(...args);}
+function fillSetDefaults(...args){return workoutController().fillSetDefaults(...args);}
+function toggleWarmup(...args){return workoutController().toggleWarmup(...args);}
+function toggleSet(...args){return workoutController().toggleSet(...args);}
+function switchSupersetMember(...args){return workoutController().switchSupersetMember(...args);}
+function cascadeSetField(...args){return workoutController().cascadeSetField(...args);}
+function cascadeWeight(...args){return workoutController().cascadeWeight(...args);}
+function cascadeReps(...args){return workoutController().cascadeReps(...args);}
+function openSetEditor(...args){return workoutController().openSetEditor(...args);}
+function deleteSet(...args){return workoutController().deleteSet(...args);}
+function confirmExerciseRemoval(...args){return workoutController().confirmExerciseRemoval(...args);}
+function addSet(...args){return workoutController().addSet(...args);}
+function advanceExercise(...args){return workoutController().advanceExercise(...args);}
+function goToPreviousExercise(...args){return workoutController().goToPreviousExercise(...args);}
+function reopenExercise(...args){return workoutController().reopenExercise(...args);}
+function isSettledRow(...args){return workoutController().isSettledRow(...args);}
+const hasWorkLeft=workoutController().hasWorkLeft;
+function moveSessionExercise(...args){return workoutController().moveSessionExercise(...args);}
+function nextOpenBlock(...args){return workoutController().nextOpenBlock(...args);}
+function overviewStep(...args){return workoutController().overviewStep(...args);}
+function pairSessionExercises(...args){return workoutController().pairSessionExercises(...args);}
+function unpairSessionExercises(...args){return workoutController().unpairSessionExercises(...args);}
+function finishWorkout(...args){return workoutController().finishWorkout(...args);}
+function discardWorkout(...args){return workoutController().discardWorkout(...args);}
 
 /* ============================================================
    ACTIONS — routines
    ============================================================ */
-function pairKeyOf(it){
-  return it.eitherOf ? 'e:' + it.eitherOf : it.supersetOf ? 's:' + it.supersetOf : '';
-}
-/* A pair key is local to a routine, independent of item order and IDs. */
-function cleanRoutinePairs(items){
-  items.forEach(it => PAIR_KEYS.forEach(key => {
-    if (typeof it[key] !== 'string' || !it[key].trim()) delete it[key];
-  }));
-  items.forEach(it => { if (it.eitherOf) delete it.supersetOf; });
-  PAIR_KEYS.forEach(key => {
-    const groups = new Map();
-    items.forEach(it => {
-      if (!it[key]) return;
-      if (!groups.has(it[key])) groups.set(it[key], []);
-      groups.get(it[key]).push(it);
-    });
-    groups.forEach(pair => {
-      if (pair.length !== 2 || pair[0].exerciseId === pair[1].exerciseId)
-        pair.forEach(it => delete it[key]);
-    });
+function routinesController(){
+  return routinesControllerInstance ||= LiftlogRoutineController.create({
+    get $(){return $;},
+    get ITEM_LIMITS(){return ITEM_LIMITS;},
+    get PAIR_KEYS(){return PAIR_KEYS;},
+    get SORTABLES(){return SORTABLES;},
+    get clamp(){return clamp;},
+    get confirmDlg(){return confirmDlg;},
+    get deepCopy(){return deepCopy;},
+    get esc(){return esc;},
+    get exerciseById(){return exerciseById;},
+    get fmtDate(){return fmtDate;},
+    get fmtNum(){return fmtNum;},
+    get hasWorkLeft(){return hasWorkLeft;},
+    get isWarmup(){return isWarmup;},
+    get newRoutineItem(){return newRoutineItem;},
+    get normalizedExerciseName(){return normalizedExerciseName;},
+    get pairSessionExercises(){return pairSessionExercises;},
+    get plural(){return plural;},
+    get render(){return render;},
+    get routineById(){return routineById;},
+    get save(){return save;},
+    get state(){return state;},
+    get toNum(){return toNum;},
+    get toast(){return toast;},
+    get ui(){return ui;},
+    get uid(){return uid;},
+    get unpairSessionExercises(){return unpairSessionExercises;}
   });
 }
-function routineGroups(items){
-  const groups = [], pairs = new Map();
-  items.forEach(it => {
-    const key = pairKeyOf(it);
-    if (key && pairs.has(key)) pairs.get(key).push(it);
-    else { const group = [it]; groups.push(group); if (key) pairs.set(key, group); }
-  });
-  return groups;
-}
-/* Either-of plans the larger alternative; a superset plans every member. */
-function groupPlannedSets(group, count){
-  return group[0].supersetOf ? group.reduce((n, it) => n + count(it), 0) : Math.max(...group.map(count));
-}
-function keepRoutinePairsAdjacent(items){
-  items.splice(0, items.length, ...routineGroups(items).flat());
-}
-function routineSummary(items){
-  const groups = routineGroups(items);
-  const sum = (g, pick) => g[0].supersetOf ? g.reduce((n, it) => n + it.sets, 0) : pick(...g.map(it => it.sets));
-  const low = groups.reduce((n, g) => n + sum(g, Math.min), 0);
-  const high = groups.reduce((n, g) => n + sum(g, Math.max), 0);
-  const exercises = groups.reduce((n, g) => n + (g[0].supersetOf ? g.length : 1), 0);
-  return plural(exercises, 'exercise') + ' · ' + low + (high !== low ? '–' + high : '') + ' planned sets';
-}
-function normalizeRoutineItem(it){
-  it.sets = clamp(parseInt(it.sets, 10) || ITEM_LIMITS.sets[0], ...ITEM_LIMITS.sets);
-  const legacy = toNum(it.reps);
-  let low = toNum(it.repsMin), high = toNum(it.repsMax);
-  if (low == null) low = legacy == null ? 0 : legacy;
-  if (high == null) high = legacy == null ? low : legacy;
-  low = clamp(Math.round(low), ...ITEM_LIMITS.reps);
-  high = clamp(Math.round(high), ...ITEM_LIMITS.reps);
-  if (high < low) [low, high] = [high, low];
-  it.repsMin = low;
-  it.repsMax = high;
-  const rir = toNum(it.targetRir);
-  it.targetRir = rir == null ? null : clamp(Math.round(rir), 0, 10);
-  it.weight = toNum(it.weight);
-  if (it.weight != null && it.weight < 0) it.weight = null;
-  delete it.reps;
-  delete it.rest;
-  return it;
-}
-function normalizeWorkoutTargets(ex){
-  const legacy = toNum(ex.targetReps);
-  let low = toNum(ex.targetRepsMin), high = toNum(ex.targetRepsMax);
-  if (low == null && legacy != null) low = legacy;
-  if (high == null && legacy != null) high = legacy;
-  if (low == null && high != null) low = high;
-  if (high == null && low != null) high = low;
-  if (low != null){
-    low = clamp(Math.round(low), ...ITEM_LIMITS.reps);
-    high = clamp(Math.round(high), ...ITEM_LIMITS.reps);
-    if (high < low) [low, high] = [high, low];
-    ex.targetRepsMin = low;
-    ex.targetRepsMax = high;
-  } else {
-    delete ex.targetRepsMin;
-    delete ex.targetRepsMax;
-  }
-  const rir = toNum(ex.targetRir);
-  ex.targetRir = rir == null ? null : clamp(Math.round(rir), 0, 10);
-  delete ex.targetReps;
-  delete ex.restSeconds;
-  return ex;
-}
-/* Where a logged count sits against the target range. Warm-ups are not held
-   to the working target. */
-function repRangeState(ex, s){
-  const v = toNum(ex.unit === 'time' ? s.durationSeconds : s.reps);
-  const low = toNum(ex.targetRepsMin), high = toNum(ex.targetRepsMax);
-  if (v == null || low == null || isWarmup(s)) return null;
-  const target = targetRangeLabel(ex);
-  if (v < low) return { cls:'reps-under', title:'Below the ' + target + ' target' };
-  if (high != null && v > high) return { cls:'reps-over', title:'Above the ' + target + ' target — time for more load?' };
-  return null;
-}
-/* The count inputs commit without a re-render, so the mark is repainted here. */
-function paintRepRange(ex){
-  ex.sets.forEach(s => {
-    const el = document.getElementById('sr-' + s.id); if (!el) return;
-    const st = repRangeState(ex, s);
-    el.classList.remove('reps-under', 'reps-over');
-    if (st){ el.classList.add(st.cls); el.title = st.title; } else el.removeAttribute('title');
-  });
-}
-/* The routine editor takes a range as one field: "8", "8-12", "8–12",
-   "8 to 12". Null when the text is not a count or a range. */
-function parseRepRange(text){
-  const m = String(text == null ? '' : text).trim().match(/^(\d+)(?:\s*(?:-|–|—|to)\s*(\d+))?$/i);
-  if (!m) return null;
-  const a = Number(m[1]), b = m[2] != null ? Number(m[2]) : a;
-  return { min:Math.min(a, b), max:Math.max(a, b) };
-}
-function targetRangeLabel(ex){
-  const low = toNum(ex.targetRepsMin), high = toNum(ex.targetRepsMax);
-  if (low == null && high == null) return '–';
-  if (low == null || high == null || low === high) return fmtNum(low == null ? high : low);
-  return fmtNum(low) + '–' + fmtNum(high);
-}
-function pairRoutineItems(firstId, secondId, key = 'eitherOf'){
-  const items = ui.routineDraft && ui.routineDraft.items;
-  if (!items || !PAIR_KEYS.includes(key)) return false;
-  const first = items.find(it => it.id === firstId);
-  const second = items.find(it => it.id === secondId);
-  if (!first || !second || first === second || pairKeyOf(first) || pairKeyOf(second) ||
-      first.exerciseId === second.exerciseId) return false;
-  first[key] = second[key] = uid();
-  keepRoutinePairsAdjacent(items);
-  return true;
-}
-function unpairRoutineItems(groupId){
-  const items = ui.routineDraft && ui.routineDraft.items;
-  if (!items || !groupId) return false;
-  let removed = false;
-  items.forEach(it => PAIR_KEYS.forEach(key => {
-    if (it[key] === groupId){ delete it[key]; removed = true; }
-  }));
-  return removed;
-}
-/* One dialog serves both kinds of pair; only its words change. */
-const PAIR_KINDS = {
-  eitherOf:{ title:'Either of', second:'Or this exercise', add:'Pair exercises',
-    desc:'Choose two exercises already in this routine. Completing either one removes the other from that workout only.',
-    current:'Current pairs', join:' or ', unpair:'Unpair', empty:'Add two unpaired exercises to create another pair.' },
-  supersetOf:{ title:'Superset', second:'Alternate with', add:'Create superset',
-    desc:'Choose two exercises already in this routine. In a workout you alternate between them set by set, resting after each round.',
-    current:'Current supersets', join:' + ', unpair:'Split', empty:'Add two unpaired exercises to create a superset.' }
-};
-/* …and both places that pair: the routine being edited, and the workout in
-   progress. A scope names its list, which entries in it may pair, how a pair
-   is made and undone, and the button focus returns to. The picker's values are
-   positions in the list, which nothing can move while the dialog is open. */
-const PAIR_SCOPES = {
-  routine:{
-    list:() => ui.routineDraft ? ui.routineDraft.items : [],
-    name:it => (exerciseById(it.exerciseId) || {}).name || '(removed exercise)',
-    free:it => !pairKeyOf(it) && !!exerciseById(it.exerciseId),
-    pair:(a, b, kind) => { const items = ui.routineDraft.items; return pairRoutineItems(items[a].id, items[b].id, kind); },
-    unpair:key => unpairRoutineItems(key),
-    opener:kind => kind === 'supersetOf' ? 'routine-superset-open' : 'routine-pair-open'
-  },
-  session:{
-    list:() => state.activeWorkout ? state.activeWorkout.exercises : [],
-    name:ex => ex.name,
-    free:ex => hasWorkLeft(ex) && !ex.eitherOf && !ex.supersetOf,
-    pair:(a, b) => pairSessionExercises(a, b),
-    unpair:key => unpairSessionExercises(key),
-    opener:() => 'session-superset-open',
-    copy:{ desc:'Choose two exercises with sets still to do. You alternate between them set by set, resting after each round. ' +
-      'This workout only: the routine keeps its plan.', empty:'A superset needs two unpaired exercises with sets still to do.' }
-  }
-};
-const pairScope = () => PAIR_SCOPES[ui.pairScope] || PAIR_SCOPES.routine;
-/* Positions of the entries that can pair with something, in list order. */
-function pairCandidates(scopeName, first){
-  const scope = PAIR_SCOPES[scopeName], list = scope.list();
-  const free = list.map((it, i) => i).filter(i => scope.free(list[i]));
-  const fits = (i, j) => i !== j && list[i].exerciseId !== list[j].exerciseId;
-  return first == null ? free.filter(i => free.some(j => fits(i, j))) : free.filter(j => fits(first, j));
-}
-function pairPickerOptions(positions){
-  const scope = pairScope(), list = scope.list();
-  return positions.map(i => '<option value="' + i + '">' + esc(scope.name(list[i])) + ' · #' + (i + 1) + '</option>').join('');
-}
-function refreshSecondPairPicker(){
-  const first = $('#pair-first').value;
-  const second = $('#pair-second');
-  const selected = second.value;
-  const choices = first === '' ? [] : pairCandidates(ui.pairScope, Number(first));
-  second.innerHTML = pairPickerOptions(choices);
-  if (choices.includes(Number(selected))) second.value = selected;
-}
-function openPairDialog(scopeName, kind){
-  ui.pairScope = PAIR_SCOPES[scopeName] ? scopeName : 'routine';
-  ui.pairKind = PAIR_KINDS[kind] ? kind : 'eitherOf';
-  const scope = pairScope(), list = scope.list();
-  if (list.length < 2) return;
-  const copy = { ...PAIR_KINDS[ui.pairKind], ...(scope.copy || {}) };
-  $('#pair-title').textContent = copy.title;
-  $('#pair-desc').textContent = copy.desc;
-  $('#pair-second-cap').textContent = copy.second;
-  $('#pair-add').textContent = copy.add;
-  $('#pair-empty').textContent = copy.empty;
-  const groups = new Map();
-  list.forEach(it => { const key = it[ui.pairKind]; if (key) groups.set(key, (groups.get(key) || []).concat([it])); });
-  const paired = [...groups].filter(([, group]) => group.length === 2);
-  $('#pair-existing').innerHTML = paired.length
-    ? '<h3>' + copy.current + '</h3>' + paired.map(([key, group]) =>
-      '<div class="routine-pair-existing-row"><span>' + group.map(it => esc(scope.name(it))).join(copy.join) +
-        '</span><button type="button" class="btn btn-sm" data-action="pair-unpair" data-group="' +
-        esc(key) + '">' + copy.unpair + '</button></div>').join('') : '';
-  const firstChoices = pairCandidates(ui.pairScope);
-  const canPair = firstChoices.length > 0;
-  $('#pair-picker').hidden = !canPair;
-  $('#pair-empty').hidden = canPair;
-  $('#pair-add').disabled = !canPair;
-  $('#pair-error').hidden = true;
-  $('#pair-first').innerHTML = pairPickerOptions(firstChoices);
-  refreshSecondPairPicker();
-  $('#pair-dlg').showModal();
-  (canPair ? $('#pair-first') : $('#pair-dlg [data-action="pair-close"]')).focus();
-}
-function closePairDialog(changed){
-  const opener = pairScope().opener(ui.pairKind);
-  $('#pair-dlg').close();
-  if (changed){ ui.focus = opener; render(); }
-  else { const el = document.getElementById(opener); if (el) el.focus(); }
-}
-function addPair(){
-  const a = $('#pair-first').value, b = $('#pair-second').value;
-  if (a !== '' && b !== '' && pairScope().pair(Number(a), Number(b), ui.pairKind)){
-    closePairDialog(true);
-    if (ui.pairScope === 'session') toast('Superset created for this workout');
-    return;
-  }
-  const error = $('#pair-error');
-  error.textContent = 'Choose two different, unpaired exercises.';
-  error.hidden = false;
-}
-/* ---------- plans ----------
-   A plan is a routine marked one-off, optionally for a calendar day. Saving
-   the session started from it removes it: the workout already copied its
-   prescription, so History is where it lives on. The day is a local calendar
-   date string, never a timestamp, so time zones cannot move it. */
-const isPlan = r => !!r && r.plan === true;
-const stableRoutines = () => state.routines.filter(r => !isPlan(r));
-function localDay(ts = Date.now()){
-  const d = new Date(ts);
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-}
-function validPlanDay(v){
-  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
-  const [y, m, d] = v.split('-').map(Number), date = new Date(y, m - 1, d);
-  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
-}
-/* Stable routines carry no plan fields at all, so their exports stay as before. */
-function normalizePlanFields(r){
-  if (r.plan === true) r.plannedFor = validPlanDay(r.plannedFor) ? r.plannedFor : null;
-  else { delete r.plan; delete r.plannedFor; }
-  return r;
-}
-function planDay(r){
-  if (!r.plannedFor) return { rank:2, label:'Anytime', overdue:false };
-  const [y, m, d] = r.plannedFor.split('-').map(Number);
-  const when = fmtDate(new Date(y, m - 1, d).getTime()), today = localDay();
-  if (r.plannedFor < today) return { rank:0, label:'Overdue · ' + when, when, overdue:true };
-  if (r.plannedFor === today) return { rank:1, label:'Today', overdue:false };
-  return { rank:3, label:when, overdue:false };
-}
-/* Overdue (oldest first), today, anytime, then later days in order. */
-function sortedPlans(){
-  return state.routines.filter(isPlan).map(r => ({ r, day:planDay(r) }))
-    .sort((a, b) => a.day.rank - b.day.rank || String(a.r.plannedFor || '').localeCompare(String(b.r.plannedFor || '')) ||
-      a.r.name.localeCompare(b.r.name));
-}
-/* A plan is known by its name on its day, so "Day B" can be a routine and
-   next week's plan at once; a stable routine by its name alone. */
-const routineKey = r => isPlan(r)
-  ? 'plan|' + normalizedExerciseName(r.name) + '|' + (validPlanDay(r.plannedFor) ? r.plannedFor : '')
-  : normalizedExerciseName(r.name);
-function defaultRoutineId(){
-  const first = sortedPlans()[0];
-  return first ? first.r.id : (stableRoutines()[0] || {}).id || null;
-}
-function newRoutineDraft(r){
-  return r ? deepCopy(r) : { id:null, name:'', items:[] };
-}
-/* The stable routine stays as it is; the copy is that one day's version. */
-function newPlanDraft(r){
-  const draft = deepCopy(r);
-  draft.id = null; draft.plan = true; draft.plannedFor = localDay();
-  draft.items.forEach(it => { it.id = uid(); });
-  return draft;
-}
-function saveRoutineDraft(){
-  const d = ui.routineDraft; if (!d) return;
-  if (!d.name.trim()){ ui.routineError = 'Give the routine a name.'; render(); return; }
-  if (d.items.length === 0){ ui.routineError = 'Add at least one exercise.'; render(); return; }
-  d.items.forEach(normalizeRoutineItem);
-  cleanRoutinePairs(d.items);
-  keepRoutinePairsAdjacent(d.items);
-  if (d.plan && d.plannedFor && !validPlanDay(d.plannedFor)){ ui.routineError = 'Choose a valid day, or leave it empty for anytime.'; render(); return; }
-  const routine = normalizePlanFields({ id:d.id || uid(), name:d.name.trim(), items:d.items,
-    plan:d.plan === true, plannedFor:d.plannedFor || null });
-  const i = d.id ? state.routines.findIndex(r => r.id === d.id) : -1;
-  if (i !== -1) state.routines[i] = routine;
-  else state.routines.push(routine);
-  ui.routineDraft = null; ui.routineError = '';
-  save(); render(); toast(isPlan(routine) ? 'Plan saved — ' + planDay(routine).label : 'Routine saved');
-}
-function duplicateRoutine(id){
-  const r = routineById(id); if (!r) return;
-  const copy = deepCopy(r);
-  copy.id = uid(); copy.name = r.name + ' (copy)';
-  copy.items.forEach(it => it.id = uid());
-  state.routines.push(copy);
-  /* from its sheet, the copy is what you want to look at (and edit) next */
-  if (ui.detail && ui.detail.kind === 'routine' && ui.detail.id === id) ui.detail = { kind:'routine', id:copy.id };
-  save(); render(); toast('Duplicated “' + r.name + '”');
-}
-function deleteRoutine(id){
-  const r = routineById(id); if (!r) return;
-  confirmDlg('Delete routine?','“' + r.name + '” will be removed. Past workouts in History are not affected.','Delete routine',true)
-    .then(ok => {
-      if (!ok) return;
-      state.routines = state.routines.filter(x => x.id !== id);
-      if (ui.routineDraft && ui.routineDraft.id === id) ui.routineDraft = null;
-      save(); render(); toast('Routine deleted');
-    });
-}
-function routineStep(idx, dir){
-  const d = ui.routineDraft; if (!d) return;
-  const groups = routineGroups(d.items);
-  const groupIndex = groups.findIndex(group => group.includes(d.items[idx]));
-  const next = groupIndex + dir;
-  if (groupIndex < 0 || next < 0 || next >= groups.length) return;
-  const target = groups[next];
-  const row = dir < 0 ? d.items.indexOf(target[0]) : d.items.indexOf(target[target.length - 1]);
-  const offset = groups[groupIndex].indexOf(d.items[idx]);
-  const landed = (dir < 0 ? d.items.indexOf(target[0]) : d.items.indexOf(groups[groupIndex][0]) + target.length) + offset;
-  const atBound = dir < 0 ? next === 0 : next === groups.length - 1;
-  const keep = atBound ? (dir < 0 ? 'ri-down-' : 'ri-up-') : (dir < 0 ? 'ri-up-' : 'ri-down-');
-  SORTABLES['routine-items'].drop(idx, row, keep + landed);
-}
-function removeRoutineItem(idx){
-  const d = ui.routineDraft; if (!d) return;
-  d.items.splice(idx,1);
-  cleanRoutinePairs(d.items);
-  render();
-}
-function addRoutineItem(exId){
-  const d = ui.routineDraft; if (!d || !exId) return;
-  d.items.push(newRoutineItem(exId));
-  render();
-}
+function pairKeyOf(...args){return routinesController().pairKeyOf(...args);}
+function cleanRoutinePairs(...args){return routinesController().cleanRoutinePairs(...args);}
+function routineGroups(...args){return routinesController().routineGroups(...args);}
+function groupPlannedSets(...args){return routinesController().groupPlannedSets(...args);}
+function keepRoutinePairsAdjacent(...args){return routinesController().keepRoutinePairsAdjacent(...args);}
+function routineSummary(...args){return routinesController().routineSummary(...args);}
+function normalizeRoutineItem(...args){return routinesController().normalizeRoutineItem(...args);}
+function normalizeWorkoutTargets(...args){return routinesController().normalizeWorkoutTargets(...args);}
+function repRangeState(...args){return routinesController().repRangeState(...args);}
+function paintRepRange(...args){return routinesController().paintRepRange(...args);}
+function parseRepRange(...args){return routinesController().parseRepRange(...args);}
+function targetRangeLabel(...args){return routinesController().targetRangeLabel(...args);}
+function pairRoutineItems(...args){return routinesController().pairRoutineItems(...args);}
+function unpairRoutineItems(...args){return routinesController().unpairRoutineItems(...args);}
+const PAIR_KINDS=routinesController().PAIR_KINDS;
+const PAIR_SCOPES=routinesController().PAIR_SCOPES;
+const pairScope=routinesController().pairScope;
+function pairCandidates(...args){return routinesController().pairCandidates(...args);}
+function pairPickerOptions(...args){return routinesController().pairPickerOptions(...args);}
+function refreshSecondPairPicker(...args){return routinesController().refreshSecondPairPicker(...args);}
+function openPairDialog(...args){return routinesController().openPairDialog(...args);}
+function closePairDialog(...args){return routinesController().closePairDialog(...args);}
+function addPair(...args){return routinesController().addPair(...args);}
+const isPlan=routinesController().isPlan;
+const stableRoutines=routinesController().stableRoutines;
+function localDay(...args){return routinesController().localDay(...args);}
+function validPlanDay(...args){return routinesController().validPlanDay(...args);}
+function normalizePlanFields(...args){return routinesController().normalizePlanFields(...args);}
+function planDay(...args){return routinesController().planDay(...args);}
+function sortedPlans(...args){return routinesController().sortedPlans(...args);}
+const routineKey=routinesController().routineKey;
+function defaultRoutineId(...args){return routinesController().defaultRoutineId(...args);}
+function newRoutineDraft(...args){return routinesController().newRoutineDraft(...args);}
+function newPlanDraft(...args){return routinesController().newPlanDraft(...args);}
+function saveRoutineDraft(...args){return routinesController().saveRoutineDraft(...args);}
+function duplicateRoutine(...args){return routinesController().duplicateRoutine(...args);}
+function deleteRoutine(...args){return routinesController().deleteRoutine(...args);}
+function routineStep(...args){return routinesController().routineStep(...args);}
+function removeRoutineItem(...args){return routinesController().removeRoutineItem(...args);}
+function addRoutineItem(...args){return routinesController().addRoutineItem(...args);}
 
 /* ============================================================
    ACTIONS — exercises
    ============================================================ */
-function saveNewExercise(form){
-  const name = form.name.trim();
-  if (!name){ ui.exerciseFormError = 'Name is required.'; render(); return; }
-  if (exerciseNameTaken(name)){
-    ui.exerciseFormError = 'An exercise with this name already exists.'; render(); return;
-  }
-  /* A link that cannot be made into an http(s) one is dropped rather than
-     failing the save: the exercise is the thing being created, and a typo in
-     an optional field should not cost the name and the unit too. The toast
-     says so, so it is not silent. */
-  const url = safeUrl(form.url);
-  const badUrl = !url && String(form.url || '').trim() !== '';
-  state.exercises.push({
-    id:uid(), name,
-    category: normalizeCategory(form.category, name),
-    unit: normalizedExerciseUnit(form.unit, state.settings.unit),
-    loadMode: normalizeLoadMode(form.loadMode, form.unit),
-    equipmentKey: String(form.equipmentKey || '').trim(),
-    movementFamily: String(form.movementFamily || '').trim() || inferMovementFamily(name, form.category),
-    archived:false,
-    notes: form.notes.trim(),
-    url
-  });
-  ui.showExerciseForm = false; ui.exerciseFormError = '';
-  save(); render();
-  toast(badUrl ? 'Exercise added — ' + name + ' (the link was not a valid web address)'
-               : 'Exercise added — ' + name);
-}
-/* An active workout is not history yet. Keep its exercise identity metadata in
-   step with Exercises so a correction made mid-session is visible at once.
-   Changing between reps, bodyweight, and time would reinterpret fields that
-   may already contain work, so that unit change begins with the next workout;
-   kg/lb remain the same weighted measurement kind and are safe to refresh. */
-function syncExerciseDefinitionToActiveWorkout(previous, updated){
-  if(workoutHandoff.held())return;
-  if(workoutHandoff.held())return;
-  const w = state.activeWorkout;
-  if (!w) return { updated:0, unitDeferred:false, loadDeferred:false };
-  const sameMeasure = exerciseMeasureKind(previous.unit) === exerciseMeasureKind(updated.unit);
-  const sameLoadIdentity = normalizeLoadMode(previous.loadMode, previous.unit) === normalizeLoadMode(updated.loadMode, updated.unit) &&
-    String(previous.equipmentKey || '').trim().toLowerCase() === String(updated.equipmentKey || '').trim().toLowerCase();
-  let count = 0, unitDeferred = false, loadDeferred = false;
-  w.exercises.forEach(ex => {
-    if (ex.exerciseId !== updated.id) return;
-    ex.name = updated.name;
-    ex.category = updated.category;
-    ex.notes = updated.notes;
-    ex.movementFamily = updated.movementFamily;
-    if (sameMeasure) ex.unit = updated.unit;
-    else unitDeferred = true;
-    const hasEnteredLoad = ex.sets.some(set => set.completed || toNum(set.weight) != null || toNum(set.addedWeight) != null);
-    if (sameLoadIdentity || !hasEnteredLoad){ ex.loadMode = updated.loadMode; ex.equipmentKey = updated.equipmentKey; }
-    else loadDeferred = true;
-    count++;
-  });
-  return { updated:count, unitDeferred, loadDeferred };
-}
-function saveExerciseDraft(){
-  const d = ui.exerciseDraft; if (!d) return;
-  if (!d.name.trim()){ toast('Name is required'); return; }
-  const i = state.exercises.findIndex(e => e.id === d.id);
-  if (i === -1) return;
-  const previous = state.exercises[i];
-  if (normalizedExerciseName(d.name) !== normalizedExerciseName(previous.name) && exerciseNameTaken(d.name, d.id)){
-    toast('Another exercise is already named “' + d.name.trim() + '” — use Merge to combine them'); return;
-  }
-  const url = safeUrl(d.url);
-  const badUrl = !url && String(d.url || '').trim() !== '';
-  const updated = { id:d.id, name:d.name.trim(), category:normalizeCategory(d.category, d.name),
-                    unit:normalizedExerciseUnit(d.unit, state.settings.unit),
-                    loadMode:normalizeLoadMode(d.loadMode, d.unit), equipmentKey:String(d.equipmentKey || '').trim(),
-                    movementFamily:String(d.movementFamily || '').trim() || inferMovementFamily(d.name, d.category),
-                    archived:!!d.archived, notes:d.notes.trim(), url };
-  const broken = linksBrokenBy(d.id, updated);
-  if (!broken.length) return applyExerciseDraft(updated, badUrl ? ['the link was not a valid web address'] : []);
-  return confirmHistorySplit(previous, updated, broken).then(choice => {
-    if (!choice || !exerciseById(d.id) || ui.exerciseDraft !== d) return;
-    const notes = badUrl ? ['the link was not a valid web address'] : [];
-    if (choice === 'keep'){
-      notes.push('load convention kept so its history stays in one series');
-      applyExerciseDraft({ ...updated, unit:previous.unit, loadMode:previous.loadMode, equipmentKey:previous.equipmentKey }, notes);
-      return;
-    }
-    const gone = new Set(broken.map(link => link.sourceId));
-    state.exerciseLinks = state.exerciseLinks.filter(link => !(link.targetId === d.id && gone.has(link.sourceId)));
-    state.settings.historyLinksDismissedKey = '';
-    notes.push(plural(gone.size, 'earlier exercise') + ' separated — review them in History');
-    applyExerciseDraft(updated, notes);
+function exercisesController(){
+  return exercisesControllerInstance ||= LiftlogExerciseController.create({
+    get LOAD_MODE_TEXT(){return LOAD_MODE_TEXT;},
+    get combineProgressionPreferences(){return combineProgressionPreferences;},
+    get confirmDlg(){return confirmDlg;},
+    get dialog(){return dialog;},
+    get exerciseById(){return exerciseById;},
+    get exerciseHasHistory(){return exerciseHasHistory;},
+    get exerciseMeasureKind(){return exerciseMeasureKind;},
+    get exerciseNameTaken(){return exerciseNameTaken;},
+    get inferMovementFamily(){return inferMovementFamily;},
+    get linksBrokenBy(){return linksBrokenBy;},
+    get normalizeCategory(){return normalizeCategory;},
+    get normalizeLoadMode(){return normalizeLoadMode;},
+    get normalizedExerciseName(){return normalizedExerciseName;},
+    get normalizedExerciseUnit(){return normalizedExerciseUnit;},
+    get plural(){return plural;},
+    get render(){return render;},
+    get safeUrl(){return safeUrl;},
+    get sameLoadNumbers(){return sameLoadNumbers;},
+    get sameProgressionContract(){return sameProgressionContract;},
+    get save(){return save;},
+    get state(){return state;},
+    get toNum(){return toNum;},
+    get toast(){return toast;},
+    get ui(){return ui;},
+    get uid(){return uid;},
+    get workoutHandoff(){return workoutHandoff;}
   });
 }
-/* Editing the definition of a linked exercise can change the contract its
-   links were accepted under. The next load would drop them without a word, so
-   the user chooses now: keep the convention, or separate them knowingly. */
-function confirmHistorySplit(previous, updated, broken){
-  const describe = ex => LOAD_MODE_TEXT[normalizeLoadMode(ex.loadMode, ex.unit)] +
-    (String(ex.equipmentKey || '').trim() ? ' · ' + ex.equipmentKey.trim() : ', no equipment key');
-  const ids = new Set(broken.map(link => link.sourceId));
-  const sessions = state.workouts.filter(w => w.exercises.some(ex => ids.has(ex.exerciseId))).length;
-  return dialog({ title:'Keep this exercise’s history together?',
-    body:'“' + previous.name + '” is joined with ' + plural(ids.size, 'earlier exercise') + ' (' + plural(sessions, 'session') +
-      ') recorded as ' + describe(previous) + '. Recording it as ' + describe(updated) +
-      ' separates them from its progress chart.',
-    buttons:[{ label:'Cancel', value:null },
-      { label:'Change anyway', value:'change' },
-      { label:'Keep history together', value:'keep', cls:'btn-primary', autofocus:true }] });
-}
-function applyExerciseDraft(updated, notes){
-  const i = state.exercises.findIndex(e => e.id === updated.id);
-  if (i === -1) return;
-  const previous = state.exercises[i];
-  state.exercises[i] = updated;
-  const activeSync = syncExerciseDefinitionToActiveWorkout(previous, updated);
-  ui.exerciseDraft = null;
-  save(); render();
-  if (activeSync.unitDeferred) notes.push('the new unit starts next workout');
-  if (activeSync.loadDeferred) notes.push('the new load convention starts next workout');
-  toast('Exercise updated' + (notes.length ? ' — ' + notes.join('; ') : ''));
-}
-function setExerciseArchived(id, archived){
-  const ex = exerciseById(id); if (!ex) return;
-  ex.archived = !!archived;
-  if (ui.exerciseDraft && ui.exerciseDraft.id === id) ui.exerciseDraft = null;
-  save(); render(); toast(ex.archived ? 'Exercise archived' : 'Exercise restored');
-}
-/* The same contract, or a source with nothing logged under it and not in the
-   ongoing workout: with no sets there is no series whose meaning a different
-   load convention could change. */
-function canMergeExercises(source, target){
-  if (exerciseMeasureKind(source.unit) !== exerciseMeasureKind(target.unit)) return false;
-  return sameProgressionContract(source, target) || (!exerciseHasHistory(source.id) &&
-    !(state.activeWorkout && state.activeWorkout.exercises.some(ex => ex.exerciseId === source.id)));
-}
-/* Writes state only; mergeExercises() is the Library action around it. */
-function mergeExerciseInto(sourceId, targetId){
-  const source = exerciseById(sourceId), target = exerciseById(targetId);
-  if (!source || !target || sourceId === targetId) return 'Choose a different surviving exercise.';
-  if (!canMergeExercises(source, target)) return '“' + source.name + '” has logged history under a different load convention or equipment, so it can only merge into an exercise recorded the same way.';
-  const collision = state.routines.find(r => r.items.some(it => it.exerciseId === sourceId) && r.items.some(it => it.exerciseId === targetId));
-  if (collision) return '“' + collision.name + '” contains both exercises. Remove or reconcile one routine item first.';
-  if (state.activeWorkout && state.activeWorkout.exercises.some(ex => ex.exerciseId === sourceId) &&
-      state.activeWorkout.exercises.some(ex => ex.exerciseId === targetId))
-    return 'The ongoing workout contains both exercises. Finish it or remove one exercise before merging.';
-  const keepWeight = sameLoadNumbers(source, target);
-  state.routines.forEach(r => r.items.forEach(it => {
-    if (it.exerciseId !== sourceId) return;
-    it.exerciseId = targetId;
-    if (!keepWeight) it.weight = null;
-  }));
-  if (state.activeWorkout) state.activeWorkout.exercises.forEach(ex => {
-    if (ex.exerciseId !== sourceId) return;
-    ex.exerciseId = targetId; ex.name = target.name; ex.category = target.category; ex.unit = target.unit;
-    ex.loadMode = target.loadMode; ex.equipmentKey = target.equipmentKey; ex.movementFamily = target.movementFamily;
-    ex.notes = target.notes;
-  });
-  const links = (state.exerciseLinks || []).filter(link => link.sourceId !== sourceId && link.sourceId !== targetId)
-    .map(link => link.targetId === sourceId ? { sourceId:link.sourceId, targetId } : link);
-  /* Normalization drops a link with no logged sets behind it anyway. */
-  if (state.workouts.some(w => w.exercises.some(ex => ex.exerciseId === sourceId))) links.push({ sourceId, targetId });
-  const seen = new Set();
-  state.exerciseLinks = links.filter(link => !seen.has(link.sourceId) && seen.add(link.sourceId));
-  combineProgressionPreferences(sourceId, targetId);
-  state.historySeparateIds = (state.historySeparateIds || []).filter(id => id !== sourceId);
-  state.exercises = state.exercises.filter(ex => ex.id !== sourceId);
-  state.settings.historyLinksDismissedKey = '';
-  return '';
-}
-function mergeExercises(sourceId, targetId){
-  const source = exerciseById(sourceId), target = exerciseById(targetId);
-  const error = mergeExerciseInto(sourceId, targetId);
-  if (error) return error;
-  ui.mergeExerciseId = null; ui.mergeExerciseError = ''; ui.exerciseDraft = null;
-  save(); render(); toast('Merged “' + source.name + '” into “' + target.name + '”');
-  return '';
-}
-function deleteExercise(id){
-  const ex = exerciseById(id); if (!ex) return;
-  const usedBy = state.routines.filter(r => r.items.some(it => it.exerciseId === id)).length;
-  const extra = usedBy ? ' It is used by ' + usedBy + ' routine' + (usedBy > 1 ? 's' : '') + ', which will show it as removed.' : '';
-  confirmDlg('Delete exercise?','“' + ex.name + '” will be removed from your exercises.' + extra,'Delete exercise',true)
-    .then(ok => {
-      if (!ok) return;
-      state.exercises = state.exercises.filter(e => e.id !== id);
-      state.exerciseLinks = (state.exerciseLinks || []).filter(link => link.targetId !== id);
-      state.settings.historyLinksDismissedKey = '';
-      if (ui.exerciseDraft && ui.exerciseDraft.id === id) ui.exerciseDraft = null;
-      save(); render(); toast('Exercise deleted');
-    });
-}
+function saveNewExercise(...args){return exercisesController().saveNewExercise(...args);}
+function syncExerciseDefinitionToActiveWorkout(...args){return exercisesController().syncExerciseDefinitionToActiveWorkout(...args);}
+function saveExerciseDraft(...args){return exercisesController().saveExerciseDraft(...args);}
+function confirmHistorySplit(...args){return exercisesController().confirmHistorySplit(...args);}
+function applyExerciseDraft(...args){return exercisesController().applyExerciseDraft(...args);}
+function setExerciseArchived(...args){return exercisesController().setExerciseArchived(...args);}
+function canMergeExercises(...args){return exercisesController().canMergeExercises(...args);}
+function mergeExerciseInto(...args){return exercisesController().mergeExerciseInto(...args);}
+function mergeExercises(...args){return exercisesController().mergeExercises(...args);}
+function deleteExercise(...args){return exercisesController().deleteExercise(...args);}
 
 /* ============================================================
    ACTIONS — settings / data
@@ -6740,8 +7017,31 @@ function remoteDraftFromConfig(cfg){
     pathStyle: cfg ? !!cfg.pathStyle : false
   };
 }
+function openStorageOptions(target){
+  ui.settingsSections.storage=true;
+  if(target==='configure'){ui.remoteFormOpen=true;render();}
+  const section=$('[data-settings-section="storage"]');if(!section)return;section.open=true;
+  const node=target==='configure'?section.querySelector('[data-field="endpoint"]'):
+    target==='review'?section.querySelector('[data-action="remote-resume"],[data-action="remote-publish-local"]'):section.querySelector('summary');
+  const focus=node||section.querySelector('summary');focus?.scrollIntoView({block:'nearest'});focus?.focus();
+}
+function renderStorageStatus(){
+  const container=$('#storage-summary');if(!container)return;
+  const cfg=loadRemoteConfig();
+  WorkoutStorage.renderStorageSummary(container,{
+    failed:localStore.failed,blocked:localStore.blocked,localPending:localStore.pending,
+    configured:!!cfg,paused:remoteSyncPaused(),held:!!workoutHandoff.held(),online:navigator.onLine,
+    status:ui.remoteStatus,errorCategory:remoteEngine.diagnosticsPayload().lastError?.category,busy:ui.remoteBusy,
+    pending:!!readRemoteWork()?.pending,revision:remoteSnapshotTime(state),
+    cloudAt:cfg?.lastBackupAt,cloudRevision:cfg?.lastUploadedModifiedAt,fileAt:state.settings.lastFileBackupAt,
+    active:!!state.activeWorkout,mode:remoteEngine.syncMode(cfg)
+  },{download:exportData,details:()=>openStorageOptions(),configure:()=>openStorageOptions('configure'),
+    backup:remoteBackup,retry:remoteBackup,review:()=>openStorageOptions('review'),
+    handoff:()=>{$('#handoff-tools')?.scrollIntoView({block:'nearest'});$('#handoff-tools button')?.focus();},error:error=>toast(error.message)});
+}
 function setRemoteStatus(status, text){
   ui.remoteStatus = status; ui.remoteStatusText = text || '';
+  renderStorageStatus();
   const el = $('#remote-status');
   if (el){
     const cfg = loadRemoteConfig(), work = readRemoteWork();
@@ -7538,6 +7838,7 @@ function render(){
   const switched = ui.prevView !== ui.view;
   ui.prevView = ui.view;
   main.innerHTML = viewHTML();
+  renderStorageStatus();
   renderComparisons();
   WorkoutUI.renderRecent($('#recent-changes'),recentChanges,toast);
   appUpdates?.refresh();
@@ -10472,7 +10773,9 @@ function init(){
     else drawTimer();
   });
   window.addEventListener('pagehide', () => { flushSave(); if (readRemoteWork()) autoRemoteBackup(); });
-  window.addEventListener('online', remoteStartupSync);
+  window.addEventListener('online', ()=>{renderStorageStatus();remoteStartupSync();});
+  window.addEventListener('offline',renderStorageStatus);
+  window.addEventListener('storage',renderStorageStatus);
 
   updateSaveBanner();   /* init()'s own save() above may already have failed */
   refreshStorageState();

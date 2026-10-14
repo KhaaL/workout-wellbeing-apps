@@ -132,11 +132,12 @@ globalThis.BikeStorage = (() => {
       draft.syncMode=raw.syncMode||'auto';draft.pathStyle=raw.pathStyle;draft.secretAccessKey=raw.secretAccessKey?.trim()||'';
       remote.validateRemoteConfig(draft);return draft;
     }
+    function fileBackupAt(){try{return Number(localStorage.getItem(namespace+'.last-file-backup'))||null;}catch(error){return null;}}
     function backupInfo(){
-      let file=0;try{file=Number(localStorage.getItem(namespace+'.last-file-backup'))||0;}catch(error){}
+      const file=fileBackupAt()||0;
       const cloud=Number(remote.loadRemoteConfig()?.lastBackupAt)||0,at=Math.max(file,cloud);
       const rides=state.history.filter(ride=>(ride.editedAt||ride.endedAt||ride.startedAt)>at).length;
-      return {at:at||null,where:at?(cloud>=file?'cloud storage':'a downloaded file'):null,rides,
+      return {fileAt:file||null,at:at||null,where:at?(cloud>=file?'cloud storage':'a downloaded file'):null,rides,
         stale:at?rides>=3||Date.now()-at>=14*86400000:state.history.length>0};
     }
     function recordFileBackup(){
@@ -209,7 +210,7 @@ globalThis.BikeStorage = (() => {
       setRevision:candidate=>{candidate.updatedAt=Math.max(Date.now(),state.updatedAt+1);},
       describe:workout=>`${workout.config.mode==='zone2'?'Zone 2':'Sprint'} workout: ${Math.round(workout.activeMs/60000)} active minutes, paused at ${C.phase(workout).title}.`,
       confirm:options.confirm,onChange:options.onHandoffChange,onReceived:options.onHandoffReceived,notify:options.toast});
-    return {get,write,local,remote,handoff,prepare,backup,restore,configure,configPayload,configDraft,backupInfo,recordFileBackup,
+    return {get,write,local,remote,handoff,prepare,backup,restore,configure,configPayload,configDraft,backupInfo,fileBackupAt,recordFileBackup,
       historyPayload,mergeHistory,clearHistory,recoveryCopies,discardRecovery,get state(){return state;},
       recovery:()=>{try{
         const saved=localStorage.getItem(namespace+'.unreadable')||localStorage.getItem(namespace+'.before-remote-restore');if(saved)return saved;

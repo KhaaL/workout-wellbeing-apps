@@ -169,7 +169,7 @@ const LiftlogSettings = (() => {
     function settingsDisclosure(id, title, summary, body){
       const remembered = ui.settingsSections[id];
       const compact = window.matchMedia && window.matchMedia('(max-width:600px)').matches;
-      const open = remembered == null ? !compact : remembered;
+      const open = remembered == null ? id!=='storage'&&!compact : remembered;
       return '<details class="settings-disclosure" data-settings-section="' + esc(id) + '"' + (open ? ' open' : '') + '>' +
         '<summary><span class="settings-summary">' + esc(title) + '<small>' + esc(summary) + '</small></span></summary>' +
         body + '</details>';
@@ -180,6 +180,7 @@ const LiftlogSettings = (() => {
       const storage = storageSize();
       const backup = lastBackupInfo();
       return '<div class="view-head"><div><h1>Settings</h1><p class="view-sub">Preferences, data<span class="keyboard-only">, shortcuts</span></p></div></div>' +
+      '<div id="storage-summary"></div>' +
       '<section class="panel" aria-label="Preferences">' +
         '<div class="setting-block">' +
           '<h3>Appearance</h3><p class="desc">Theme follows your system by default. Color themes apply instantly and are remembered on this device.</p>' +

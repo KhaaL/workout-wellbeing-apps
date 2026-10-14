@@ -344,6 +344,8 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
 
 .field-error{display:block;color:var(--danger);font-size:var(--fs-sm);margin-top:4px}input[aria-invalid=true],select[aria-invalid=true],textarea[aria-invalid=true]{border-color:var(--danger)}
 
+.storage-summary{padding:18px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);margin:16px 0}.storage-summary h2{margin:0 0 8px}.storage-summary-title{font-size:var(--fs-lg)}.storage-summary-title[data-tone=danger]{color:var(--danger)}.storage-summary-title[data-tone=warning]{color:var(--warning)}.storage-summary-title[data-tone=success]{color:var(--success)}.storage-summary p{margin:8px 0}.storage-summary .hint{font-size:var(--fs-sm);color:var(--muted)}.storage-summary .shared-actions{justify-content:flex-start}.storage-summary button{min-height:48px}
+
 </style>
 </head>
 <body class="bike-app" data-kind="setup">
@@ -381,10 +383,11 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
 </section>
 <section id="settings" hidden>
   <h1>Settings</h1>
+  <div id="storage-summary"></div>
   <section class="card"><h2>Appearance</h2><label class="field">Theme<select id="themeChoice"></select></label></section>
   <details id="defaultTargets" class="card"><summary>Default targets &amp; durations</summary><p class="small">New rides start with these defaults. A running ride keeps its recorded plan.</p><div id="defaultTargetFields" class="grid"></div><p id="defaultTargetError" class="notice" role="alert" hidden></p><button id="saveDefaults" class="secondary">Save workout defaults</button></details>
   <div class="card stack"><label class="check"><input type="checkbox" id="voice" checked>Voice cues</label><label class="check"><input type="checkbox" id="beeps" checked>Beeps</label><button id="testSound" class="secondary">Test sound</button><p class="small">If you use Polar, start a separate Indoor cycling recording before riding. Mount your phone where it is easy to read.</p></div>
-  <details class="card"><summary>Backups &amp; cloud storage</summary>
+  <details id="storage-options" class="card"><summary>Backups &amp; cloud storage</summary>
     <p class="small">Your rides save on this device. A full JSON backup can restore your history and settings. Cloud backup is optional and uses your own S3-compatible storage.</p>
     <div class="stack"><button id="exportBackup" class="secondary">Download full backup</button><label class="field">Restore a full backup<input id="importBackup" type="file" accept=".json,application/json"></label></div>
     <p id="backupStatus" class="small" role="status"></p>
@@ -792,11 +795,12 @@ globalThis.BikeStorage = (() => {
       draft.syncMode=raw.syncMode||'auto';draft.pathStyle=raw.pathStyle;draft.secretAccessKey=raw.secretAccessKey?.trim()||'';
       remote.validateRemoteConfig(draft);return draft;
     }
+    function fileBackupAt(){try{return Number(localStorage.getItem(namespace+'.last-file-backup'))||null;}catch(error){return null;}}
     function backupInfo(){
-      let file=0;try{file=Number(localStorage.getItem(namespace+'.last-file-backup'))||0;}catch(error){}
+      const file=fileBackupAt()||0;
       const cloud=Number(remote.loadRemoteConfig()?.lastBackupAt)||0,at=Math.max(file,cloud);
       const rides=state.history.filter(ride=>(ride.editedAt||ride.endedAt||ride.startedAt)>at).length;
-      return {at:at||null,where:at?(cloud>=file?'cloud storage':'a downloaded file'):null,rides,
+      return {fileAt:file||null,at:at||null,where:at?(cloud>=file?'cloud storage':'a downloaded file'):null,rides,
         stale:at?rides>=3||Date.now()-at>=14*86400000:state.history.length>0};
     }
     function recordFileBackup(){
@@ -869,7 +873,7 @@ globalThis.BikeStorage = (() => {
       setRevision:candidate=>{candidate.updatedAt=Math.max(Date.now(),state.updatedAt+1);},
       describe:workout=>`${workout.config.mode==='zone2'?'Zone 2':'Sprint'} workout: ${Math.round(workout.activeMs/60000)} active minutes, paused at ${C.phase(workout).title}.`,
       confirm:options.confirm,onChange:options.onHandoffChange,onReceived:options.onHandoffReceived,notify:options.toast});
-    return {get,write,local,remote,handoff,prepare,backup,restore,configure,configPayload,configDraft,backupInfo,recordFileBackup,
+    return {get,write,local,remote,handoff,prepare,backup,restore,configure,configPayload,configDraft,backupInfo,fileBackupAt,recordFileBackup,
       historyPayload,mergeHistory,clearHistory,recoveryCopies,discardRecovery,get state(){return state;},
       recovery:()=>{try{
         const saved=localStorage.getItem(namespace+'.unreadable')||localStorage.getItem(namespace+'.before-remote-restore');if(saved)return saved;
@@ -979,7 +983,7 @@ globalThis.WorkoutStorage = (() => {
       options.setState(candidate); notify(); return true;
     }
     return {load, save, flush, commit, rescue, get failed(){return failed;}, get blocked(){return blocked;},
-      get warning(){return warning;}, get existing(){return existing;}, set existing(value){existing = value;}};
+      get pending(){return pending;}, get warning(){return warning;}, get existing(){return existing;}, set existing(value){existing = value;}};
   }
   return {version:'1.0.0', copy, stableStringify, enforceLimits, createLocal};
 })();
@@ -1932,6 +1936,51 @@ WorkoutStorage.renderHandoff = function(container,handoff,download,notify){
   button('handoffReceive','Review cloud handoff…',()=>handoff.receiveCode(code.value.trim()),!handoff.configured||handoff.hasActive);
 };
 
+/* Presentation state only: never performs a save, upload or reconciliation. */
+WorkoutStorage.storageSummary = function(input){
+  const cloudAt=Number(input.cloudAt)||null,fileAt=Number(input.fileAt)||null;
+  const base={cloudAt,fileAt,action:'download',actionLabel:'Download backup',tone:'neutral',detail:'Your data is saved on this device.'};
+  const state=(id,title,detail,action=base.action,actionLabel=base.actionLabel,tone=base.tone)=>({...base,id,title,detail,action,actionLabel,tone});
+  if(input.failed||input.blocked)return state('attention','Needs attention','Changes may only be in memory. Keep this page open and download a backup.','download','Download backup','danger');
+  if(input.localPending)return state('saving','Saving on this device…','Keep this page open until saving finishes.',null,null);
+  if(input.held)return state('paused','Uploads paused','A workout is held for transfer. Finish or cancel the handoff before resuming uploads.','handoff','Review handoff','warning');
+  if(!input.configured)return state('local','Saved on this device','Cloud backup is not configured. Download a backup or connect cloud storage.','configure','Set up cloud backup');
+  if(input.status==='conflict')return state('attention','Needs attention','Local and cloud copies differ. Review them before choosing which copy to keep.','review','Review copies','warning');
+  if(input.paused)return state('paused','Uploads paused','Local changes are kept on this device. Review your copies before resuming.','review','Review & resume','warning');
+  if(input.online===false)return state('offline','Offline',input.pending?'Your changes are saved here. Uploads will retry when a connection is available.':'Your local data is available. Cloud storage cannot be checked while offline.','download','Download backup','warning');
+  if(input.busy||input.status==='checking')return state('checking','Checking cloud storage…','Your data remains on this device while the storage request completes.',null,null);
+  if(input.status==='error'||input.status==='warning'){
+    const hints={credentials:'Check the access key and matching secret in connection settings.',permissions:'Check that your storage key has permission for this operation.',bucket:'Check the bucket name in connection settings.',region:'Check the region and endpoint in connection settings.',clock:'Check this device’s date and time.',
+      'network-or-cors':'Check your connection and the storage service’s browser access settings.',timeout:'The storage service did not respond in time. Check your connection and retry.'};
+    const category=input.errorCategory,configuration=['credentials','permissions','bucket','region'].includes(category);
+    return state('attention','Needs attention',hints[category]||'Cloud backup did not finish. Your local data is kept. Review the connection details and retry.',configuration?'configure':'retry',configuration?'Review connection':input.mode==='conditional'?'Retry sync':'Retry backup','danger');
+  }
+  const backed=cloudAt&&input.cloudRevision!=null&&input.revision!=null&&Number(input.cloudRevision)===Number(input.revision)&&!input.pending;
+  if(backed)return state('backed-up','Backed up','The current saved data has a verified cloud backup.','download','Download backup','success');
+  const conditional=input.mode==='conditional';
+  return state('pending','Upload pending',conditional?(input.active?'Your workout is saved here. A cloud comparison may wait until the workout finishes.':'Your data is saved here. Sync compares both copies; a newer cloud copy may replace local data.'):'Your data is saved here. Changes are waiting for a verified cloud backup.','backup',conditional?'Sync now':'Back up now');
+};
+WorkoutStorage.renderStorageSummary = function(container,input,actions){
+  if(!container)return;
+  const model=WorkoutStorage.storageSummary(input),signature=JSON.stringify(model);
+  if(container.dataset.summary===signature)return;
+  container.dataset.summary=signature;container.dataset.state=model.id;container.className='storage-summary';
+  let heading=container.querySelector('h2');
+  if(!heading){heading=document.createElement('h2');heading.textContent='Storage';container.append(heading);const live=document.createElement('div');live.className='storage-summary-live';live.setAttribute('role','status');live.setAttribute('aria-live','polite');container.append(live);const buttons=document.createElement('div');buttons.className='shared-actions';container.append(buttons);}
+  const live=container.querySelector('.storage-summary-live');live.replaceChildren();
+  const title=document.createElement('strong');title.className='storage-summary-title';title.dataset.tone=model.tone;title.textContent=model.title;
+  const detail=document.createElement('p');detail.textContent=model.detail;
+  const date=value=>new Date(value).toLocaleString();const backup=document.createElement('p');backup.className='hint';backup.textContent=model.cloudAt?'Last verified cloud backup: '+date(model.cloudAt):'No verified cloud backup yet.';
+  if(model.fileAt){const file=document.createElement('span');file.textContent=' Last file export: '+date(model.fileAt)+'.';backup.append(file);}
+  live.append(title,detail,backup);
+  const buttons=container.querySelector('.shared-actions'),focused=document.activeElement?.closest('.storage-summary')===container?document.activeElement.dataset.storageAction:null;buttons.replaceChildren();
+  function button(id,label,primary){const b=document.createElement('button');b.type='button';b.className='btn'+(primary?' btn-primary':'');b.dataset.storageAction=id;b.textContent=label;b.addEventListener('click',()=>Promise.resolve().then(()=>actions[id]?.()).catch(error=>actions.error?.(error)));buttons.append(b);}
+  if(model.action)button(model.action,model.actionLabel,true);
+  if(model.action&&model.action!=='download')button('download','Download backup',false);
+  button('details','Storage options',false);
+  if(focused)(buttons.querySelector('[data-storage-action="'+focused+'"]')||buttons.lastElementChild)?.focus();
+};
+
 /* storage-ui:end */
 /* app-updates:start */
 /* Explicit app updates; storage and workout state are supplied by each app. */
@@ -2345,6 +2394,72 @@ const BikeHistory = (() => {
 <script>
 (() => {
   'use strict';
+/* bike-cardio-storage-controller:start */
+/* bike-cardio storage controller. Context getters always read current app state. */
+/* exported BikeStorageController */
+const BikeStorageController = {
+  create(context){
+  function renderBackupControls(){
+    context.renderStorageStatus();
+    if(context.currentView!=='settings'&&context.currentView!=='summary')return;
+    const cfg=context.storage.remote.loadRemoteConfig(),paused=context.storage.remote.remoteSyncPaused();context.$('cloudActions').hidden=!cfg;context.$('cloudBackup').hidden=paused;context.$('cloudPause').hidden=paused;context.$('cloudResume').hidden=!paused;
+    context.$('backupStatus').textContent=context.storage.local.blocked?context.storage.local.warning:context.storage.local.failed?'Changes are in memory only. Download a full backup before closing.':`${context.storage.state.history.length} saved sessions. Full backups include settings and any saved ride.`;
+    const info=context.storage.backupInfo();context.$('backupAge').textContent=info.at?`Last backup: ${context.dateLabel(info.at)} (${info.where}). ${info.rides} rides added or edited since then.${info.stale?' Download a fresh full backup.':''}`:'No full backup recorded on this device.';
+    context.$('cloudUseRemote').textContent=context.storage.remote.syncMode(cfg)==='immutable'?'Restore legacy backup locally':'Use cloud copy';
+    const work=context.storage.remote.readRemoteWork();context.$('cloudDetails').textContent=cfg?`Bucket: ${cfg.bucket}. Last sync: ${cfg.lastBackupAt?context.dateLabel(cfg.lastBackupAt):'never'}. Backed-up revision: ${cfg.lastUploadedModifiedAt||'none'}.${work?.pending?' Changes are waiting to sync.':''}${paused?' Cloud sync is paused.':''}`:'';
+    document.querySelectorAll('#cloudActions button,#saveCloud,#cloudForm input,#cloudForm select,#importCloudConfig').forEach(button=>button.disabled=context.cloudBusy||context.configBusy);
+    if(!context.storage.remote.remoteCryptoAvailable()){
+      context.$('saveCloud').disabled=true;for(const id of ['cloudTest','cloudBackup','cloudResume','cloudKeepLocal','cloudUseRemote'])context.$(id).disabled=true;
+      context.$('cloudDetails').textContent+=' Cloud storage needs HTTPS and Web Crypto.';
+    }
+    renderRecoveryCopies();renderStorageDiagnostics();context.$('storageTools').hidden=!cfg;
+    WorkoutStorage.renderRemoteTools(context.$('remoteTools'),context.storage.remote,context.downloadJSON,'bike');
+  }
+  async function readJSONUpload(file){if(file.size>8*1024*1024)throw new Error('File exceeds the 8 MiB import limit.');return JSON.parse(await file.text());}
+  function renderRecoveryCopies(){
+    const container=context.$('recoveryCopies');container.replaceChildren();
+    for(const saved of context.storage.recoveryCopies()){
+      const card=document.createElement('div');card.className='card stack';
+      const title=document.createElement('h2');title.textContent=saved.label;card.append(title);
+      const description=document.createElement('p');description.className='small';description.textContent=`${new Blob([saved.raw]).size} bytes saved separately from your current rides. Download before another replacement overwrites this copy.`;card.append(description);
+      const download=document.createElement('button');download.className='secondary';download.textContent='Download recovery copy';download.id=saved.kind==='before-remote-restore'?'downloadRecovery':'downloadUnreadable';
+      download.addEventListener('click',()=>context.downloadJSON(saved.raw,`bike-cardio-${saved.kind}.json`));card.append(download);
+      if(saved.restorable){const restore=document.createElement('button');restore.className='secondary';restore.textContent='Restore this copy…';restore.id=saved.kind==='before-remote-restore'?'restoreRecovery':'restoreUnreadable';restore.addEventListener('click',async()=>{
+        try{const current=context.storage.recoveryCopies().find(item=>item.kind===saved.kind);if(!current||current.raw!==saved.raw)throw new Error('Recovery copy changed. Review it again.');await context.storage.restore(JSON.parse(current.raw));renderBackupControls();}catch(error){context.toast(error.message);}
+      });card.append(restore);}
+      if(saved.key){const discard=document.createElement('button');discard.className='secondary danger';discard.textContent='Discard recovery copy…';discard.addEventListener('click',async()=>{try{await context.storage.discardRecovery(saved.kind);renderBackupControls();}catch(error){context.toast(error.message);}});card.append(discard);}
+      container.append(card);
+    }
+  }
+  function renderStorageDiagnostics(){
+    const label={checking:'Checking browser storage.',persistent:'Persistent storage granted. The browser has agreed to protect this site from automatic storage eviction.',
+      'best-effort':'Storage is best effort. The browser may clear it when space is low.',declined:'The browser did not grant persistent storage. Keep an off-device backup.',
+      unavailable:'Storage durability information is unavailable in this browser. Keep an off-device backup.'}[context.persistenceState];
+    const size=new Blob([JSON.stringify(context.storage.state)]).size;
+    context.$('storageDiagnostics').textContent=`Ride data: ${(size/1024).toFixed(1)} KiB. ${label}${context.storageEstimate?` Site usage estimate: ${(context.storageEstimate.usage/1048576).toFixed(1)} MiB of ${(context.storageEstimate.quota/1048576).toFixed(1)} MiB available.`:''}`;
+    context.$('requestPersistence').hidden=!['best-effort','declined'].includes(context.persistenceState);
+  }
+  async function refreshStorageDiagnostics(){
+    try{context.persistenceState=typeof navigator.storage?.persisted==='function'?(await navigator.storage.persisted()?'persistent':'best-effort'):'unavailable';
+      if(typeof navigator.storage?.estimate==='function'){const estimate=await navigator.storage.estimate();if(Number.isFinite(estimate?.usage)&&Number.isFinite(estimate?.quota))context.storageEstimate=estimate;}
+    }catch(error){context.persistenceState='unavailable';}renderStorageDiagnostics();
+  }
+  async function requestPersistence(fromUser=false){
+    if(context.persistenceState==='persistent'||typeof navigator.storage?.persist!=='function')return;
+    if(!fromUser){try{if(localStorage.getItem('bike-cardio.v1.persist-asked'))return;}catch(error){return;}}
+    try{localStorage.setItem('bike-cardio.v1.persist-asked','1');}catch(error){}
+    try{context.persistenceState=await navigator.storage.persist()||await navigator.storage.persisted()?'persistent':'declined';}
+    catch(error){context.persistenceState='unavailable';}renderStorageDiagnostics();
+    if(fromUser)context.toast(context.persistenceState==='persistent'?'Persistent storage granted.':'Persistence was not granted. Keep a full backup.');
+  }
+  function maybeRemindBackup(){if(context.backupReminded||!context.storage.backupInfo().stale)return;context.backupReminded=true;context.toast('Your backup needs refreshing. Download a full backup under Backups & cloud storage.');}
+  function loadCloudFields(){const cfg=context.storage.remote.loadRemoteConfig();if(!cfg)return;for(const [id,name]of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId']])context.$(id).value=cfg[name]||'';context.$('cloudMode').value=cfg.syncMode||'auto';context.$('cloudPathStyle').checked=cfg.pathStyle;}
+    return {renderBackupControls,readJSONUpload,renderRecoveryCopies,renderStorageDiagnostics,refreshStorageDiagnostics,requestPersistence,maybeRemindBackup,loadCloudFields};
+  }
+};
+
+/* bike-cardio-storage-controller:end */
+let storageControllerInstance;
   const $=id=>document.getElementById(id), C=WorkoutCore, H=HeartRateCore, KEYS={active:'bike-cardio.active.v1',history:'bike-cardio.history.v1',settings:'bike-cardio.settings.v1'};
   const fields=['averageHR','mainAverageHR','zoneMinutes','resistance','cadence','averageWatts','fixedHRWatts','perceivedEffort','notes'];
   let session=null,records=[],selected=null,historyReturn='setup',audio=null,wake=null,muted=false,storageOK=true,lastSaved=0,lastCloudCheckpoint=0,phaseKey='',interval=null,toastTimer=null,gateMode='',highSince=null,lastHighAt=null,lastHighWarning=-60000;
@@ -2358,7 +2473,7 @@ const BikeHistory = (() => {
   const contextName=c=>c.context==='post-lifting'?'After lifting':'Fresh legs';
   const dateLabel=ms=>new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(new Date(ms));
   const storage=BikeStorage.create({core:C,heart:H,isActive:()=>Boolean(session),
-    onLocalStatus:status=>{if(status.failed||status.blocked)storageWarning(status.warning||'Changes are not being saved. Keep this page open and download a full backup.');else if(!status.warning){storageOK=true;$('storageNotice').hidden=true;}},
+    onLocalStatus:status=>{if(status.failed||status.blocked)storageWarning(status.warning||'Changes are not being saved. Keep this page open and download a full backup.');else if(!status.warning){storageOK=true;$('storageNotice').hidden=true;}queueMicrotask(renderStorageStatus);},
     onRemoteStatus:(status,text)=>{ $('cloudStatus').textContent=text||'Cloud backup is not configured.'; $('cloudStatus').dataset.status=status; renderBackupControls(); },
     onBusy:busy=>{cloudBusy=busy;renderBackupControls();},
     toast,confirm:WorkoutUI.confirm,onRefresh:renderBackupControls,
@@ -2388,69 +2503,58 @@ const BikeHistory = (() => {
     records=next;selected=null;showHistory();
   }
   $('deleteSession').addEventListener('click',deleteSelected);
-  function renderHandoff(){WorkoutStorage.renderHandoff($('handoffTools'),storage.handoff,downloadJSON,toast);const held=!!storage.handoff.held();$('restoreSession').disabled=held;$('resumeSaved').disabled=held;$('endSaved').disabled=held;for(const id of ['resume','pause','end','skip','gate','gateConfirm','lowHR','holdHR','highHR','cancelSkip','confirmSkip'])$(id).disabled=held;}
+  function renderHandoff(){renderStorageStatus();WorkoutStorage.renderHandoff($('handoffTools'),storage.handoff,downloadJSON,toast);const held=!!storage.handoff.held();$('restoreSession').disabled=held;$('resumeSaved').disabled=held;$('endSaved').disabled=held;for(const id of ['resume','pause','end','skip','gate','gateConfirm','lowHR','holdHR','highHR','cancelSkip','confirmSkip'])$(id).disabled=held;}
   function storageWarning(message){storageOK=false;$('storageNotice').textContent=message;$('storageNotice').hidden=false;}
   function read(key,fallback){return storage.get(key,fallback);}
-  function write(key,value,options){return storage.write(key,value,options);}
+  function write(key,value,options){const result=storage.write(key,value,options);renderStorageStatus();return result;}
   function remove(key){return storage.write(key,null);}
   function save(force=false){if(!session||storage.handoff.held()||session.status==='finished')return;const now=Date.now();if(force||now-lastSaved>=5000){const remote=force||now-lastCloudCheckpoint>=60000;write(KEYS.active,session,{remote});lastSaved=now;if(remote)lastCloudCheckpoint=now;if(force&&storage.remote.loadRemoteConfig()?.lastUploadedModifiedAt!==storage.state.updatedAt&&!storage.remote.readRemoteWork()?.pending)storage.remote.scheduleRemoteBackup();}}
   function toast(text){$('toast').textContent=text;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,4500);}
   function downloadJSON(payload,name){const raw=typeof payload==='string'?payload:JSON.stringify(payload,null,2),url=URL.createObjectURL(new Blob([raw],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+  function openStorageOptions(target){
+    $('storage-options').open=true;
+    const node=$(target)||$('storage-options').querySelector('summary');node.scrollIntoView({block:'nearest'});node.focus();
+  }
+  function renderStorageStatus(){
+    if(currentView!=='settings')return;
+    const remote=storage.remote,cfg=remote.loadRemoteConfig();
+    WorkoutStorage.renderStorageSummary($('storage-summary'),{
+      failed:storage.local.failed,blocked:storage.local.blocked,localPending:storage.local.pending,
+      configured:!!cfg,paused:remote.remoteSyncPaused(),held:!!storage.handoff.held(),online:navigator.onLine,
+      status:$('cloudStatus').dataset.status,errorCategory:remote.diagnosticsPayload().lastError?.category,
+      busy:cloudBusy||configBusy,pending:!!remote.readRemoteWork()?.pending,revision:storage.state.updatedAt,
+      cloudAt:cfg?.lastBackupAt,cloudRevision:cfg?.lastUploadedModifiedAt,fileAt:storage.fileBackupAt(),
+      active:!!storage.state.active,mode:remote.syncMode(cfg)
+    },{download:exportFullBackup,details:()=>openStorageOptions(),configure:()=>openStorageOptions('cloudEndpoint'),
+      backup:()=>remote.remoteBackup(),retry:()=>remote.remoteBackup(),review:()=>openStorageOptions(remote.remoteSyncPaused()?'cloudResume':'cloudKeepLocal'),
+      handoff:()=>{$('handoffTools').scrollIntoView({block:'nearest'});$('handoffTools').querySelector('button')?.focus();},error:error=>toast(error.message)});
+  }
   function exportFullBackup(){if(selected&&!$('summary').hidden&&saveMetrics(true)===false&&!$('logForm').checkValidity())return;storage.local.flush();downloadJSON(storage.backup(),`bike-cardio-backup-${new Date().toISOString().slice(0,10)}.json`);if(!storage.recordFileBackup())toast('Backup downloaded; its date could not be saved.');renderBackupControls();}
-  function renderBackupControls(){
-    if(currentView!=='settings'&&currentView!=='summary')return;
-    const cfg=storage.remote.loadRemoteConfig(),paused=storage.remote.remoteSyncPaused();$('cloudActions').hidden=!cfg;$('cloudBackup').hidden=paused;$('cloudPause').hidden=paused;$('cloudResume').hidden=!paused;
-    $('backupStatus').textContent=storage.local.blocked?storage.local.warning:storage.local.failed?'Changes are in memory only. Download a full backup before closing.':`${storage.state.history.length} saved sessions. Full backups include settings and any saved ride.`;
-    const info=storage.backupInfo();$('backupAge').textContent=info.at?`Last backup: ${dateLabel(info.at)} (${info.where}). ${info.rides} rides added or edited since then.${info.stale?' Download a fresh full backup.':''}`:'No full backup recorded on this device.';
-    $('cloudUseRemote').textContent=storage.remote.syncMode(cfg)==='immutable'?'Restore legacy backup locally':'Use cloud copy';
-    const work=storage.remote.readRemoteWork();$('cloudDetails').textContent=cfg?`Bucket: ${cfg.bucket}. Last sync: ${cfg.lastBackupAt?dateLabel(cfg.lastBackupAt):'never'}. Backed-up revision: ${cfg.lastUploadedModifiedAt||'none'}.${work?.pending?' Changes are waiting to sync.':''}${paused?' Cloud sync is paused.':''}`:'';
-    document.querySelectorAll('#cloudActions button,#saveCloud,#cloudForm input,#cloudForm select,#importCloudConfig').forEach(button=>button.disabled=cloudBusy||configBusy);
-    if(!storage.remote.remoteCryptoAvailable()){
-      $('saveCloud').disabled=true;for(const id of ['cloudTest','cloudBackup','cloudResume','cloudKeepLocal','cloudUseRemote'])$(id).disabled=true;
-      $('cloudDetails').textContent+=' Cloud storage needs HTTPS and Web Crypto.';
-    }
-    renderRecoveryCopies();renderStorageDiagnostics();$('storageTools').hidden=!cfg;
-    WorkoutStorage.renderRemoteTools($('remoteTools'),storage.remote,downloadJSON,'bike');
-  }
-  async function readJSONUpload(file){if(file.size>8*1024*1024)throw new Error('File exceeds the 8 MiB import limit.');return JSON.parse(await file.text());}
-  function renderRecoveryCopies(){
-    const container=$('recoveryCopies');container.replaceChildren();
-    for(const saved of storage.recoveryCopies()){
-      const card=document.createElement('div');card.className='card stack';
-      const title=document.createElement('h2');title.textContent=saved.label;card.append(title);
-      const description=document.createElement('p');description.className='small';description.textContent=`${new Blob([saved.raw]).size} bytes saved separately from your current rides. Download before another replacement overwrites this copy.`;card.append(description);
-      const download=document.createElement('button');download.className='secondary';download.textContent='Download recovery copy';download.id=saved.kind==='before-remote-restore'?'downloadRecovery':'downloadUnreadable';
-      download.addEventListener('click',()=>downloadJSON(saved.raw,`bike-cardio-${saved.kind}.json`));card.append(download);
-      if(saved.restorable){const restore=document.createElement('button');restore.className='secondary';restore.textContent='Restore this copy…';restore.id=saved.kind==='before-remote-restore'?'restoreRecovery':'restoreUnreadable';restore.addEventListener('click',async()=>{
-        try{const current=storage.recoveryCopies().find(item=>item.kind===saved.kind);if(!current||current.raw!==saved.raw)throw new Error('Recovery copy changed. Review it again.');await storage.restore(JSON.parse(current.raw));renderBackupControls();}catch(error){toast(error.message);}
-      });card.append(restore);}
-      if(saved.key){const discard=document.createElement('button');discard.className='secondary danger';discard.textContent='Discard recovery copy…';discard.addEventListener('click',async()=>{try{await storage.discardRecovery(saved.kind);renderBackupControls();}catch(error){toast(error.message);}});card.append(discard);}
-      container.append(card);
-    }
-  }
-  function renderStorageDiagnostics(){
-    const label={checking:'Checking browser storage.',persistent:'Persistent storage granted. The browser has agreed to protect this site from automatic storage eviction.',
-      'best-effort':'Storage is best effort. The browser may clear it when space is low.',declined:'The browser did not grant persistent storage. Keep an off-device backup.',
-      unavailable:'Storage durability information is unavailable in this browser. Keep an off-device backup.'}[persistenceState];
-    const size=new Blob([JSON.stringify(storage.state)]).size;
-    $('storageDiagnostics').textContent=`Ride data: ${(size/1024).toFixed(1)} KiB. ${label}${storageEstimate?` Site usage estimate: ${(storageEstimate.usage/1048576).toFixed(1)} MiB of ${(storageEstimate.quota/1048576).toFixed(1)} MiB available.`:''}`;
-    $('requestPersistence').hidden=!['best-effort','declined'].includes(persistenceState);
-  }
-  async function refreshStorageDiagnostics(){
-    try{persistenceState=typeof navigator.storage?.persisted==='function'?(await navigator.storage.persisted()?'persistent':'best-effort'):'unavailable';
-      if(typeof navigator.storage?.estimate==='function'){const estimate=await navigator.storage.estimate();if(Number.isFinite(estimate?.usage)&&Number.isFinite(estimate?.quota))storageEstimate=estimate;}
-    }catch(error){persistenceState='unavailable';}renderStorageDiagnostics();
-  }
-  async function requestPersistence(fromUser=false){
-    if(persistenceState==='persistent'||typeof navigator.storage?.persist!=='function')return;
-    if(!fromUser){try{if(localStorage.getItem('bike-cardio.v1.persist-asked'))return;}catch(error){return;}}
-    try{localStorage.setItem('bike-cardio.v1.persist-asked','1');}catch(error){}
-    try{persistenceState=await navigator.storage.persist()||await navigator.storage.persisted()?'persistent':'declined';}
-    catch(error){persistenceState='unavailable';}renderStorageDiagnostics();
-    if(fromUser)toast(persistenceState==='persistent'?'Persistent storage granted.':'Persistence was not granted. Keep a full backup.');
-  }
-  function maybeRemindBackup(){if(backupReminded||!storage.backupInfo().stale)return;backupReminded=true;toast('Your backup needs refreshing. Download a full backup under Backups & cloud storage.');}
-  function loadCloudFields(){const cfg=storage.remote.loadRemoteConfig();if(!cfg)return;for(const [id,name]of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId']])$(id).value=cfg[name]||'';$('cloudMode').value=cfg.syncMode||'auto';$('cloudPathStyle').checked=cfg.pathStyle;}
+function storageController(){
+  return storageControllerInstance ||= BikeStorageController.create({
+    get $(){return $;},
+    get backupReminded(){return backupReminded;}, set backupReminded(value){backupReminded=value;},
+    get cloudBusy(){return cloudBusy;},
+    get configBusy(){return configBusy;},
+    get currentView(){return currentView;},
+    get dateLabel(){return dateLabel;},
+    get downloadJSON(){return downloadJSON;},
+    get persistenceState(){return persistenceState;}, set persistenceState(value){persistenceState=value;},
+    get renderStorageStatus(){return renderStorageStatus;},
+    get storage(){return storage;},
+    get storageEstimate(){return storageEstimate;}, set storageEstimate(value){storageEstimate=value;},
+    get toast(){return toast;}
+  });
+}
+function renderBackupControls(...args){return storageController().renderBackupControls(...args);}
+function readJSONUpload(...args){return storageController().readJSONUpload(...args);}
+function renderRecoveryCopies(...args){return storageController().renderRecoveryCopies(...args);}
+function renderStorageDiagnostics(...args){return storageController().renderStorageDiagnostics(...args);}
+function refreshStorageDiagnostics(...args){return storageController().refreshStorageDiagnostics(...args);}
+function requestPersistence(...args){return storageController().requestPersistence(...args);}
+function maybeRemindBackup(...args){return storageController().maybeRemindBackup(...args);}
+function loadCloudFields(...args){return storageController().loadCloudFields(...args);}
+
   function applySavedSettings(config){const c=C.config(config||read(KEYS.settings,{}));document.querySelector(`input[name=mode][value=${c.mode}]`).checked=true;$('bike').value=c.bike;$('bikeId').value=c.bikeId;$('context').value=c.context;$('cooldown').value=c.cooldown;$('efforts').value=c.n;$('effortLength').value=c.eff;$('voice').checked=c.voice;$('beeps').checked=c.beeps;for(const name of targetFields)$(name).value=c.targets[name];for(const name of durationFields)$(name).value=c[name];renderPlan();}
   function updateShell(){
     const active=!!(session||read(KEYS.active,null));shell?.update(currentView==='run'?'setup':currentView,active,currentView==='run');
@@ -2729,7 +2833,9 @@ const BikeHistory = (() => {
     }catch(error){$('historyImportStatus').textContent=error.message;}
   });
   $('clearHistory').addEventListener('click',async()=>{try{if(await storage.clearHistory()){records=storage.state.history;selected=null;showHistory();$('historyImportStatus').textContent='History cleared locally. Cloud sync is paused; review before updating the cloud.';}renderBackupControls();}catch(error){toast(error.message);}});
-  window.addEventListener('online',()=>storage.remote.remoteStartupSync());
+  window.addEventListener('online',()=>{renderStorageStatus();storage.remote.remoteStartupSync();});
+  window.addEventListener('offline',renderStorageStatus);
+  window.addEventListener('storage',renderStorageStatus);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)save(true);storage.local.flush();if(document.hidden)storage.remote.flushScheduled();else storage.remote.remoteStartupSync();});
   document.addEventListener('visibilitychange',()=>{h10.visibilityChanged();H.breakSeries(session?.hr);highSince=null;lastHighAt=null;if(!session||storage.handoff.held())return;if(document.hidden){handle(C.advance(session,Date.now(),{visible:false}));if(session&&session.config.mode==='sprint'&&session.status==='running'){C.pause(session,Date.now(),'Sprint cues need this app visible. Timing paused when you switched away.');save(true);}cancelVoice();release();}else{cancelVoice();tick();if(session?.status==='paused')openPause();else if(session){audio?.resume().catch(()=>{});lock();render();}}});
   window.addEventListener('pagehide',()=>{h10.disconnect();H.breakSeries(session?.hr);if(session){handle(C.advance(session,Date.now(),{visible:false}));save(true);}if(selected&&!$('summary').hidden)saveMetrics();});

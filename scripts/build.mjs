@@ -4,18 +4,18 @@ import {resolve,join} from 'node:path';
 const root=resolve(import.meta.dirname,'..');
 const selected=process.argv[2];
 const engine=(await Promise.all(['local.js','remote.js','handoff.js','undo.js'].map(name=>readFile(join(root,'packages/storage-engine',name),'utf8')))).join('\n');
-const presentation=(await Promise.all(['remote-tools.js','handoff.js'].map(name=>readFile(join(root,'packages/storage-ui',name),'utf8')))).join('\n');
+const presentation=(await Promise.all(['remote-tools.js','handoff.js','status.js'].map(name=>readFile(join(root,'packages/storage-ui',name),'utf8')))).join('\n');
 const updates=await readFile(join(root,'packages/app-ui/updates.js'),'utf8');
 const updateWorker=await readFile(join(root,'packages/app-ui/update-worker.js'),'utf8');
 const foundation=(await Promise.all(['foundation.js','comparisons.js'].map(name=>readFile(join(root,'packages/app-ui',name),'utf8')))).join('\n');
 const uiStyles=(await Promise.all(['themes.css','components.css'].map(name=>readFile(join(root,'packages/app-ui',name),'utf8')))).join('\n');
 const start='/* storage-engine:start */',end='/* storage-engine:end */';
 const appModules={
-  'bike-cardio':[
+  'bike-cardio':[['controllers/storage.js','bike-cardio-storage-controller'],
     ['presets.js','bike-presets'],['targets.js','bike-targets'],['heart-rate.js','bike-heart-rate'],
     ['bluetooth.js','bike-bluetooth'],['workout-core.js','bike-workout-core']
   ],
-  liftlog:[['storage-adapter.js','liftlog-storage-adapter'],['screens/settings.js','liftlog-settings-screen'],['comparisons.js','liftlog-comparisons']]
+  liftlog:[['controllers/exercises.js','liftlog-exercises-controller'],['controllers/routines.js','liftlog-routines-controller'],['controllers/workout.js','liftlog-workout-controller'],['storage-adapter.js','liftlog-storage-adapter'],['screens/settings.js','liftlog-settings-screen'],['comparisons.js','liftlog-comparisons']]
 };
 async function embedAppModules(html,source,app){
   for(const [file,marker]of appModules[app]){

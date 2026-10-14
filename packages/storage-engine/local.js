@@ -95,7 +95,7 @@ globalThis.WorkoutStorage = (() => {
       options.setState(candidate); notify(); return true;
     }
     return {load, save, flush, commit, rescue, get failed(){return failed;}, get blocked(){return blocked;},
-      get warning(){return warning;}, get existing(){return existing;}, set existing(value){existing = value;}};
+      get pending(){return pending;}, get warning(){return warning;}, get existing(){return existing;}, set existing(value){existing = value;}};
   }
   return {version:'1.0.0', copy, stableStringify, enforceLimits, createLocal};
 })();
