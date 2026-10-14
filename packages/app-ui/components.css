@@ -1,7 +1,7 @@
 /* Common furniture; workout-specific layouts remain in each app. */
 :root{--radius:8px;--radius-lg:12px;--control-h:40px;--nav-h:68px;--action-h:80px;--panel:var(--surface);--line:var(--border);--ink:var(--text);--warm:var(--warning);--red:var(--danger)}
 html{color-scheme:light dark;-webkit-text-size-adjust:100%;background:var(--bg);scroll-padding-top:var(--header-h,64px)}
-body{font-family:var(--font-ui);font-size:var(--fs-base);line-height:1.5;color:var(--text);background:var(--bg)}
+body{min-height:100dvh;font-family:var(--font-ui);font-size:var(--fs-base);line-height:1.5;color:var(--text);background:var(--bg)}
 [hidden]{display:none!important}
 button,input,select,textarea{font:inherit}
 .btn,.bike-app button{min-height:var(--control-h);border-radius:var(--radius);font-size:var(--fs-sm);font-weight:600}

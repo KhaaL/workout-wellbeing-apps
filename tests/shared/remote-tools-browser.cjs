@@ -103,8 +103,10 @@ function verifySignature(url,headers,body,region=cfg.region){
       assert.equal(calls.length,beforePaging,'local page changes do not repeat the listing');
       const beforeLoop=calls.filter(call=>new URL(call.url).searchParams.has('list-type')).length;
       listingOverride={status:200,body:'<ListBucketResult><IsTruncated>true</IsTruncated><NextContinuationToken>repeated</NextContinuationToken></ListBucketResult>'};
+      const repeatedResponse=page.waitForResponse(response=>response.request().method()==='GET'&&new URL(response.url()).searchParams.get('continuation-token')==='repeated');
       await page.click('#browseSnapshots');
-      await page.waitForFunction(()=>/repeated its pagination token/.test(document.body.textContent));
+      await repeatedResponse;
+      await page.waitForFunction(()=>!document.getElementById('browseSnapshots').disabled&&/repeated its pagination token/.test(document.body.textContent));
       assert.equal(calls.filter(call=>new URL(call.url).searchParams.has('list-type')).length-beforeLoop,2,'repeated tokens stop the listing without publishing a partial order');
       listingOverride=null;
       await page.click('#browseSnapshots');await page.waitForFunction(()=>document.getElementById('snapshotList').textContent.includes('<img')&&!document.getElementById('browseSnapshots').disabled);

@@ -229,6 +229,12 @@ alone cannot produce it. The summary shows the last cloud backup and file export
 separately, with a relevant next action and expandable **Storage options**.
 Review actions open the existing choices; they do not resume or replace data.
 
+Both apps apply saved appearance in the document head before the main app starts.
+The page canvas and body use the same explicit theme background, and the body
+fills the viewport. Browser color hints and resolved light/dark schemes follow
+the appearance on startup and theme changes. Native Android system-bar rendering
+is controlled by the browser and must be checked on an installed app.
+
 Both apps use the same themes, common controls and navigation. Phones use labeled
 bottom navigation; active workouts replace it with an action bar and a Menu button.
 Other screens provide Return to workout without resetting or pausing the session.

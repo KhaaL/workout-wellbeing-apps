@@ -7,8 +7,9 @@
 <meta name="description" content="Liftlog — a quiet, local-first gym workout tracker. Log sets, time rests, review progress.">
 <!-- First-paint bar colour; shared theme handling updates it to --surface. -->
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#0d1824">
+<meta name="theme-color" content="#fbfbf9">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Liftlog">
 <link rel="manifest" href="manifest.webmanifest">
@@ -1394,7 +1395,7 @@ button,.btn,.icon-btn,.nav-btn,.strip-step,.strip-num,.set-num,.hist-row,.list-o
 /* Common furniture; workout-specific layouts remain in each app. */
 :root{--radius:8px;--radius-lg:12px;--control-h:40px;--nav-h:68px;--action-h:80px;--panel:var(--surface);--line:var(--border);--ink:var(--text);--warm:var(--warning);--red:var(--danger)}
 html{color-scheme:light dark;-webkit-text-size-adjust:100%;background:var(--bg);scroll-padding-top:var(--header-h,64px)}
-body{font-family:var(--font-ui);font-size:var(--fs-base);line-height:1.5;color:var(--text);background:var(--bg)}
+body{min-height:100dvh;font-family:var(--font-ui);font-size:var(--fs-base);line-height:1.5;color:var(--text);background:var(--bg)}
 [hidden]{display:none!important}
 button,input,select,textarea{font:inherit}
 .btn,.bike-app button{min-height:var(--control-h);border-radius:var(--radius);font-size:var(--fs-sm);font-weight:600}
@@ -1521,6 +1522,29 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
 .storage-summary{padding:18px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);margin:16px 0}.storage-summary h2{margin:0 0 8px}.storage-summary-title{font-size:var(--fs-lg)}.storage-summary-title[data-tone=danger]{color:var(--danger)}.storage-summary-title[data-tone=warning]{color:var(--warning)}.storage-summary-title[data-tone=success]{color:var(--success)}.storage-summary p{margin:8px 0}.storage-summary .hint{font-size:var(--fs-sm);color:var(--muted)}.storage-summary .shared-actions{justify-content:flex-start}.storage-summary button{min-height:48px}
 
 </style>
+<!-- theme-bootstrap:start -->
+<script id="theme-bootstrap" data-app="liftlog">
+/* Paint the saved appearance before the installed app's first frame. */
+(()=>{
+  if(typeof getComputedStyle!=='function'||!document.currentScript)return;
+  const app=document.currentScript.dataset.app,root=document.documentElement;
+  const names=['system','light','dark','dracula','gruvbox','nord','solarized','monokai'];
+  let theme='system';
+  try{
+    const raw=localStorage.getItem(app==='liftlog'?'liftlog.v1':'bike-cardio.ui.theme');
+    const value=app==='liftlog'?(raw?JSON.parse(raw)?.settings?.theme:null):raw;
+    if(names.includes(value))theme=value;
+  }catch(error){}
+  if(theme==='system')root.removeAttribute('data-theme');else root.dataset.theme=theme;
+  root.style.colorScheme=theme==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):theme==='light'?'light':'dark';
+  const css=getComputedStyle(root);
+  root.style.backgroundColor=css.getPropertyValue('--bg').trim();
+  const meta=document.querySelector('meta[name="theme-color"]');
+  if(meta)meta.content=css.getPropertyValue('--surface').trim();
+})();
+
+</script>
+<!-- theme-bootstrap:end -->
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -1665,13 +1689,16 @@ const WorkoutUI = (() => {
   function applyTheme(value){
     const theme=themes.some(t=>t.id===value)?value:'system',root=document.documentElement;
     if(theme==='system')root.removeAttribute('data-theme');else root.dataset.theme=theme;
-    root.style.colorScheme=schemes[theme]||'light dark';
+    root.style.colorScheme=schemes[theme]||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
     // Browser chrome follows the rendered theme, not an inverted text color.
     root.removeAttribute('data-statusbar');
     document.querySelectorAll('meta[name="theme-color"][media]').forEach(m=>m.remove());
     let meta=document.querySelector('meta[name="theme-color"]');
     if(!meta){meta=document.createElement('meta');meta.name='theme-color';document.head.append(meta);}
     const css=getComputedStyle(root);meta.content=css.getPropertyValue('--surface').trim();
+    const background=css.getPropertyValue('--bg').trim();
+    root.style.backgroundColor=background;
+    if(document.body){document.body.style.backgroundColor=background;document.body.style.colorScheme=root.style.colorScheme;}
     return theme;
   }
   const paths={workout:'M4 9v6m3-9v12m10-12v12m3-9v6M7 12h10',routines:'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',history:'M4 5v5h5M4 10a8 8 0 1 1 1 7M12 7v5l3 2',exercises:'M9 9V6a3 3 0 0 1 6 0v3M8 9h8l3 9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2l3-9z',settings:'M4 7h16M4 17h16M8 4v6M16 14v6'};

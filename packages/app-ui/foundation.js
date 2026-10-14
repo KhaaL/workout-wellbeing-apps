@@ -6,13 +6,16 @@ const WorkoutUI = (() => {
   function applyTheme(value){
     const theme=themes.some(t=>t.id===value)?value:'system',root=document.documentElement;
     if(theme==='system')root.removeAttribute('data-theme');else root.dataset.theme=theme;
-    root.style.colorScheme=schemes[theme]||'light dark';
+    root.style.colorScheme=schemes[theme]||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
     // Browser chrome follows the rendered theme, not an inverted text color.
     root.removeAttribute('data-statusbar');
     document.querySelectorAll('meta[name="theme-color"][media]').forEach(m=>m.remove());
     let meta=document.querySelector('meta[name="theme-color"]');
     if(!meta){meta=document.createElement('meta');meta.name='theme-color';document.head.append(meta);}
     const css=getComputedStyle(root);meta.content=css.getPropertyValue('--surface').trim();
+    const background=css.getPropertyValue('--bg').trim();
+    root.style.backgroundColor=background;
+    if(document.body){document.body.style.backgroundColor=background;document.body.style.colorScheme=root.style.colorScheme;}
     return theme;
   }
   const paths={workout:'M4 9v6m3-9v12m10-12v12m3-9v6M7 12h10',routines:'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',history:'M4 5v5h5M4 10a8 8 0 1 1 1 7M12 7v5l3 2',exercises:'M9 9V6a3 3 0 0 1 6 0v3M8 9h8l3 9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2l3-9z',settings:'M4 7h16M4 17h16M8 4v6M16 14v6'};

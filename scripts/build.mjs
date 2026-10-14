@@ -7,6 +7,7 @@ const engine=(await Promise.all(['local.js','remote.js','handoff.js','undo.js'].
 const presentation=(await Promise.all(['remote-tools.js','handoff.js','status.js'].map(name=>readFile(join(root,'packages/storage-ui',name),'utf8')))).join('\n');
 const updates=await readFile(join(root,'packages/app-ui/updates.js'),'utf8');
 const updateWorker=await readFile(join(root,'packages/app-ui/update-worker.js'),'utf8');
+const themeBootstrap=await readFile(join(root,'packages/app-ui/theme-bootstrap.js'),'utf8');
 const foundation=(await Promise.all(['foundation.js','comparisons.js'].map(name=>readFile(join(root,'packages/app-ui',name),'utf8')))).join('\n');
 const uiStyles=(await Promise.all(['themes.css','components.css'].map(name=>readFile(join(root,'packages/app-ui',name),'utf8')))).join('\n');
 const start='/* storage-engine:start */',end='/* storage-engine:end */';
@@ -40,6 +41,10 @@ for(const app of selected?[selected]:['liftlog','bike-cardio']){
   const styleInline='<style id="app-ui-styles">\n'+uiStyles+'\n</style>';
   if(html.includes('<style id="app-ui-styles">'))html=html.replace(/<style id="app-ui-styles">[\s\S]*?<\/style>/,()=>styleInline);
   else html=html.replace('</head>',styleInline+'\n</head>');
+  const bootStart='<!-- theme-bootstrap:start -->',bootEnd='<!-- theme-bootstrap:end -->';
+  const boot=bootStart+'\n<script id="theme-bootstrap" data-app="'+app+'">\n'+themeBootstrap+'\n</script>\n'+bootEnd;
+  if(html.includes(bootStart))html=html.slice(0,html.indexOf(bootStart))+boot+html.slice(html.indexOf(bootEnd)+bootEnd.length);
+  else html=html.replace('</head>',boot+'\n</head>');
   const inline=start+'\n'+engine+'\n'+end;
   if(app==='bike-cardio'){
     const history=await readFile(join(source,'history.js'),'utf8'),hStart='/* bike-history:start */',hEnd='/* bike-history:end */';
