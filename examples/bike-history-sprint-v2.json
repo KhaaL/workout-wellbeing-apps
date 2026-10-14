@@ -1,0 +1,68 @@
+{
+  "app": "bike-cardio",
+  "kind": "history",
+  "version": 2,
+  "exportedAt": "2026-01-01T12:00:10.000Z",
+  "history": [
+    {
+      "id": "example-sprint-test-10s",
+      "startedAt": 1767268800000,
+      "endedAt": 1767268810000,
+      "config": {
+        "targets": {
+          "zoneMin": 105,
+          "zoneMax": 122,
+          "targetMin": 110,
+          "targetMax": 120,
+          "adjustBelow": 108,
+          "comparisonHR": 115
+        },
+        "warmupMinutes": 5,
+        "mainMinutes": 25,
+        "recoverySeconds": 60,
+        "sprintCooldownMinutes": 5,
+        "settleMinutes": 2,
+        "mode": "sprint",
+        "bike": "matrix",
+        "bikeId": "",
+        "context": "fresh",
+        "cooldown": 3,
+        "n": 5,
+        "eff": 30,
+        "voice": true,
+        "beeps": true
+      },
+      "activeMs": 10000,
+      "mainMs": 0,
+      "outcome": "partial",
+      "hadInterruption": false,
+      "effortsCompleted": 0,
+      "phases": [
+        {
+          "id": 0,
+          "kind": "warmup",
+          "title": "Warm-up",
+          "ms": 10000,
+          "outcome": "ended"
+        }
+      ],
+      "hr": {
+        "source": "H10 Bluetooth",
+        "targets": {
+          "zoneMin": 105,
+          "zoneMax": 122,
+          "targetMin": 110,
+          "targetMax": 120,
+          "adjustBelow": 108,
+          "comparisonHR": 115
+        },
+        "averageHR": null,
+        "zoneMs": 0,
+        "measuredMs": 0,
+        "samples": 0,
+        "coverage": 0
+      },
+      "metrics": {}
+    }
+  ]
+}

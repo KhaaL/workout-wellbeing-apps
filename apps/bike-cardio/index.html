@@ -433,7 +433,8 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
   <div id="finished-comparison"></div>
   <button id="deleteSession" class="secondary danger">Delete session…</button>
   <button id="editSession" class="secondary">Edit session details</button>
-  <div id="sensorSummary" class="card" hidden><h2>Measured by H10</h2><div class="grid"><div><span class="small">Average HR</span><p id="sensorAverage" class="sensor-number"></p></div><div><span id="sensorZoneLabel" class="small">Time in recorded zone</span><p id="sensorZone" class="sensor-number"></p></div></div><p id="sensorCoverage" class="small"></p><p class="small">Includes measured active riding in every phase. Missing readings and pauses are excluded.</p></div>
+  <div id="externalReadings" class="card" hidden></div>
+  <div id="sensorSummary" class="card" hidden><h2 id="sensorSummaryTitle">Measured heart rate</h2><div class="grid"><div><span class="small">Average HR</span><p id="sensorAverage" class="sensor-number"></p></div><div><span id="sensorZoneLabel" class="small">Time in recorded zone</span><p id="sensorZone" class="sensor-number"></p></div></div><p id="sensorCoverage" class="small"></p><p class="small">Includes measured active riding in every phase. Missing readings and pauses are excluded.</p></div>
   <p id="summaryCaution" class="notice" hidden></p><p class="notice">Stop the Indoor cycling recording in Polar when you finish spinning.</p>
   <form id="logForm" class="card stack">
     <h2>Add or edit readings</h2><p class="small">Optional Polar readings stay separate from H10 measurements above. Check that Polar’s zone boundaries match this ride’s recorded targets. Add resistance, cadence and watts from the bike.</p>
@@ -453,10 +454,10 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
   <div class="stack"><button id="summaryHistory" class="primary">View history</button><button id="again" class="secondary">Set up another session</button><button id="exportSummary" class="secondary">Export history as CSV</button><button id="exportSummaryBackup" class="secondary">Download full backup</button></div>
 </section>
 <section id="history" hidden><div class="row"><span class="eyebrow">Saved on this device</span><button id="historyBack" class="text-button">Back</button></div><h1>Your sessions.</h1><p class="small">Open a session to edit its details or readings. Compare the same machine and session context.</p><details class="card" open><summary>Filter &amp; compare rides</summary><div class="grid">
-<label class="field">Machine<select id="historyMachine"><option value="">All machines</option></select></label><label class="field">Context<select id="historyContext"><option value="">All contexts</option><option value="fresh">Fresh legs</option><option value="post-lifting">After lifting</option></select></label>
-<label class="field">Workout<select id="historyMode"><option value="">All workouts</option><option value="zone2">Zone 2</option><option value="sprint">Sprints</option></select></label><label class="field">Outcome<select id="historyOutcome"><option value="">All outcomes</option><option value="complete">Complete</option><option value="partial">Partial</option></select></label>
+<label class="field">Machine<select id="historyMachine"><option value="">All machines</option></select></label><label class="field">Context<select id="historyContext"><option value="">All contexts</option><option value="fresh">Fresh legs</option><option value="post-lifting">After lifting</option><option value="unknown">Unknown context</option></select></label>
+<label class="field">Workout<select id="historyMode"><option value="">All workouts</option><option value="zone2">Zone 2</option><option value="sprint">Sprints</option><option value="external">Externally recorded</option></select></label><label class="field">Outcome<select id="historyOutcome"><option value="">All outcomes</option><option value="complete">Complete</option><option value="partial">Partial</option></select></label>
 <label class="field">From<input id="historyFrom" type="date"></label><label class="field">Through<input id="historyTo" type="date"></label></div><label class="check"><input id="historyUninterrupted" type="checkbox">Hide interrupted rides</label><button id="resetHistoryFilters" class="secondary">Reset filters</button></details>
-<p id="historyCount" class="small" role="status"></p><div class="card"><h2>Progress</h2><label class="field">Measure<select id="historyMetric"><option value="fixedHRWatts">Watts at recorded comparison HR</option><option value="averageWatts">Main-block average watts</option><option value="mainAverageHR">Main-block average HR</option><option value="mainMinutes">Main-block duration</option><option value="coverage">H10 measurement coverage</option></select></label><p id="chartNote" class="small"></p><div id="progressChart"></div><details><summary>Chart readings</summary><div id="chartTable" style="overflow-x:auto"></div></details></div><div id="workout-comparison"></div><div id="recent-changes"></div><div id="historyList"></div><div class="stack"><button id="exportHistory" class="secondary">Export CSV</button><button id="exportHistoryJSON" class="secondary">Download ride history</button><label class="field">Merge history from a Bike Cardio JSON file<input id="importHistory" type="file" accept=".json,application/json"></label><p id="historyImportStatus" class="small" role="status"></p><button id="clearHistory" class="secondary danger">Clear ride history…</button></div><p class="small">History imports add rides without replacing your settings. Local rides win conflicts. Browser data can be cleared by your phone or browser; keep a full backup.</p></section>
+<p id="historyCount" class="small" role="status"></p><div class="card"><h2>Progress</h2><label class="field">Measure<select id="historyMetric"><option value="fixedHRWatts">Watts at recorded comparison HR</option><option value="averageWatts">Main-block average watts</option><option value="mainAverageHR">Main-block average HR</option><option value="mainMinutes">Main-block duration</option><option value="coverage">HR measurement coverage</option></select></label><p id="chartNote" class="small"></p><div id="progressChart"></div><details><summary>Chart readings</summary><div id="chartTable" style="overflow-x:auto"></div></details></div><div id="workout-comparison"></div><div id="recent-changes"></div><div id="historyList"></div><div class="stack"><button id="exportHistory" class="secondary">Export CSV</button><button id="exportHistoryJSON" class="secondary">Download ride history</button><label class="field">Merge history from a Bike Cardio JSON file<input id="importHistory" type="file" accept=".json,application/json"></label><p id="historyImportStatus" class="small" role="status"></p><button id="clearHistory" class="secondary danger">Clear ride history…</button></div><p class="small">History imports add rides without replacing your settings. Local rides win conflicts. Browser data can be cleared by your phone or browser; keep a full backup.</p></section>
 </main>
 <dialog id="pauseDialog" aria-labelledby="pauseTitle"><h2 id="pauseTitle">Paused</h2><p id="pauseMessage"></p><div class="dialog-actions"><button id="resume" class="primary">Resume</button><button id="end" class="secondary danger">End session &amp; save log</button></div></dialog>
 <dialog id="skipDialog" aria-labelledby="skipTitle"><h2 id="skipTitle">Skip this phase?</h2><p>Its time will be recorded, and the phase will be marked skipped. A skipped effort is not a completed effort.</p><div class="dialog-actions"><button id="cancelSkip" class="primary">Keep riding this phase</button><button id="confirmSkip" class="secondary danger">Skip phase</button></div></dialog>
@@ -464,9 +465,9 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
   <form id="editForm" class="stack">
     <h2 id="editTitle">Edit session details</h2>
     <label class="field">Session date &amp; time<input id="editDate" type="datetime-local" step="1" required></label>
-    <label class="field">Bike<select id="editBike"><option value="matrix">Matrix</option><option value="touchscreen">Freemotion iFIT b24 CoachBike</option></select></label>
+    <label class="field">Bike<select id="editBike"><option value="matrix">Matrix</option><option value="touchscreen">Freemotion iFIT b24 CoachBike</option><option value="unknown">Unknown bike</option></select></label>
     <label class="field">Bike identifier<input id="editBikeId" maxlength="80"></label>
-    <label class="field">Session context<select id="editContext"><option value="fresh">Fresh legs</option><option value="post-lifting">After lifting</option></select></label>
+    <label class="field">Session context<select id="editContext"><option value="fresh">Fresh legs</option><option value="post-lifting">After lifting</option><option value="unknown">Unknown context</option></select></label>
     <div class="grid"><label class="field">Active time · minutes<input id="editActive" type="number" min="0" step="any" required inputmode="decimal"></label><label id="editMainField" class="field">Main block · minutes<input id="editMain" type="number" min="0" step="any" required inputmode="decimal"></label><label id="editEffortsField" class="field" hidden>Completed efforts<input id="editEfforts" type="number" min="0" max="6" step="1" required inputmode="numeric"></label></div>
     <label class="field">Outcome<select id="editOutcome"><option value="complete">Complete</option><option value="partial">Partial</option></select></label>
     <p class="small">These edits update the session log. Recorded phase timings and H10 measurements stay as originally captured.</p>
@@ -660,6 +661,45 @@ const WorkoutComparisons = (()=>{
 /* app-foundation:end */
 </script>
 <script id="heart-rate-core">
+/* bike-history-schema:start */
+/* History-only categories do not change runnable workout plans. */
+/* exported BikeHistorySchema */
+const BikeHistorySchema=(()=>{
+  const version=3;
+  const externalFields=[
+    {name:'peakWatts',label:'Peak power',unit:'W',min:0,max:10000},
+    {name:'maxCadence',label:'Maximum cadence',unit:'rpm',min:0,max:250},
+    {name:'maxResistance',label:'Maximum resistance',unit:'console level',min:0,max:Number.MAX_SAFE_INTEGER},
+    {name:'kcal',label:'Energy',unit:'kcal',min:0,max:Number.MAX_SAFE_INTEGER},
+    {name:'distanceKm',label:'Distance',unit:'km',min:0,max:Number.MAX_SAFE_INTEGER},
+    {name:'inclineAvgPct',label:'Average incline',unit:'%',min:-100,max:100},
+    {name:'inclineMaxPct',label:'Maximum incline',unit:'%',min:-100,max:100}
+  ];
+  function config(input,sourceVersion=version){
+    if(!input||!['zone2','sprint',...(sourceVersion>=3?['external']:[])].includes(input.mode))throw new Error('Invalid workout configuration');
+    const result=WorkoutCore.config(input);
+    if(sourceVersion>=3){
+      const bike=input.bike??'unknown',context=input.context??'unknown';
+      if(!['matrix','touchscreen','unknown'].includes(bike))throw new Error('Invalid recorded bike');
+      if(!['fresh','post-lifting','unknown'].includes(context))throw new Error('Invalid recorded context');
+      result.mode=input.mode;result.bike=bike;result.context=context;
+    }
+    return result;
+  }
+  function validateExternal(metrics){
+    for(const field of externalFields){const value=metrics[field.name];if(value!=null&&(!Number.isFinite(value)||value<field.min||value>field.max))throw new Error('Invalid '+field.name);}
+    for(const name of ['trainingBenefit','externalSource'])if(metrics[name]!=null&&(typeof metrics[name]!=='string'||metrics[name].length>500))throw new Error('Invalid '+name);
+    if(metrics.polarZonesMs!=null){
+      const zones=metrics.polarZonesMs;
+      if(typeof zones!=='object'||Array.isArray(zones))throw new Error('Invalid polarZonesMs');
+      for(const [name,value] of Object.entries(zones))if(!/^z[1-5]$/.test(name)||value!=null&&(!Number.isFinite(value)||value<0||value>Number.MAX_SAFE_INTEGER))throw new Error('Invalid Polar zone duration');
+    }
+  }
+  const modeLabel=mode=>({zone2:'Zone 2',sprint:'Sprint intervals',external:'Externally recorded'})[mode]||'Unknown workout';
+  return {version,externalFields,config,validateExternal,modeLabel};
+})();
+
+/* bike-history-schema:end */
 /* bike-storage-adapter:start */
 /* Bike schemas and migration stay here; saving and cloud sync use the engine. */
 globalThis.BikeStorage = (() => {
@@ -676,10 +716,10 @@ globalThis.BikeStorage = (() => {
     const timestamp=(value,label)=>{number(value,label);if(!Number.isFinite(new Date(value).getTime()))fail(label+' must be a valid date');};
     function prepare(raw){
       WorkoutStorage.enforceLimits(raw,{history:10000});
-      if(!raw||raw.app!=='bike-cardio'||![1,2].includes(raw.version)||raw.kind&&raw.kind!=='backup')fail('Expected a Bike Cardio version 1 or 2 backup');
+      if(!raw||raw.app!=='bike-cardio'||![1,2,3].includes(raw.version)||raw.kind&&raw.kind!=='backup')fail('Expected a Bike Cardio version 1, 2 or 3 backup');
       if(!Array.isArray(raw.history)||!raw.settings||typeof raw.settings!=='object')fail('Missing session history or settings');
       number(raw.updatedAt,'Backup revision');
-      const s=copy(raw),ids=new Set();s.version=2;s.settings=C.config(s.settings);
+      const s=copy(raw),ids=new Set();s.version=BikeHistorySchema.version;s.settings=C.config(s.settings);
       for(const kind of ['presets','machines']){
         const rows=s[kind]??[];if(!Array.isArray(rows)||rows.length>50)fail('Invalid saved '+kind);
         const seen=new Set();s[kind]=rows.map(row=>{
@@ -694,7 +734,7 @@ globalThis.BikeStorage = (() => {
         if(!r||typeof r.id!=='string'||!r.id.trim()||ids.has(r.id))fail('Session IDs must be present and unique');ids.add(r.id);
         timestamp(r.startedAt,'Session date');if(r.endedAt!=null)timestamp(r.endedAt,'Session end');
         number(r.activeMs,'Active time');number(r.mainMs,'Main-block time',0,r.activeMs);
-        if(!r.config||!['zone2','sprint'].includes(r.config.mode))fail('Invalid workout configuration');r.config=C.config(r.config);
+        r.config=BikeHistorySchema.config(r.config,raw.version);
         if(!['complete','partial'].includes(r.outcome))fail('Invalid session outcome');
         if(!Number.isInteger(r.effortsCompleted)||r.effortsCompleted<0||r.effortsCompleted>r.config.n)fail('Invalid completed efforts');
         if(!r.metrics||typeof r.metrics!=='object'||Array.isArray(r.metrics))fail('Invalid session readings');
@@ -703,11 +743,13 @@ globalThis.BikeStorage = (() => {
         }
         if(r.metrics.perceivedEffort!=null&&r.metrics.perceivedEffort!==''&&!Number.isInteger(Number(r.metrics.perceivedEffort)))fail('Perceived effort must be a whole number.');
         for(const [name,max]of [['resistance',80],['notes',2000]])if(r.metrics[name]!=null&&(typeof r.metrics[name]!=='string'||r.metrics[name].length>max))fail('Invalid '+name);
+        BikeHistorySchema.validateExternal(r.metrics);
         if(r.phases!=null){
           if(!Array.isArray(r.phases))fail('Invalid session phases');
           for(const p of r.phases){if(!p||typeof p.title!=='string'||typeof p.kind!=='string'||!['complete','skipped','ended'].includes(p.outcome))fail('Invalid phase');number(p.ms,'Phase time');}
         }
         if(r.hr!=null){
+          if(r.hr.source!=null&&(typeof r.hr.source!=='string'||r.hr.source.length>500))fail('Invalid HR source');
           const measuredTargets=C.config({targets:r.hr.targets||r.config.targets}).targets;
           if(comparable(measuredTargets)!==comparable(r.config.targets))fail('Measured HR targets do not match the ride configuration');
           r.hr.targets=measuredTargets;
@@ -721,7 +763,7 @@ globalThis.BikeStorage = (() => {
       if(s.active!=null){if(ids.has(s.active.id))s.active=null;else if(!C.restore(s.active,Date.now()))fail('Invalid active session');}
       delete s.kind;delete s.exportedAt;return s;
     }
-    const seed=()=>({app:'bike-cardio',version:2,updatedAt:0,settings:C.config(),history:[],active:null,presets:[],machines:[]});
+    const seed=()=>({app:'bike-cardio',version:BikeHistorySchema.version,updatedAt:0,settings:C.config(),history:[],active:null,presets:[],machines:[]});
     function legacy(){
       const s=seed();let found=false;
       for(const [old,name]of Object.entries(fields)){
@@ -808,14 +850,14 @@ globalThis.BikeStorage = (() => {
       try{localStorage.setItem(namespace+'.last-file-backup',String(Date.now()));return true;}
       catch(error){return false;}
     }
-    const historyPayload=()=>({app:'bike-cardio',kind:'history',version:2,exportedAt:new Date().toISOString(),history:copy(state.history)});
+    const historyPayload=()=>({app:'bike-cardio',kind:'history',version:BikeHistorySchema.version,exportedAt:new Date().toISOString(),history:copy(state.history)});
     async function mergeHistory(raw){
       WorkoutStorage.enforceLimits(raw,{history:10000});
-      if(!raw||raw.app!=='bike-cardio'||![1,2].includes(raw.version)||!['history','backup'].includes(raw.kind)||!Array.isArray(raw.history))fail('Expected Bike Cardio history or a full backup.');
+      if(!raw||raw.app!=='bike-cardio'||![1,2,3].includes(raw.version)||!['history','backup'].includes(raw.kind)||!Array.isArray(raw.history))fail('Expected Bike Cardio history or a full backup.');
       const expected=JSON.stringify(state),history=copy(state.history),existing=new Map(history.map(ride=>[ride.id,ride]));
       const summary={added:0,already:0,invalid:0,conflicts:0};
       for(const item of raw.history){
-        let ride;try{ride=prepare({...seed(),history:[item]}).history[0];}catch(error){summary.invalid++;continue;}
+        let ride;try{ride=prepare({...seed(),version:raw.version,history:[item]}).history[0];}catch(error){summary.invalid++;continue;}
         const current=existing.get(ride.id);
         if(state.active?.id===ride.id){summary.conflicts++;continue;}
         if(current){
@@ -2345,10 +2387,11 @@ const WorkoutCore = (() => {
 /* App-specific history interpretation, independent of storage and the DOM. */
 /* exported BikeHistory */
 const BikeHistory = (() => {
-  const metrics={fixedHRWatts:{label:'Watts at recorded comparison HR',unit:'W'},averageWatts:{label:'Main-block average watts',unit:'W'},mainAverageHR:{label:'Main-block average heart rate',unit:'bpm'},mainMinutes:{label:'Main-block duration',unit:'min'},coverage:{label:'H10 measurement coverage',unit:'%'}};
+  const metrics={fixedHRWatts:{label:'Watts at recorded comparison HR',unit:'W'},averageWatts:{label:'Main-block average watts',unit:'W'},mainAverageHR:{label:'Main-block average heart rate',unit:'bpm'},mainMinutes:{label:'Main-block duration',unit:'min'},coverage:{label:'HR measurement coverage',unit:'%'}};
   const machineKey=ride=>JSON.stringify([ride.config.bike,ride.config.bikeId||'']);
   function seriesKey(ride){
-    const c=WorkoutCore.config(ride.config);
+    const c=BikeHistorySchema.config(ride.config);
+    if(c.mode==='external'||c.bike==='unknown'||c.context==='unknown')return JSON.stringify(['unclassified',ride.id]);
     return JSON.stringify([machineKey(ride),c.context,c.mode,c.targets,c.warmupMinutes,c.mainMinutes,c.cooldown,c.sprintCooldownMinutes,c.recoverySeconds,c.settleMinutes,...(c.mode==='sprint'?[c.n,c.eff]:[])]);
   }
   function filter(rides,query={}){
@@ -2372,18 +2415,18 @@ const BikeHistory = (() => {
   }
   function compare(first,second){
     const [before,after]=[first,second].sort((a,b)=>a.startedAt-b.startedAt||a.id.localeCompare(b.id));
-    const comparable=seriesKey(before)===seriesKey(after),warnings=[];
-    if(!comparable)warnings.push('Different machines, contexts, targets or plans: values are shown side by side, but progress differences are withheld.');
+    const comparable=before.id!==after.id&&seriesKey(before)===seriesKey(after),warnings=[];
+    if(!comparable)warnings.push('Different or unknown machines, contexts, targets or plans: values are shown side by side, but progress differences are withheld.');
     if(before.hadInterruption||after.hadInterruption||before.outcome!=='complete'||after.outcome!=='complete')warnings.push('An interrupted or incomplete ride is included. Review timing before interpreting differences.');
     const number=raw=>raw==null||raw===''||!Number.isFinite(Number(raw))?null:Number(raw);
     const rows=[
       ['Main-block watts','W',r=>number(r.metrics?.averageWatts)],['Main-block HR','bpm',r=>number(r.metrics?.mainAverageHR)],
-      ['Watts at recorded comparison HR','W',r=>number(r.metrics?.fixedHRWatts)],['H10 average HR','bpm',r=>number(r.hr?.averageHR)],
-      ['H10 coverage','%',r=>number(r.hr?.coverage)],['Active duration','min',r=>r.activeMs/60000],['Main-block duration','min',r=>r.mainMs/60000],
+      ['Watts at recorded comparison HR','W',r=>number(r.metrics?.fixedHRWatts)],['Measured average HR','bpm',r=>number(r.hr?.averageHR)],
+      ['HR coverage','%',r=>number(r.hr?.coverage)],['Active duration','min',r=>r.activeMs/60000],['Main-block duration','min',r=>r.mainMs/60000],
       ['Perceived effort','1–10',r=>number(r.metrics?.perceivedEffort)]
     ].map(([label,unit,read])=>{const a=read(before),b=read(after);return {label,unit,before:a,after:b,delta:comparable&&a!==null&&b!==null?b-a:null};});
     warnings.push('Review heart rate and measurement coverage alongside watts. A higher output alone does not establish improved fitness.');
-    const context=ride=>{const c=WorkoutCore.config(ride.config);return (c.context==='post-lifting'?'After lifting':'Fresh legs')+' · Zone 2 '+c.targets.zoneMin+'–'+c.targets.zoneMax+' bpm · comparison HR '+c.targets.comparisonHR+' bpm';};
+    const context=ride=>{if(ride.config.mode==='external')return 'Externally recorded · app plan unknown';const c=WorkoutCore.config(ride.config);return ({fresh:'Fresh legs','post-lifting':'After lifting',unknown:'Unknown context'}[ride.config.context]||'Unknown context')+' · Zone 2 '+c.targets.zoneMin+'–'+c.targets.zoneMax+' bpm · comparison HR '+c.targets.comparisonHR+' bpm';};
     return {before,after,rows,warnings,details:['Earlier: '+context(before),'Later: '+context(after)]};
   }
   return {metrics,machineKey,seriesKey,filter,value,series,compare};
@@ -2469,8 +2512,8 @@ let storageControllerInstance;
   let persistenceState='checking',storageEstimate=null;
   const h10=new H10Connection({bluetooth:navigator.bluetooth,secure:window.isSecureContext,protocol:location.protocol,now:()=>Date.now(),visible:()=>!document.hidden,setTimeout:(fn,ms)=>setTimeout(fn,ms),clearTimeout:id=>clearTimeout(id),onChange:()=>{if(h10.state!=='connected')H.breakSeries(session?.hr);renderSensors();if(session)render();},onMeasurement:receiveHR});
   const fmt=ms=>{const s=Math.max(0,Math.ceil(ms/1000));return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;};
-  const bikeName=c=>(c.bike==='matrix'?'Matrix':'Freemotion iFIT b24 CoachBike')+(c.bikeId?` · ${c.bikeId}`:'');
-  const contextName=c=>c.context==='post-lifting'?'After lifting':'Fresh legs';
+  const bikeName=c=>({matrix:'Matrix',touchscreen:'Freemotion iFIT b24 CoachBike',unknown:'Unknown bike'}[c.bike]||'Unknown bike')+(c.bikeId?` · ${c.bikeId}`:'');
+  const contextName=c=>({fresh:'Fresh legs','post-lifting':'After lifting',unknown:'Unknown context'}[c.context]||'Unknown context');
   const dateLabel=ms=>new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(new Date(ms));
   const storage=BikeStorage.create({core:C,heart:H,isActive:()=>Boolean(session),
     onLocalStatus:status=>{if(status.failed||status.blocked)storageWarning(status.warning||'Changes are not being saved. Keep this page open and download a full backup.');else if(!status.warning){storageOK=true;$('storageNotice').hidden=true;}queueMicrotask(renderStorageStatus);},
@@ -2695,9 +2738,20 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   function tick(){if(storage.handoff.held())return;if(session?.status==='running')handle(C.advance(session,Date.now(),{visible:!document.hidden}));else renderSensors();}
   function openPause(){if(!session||session.status!=='paused')return;release();cancelVoice();$('pauseTitle').textContent=session.hadInterruption&&session.pauseReason.startsWith('A phase')?'Review next phase':'Paused';$('pauseMessage').textContent=session.pauseReason;$('resume').textContent=session.pending?`Continue to ${C.build(session.config)[session.index+1]?.title.toLowerCase()||'summary'}`:'Resume';if(!$('pauseDialog').open)$('pauseDialog').showModal();}
   function finish(){if(!session||session.status!=='finished')return;clearInterval(interval);interval=null;release();cancelVoice();$('pauseDialog').close();$('skipDialog').close();const r=C.record(session);const existing=records.find(x=>x.id===r.id);if(!existing)records.unshift(r);const stored=write(KEYS.history,records);if(stored)remove(KEYS.active);selected=existing||r;session=null;phaseKey='';beep();say('Session finished. Stop the Polar recording when you finish spinning.');showSummary(selected);updateRestore();renderBackupControls();maybeRemindBackup();}
-  function showSummary(r){selected=r;show('summary');const t=C.config(r.config).targets;$('sensorZoneLabel').textContent=`Time at ${t.zoneMin}–${t.zoneMax}`;$('polarZoneLabel').textContent=`Polar time at ${t.zoneMin}–${t.zoneMax} · minutes`;$('comparisonLabel').textContent=`Watts near ${t.comparisonHR} bpm`;$('comparisonNote').textContent=`Compare the same machine, context and targets. This ride used ${t.zoneMin}–${t.zoneMax} bpm and a comparison HR of ${t.comparisonHR}. Missing readings remain unknown.`;$('summaryTitle').textContent=r.outcome==='complete'?'Session finished':'Session ended early';$('summaryContext').textContent=`${dateLabel(r.startedAt)} · ${r.config.mode==='zone2'?'Zone 2':'Sprint intervals'} · ${bikeName(r.config)} · ${contextName(r.config)}`;$('summaryTime').textContent=fmt(r.activeMs);$('summaryWorkLabel').textContent=r.config.mode==='zone2'?'Main block':'Full efforts';$('summaryWork').textContent=r.config.mode==='zone2'?fmt(r.mainMs):`${r.effortsCompleted} / ${r.config.n}`;$('summaryOutcome').textContent=r.outcome==='complete'?'Complete':'Partial';$('summaryCaution').hidden=!r.hadInterruption;$('summaryCaution').textContent='This session was interrupted. Review timing against Polar before comparing it with other sessions. Unconfirmed time beyond a phase boundary was not counted.';$('sensorSummary').hidden=!r.hr?.samples;
-    if(r.hr?.samples){$('sensorAverage').textContent=r.hr.averageHR===null?'—':`${r.hr.averageHR} bpm`;$('sensorZone').textContent=r.hr.measuredMs?fmt(r.hr.zoneMs):'—';$('sensorCoverage').textContent=`${fmt(r.hr.measuredMs)} measured · ${r.hr.coverage}% of active riding covered. ${r.hr.measuredMs?'HR averages use measured time only.':'Not enough consecutive readings to calculate an average.'}`;}
+  function showSummary(r){selected=r;show('summary');const t=C.config(r.config).targets;$('sensorZoneLabel').textContent=`Time at ${t.zoneMin}–${t.zoneMax}`;$('polarZoneLabel').textContent=`Polar time at ${t.zoneMin}–${t.zoneMax} · minutes`;$('comparisonLabel').textContent=`Watts near ${t.comparisonHR} bpm`;$('comparisonNote').textContent=r.config.mode==='external'?'Externally recorded workout. App plan targets are placeholders; progress differences are withheld. Imported readings keep their original source.':`Compare the same machine, context and targets. This ride used ${t.zoneMin}–${t.zoneMax} bpm and a comparison HR of ${t.comparisonHR}. Missing readings remain unknown.`;$('summaryTitle').textContent=r.outcome==='complete'?'Session finished':'Session ended early';$('summaryContext').textContent=`${dateLabel(r.startedAt)} · ${BikeHistorySchema.modeLabel(r.config.mode)} · ${bikeName(r.config)} · ${contextName(r.config)}`;$('summaryTime').textContent=fmt(r.activeMs);$('summaryWorkLabel').textContent=r.config.mode==='sprint'?'Full efforts':'Main block';$('summaryWork').textContent=r.config.mode!=='sprint'?(r.config.mode==='external'&&r.mainMs===0?'Not recorded':fmt(r.mainMs)):`${r.effortsCompleted} / ${r.config.n}`;$('summaryOutcome').textContent=r.outcome==='complete'?'Complete':'Partial';$('summaryCaution').hidden=!r.hadInterruption;$('summaryCaution').textContent='This session was interrupted. Review timing against Polar before comparing it with other sessions. Unconfirmed time beyond a phase boundary was not counted.';$('sensorSummary').hidden=!(r.hr&&(r.hr.samples||r.hr.measuredMs||r.hr.averageHR!=null));
+    renderExternalReadings(r);$('sensorSummaryTitle').textContent=r.hr?.source?'Measured heart rate · '+r.hr.source:'Measured heart rate';
+    if(r.hr&&(r.hr.samples||r.hr.measuredMs||r.hr.averageHR!=null)){$('sensorAverage').textContent=r.hr.averageHR===null?'—':`${r.hr.averageHR} bpm`;$('sensorZone').textContent=r.hr.measuredMs?fmt(r.hr.zoneMs):'—';$('sensorCoverage').textContent=`${fmt(r.hr.measuredMs)} measured · ${r.hr.coverage}% of active riding covered. ${r.hr.measuredMs?'HR averages use measured time only.':'Not enough consecutive readings to calculate an average.'}`;}
     renderSummaryComparison();for(const key of fields)$(key).value=r.metrics?.[key]??'';$('logStatus').textContent=storageOK?'Session saved. Readings save as you enter them.':'Session is in memory only. Export before closing.';}
+  function renderExternalReadings(ride){
+    const container=$('externalReadings'),metrics=ride.metrics||{};container.replaceChildren();
+    const rows=BikeHistorySchema.externalFields.filter(field=>metrics[field.name]!=null).map(field=>[field.label,metrics[field.name]+' '+field.unit]);
+    for(const [key,label]of [['externalSource','Source'],['trainingBenefit','Training benefit']])if(metrics[key])rows.push([label,metrics[key]]);
+    for(const name of ['z1','z2','z3','z4','z5'])if(metrics.polarZonesMs?.[name]!=null)rows.push(['Polar '+name.toUpperCase(),(metrics.polarZonesMs[name]/60000).toFixed(2)+' min']);
+    container.hidden=!rows.length;if(!rows.length)return;
+    const heading=document.createElement('h2');heading.textContent='External readings';container.append(heading);
+    const list=document.createElement('dl');list.className='stats';
+    for(const [label,value]of rows){const row=document.createElement('div'),term=document.createElement('dt'),detail=document.createElement('dd');term.textContent=label;detail.textContent=value;detail.style.fontSize='var(--fs-md)';detail.style.overflowWrap='anywhere';row.append(term,detail);list.append(row);}container.append(list);
+  }
   function saveMetrics(report=false){
     if(!selected)return;const form=$('logForm');if(!form.checkValidity()){$('logStatus').textContent='Check the value outside its allowed range before saving.';if(report)form.reportValidity();return false;}
     const before=WorkoutStorage.copy(selected),metrics={...selected.metrics};for(const key of fields){const value=$(key).value.trim();if(value!==String(metrics[key]??'')){if(value==='')delete metrics[key];else metrics[key]=value;}}
@@ -2710,25 +2764,25 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   const localDateValue=ms=>{const d=new Date(ms),pad=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}${d.getSeconds()?':'+pad(d.getSeconds()):''}`;};
   function openEdit(){
     if(!selected||saveMetrics(true)===false&&!$('logForm').checkValidity())return;
-    const r=selected,zone=r.config.mode==='zone2';$('editDate').value=localDateValue(r.startedAt);$('editBike').value=r.config.bike;$('editBikeId').value=r.config.bikeId;$('editContext').value=r.config.context;
+    const r=selected,zone=r.config.mode!=='sprint';$('editDate').value=localDateValue(r.startedAt);$('editBike').value=r.config.bike;$('editBikeId').value=r.config.bikeId;$('editContext').value=r.config.context;
     $('editActive').value=r.activeMs/60000;$('editMain').value=r.mainMs/60000;$('editEfforts').value=r.effortsCompleted??0;$('editEfforts').max=r.config.n;
     $('editMainField').hidden=!zone;$('editMain').disabled=!zone;$('editEffortsField').hidden=zone;$('editEfforts').disabled=zone;$('editOutcome').value=r.outcome;
     $('editStatus').textContent='';for(const id of ['editDate','editActive','editMain','editEfforts'])$(id).setCustomValidity('');$('editDialog').showModal();
   }
   function saveDetails(event){
     event.preventDefault();if(!selected)return;
-    const r=selected,zone=r.config.mode==='zone2',startedAt=$('editDate').value===localDateValue(r.startedAt)?r.startedAt:new Date($('editDate').value).getTime(),activeMs=Number($('editActive').value)*60000,mainMs=zone?Number($('editMain').value)*60000:r.mainMs;
+    const r=selected,zone=r.config.mode!=='sprint',startedAt=$('editDate').value===localDateValue(r.startedAt)?r.startedAt:new Date($('editDate').value).getTime(),activeMs=Number($('editActive').value)*60000,mainMs=zone?Number($('editMain').value)*60000:r.mainMs;
     $('editDate').setCustomValidity(Number.isFinite(startedAt)&&startedAt>=0?'':'Enter a valid session date.');$('editActive').setCustomValidity(Number.isFinite(activeMs)&&activeMs>=0&&activeMs<=Number.MAX_SAFE_INTEGER?'':'Enter a valid active time.');$('editMain').setCustomValidity(zone&&(!Number.isFinite(mainMs)||mainMs<0||mainMs>activeMs)?'Main-block time must be valid and cannot exceed active time.':'');
     if(!$('editForm').reportValidity())return;
-    const updated={...r,startedAt,endedAt:Number.isFinite(r.endedAt)?r.endedAt+startedAt-r.startedAt:r.endedAt,activeMs,mainMs,effortsCompleted:zone?r.effortsCompleted:Number($('editEfforts').value),outcome:$('editOutcome').value,config:C.config({...r.config,bike:$('editBike').value,bikeId:$('editBikeId').value.trim(),context:$('editContext').value}),editedAt:Date.now()};
+    const updated={...r,startedAt,endedAt:Number.isFinite(r.endedAt)?r.endedAt+startedAt-r.startedAt:r.endedAt,activeMs,mainMs,effortsCompleted:zone?r.effortsCompleted:Number($('editEfforts').value),outcome:$('editOutcome').value,config:BikeHistorySchema.config({...r.config,bike:$('editBike').value,bikeId:$('editBikeId').value.trim(),context:$('editContext').value}),editedAt:Date.now()};
     const updatedRecords=records.map(item=>item.id===r.id?updated:item).sort((a,b)=>b.startedAt-a.startedAt);
     if(!write(KEYS.history,updatedRecords,{atomic:true})){$('editStatus').textContent='Changes could not be saved. Keep this dialog open and try again.';return;}
     records=updatedRecords;recordEdit(r,updated,'Edited session details');$('editDialog').close();showSummary(updated);toast('Session details saved.');
   }
   function renderSummaryComparison(){if(!selected)return;WorkoutComparisons.render($('finished-comparison'),{items:records,first:selected.id,compact:true,label:r=>dateLabel(r.startedAt)+' · '+bikeName(r.config),candidates:first=>records.filter(r=>BikeHistory.seriesKey(r)===BikeHistory.seriesKey(first)),compare:BikeHistory.compare});}
   let comparisonPair=[];
-  function renderComparisons(){WorkoutComparisons.render($('workout-comparison'),{items:filteredHistory(),first:comparisonPair[0],second:comparisonPair[1],label:r=>dateLabel(r.startedAt)+' · '+bikeName(r.config)+' · '+(r.config.mode==='zone2'?'Zone 2':'Sprints'),compare:BikeHistory.compare,onSelect:(a,b)=>{comparisonPair=[a,b];renderComparisons();}});}
-  function showHistory(){show('history');WorkoutUI.renderRecent($('recent-changes'),journal,toast);renderComparisons();populateHistoryMachines();renderHistoryChart();const filtered=filteredHistory();$('historyCount').textContent=`${filtered.length} of ${records.length} rides shown.`;$('historyList').replaceChildren();if(!filtered.length){const p=document.createElement('p');p.textContent=records.length?'No rides match these filters.':'No sessions yet. Your first ride will appear here.';$('historyList').append(p);}for(const r of filtered){const b=document.createElement('button');b.className='history-item';const title=document.createElement('strong'),detail=document.createElement('span'),metric=document.createElement('span');title.textContent=`${dateLabel(r.startedAt)} · ${r.config.mode==='zone2'?'Zone 2':'Sprints'}`;detail.textContent=`${bikeName(r.config)} · ${contextName(r.config)} · ${fmt(r.activeMs)} · ${r.outcome==='complete'?'Complete':'Partial'}${r.hadInterruption?' · Interrupted':''}`;
+  function renderComparisons(){WorkoutComparisons.render($('workout-comparison'),{items:filteredHistory(),first:comparisonPair[0],second:comparisonPair[1],label:r=>dateLabel(r.startedAt)+' · '+bikeName(r.config)+' · '+BikeHistorySchema.modeLabel(r.config.mode),compare:BikeHistory.compare,onSelect:(a,b)=>{comparisonPair=[a,b];renderComparisons();}});}
+  function showHistory(){show('history');WorkoutUI.renderRecent($('recent-changes'),journal,toast);renderComparisons();populateHistoryMachines();renderHistoryChart();const filtered=filteredHistory();$('historyCount').textContent=`${filtered.length} of ${records.length} rides shown.`;$('historyList').replaceChildren();if(!filtered.length){const p=document.createElement('p');p.textContent=records.length?'No rides match these filters.':'No sessions yet. Your first ride will appear here.';$('historyList').append(p);}for(const r of filtered){const b=document.createElement('button');b.className='history-item';const title=document.createElement('strong'),detail=document.createElement('span'),metric=document.createElement('span');title.textContent=`${dateLabel(r.startedAt)} · ${BikeHistorySchema.modeLabel(r.config.mode)}`;detail.textContent=`${bikeName(r.config)} · ${contextName(r.config)} · ${fmt(r.activeMs)} · ${r.outcome==='complete'?'Complete':'Partial'}${r.hadInterruption?' · Interrupted':''}`;
     const m=r.metrics||{},comparisons=[];
     if(m.averageWatts!==undefined&&m.averageWatts!=='')comparisons.push(`${m.averageWatts} W main-block average${m.mainAverageHR?` at ${m.mainAverageHR} bpm average HR`:''}`);
     else if(m.mainAverageHR)comparisons.push(`${m.mainAverageHR} bpm main-block average HR`);
@@ -2757,9 +2811,9 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     const table=document.createElement('table'),head=document.createElement('tr');for(const label of ['Date','Machine / context','Recorded zone / comparison HR',definition.unit]){const cell=document.createElement('th');cell.scope='col';cell.textContent=label;head.append(cell);}const thead=document.createElement('thead');thead.append(head);table.append(thead);
     const tbody=document.createElement('tbody');for(const point of groups.flat().sort((a,b)=>b.at-a.at)){const row=document.createElement('tr'),t=WorkoutCore.config(point.ride.config).targets;for(const value of [dateLabel(point.at),bikeName(point.ride.config)+' / '+contextName(point.ride.config),`${t.zoneMin}–${t.zoneMax} / ${t.comparisonHR}`,point.value===null?'Unknown':String(point.value)]){const cell=document.createElement('td');cell.textContent=value;row.append(cell);}tbody.append(row);}table.append(tbody);$('chartTable').append(table);
   }
-  function exportCSV(){if(selected&&!$('summary').hidden&&saveMetrics(true)===false&&!$('logForm').checkValidity())return;if(!records.length){toast('No sessions to export yet.');return;}const headers=['date','workout','bike','bike_id','context','outcome','interrupted','active_minutes','main_minutes','completed_efforts','average_hr_bpm','recorded_zone_minutes','resistance','cadence_rpm','main_average_watts','watts_at_comparison_hr','notes','h10_average_hr_bpm','h10_recorded_zone_minutes','h10_measured_minutes','h10_coverage_percent','h10_samples','main_average_hr_bpm','zone_min_bpm','zone_max_bpm','working_min_bpm','working_max_bpm','comparison_hr_bpm','planned_warmup_minutes','planned_main_minutes','planned_cooldown_minutes','planned_recovery_seconds','perceived_effort_1_10'];
+  function exportCSV(){if(selected&&!$('summary').hidden&&saveMetrics(true)===false&&!$('logForm').checkValidity())return;if(!records.length){toast('No sessions to export yet.');return;}const headers=['date','workout','bike','bike_id','context','outcome','interrupted','active_minutes','main_minutes','completed_efforts','average_hr_bpm','recorded_zone_minutes','resistance','cadence_rpm','main_average_watts','watts_at_comparison_hr','notes','h10_average_hr_bpm','h10_recorded_zone_minutes','h10_measured_minutes','h10_coverage_percent','h10_samples','main_average_hr_bpm','zone_min_bpm','zone_max_bpm','working_min_bpm','working_max_bpm','comparison_hr_bpm','planned_warmup_minutes','planned_main_minutes','planned_cooldown_minutes','planned_recovery_seconds','perceived_effort_1_10',...BikeHistorySchema.externalFields.map(field=>field.name),'trainingBenefit','externalSource','polar_z1_ms','polar_z2_ms','polar_z3_ms','polar_z4_ms','polar_z5_ms'];
     const cell=v=>{let value=String(v??'');if(/^[=+\-@\t\r\n]/.test(value))value="'"+value;return '"'+value.replaceAll('"','""')+'"';};
-    const rows=records.map(r=>{const m=r.metrics||{};return [new Date(r.startedAt).toISOString(),r.config.mode,r.config.bike,r.config.bikeId,r.config.context,r.outcome,r.hadInterruption,(r.activeMs/60000).toFixed(2),(r.mainMs/60000).toFixed(2),r.effortsCompleted,m.averageHR,m.zoneMinutes,m.resistance,m.cadence,m.averageWatts,m.fixedHRWatts,m.notes,r.hr?.averageHR,r.hr?.measuredMs?(r.hr.zoneMs/60000).toFixed(3):'',r.hr?(r.hr.measuredMs/60000).toFixed(3):'',r.hr?.coverage,r.hr?.samples,m.mainAverageHR,...['zoneMin','zoneMax','targetMin','targetMax','comparisonHR'].map(name=>C.config(r.config).targets[name]),r.config.warmupMinutes,r.config.mainMinutes,r.config.mode==='zone2'?r.config.cooldown:r.config.sprintCooldownMinutes,r.config.recoverySeconds,m.perceivedEffort].map(cell).join(',');});
+    const rows=records.map(r=>{const m=r.metrics||{};return [new Date(r.startedAt).toISOString(),r.config.mode,r.config.bike,r.config.bikeId,r.config.context,r.outcome,r.hadInterruption,(r.activeMs/60000).toFixed(2),(r.mainMs/60000).toFixed(2),r.effortsCompleted,m.averageHR,m.zoneMinutes,m.resistance,m.cadence,m.averageWatts,m.fixedHRWatts,m.notes,r.hr?.averageHR,r.hr?.measuredMs?(r.hr.zoneMs/60000).toFixed(3):'',r.hr?(r.hr.measuredMs/60000).toFixed(3):'',r.hr?.coverage,r.hr?.samples,m.mainAverageHR,...['zoneMin','zoneMax','targetMin','targetMax','comparisonHR'].map(name=>r.config.mode==='external'?'':C.config(r.config).targets[name]),...['warmupMinutes','mainMinutes',r.config.mode==='zone2'?'cooldown':'sprintCooldownMinutes','recoverySeconds'].map(name=>r.config.mode==='external'?'':r.config[name]),m.perceivedEffort,...BikeHistorySchema.externalFields.map(field=>m[field.name]),m.trainingBenefit,m.externalSource,...['z1','z2','z3','z4','z5'].map(name=>m.polarZonesMs?.[name])].map(cell).join(',');});
     const url=URL.createObjectURL(new Blob(['\ufeff'+headers.map(cell).join(',')+'\r\n'+rows.join('\r\n')],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=`bike-cardio-${new Date().toISOString().slice(0,10)}.csv`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('CSV export started. Keep the downloaded file as your backup.');
   }
   function updateRestore(){const saved=read(KEYS.active,null);$('restoreCard').hidden=!saved||!['running','paused'].includes(saved.status);$('start').disabled=!targetsValid||!$('restoreCard').hidden;$('start').hidden=!$('restoreCard').hidden;$('resumeSaved').hidden=$('restoreCard').hidden;updateShell();if(!$('restoreCard').hidden){const restored=C.restore(saved,Date.now());if(restored)$('restoreText').textContent=`${restored.config.mode==='zone2'?'Zone 2':'Sprint intervals'} · ${C.phase(restored).title} · ${fmt(restored.activeMs)} active time. Review the saved session before starting another.`;else{$('restoreText').textContent='Saved session could not be recovered. End it to start a new one.';}}

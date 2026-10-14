@@ -11,7 +11,7 @@ const foundation=(await Promise.all(['foundation.js','comparisons.js'].map(name=
 const uiStyles=(await Promise.all(['themes.css','components.css'].map(name=>readFile(join(root,'packages/app-ui',name),'utf8')))).join('\n');
 const start='/* storage-engine:start */',end='/* storage-engine:end */';
 const appModules={
-  'bike-cardio':[['controllers/storage.js','bike-cardio-storage-controller'],
+  'bike-cardio':[['history-schema.js','bike-history-schema'],['controllers/storage.js','bike-cardio-storage-controller'],
     ['presets.js','bike-presets'],['targets.js','bike-targets'],['heart-rate.js','bike-heart-rate'],
     ['bluetooth.js','bike-bluetooth'],['workout-core.js','bike-workout-core']
   ],

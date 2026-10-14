@@ -7,7 +7,7 @@
     "build:bike": "node scripts/build.mjs bike-cardio",
     "test": "npm run build && node tests/workout-core.test.cjs && node tests/bike-modules.test.cjs && node tests/shared/storage.test.cjs && node tests/shared/features.test.cjs && node tests/shared/undo.test.cjs && node tests/shared/updates.test.cjs && node tests/shared/storage-status.test.cjs && node apps/liftlog/tests/clear.cjs && node apps/liftlog/tests/remote.cjs",
     "test:liftlog-browser": "node apps/liftlog/tests/regression.cjs && node apps/liftlog/tests/security.cjs && node apps/liftlog/tests/recovery.cjs",
-    "test:bike-browser": "node tests/shared/browser.cjs",
+    "test:bike-browser": "node tests/shared/browser.cjs && node tests/shared/external-history-browser.cjs",
     "test:remote-tools-browser": "node tests/shared/remote-tools-browser.cjs",
     "test:updates-browser": "node tests/shared/updates-browser.cjs",
     "test:features-browser": "node tests/shared/features-browser.cjs && node tests/shared/usability-browser.cjs",

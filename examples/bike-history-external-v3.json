@@ -1,0 +1,73 @@
+{
+  "app": "bike-cardio",
+  "kind": "history",
+  "version": 3,
+  "exportedAt": "2026-01-02T12:20:00.000Z",
+  "history": [
+    {
+      "id": "example-external-sprint",
+      "startedAt": 1767268800000,
+      "endedAt": 1767270600000,
+      "config": {
+        "mode": "sprint",
+        "bike": "unknown",
+        "context": "unknown",
+        "n": 5,
+        "eff": 30
+      },
+      "activeMs": 1800000,
+      "mainMs": 0,
+      "outcome": "complete",
+      "effortsCompleted": 5,
+      "phases": [
+        {
+          "kind": "external",
+          "title": "Externally recorded sprint session",
+          "ms": 1800000,
+          "outcome": "complete"
+        }
+      ],
+      "metrics": {
+        "averageHR": "132",
+        "externalSource": "Polar Flow + bike console (example)",
+        "peakWatts": 600,
+        "maxCadence": 110,
+        "maxResistance": 18,
+        "kcal": 300,
+        "distanceKm": 12,
+        "inclineAvgPct": 0,
+        "inclineMaxPct": 0,
+        "trainingBenefit": "Example training benefit",
+        "polarZonesMs": {
+          "z1": 240000,
+          "z2": 600000,
+          "z3": 540000,
+          "z4": 300000,
+          "z5": 120000
+        }
+      }
+    },
+    {
+      "id": "example-follow-along-video",
+      "startedAt": 1767355200000,
+      "endedAt": 1767356400000,
+      "config": {
+        "mode": "external",
+        "bike": "unknown",
+        "context": "unknown"
+      },
+      "activeMs": 1200000,
+      "mainMs": 0,
+      "outcome": "complete",
+      "effortsCompleted": 0,
+      "metrics": {
+        "averageHR": "125",
+        "externalSource": "Follow-along video + external recorder (example)",
+        "distanceKm": 7,
+        "kcal": 180,
+        "maxCadence": 95,
+        "peakWatts": 250
+      }
+    }
+  ]
+}

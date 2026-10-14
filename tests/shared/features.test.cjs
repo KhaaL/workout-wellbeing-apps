@@ -72,7 +72,7 @@ for(const app of ['bike-cardio','liftlog']){
  });
 }
 test('Bike comparisons retain unknown readings and zero, withhold mismatched deltas and validate perceived effort',()=>{
- const d=bike(),a={id:'a',startedAt:1,config:{},activeMs:60000,mainMs:30000,outcome:'complete',metrics:{averageWatts:'0'}},b={...copy(a),id:'b',startedAt:2,metrics:{averageWatts:'10',perceivedEffort:'7'}};
+ const d=bike(),a={id:'a',startedAt:1,config:d.ctx.C.config(),activeMs:60000,mainMs:30000,outcome:'complete',metrics:{averageWatts:'0'}},b={...copy(a),id:'b',startedAt:2,metrics:{averageWatts:'10',perceivedEffort:'7'}};
  const model=d.ctx.historyTools.compare(b,a);assert.equal(model.before.id,'a');assert.equal(model.rows[0].delta,10);assert.equal(model.rows[1].before,null);assert.equal(model.rows.at(-1).before,null);
  b.config.bikeId='other';assert.equal(d.ctx.historyTools.compare(a,b).rows[0].delta,null);
  const backup=d.api.backup(),s=d.ctx.C.create({},Date.now(),'record');d.ctx.C.end(s,Date.now());backup.history=[d.ctx.C.record(s)];backup.history[0].metrics={perceivedEffort:'11'};assert.throws(()=>d.api.prepare(backup),/perceivedEffort/);

@@ -13,10 +13,10 @@ globalThis.BikeStorage = (() => {
     const timestamp=(value,label)=>{number(value,label);if(!Number.isFinite(new Date(value).getTime()))fail(label+' must be a valid date');};
     function prepare(raw){
       WorkoutStorage.enforceLimits(raw,{history:10000});
-      if(!raw||raw.app!=='bike-cardio'||![1,2].includes(raw.version)||raw.kind&&raw.kind!=='backup')fail('Expected a Bike Cardio version 1 or 2 backup');
+      if(!raw||raw.app!=='bike-cardio'||![1,2,3].includes(raw.version)||raw.kind&&raw.kind!=='backup')fail('Expected a Bike Cardio version 1, 2 or 3 backup');
       if(!Array.isArray(raw.history)||!raw.settings||typeof raw.settings!=='object')fail('Missing session history or settings');
       number(raw.updatedAt,'Backup revision');
-      const s=copy(raw),ids=new Set();s.version=2;s.settings=C.config(s.settings);
+      const s=copy(raw),ids=new Set();s.version=BikeHistorySchema.version;s.settings=C.config(s.settings);
       for(const kind of ['presets','machines']){
         const rows=s[kind]??[];if(!Array.isArray(rows)||rows.length>50)fail('Invalid saved '+kind);
         const seen=new Set();s[kind]=rows.map(row=>{
@@ -31,7 +31,7 @@ globalThis.BikeStorage = (() => {
         if(!r||typeof r.id!=='string'||!r.id.trim()||ids.has(r.id))fail('Session IDs must be present and unique');ids.add(r.id);
         timestamp(r.startedAt,'Session date');if(r.endedAt!=null)timestamp(r.endedAt,'Session end');
         number(r.activeMs,'Active time');number(r.mainMs,'Main-block time',0,r.activeMs);
-        if(!r.config||!['zone2','sprint'].includes(r.config.mode))fail('Invalid workout configuration');r.config=C.config(r.config);
+        r.config=BikeHistorySchema.config(r.config,raw.version);
         if(!['complete','partial'].includes(r.outcome))fail('Invalid session outcome');
         if(!Number.isInteger(r.effortsCompleted)||r.effortsCompleted<0||r.effortsCompleted>r.config.n)fail('Invalid completed efforts');
         if(!r.metrics||typeof r.metrics!=='object'||Array.isArray(r.metrics))fail('Invalid session readings');
@@ -40,11 +40,13 @@ globalThis.BikeStorage = (() => {
         }
         if(r.metrics.perceivedEffort!=null&&r.metrics.perceivedEffort!==''&&!Number.isInteger(Number(r.metrics.perceivedEffort)))fail('Perceived effort must be a whole number.');
         for(const [name,max]of [['resistance',80],['notes',2000]])if(r.metrics[name]!=null&&(typeof r.metrics[name]!=='string'||r.metrics[name].length>max))fail('Invalid '+name);
+        BikeHistorySchema.validateExternal(r.metrics);
         if(r.phases!=null){
           if(!Array.isArray(r.phases))fail('Invalid session phases');
           for(const p of r.phases){if(!p||typeof p.title!=='string'||typeof p.kind!=='string'||!['complete','skipped','ended'].includes(p.outcome))fail('Invalid phase');number(p.ms,'Phase time');}
         }
         if(r.hr!=null){
+          if(r.hr.source!=null&&(typeof r.hr.source!=='string'||r.hr.source.length>500))fail('Invalid HR source');
           const measuredTargets=C.config({targets:r.hr.targets||r.config.targets}).targets;
           if(comparable(measuredTargets)!==comparable(r.config.targets))fail('Measured HR targets do not match the ride configuration');
           r.hr.targets=measuredTargets;
@@ -58,7 +60,7 @@ globalThis.BikeStorage = (() => {
       if(s.active!=null){if(ids.has(s.active.id))s.active=null;else if(!C.restore(s.active,Date.now()))fail('Invalid active session');}
       delete s.kind;delete s.exportedAt;return s;
     }
-    const seed=()=>({app:'bike-cardio',version:2,updatedAt:0,settings:C.config(),history:[],active:null,presets:[],machines:[]});
+    const seed=()=>({app:'bike-cardio',version:BikeHistorySchema.version,updatedAt:0,settings:C.config(),history:[],active:null,presets:[],machines:[]});
     function legacy(){
       const s=seed();let found=false;
       for(const [old,name]of Object.entries(fields)){
@@ -145,14 +147,14 @@ globalThis.BikeStorage = (() => {
       try{localStorage.setItem(namespace+'.last-file-backup',String(Date.now()));return true;}
       catch(error){return false;}
     }
-    const historyPayload=()=>({app:'bike-cardio',kind:'history',version:2,exportedAt:new Date().toISOString(),history:copy(state.history)});
+    const historyPayload=()=>({app:'bike-cardio',kind:'history',version:BikeHistorySchema.version,exportedAt:new Date().toISOString(),history:copy(state.history)});
     async function mergeHistory(raw){
       WorkoutStorage.enforceLimits(raw,{history:10000});
-      if(!raw||raw.app!=='bike-cardio'||![1,2].includes(raw.version)||!['history','backup'].includes(raw.kind)||!Array.isArray(raw.history))fail('Expected Bike Cardio history or a full backup.');
+      if(!raw||raw.app!=='bike-cardio'||![1,2,3].includes(raw.version)||!['history','backup'].includes(raw.kind)||!Array.isArray(raw.history))fail('Expected Bike Cardio history or a full backup.');
       const expected=JSON.stringify(state),history=copy(state.history),existing=new Map(history.map(ride=>[ride.id,ride]));
       const summary={added:0,already:0,invalid:0,conflicts:0};
       for(const item of raw.history){
-        let ride;try{ride=prepare({...seed(),history:[item]}).history[0];}catch(error){summary.invalid++;continue;}
+        let ride;try{ride=prepare({...seed(),version:raw.version,history:[item]}).history[0];}catch(error){summary.invalid++;continue;}
         const current=existing.get(ride.id);
         if(state.active?.id===ride.id){summary.conflicts++;continue;}
         if(current){

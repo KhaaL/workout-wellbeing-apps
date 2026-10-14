@@ -262,7 +262,14 @@ Bike’s **Targets & durations** controls cover HR boundaries, working targets,
 comparison HR, warm-up, main block, cooldowns, primer settling, recoveries and
 sprint efforts. Every ride keeps its original targets and planned durations;
 old rides retain the original 105–122 bpm zone and 115 bpm comparison target.
-Bike migrates version 1 backups to version 2 and active sessions to version 3.
+Bike migrates version 1/2 backups to version 3 and active sessions to version 3.
+The history/backup and active-workout version numbers are independent.
+
+For external recordings, use History → Merge history. See the
+[history contract](docs/BIKE-HISTORY.md), [TypeScript types](apps/bike-cardio/history-types.d.ts),
+and tested [example exports](examples/). Version 3 supports an Externally recorded
+history category, unknown bike/context, and optional external readings under
+`metrics`. These appear in session details and CSV exports.
 Update Bike on receiving devices before importing newly exported files; older
 releases reject the new version instead of dropping the recorded targets.
 Live advice, HR gates, measured zone time, summaries and CSV exports use those
