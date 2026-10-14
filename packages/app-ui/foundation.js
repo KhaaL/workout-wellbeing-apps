@@ -18,7 +18,8 @@ const WorkoutUI = (() => {
     if(document.body){document.body.style.backgroundColor=background;document.body.style.colorScheme=root.style.colorScheme;}
     return theme;
   }
-  const paths={workout:'M4 9v6m3-9v12m10-12v12m3-9v6M7 12h10',routines:'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',history:'M4 5v5h5M4 10a8 8 0 1 1 1 7M12 7v5l3 2',exercises:'M9 9V6a3 3 0 0 1 6 0v3M8 9h8l3 9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2l3-9z',settings:'M4 7h16M4 17h16M8 4v6M16 14v6'};
+  // Workout starts a session in both apps, so it gets a start glyph; the dumbbell marks the exercise library.
+  const paths={workout:'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M10 8.5v7l5.5-3.5z',routines:'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',history:'M4 5v5h5M4 10a8 8 0 1 1 1 7M12 7v5l3 2',exercises:'M4 9v6m3-9v12m10-12v12m3-9v6M7 12h10',settings:'M10.43 5.18L10.56 2.91A9.2 9.2 0 0 1 13.44 2.91L13.57 5.18A7 7 0 0 1 15.71 6.06L17.41 4.56A9.2 9.2 0 0 1 19.44 6.59L17.94 8.29A7 7 0 0 1 18.82 10.43L21.09 10.56A9.2 9.2 0 0 1 21.09 13.44L18.82 13.57A7 7 0 0 1 17.94 15.71L19.44 17.41A9.2 9.2 0 0 1 17.41 19.44L15.71 17.94A7 7 0 0 1 13.57 18.82L13.44 21.09A9.2 9.2 0 0 1 10.56 21.09L10.43 18.82A7 7 0 0 1 8.29 17.94L6.59 19.44A9.2 9.2 0 0 1 4.56 17.41L6.06 15.71A7 7 0 0 1 5.18 13.57L2.91 13.44A9.2 9.2 0 0 1 2.91 10.56L5.18 10.43A7 7 0 0 1 6.06 8.29L4.56 6.59A9.2 9.2 0 0 1 6.59 4.56L8.29 6.06A7 7 0 0 1 10.43 5.18ZM9.2 12a2.8 2.8 0 1 0 5.6 0a2.8 2.8 0 1 0-5.6 0'};
   function createShell({name,items,onNavigate}){
     installValidation();
     const header=document.querySelector('.app-header'),nav=header.querySelector('.main-nav'),list=nav.querySelector('ul');
