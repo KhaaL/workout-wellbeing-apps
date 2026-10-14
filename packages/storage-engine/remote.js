@@ -46,7 +46,7 @@ function resumeReviewedSync(ctx){
 
 const REMOTE_TIMEOUT = 20000;
 let remoteGeneration = 0, remoteQueue = Promise.resolve(), remoteControllers = new Set();
-let toolsBusy=false, lastDiagnostic=null, snapshotPage=null, providerMemory=null;
+let toolsBusy=false, lastDiagnostic=null, snapshotPage=null, snapshotIndex=null, providerMemory=null;
 const probeKeys=new Set(),archiveKeys=new Set();
 function syncMode(cfg){return cfg?.syncMode==='conditional'?'conditional':'immutable';}
 const providerKey=app.namespace+'.provider-check';
@@ -147,13 +147,13 @@ function saveRemoteConfig(cfg, ctx){
   if (ctx) assertRemote(ctx);
   const previous = loadRemoteConfig();
   const changed = !previous || remoteIdentity(previous) !== remoteIdentity(cfg);
-  if (changed){invalidateRemote();localStorage.removeItem(providerKey);snapshotPage=null;lastDiagnostic=null;providerMemory=null;}
+  if (changed){invalidateRemote();localStorage.removeItem(providerKey);snapshotPage=null;snapshotIndex=null;lastDiagnostic=null;providerMemory=null;}
   localStorage.setItem(LS_REMOTE_KEY, JSON.stringify(cfg));
   if (changed) localStorage.removeItem(REMOTE_WORK_KEY);
 }
 function clearRemoteConfig(){
   invalidateRemote();
-  try{ localStorage.removeItem(LS_REMOTE_KEY); localStorage.removeItem(REMOTE_WORK_KEY);localStorage.removeItem(providerKey);snapshotPage=null;lastDiagnostic=null;providerMemory=null; }
+  try{ localStorage.removeItem(LS_REMOTE_KEY); localStorage.removeItem(REMOTE_WORK_KEY);localStorage.removeItem(providerKey);snapshotPage=null;snapshotIndex=null;lastDiagnostic=null;providerMemory=null; }
   catch(e){ toast('Could not forget configuration — storage unavailable'); }
   setRemoteStatus('', '');
 }
@@ -212,7 +212,7 @@ async function s3Request(cfg, method, bodyText, options = {}, ctx){
   if(options.list){
     if(method!=='GET')throw new Error('Bucket listing only supports GET');
     url.pathname=cfg.pathStyle?'/'+uriEncode(cfg.bucket):'/';
-    const params={'list-type':'2','max-keys':'20',prefix:(cfg.objectKey||REMOTE_OBJECT_KEY_DEFAULT)+'.snapshots/'};
+    const params={'list-type':'2','max-keys':String(options.list.max||20),prefix:(cfg.objectKey||REMOTE_OBJECT_KEY_DEFAULT)+'.snapshots/'};
     if(options.list.token)params['continuation-token']=options.list.token;
     query=Object.entries(params).map(([key,value])=>[uriEncode(key),uriEncode(value)]).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0).map(pair=>pair.join('=')).join('&');
     url.search=query;
@@ -683,7 +683,7 @@ function parseSnapshotList(raw,cfg){
   const doc=new DOMParser().parseFromString(raw,'application/xml');
   if(doc.getElementsByTagName('parsererror').length||doc.documentElement.localName!=='ListBucketResult')throw new Error('Invalid snapshot listing XML.');
   const text=(node,name)=>Array.from(node.children).find(child=>child.localName===name)?.textContent||'';
-  const contents=Array.from(doc.getElementsByTagNameNS('*','Contents'));if(contents.length>20)throw new Error('Snapshot listing exceeds its page limit.');
+  const contents=Array.from(doc.getElementsByTagNameNS('*','Contents'));if(contents.length>1000)throw new Error('Snapshot listing exceeds its page limit.');
   const items=contents.map(node=>{
     const key=text(node,'Key');snapshotConfig(cfg,key);
     const size=Number(text(node,'Size')),at=text(node,'LastModified');
@@ -697,14 +697,33 @@ function parseSnapshotList(raw,cfg){
   return {items,token};
 }
 async function remoteListSnapshots(next=false){
-  const cfg=configured(),previous=next&&snapshotPage?.scope===scopeKey(cfg)?snapshotPage:null;
-  if(next&&!previous?.token)throw new Error('There is no next snapshot page.');
+  const cfg=configured(),scope=scopeKey(cfg),previous=next&&snapshotPage?.scope===scope?snapshotPage:null;
+  if(next&&(!previous||!snapshotIndex||snapshotIndex.scope!==scope))throw new Error('Reload the snapshot list first.');
+  if(next===true&&!previous.token)throw new Error('There is no next snapshot page.');
   return toolsAction(cfg,async ctx=>{
-    const res=await s3Request(cfg,'GET','',{list:{token:previous?.token}},ctx);
-    if(!res.ok)throw responseError(res,await res.text(),cfg,'list snapshots');
-    let page;try{page=parseSnapshotList(await res.text(),cfg);}catch(error){throw diagnosticError('listing','Snapshot listing is invalid. Check the provider’s ListObjectsV2 support.',cfg,'list snapshots');}
-    if(page.token&&page.token===previous?.token)throw diagnosticError('listing','The provider repeated its pagination token. Reload the snapshot list.',cfg,'list snapshots');
-    snapshotPage={scope:scopeKey(cfg),items:page.items,token:page.token};toolsChanged();return deepCopy(snapshotPage);
+    let offset=0;
+    if(next){offset=next==='previous'?Math.max(0,previous.offset-20):previous.offset+20;}
+    else {
+      // S3 lists by key ascending. Read metadata across every provider page
+      // before showing the newest backups, without downloading their bodies.
+      const items=new Map(),tokens=new Set();let token=null;
+      do {
+        const res=await s3Request(cfg,'GET','',{list:{token,max:1000}},ctx);
+        if(!res.ok)throw responseError(res,await res.text(),cfg,'list snapshots');
+        let page;try{page=parseSnapshotList(await res.text(),cfg);}catch(error){throw diagnosticError('listing','Snapshot listing is invalid. Check the provider’s ListObjectsV2 support.',cfg,'list snapshots');}
+        for(const item of page.items)items.set(item.key,item);
+        if(items.size>100000)throw diagnosticError('listing','Too many snapshots to browse. Reduce retained backup files and reload the list.',cfg,'list snapshots');
+        token=page.token;
+        if(token&&tokens.has(token))throw diagnosticError('listing','The provider repeated its pagination token. Reload the snapshot list.',cfg,'list snapshots');
+        if(token)tokens.add(token);
+        if(tokens.size>1000)throw diagnosticError('listing','Snapshot listing did not finish. Check the provider’s pagination and reload.',cfg,'list snapshots');
+      }while(token);
+      assertRemote(ctx);
+      snapshotIndex={scope,items:[...items.values()].sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)||b.key.localeCompare(a.key))};
+    }
+    const total=snapshotIndex.items.length;
+    snapshotPage={scope,offset,total,items:snapshotIndex.items.slice(offset,offset+20),token:offset+20<total?String(offset+20):null};
+    toolsChanged();return deepCopy(snapshotPage);
   });
 }
 function snapshotSummary(snapshot){

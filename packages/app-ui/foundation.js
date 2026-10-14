@@ -15,7 +15,7 @@ const WorkoutUI = (() => {
     const css=getComputedStyle(root);meta.content=css.getPropertyValue('--surface').trim();
     return theme;
   }
-  const paths={workout:'M4 9v6m3-9v12m10-12v12m3-9v6M7 12h10',routines:'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',history:'M4 5v5h5M4 10a8 8 0 1 1 1 7M12 7v5l3 2',exercises:'M4 6h6v6H4zM14 6h6v6h-6zM4 16h6M14 16h6',settings:'M4 7h16M4 17h16M8 4v6M16 14v6'};
+  const paths={workout:'M4 9v6m3-9v12m10-12v12m3-9v6M7 12h10',routines:'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',history:'M4 5v5h5M4 10a8 8 0 1 1 1 7M12 7v5l3 2',exercises:'M9 9V6a3 3 0 0 1 6 0v3M8 9h8l3 9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2l3-9z',settings:'M4 7h16M4 17h16M8 4v6M16 14v6'};
   function createShell({name,items,onNavigate}){
     installValidation();
     const header=document.querySelector('.app-header'),nav=header.querySelector('.main-nav'),list=nav.querySelector('ul');

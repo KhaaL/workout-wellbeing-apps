@@ -40,7 +40,9 @@ function verifySignature(url,headers,body,region=cfg.region){
       const snapshot=structuredClone(state);if(app==='liftlog')snapshot.workouts[0].notes='snapshot-one';else snapshot.history[0].metrics.notes='snapshot-one';
       const snapshotKey=cfg.objectKey+'.snapshots/2026-10-01-<img src=x onerror=alert(1)> & ü.json';
       const anotherKey=cfg.objectKey+'.snapshots/2026-10-02.json',token='next+/ =雪';
+      const fillerKeys=Array.from({length:20},(_,i)=>cfg.objectKey+'.snapshots/2026-10-'+String(i+3).padStart(2,'0')+'.json');
       const objects=new Map([[cfg.objectKey,{raw:JSON.stringify(state),etag:'"live"'}],[snapshotKey,{raw:JSON.stringify(snapshot),etag:'"snapshot"'}],[anotherKey,{raw:JSON.stringify(snapshot),etag:'"another"'}]]);
+      for(const key of fillerKeys)objects.set(key,{raw:JSON.stringify(snapshot),etag:'\"filler\"'});
       const calls=[],errors=[];let revision=0,ignoreWriteConditions=false,listingOverride=null;
       const context=await browser.newContext({viewport:{width:390,height:844},acceptDownloads:true,serviceWorkers:'block'}),page=await context.newPage();
       page.on('pageerror',error=>errors.push(error.message));
@@ -54,10 +56,12 @@ function verifySignature(url,headers,body,region=cfg.region){
         const key=decodeURIComponent(url.pathname).split('/').slice(2).join('/');calls.push({method,key,url:req.url()});
         const respond=(status,body='',extra={})=>route.fulfill({status,headers:{...cors,...extra},body});
         if(url.searchParams.get('list-type')==='2'){
-          assert.equal(url.searchParams.get('prefix'),cfg.objectKey+'.snapshots/');assert.equal(url.searchParams.get('max-keys'),'20');
+          assert.equal(url.searchParams.get('prefix'),cfg.objectKey+'.snapshots/');assert.ok(['20','1000'].includes(url.searchParams.get('max-keys')));
           if(listingOverride)return respond(listingOverride.status,listingOverride.body);
           const next=url.searchParams.get('continuation-token');if(next)assert.equal(next,token);
-          return respond(200,`<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><IsTruncated>${!next}</IsTruncated><Contents><Key>${xml(next?anotherKey:snapshotKey)}</Key><LastModified>2026-10-01T10:00:00Z</LastModified><Size>1024</Size></Contents>${next?'':'<NextContinuationToken>'+xml(token)+'</NextContinuationToken>'}</ListBucketResult>`);
+          const rows=next?[{key:anotherKey,at:'2026-12-01T10:00:00Z'}]:[{key:snapshotKey,at:'2026-11-01T10:00:00Z'},...fillerKeys.map((key,i)=>({key,at:'2026-10-'+String(i+3).padStart(2,'0')+'T10:00:00Z'}))];
+          const contents=rows.slice(0,Number(url.searchParams.get('max-keys'))).map(item=>`<Contents><Key>${xml(item.key)}</Key><LastModified>${item.at}</LastModified><Size>1024</Size></Contents>`).join('');
+          return respond(200,`<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><IsTruncated>${!next}</IsTruncated>${contents}${next?'':'<NextContinuationToken>'+xml(token)+'</NextContinuationToken>'}</ListBucketResult>`);
         }
         const old=objects.get(key);
         if(method==='GET')return old?respond(200,old.raw,{ETag:old.etag}):respond(404,'<Error><Code>NoSuchKey</Code></Error>');
@@ -85,11 +89,24 @@ function verifySignature(url,headers,body,region=cfg.region){
       const diagnosticDownload=page.waitForEvent('download');await page.click('#downloadDiagnostics');const diagnostics=JSON.parse(fs.readFileSync(await (await diagnosticDownload).path(),'utf8'));
       assert.equal(diagnostics.providerCheck.compatible,true);assert.doesNotMatch(JSON.stringify(diagnostics),/synthetic-secret|fake|Authorization|accessKeyId|secretAccessKey|snapshot-one/);
       await page.click('#browseSnapshots');await page.waitForFunction(()=>document.getElementById('snapshotPreview0')&&!document.getElementById('browseSnapshots').disabled);
+      assert.match(await page.locator('#snapshotList > div').first().textContent(),/2026-10-02.json/,'newest metadata from the final provider page appears first');
+      assert.equal(await page.locator('#snapshotList > div').count(),20);
       assert.equal(await page.locator('#snapshotList img').count(),0);assert.match(await page.locator('#snapshotList').textContent(),/<img/);
       await page.click('#snapshotPreview0');await page.waitForFunction(()=>/1 (rides|workouts)/.test(document.getElementById('snapshotList').textContent));
       const snapshotDownload=page.waitForEvent('download');await page.click('#snapshotDownload0');const downloaded=fs.readFileSync(await (await snapshotDownload).path(),'utf8');assert.equal(downloaded,JSON.stringify(snapshot));
-      await page.click('#nextSnapshots');await page.waitForFunction(()=>document.getElementById('snapshotList').textContent.includes('2026-10-02.json')&&!document.getElementById('browseSnapshots').disabled);
+      await page.click('#nextSnapshots');await page.waitForFunction(()=>document.getElementById('snapshotList').textContent.includes('2026-10-03.json')&&!document.getElementById('browseSnapshots').disabled);
       assert.equal(await page.locator('#nextSnapshots').count(),0);
+      assert.equal(await page.locator('#snapshotList > div').count(),2);
+      assert.match(await page.locator('#snapshotList > div').first().textContent(),/2026-10-04.json/);
+      const beforePaging=calls.length;await page.click('#previousSnapshots');
+      await page.waitForFunction(()=>document.getElementById('snapshotList').firstElementChild.textContent.includes('2026-10-02.json')&&!document.getElementById('browseSnapshots').disabled);
+      assert.equal(calls.length,beforePaging,'local page changes do not repeat the listing');
+      const beforeLoop=calls.filter(call=>new URL(call.url).searchParams.has('list-type')).length;
+      listingOverride={status:200,body:'<ListBucketResult><IsTruncated>true</IsTruncated><NextContinuationToken>repeated</NextContinuationToken></ListBucketResult>'};
+      await page.click('#browseSnapshots');
+      await page.waitForFunction(()=>/repeated its pagination token/.test(document.body.textContent));
+      assert.equal(calls.filter(call=>new URL(call.url).searchParams.has('list-type')).length-beforeLoop,2,'repeated tokens stop the listing without publishing a partial order');
+      listingOverride=null;
       await page.click('#browseSnapshots');await page.waitForFunction(()=>document.getElementById('snapshotList').textContent.includes('<img')&&!document.getElementById('browseSnapshots').disabled);
       const before=await page.evaluate(stateKey=>localStorage.getItem(stateKey),stateKey);
       await acceptRestore(false);await page.waitForFunction(()=>!document.getElementById('browseSnapshots').disabled);assert.equal(await page.evaluate(stateKey=>localStorage.getItem(stateKey),stateKey),before);

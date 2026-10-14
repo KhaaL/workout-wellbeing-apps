@@ -66,6 +66,7 @@ function beginWorkout(workout){
   context.requestPersistence(false);   /* a user gesture, and the point data starts mattering */
   context.restoreTimer();
   context.ui.view = 'today';
+  context.ui.detail = null;
   context.ui.selectedRoutineId = null;
   /* nothing to log yet means the sheet is where the user needs to be — and the
      focus with it: everything outside an open modal is inert. */

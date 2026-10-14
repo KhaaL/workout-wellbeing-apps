@@ -282,3 +282,14 @@ and plans. Missing readings remain unknown and break a line. Exports retain the
 complete history regardless of the current viewing filters.
 
 Audit status and future extraction candidates are tracked in [BACKLOG.md](BACKLOG.md).
+
+Cloud snapshot browsing reads listing metadata across provider pages, then shows
+20 backups at a time sorted by last-modified time descending. Older/Newer controls
+page through the sorted list; Browse refreshes it. Snapshot bodies load only when
+you preview, download or restore.
+
+Liftlog planned workouts open an exercise preview from Workout before starting.
+Exercises offers Archive/Unarchive on each row. Archived exercises are hidden from
+history exercise views, search, comparisons, trends and add-exercise pickers; stored
+workouts and existing routine prescriptions remain intact. Show archived in Exercises
+to unarchive a movement and restore its visibility.

@@ -33,11 +33,12 @@ WorkoutStorage.renderRemoteTools = function(container, remote, download, layout=
     for(const key of report.remainingProbeKeys||[])paragraph('Remaining probe: '+key).style.overflowWrap='anywhere';
   }
   element('h3','Cloud snapshots');
-  paragraph('Browse earlier backups for this app only. Lists use 20 entries per page, oldest first. Preview loads record counts; restoring changes this device and leaves cloud sync paused.');
+  paragraph('Browse earlier backups for this app only. Newest backups appear first, with 20 entries per page. Preview loads record counts; restoring changes this device and leaves cloud sync paused.');
   controls=actions(container);
   button('Browse cloud snapshots','browseSnapshots',()=>remote.remoteListSnapshots(),controls,!remote.remoteCryptoAvailable());
   if(immutable)button('Restore legacy backup locally…','restoreLegacyBackup',()=>remote.remoteRestoreLegacy(),controls,state.active);
-  if(state.snapshots?.token)button('Next snapshot page','nextSnapshots',()=>remote.remoteListSnapshots(true),controls);
+  if(state.snapshots?.offset)button('Newer snapshots','previousSnapshots',()=>remote.remoteListSnapshots('previous'),controls);
+  if(state.snapshots?.token)button('Older snapshots','nextSnapshots',()=>remote.remoteListSnapshots(true),controls);
   const list=element('div');list.id='snapshotList';
   if(state.snapshots&&!state.snapshots.items.length)paragraph('No snapshots found for this backup path.',list);
   for(const [index,item]of (state.snapshots?.items||[]).entries()){

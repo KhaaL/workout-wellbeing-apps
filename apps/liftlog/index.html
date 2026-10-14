@@ -1674,7 +1674,7 @@ const WorkoutUI = (() => {
     const css=getComputedStyle(root);meta.content=css.getPropertyValue('--surface').trim();
     return theme;
   }
-  const paths={workout:'M4 9v6m3-9v12m10-12v12m3-9v6M7 12h10',routines:'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',history:'M4 5v5h5M4 10a8 8 0 1 1 1 7M12 7v5l3 2',exercises:'M4 6h6v6H4zM14 6h6v6h-6zM4 16h6M14 16h6',settings:'M4 7h16M4 17h16M8 4v6M16 14v6'};
+  const paths={workout:'M4 9v6m3-9v12m10-12v12m3-9v6M7 12h10',routines:'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',history:'M4 5v5h5M4 10a8 8 0 1 1 1 7M12 7v5l3 2',exercises:'M9 9V6a3 3 0 0 1 6 0v3M8 9h8l3 9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2l3-9z',settings:'M4 7h16M4 17h16M8 4v6M16 14v6'};
   function createShell({name,items,onNavigate}){
     installValidation();
     const header=document.querySelector('.app-header'),nav=header.querySelector('.main-nav'),list=nav.querySelector('ul');
@@ -1990,7 +1990,7 @@ function resumeReviewedSync(ctx){
 
 const REMOTE_TIMEOUT = 20000;
 let remoteGeneration = 0, remoteQueue = Promise.resolve(), remoteControllers = new Set();
-let toolsBusy=false, lastDiagnostic=null, snapshotPage=null, providerMemory=null;
+let toolsBusy=false, lastDiagnostic=null, snapshotPage=null, snapshotIndex=null, providerMemory=null;
 const probeKeys=new Set(),archiveKeys=new Set();
 function syncMode(cfg){return cfg?.syncMode==='conditional'?'conditional':'immutable';}
 const providerKey=app.namespace+'.provider-check';
@@ -2091,13 +2091,13 @@ function saveRemoteConfig(cfg, ctx){
   if (ctx) assertRemote(ctx);
   const previous = loadRemoteConfig();
   const changed = !previous || remoteIdentity(previous) !== remoteIdentity(cfg);
-  if (changed){invalidateRemote();localStorage.removeItem(providerKey);snapshotPage=null;lastDiagnostic=null;providerMemory=null;}
+  if (changed){invalidateRemote();localStorage.removeItem(providerKey);snapshotPage=null;snapshotIndex=null;lastDiagnostic=null;providerMemory=null;}
   localStorage.setItem(LS_REMOTE_KEY, JSON.stringify(cfg));
   if (changed) localStorage.removeItem(REMOTE_WORK_KEY);
 }
 function clearRemoteConfig(){
   invalidateRemote();
-  try{ localStorage.removeItem(LS_REMOTE_KEY); localStorage.removeItem(REMOTE_WORK_KEY);localStorage.removeItem(providerKey);snapshotPage=null;lastDiagnostic=null;providerMemory=null; }
+  try{ localStorage.removeItem(LS_REMOTE_KEY); localStorage.removeItem(REMOTE_WORK_KEY);localStorage.removeItem(providerKey);snapshotPage=null;snapshotIndex=null;lastDiagnostic=null;providerMemory=null; }
   catch(e){ toast('Could not forget configuration — storage unavailable'); }
   setRemoteStatus('', '');
 }
@@ -2156,7 +2156,7 @@ async function s3Request(cfg, method, bodyText, options = {}, ctx){
   if(options.list){
     if(method!=='GET')throw new Error('Bucket listing only supports GET');
     url.pathname=cfg.pathStyle?'/'+uriEncode(cfg.bucket):'/';
-    const params={'list-type':'2','max-keys':'20',prefix:(cfg.objectKey||REMOTE_OBJECT_KEY_DEFAULT)+'.snapshots/'};
+    const params={'list-type':'2','max-keys':String(options.list.max||20),prefix:(cfg.objectKey||REMOTE_OBJECT_KEY_DEFAULT)+'.snapshots/'};
     if(options.list.token)params['continuation-token']=options.list.token;
     query=Object.entries(params).map(([key,value])=>[uriEncode(key),uriEncode(value)]).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0).map(pair=>pair.join('=')).join('&');
     url.search=query;
@@ -2627,7 +2627,7 @@ function parseSnapshotList(raw,cfg){
   const doc=new DOMParser().parseFromString(raw,'application/xml');
   if(doc.getElementsByTagName('parsererror').length||doc.documentElement.localName!=='ListBucketResult')throw new Error('Invalid snapshot listing XML.');
   const text=(node,name)=>Array.from(node.children).find(child=>child.localName===name)?.textContent||'';
-  const contents=Array.from(doc.getElementsByTagNameNS('*','Contents'));if(contents.length>20)throw new Error('Snapshot listing exceeds its page limit.');
+  const contents=Array.from(doc.getElementsByTagNameNS('*','Contents'));if(contents.length>1000)throw new Error('Snapshot listing exceeds its page limit.');
   const items=contents.map(node=>{
     const key=text(node,'Key');snapshotConfig(cfg,key);
     const size=Number(text(node,'Size')),at=text(node,'LastModified');
@@ -2641,14 +2641,33 @@ function parseSnapshotList(raw,cfg){
   return {items,token};
 }
 async function remoteListSnapshots(next=false){
-  const cfg=configured(),previous=next&&snapshotPage?.scope===scopeKey(cfg)?snapshotPage:null;
-  if(next&&!previous?.token)throw new Error('There is no next snapshot page.');
+  const cfg=configured(),scope=scopeKey(cfg),previous=next&&snapshotPage?.scope===scope?snapshotPage:null;
+  if(next&&(!previous||!snapshotIndex||snapshotIndex.scope!==scope))throw new Error('Reload the snapshot list first.');
+  if(next===true&&!previous.token)throw new Error('There is no next snapshot page.');
   return toolsAction(cfg,async ctx=>{
-    const res=await s3Request(cfg,'GET','',{list:{token:previous?.token}},ctx);
-    if(!res.ok)throw responseError(res,await res.text(),cfg,'list snapshots');
-    let page;try{page=parseSnapshotList(await res.text(),cfg);}catch(error){throw diagnosticError('listing','Snapshot listing is invalid. Check the provider’s ListObjectsV2 support.',cfg,'list snapshots');}
-    if(page.token&&page.token===previous?.token)throw diagnosticError('listing','The provider repeated its pagination token. Reload the snapshot list.',cfg,'list snapshots');
-    snapshotPage={scope:scopeKey(cfg),items:page.items,token:page.token};toolsChanged();return deepCopy(snapshotPage);
+    let offset=0;
+    if(next){offset=next==='previous'?Math.max(0,previous.offset-20):previous.offset+20;}
+    else {
+      // S3 lists by key ascending. Read metadata across every provider page
+      // before showing the newest backups, without downloading their bodies.
+      const items=new Map(),tokens=new Set();let token=null;
+      do {
+        const res=await s3Request(cfg,'GET','',{list:{token,max:1000}},ctx);
+        if(!res.ok)throw responseError(res,await res.text(),cfg,'list snapshots');
+        let page;try{page=parseSnapshotList(await res.text(),cfg);}catch(error){throw diagnosticError('listing','Snapshot listing is invalid. Check the provider’s ListObjectsV2 support.',cfg,'list snapshots');}
+        for(const item of page.items)items.set(item.key,item);
+        if(items.size>100000)throw diagnosticError('listing','Too many snapshots to browse. Reduce retained backup files and reload the list.',cfg,'list snapshots');
+        token=page.token;
+        if(token&&tokens.has(token))throw diagnosticError('listing','The provider repeated its pagination token. Reload the snapshot list.',cfg,'list snapshots');
+        if(token)tokens.add(token);
+        if(tokens.size>1000)throw diagnosticError('listing','Snapshot listing did not finish. Check the provider’s pagination and reload.',cfg,'list snapshots');
+      }while(token);
+      assertRemote(ctx);
+      snapshotIndex={scope,items:[...items.values()].sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)||b.key.localeCompare(a.key))};
+    }
+    const total=snapshotIndex.items.length;
+    snapshotPage={scope,offset,total,items:snapshotIndex.items.slice(offset,offset+20),token:offset+20<total?String(offset+20):null};
+    toolsChanged();return deepCopy(snapshotPage);
   });
 }
 function snapshotSummary(snapshot){
@@ -2843,11 +2862,12 @@ WorkoutStorage.renderRemoteTools = function(container, remote, download, layout=
     for(const key of report.remainingProbeKeys||[])paragraph('Remaining probe: '+key).style.overflowWrap='anywhere';
   }
   element('h3','Cloud snapshots');
-  paragraph('Browse earlier backups for this app only. Lists use 20 entries per page, oldest first. Preview loads record counts; restoring changes this device and leaves cloud sync paused.');
+  paragraph('Browse earlier backups for this app only. Newest backups appear first, with 20 entries per page. Preview loads record counts; restoring changes this device and leaves cloud sync paused.');
   controls=actions(container);
   button('Browse cloud snapshots','browseSnapshots',()=>remote.remoteListSnapshots(),controls,!remote.remoteCryptoAvailable());
   if(immutable)button('Restore legacy backup locally…','restoreLegacyBackup',()=>remote.remoteRestoreLegacy(),controls,state.active);
-  if(state.snapshots?.token)button('Next snapshot page','nextSnapshots',()=>remote.remoteListSnapshots(true),controls);
+  if(state.snapshots?.offset)button('Newer snapshots','previousSnapshots',()=>remote.remoteListSnapshots('previous'),controls);
+  if(state.snapshots?.token)button('Older snapshots','nextSnapshots',()=>remote.remoteListSnapshots(true),controls);
   const list=element('div');list.id='snapshotList';
   if(state.snapshots&&!state.snapshots.items.length)paragraph('No snapshots found for this backup path.',list);
   for(const [index,item]of (state.snapshots?.items||[]).entries()){
@@ -3504,6 +3524,7 @@ function beginWorkout(workout){
   context.requestPersistence(false);   /* a user gesture, and the point data starts mattering */
   context.restoreTimer();
   context.ui.view = 'today';
+  context.ui.detail = null;
   context.ui.selectedRoutineId = null;
   /* nothing to log yet means the sheet is where the user needs to be — and the
      focus with it: everything outside an open modal is inert. */
@@ -7819,14 +7840,17 @@ function comparisonOptions(){return {canonical:canonicalExerciseId,sameContract:
   sets:w=>w.exercises.reduce((n,ex)=>n+ex.sets.filter(s=>s.completed&&s.countForVolume!==false).length,0),volume:workoutVolume,duration:workoutDuration,
   load:(s,ex)=>ex.unit==='bw'?(s.addedWeight==null?null:addedSetWeight(s)):(s.weight==null?null:setWeight(s))};}
 function renderComparisons(){
-  WorkoutComparisons.render($('#workout-comparison'),{items:sortedWorkouts(),first:comparisonPair[0],second:comparisonPair[1],
-    label:w=>fmtDate(w.startedAt)+' · '+w.routineName,candidates:first=>sortedWorkouts().filter(w=>LiftlogComparisons.sameRoutine(first,w)),
+  const container=$('#workout-comparison');if(!container)return;
+  const items=sortedWorkouts().map(visibleHistoryWorkout);
+  WorkoutComparisons.render(container,{items,first:comparisonPair[0],second:comparisonPair[1],
+    label:w=>fmtDate(w.startedAt)+' · '+w.routineName,candidates:first=>items.filter(w=>LiftlogComparisons.sameRoutine(first,w)),
     onSelect:(first,second)=>{comparisonPair=[first,second];renderComparisons();},compare:(a,b)=>LiftlogComparisons.compare(a,b,comparisonOptions())});
 }
 function renderFinishedComparison(w){
   const host=document.createElement('div');host.id='finished-comparison';$('#detail-body').prepend(host);
-  WorkoutComparisons.render(host,{items:sortedWorkouts(),first:w.id,compact:true,label:w=>fmtDate(w.startedAt)+' · '+w.routineName,
-    candidates:first=>sortedWorkouts().filter(other=>LiftlogComparisons.sameRoutine(first,other)&&first.exercises.length===other.exercises.length&&first.exercises.every((ex,i)=>canonicalExerciseId(ex.exerciseId)===canonicalExerciseId(other.exercises[i].exerciseId)&&sameProgressionContract(ex,other.exercises[i]))),
+  const items=sortedWorkouts().map(visibleHistoryWorkout);
+  WorkoutComparisons.render(host,{items,first:w.id,compact:true,label:w=>fmtDate(w.startedAt)+' · '+w.routineName,
+    candidates:first=>items.filter(other=>LiftlogComparisons.sameRoutine(first,other)&&first.exercises.length===other.exercises.length&&first.exercises.every((ex,i)=>canonicalExerciseId(ex.exerciseId)===canonicalExerciseId(other.exercises[i].exerciseId)&&sameProgressionContract(ex,other.exercises[i]))),
     compare:(a,b)=>LiftlogComparisons.compare(a,b,comparisonOptions())});
 }
 
@@ -7836,8 +7860,10 @@ function render(){
   renderNav();
   const main = $('#main');
   const switched = ui.prevView !== ui.view;
+  const keepFocus=!switched&&!ui.focus&&main.contains(document.activeElement)?document.activeElement.id:null;
   ui.prevView = ui.view;
   main.innerHTML = viewHTML();
+  if(keepFocus&&document.getElementById(keepFocus))ui.focus=keepFocus;
   renderStorageStatus();
   renderComparisons();
   WorkoutUI.renderRecent($('#recent-changes'),recentChanges,toast);
@@ -7966,12 +7992,16 @@ function normalizeSelections(){
   const groups = muscleCandidates();
   if (groups.length && groups.indexOf(ui.trendMuscle) === -1) ui.trendMuscle = groups[0];
 }
+function historyExerciseVisible(id){
+  return !exerciseById(id)?.archived&&!exerciseById(canonicalExerciseId(id))?.archived;
+}
+function visibleHistoryWorkout(w){return {...w,exercises:w.exercises.filter(ex=>historyExerciseVisible(ex.exerciseId))};}
 function trendCandidates(){
   const ids = new Set();
   state.workouts.forEach(w => w.exercises.forEach(block => {
     if (block.exerciseId && block.sets.some(s => s.completed)) ids.add(canonicalExerciseId(block.exerciseId));
   }));
-  return [...ids].map(historyExerciseById).filter(Boolean).sort((a,b) => a.name.localeCompare(b.name));
+  return [...ids].filter(historyExerciseVisible).map(historyExerciseById).filter(Boolean).sort((a,b) => a.name.localeCompare(b.name));
 }
 function applyFocus(){
   if (!ui.focus) return;
@@ -8026,7 +8056,7 @@ function htmlPicker(){
   const pickRow = (r, day) => {
     const sel = r.id === ui.selectedRoutineId;
     return '<div class="routine-pick-row' + (sel ? ' is-selected' : '') + '">' +
-      '<button type="button" class="rp-select" data-action="select-routine" data-id="' + esc(r.id) + '" aria-pressed="' + sel + '">' +
+      '<button type="button" class="rp-select" data-action="select-routine" data-id="' + esc(r.id) + '" aria-pressed="' + sel + '"' + (isPlan(r) ? ' id="preview-plan-' + esc(encodeURIComponent(r.id)) + '" aria-haspopup="dialog"' : '') + '>' +
         '<span class="rp-name">' + esc(r.name) + (day && day.overdue ? ' <span class="tag tag-warn">Overdue</span>' : '') + '</span>' +
         '<span class="rp-meta">' + (day ? esc(day.overdue ? day.when : day.label) + ' · ' : '') + routineSummary(r.items) + '</span>' +
       '</button>' +
@@ -8560,6 +8590,11 @@ function exerciseOptions(selected, skip){
    in the page, where each kind has always been edited — so the sheet is only
    ever for looking, and there is one editor per kind rather than two. */
 const DETAIL_SHEETS = {
+  plan:{
+    view:'today', noun:'plan', find:id=>{const r=routineById(id);return r&&isPlan(r)?r:null;},
+    title:r=>r.name, sub:r=>'Plan · '+planDay(r).label+' · '+routineSummary(r.items),
+    body:routineDetailHTML, actions:r=>detailBtn('detail-start','routine-start',r.id,'Start '+r.name,IC.play+'<span>Start workout</span>','btn-primary')
+  },
   routine:{
     view:'routines', noun:'routine', find:id => routineById(id),
     title:r => r.name, sub:r => (isPlan(r) ? 'Plan · ' + planDay(r).label + ' · ' : '') + routineSummary(r.items),
@@ -8599,7 +8634,7 @@ function closeDetail(){
   const d = ui.detail;
   ui.detail = null;
   if (d && d.kind === 'workout') ui.historyHighlight = null;
-  if (d) ui.focus = detailRowId(d.kind, d.id);
+  if (d) ui.focus = d.kind==='plan'?'preview-plan-'+encodeURIComponent(d.id):detailRowId(d.kind, d.id);
   render();
 }
 /* Edit hands over to the page: the sheet closes and the item's own editor
@@ -8705,8 +8740,8 @@ function exerciseDetailActions(e){
   return detailBtn('detail-del', 'ex-del', e.id, 'Delete ' + e.name, IC.trash + '<span class="sr-only">Delete</span>', 'btn-danger') +
     detailBtn('detail-merge', 'ex-merge', e.id, 'Merge ' + e.name, 'Merge…') +
     '<button type="button" class="btn" id="detail-archive" data-action="ex-archive" data-id="' + esc(e.id) + '" ' +
-      'data-archived="' + (!e.archived) + '" aria-label="' + (e.archived ? 'Restore ' : 'Archive ') + esc(e.name) + '">' +
-      (e.archived ? 'Restore' : 'Archive') + '</button>' +
+      'data-archived="' + (!e.archived) + '" aria-label="' + (e.archived ? 'Unarchive ' : 'Archive ') + esc(e.name) + '">' +
+      (e.archived ? 'Unarchive' : 'Archive') + '</button>' +
     detailBtn('detail-edit', 'ex-edit', e.id, 'Edit ' + e.name, IC.pen + '<span>Edit</span>', 'btn-primary');
 }
 function workoutDetailActions(w){
@@ -8889,15 +8924,16 @@ function historyLinksBannerHTML(){
       '<button type="button" class="btn" data-action="history-links-dismiss">Not now</button></div></div>';
 }
 function historyLinksPanel(){
-  const identities = historyExerciseIdentities().filter(x => !exerciseById(x.id));
+  const identities = historyExerciseIdentities().filter(x => !exerciseById(x.id)&&historyExerciseVisible(x.id));
   const separate = new Set(state.historySeparateIds || []);
   const filter = normalizedExerciseName(ui.historyLinkFilter);
   let shown = identities.filter(x => ui.historyLinksShowAll || (!exerciseLink(x.id) && !separate.has(x.id)));
   if (filter) shown = shown.filter(x => normalizedExerciseName(x.name + ' ' + x.category).includes(filter));
   const row = x => {
-    const library = state.exercises.filter(ex => compatibleHistoryLink(x.id, ex.id)).sort(compareExerciseNames);
+    const library = state.exercises.filter(ex => !ex.archived&&compatibleHistoryLink(x.id, ex.id)).sort(compareExerciseNames);
     const link = exerciseLink(x.id), target = link && exerciseById(link.targetId);
-    const suggestion = !link && !separate.has(x.id) ? suggestedExercise(x) : null;
+    const proposed = !link && !separate.has(x.id) ? suggestedExercise(x) : null;
+    const suggestion = proposed&&!proposed.archived?proposed:null;
     const status = target ? 'Linked to ' + target.name : separate.has(x.id) ? 'Kept as separate history' : 'Needs review';
     const options = '<option value="">Choose an exercise…</option>' +
       '<option value="__separate"' + (separate.has(x.id) ? ' selected' : '') + '>Keep as separate history</option>' +
@@ -8941,7 +8977,7 @@ function viewHistory(){return '<div id="recent-changes"></div>'+viewHistoryConte
 function viewHistoryContent(){
   const head = '<div class="view-head"><div><h1>History</h1>' +
     '<p class="view-sub">' + plural(state.workouts.length, 'logged workout') + '</p></div></div>';
-  const ws = sortedWorkouts();
+  const ws = sortedWorkouts().map(visibleHistoryWorkout);
   if (!ws.length){
     const manager = htmlLoadCueManager();
     return head + historyImportSummaryHTML() + '<div class="empty"><h3>No workouts logged yet</h3><p>Finish a session and it will show up here with volume, duration and trends.</p>' +
@@ -9033,12 +9069,13 @@ function viewHistoryExercise(workoutId, index){
 function htmlWorkoutDetail(w){
   let html = '<div class="detail-section"><p class="detail-stats">' +
     '<span>' + fmtDuration(workoutDuration(w)) + '</span>' +
-    '<span>' + plural(workoutSets(w), 'set') + '</span>' +
-    '<span><b>' + fmtNum(workoutVolume(w)) + '</b> ' + unitLabel() + '</span></p>' +
+    '<span>' + plural(workoutSets(visibleHistoryWorkout(w)), 'set') + '</span>' +
+    '<span><b>' + fmtNum(workoutVolume(visibleHistoryWorkout(w))) + '</b> ' + unitLabel() + '</span></p>' +
     (w.notes ? '<div class="small mt-3 md-note">' + mdToHtml(w.notes) + '</div>' : '') + '</div>' +
     '<div class="detail-section">';
   let shown = 0;
   w.exercises.forEach((ex, index) => {
+    if(!historyExerciseVisible(ex.exerciseId))return;
     /* every completed set is shown: countForPR only decides what counts as a
        record, it is not a reason to hide work that was actually done */
     const done = ex.sets.filter(s => s.completed);
@@ -9057,7 +9094,7 @@ function htmlWorkoutDetail(w){
         : 'No completed sets') +
       '</p></div>';
   });
-  if (!shown) html += '<p class="muted small">No completed sets in this session.</p>';
+  if (!shown) html += '<p class="muted small">No visible completed sets. Archived exercises can be unarchived in Exercises.</p>';
   html += '</div>';
   return html;
 }
@@ -9078,6 +9115,7 @@ function htmlWorkoutEditor(w){
         '<textarea rows="4" data-bind="hwo" data-field="notes">' + esc(w.notes || '') + '</textarea></label>' +
     '</div>';
   w.exercises.forEach((ex, xi) => {
+    if(!historyExerciseVisible(ex.exerciseId))return;
     const measurement = ex.unit === 'time' ? 'Timed' : ex.unit === 'bw' ? 'Bodyweight' : 'Weighted';
     html += '<div class="hedit-ex">' +
       '<div class="hedit-ex-head">' +
@@ -9385,7 +9423,7 @@ function progressionFlagsPanel(){
   const names = new Map();
   sortedWorkouts().forEach(w => w.exercises.forEach(ex => {
     const id = ex.exerciseId && canonicalExerciseId(ex.exerciseId);
-    if (id && !names.has(id)) names.set(id, (historyExerciseById(id) || ex).name);
+    if (id && historyExerciseVisible(id) && !names.has(id)) names.set(id, (historyExerciseById(id) || ex).name);
   }));
   const items = [...names].map(([id, fallback]) => ({ id, fallback, status:progressionStatus(id) }));
   const byLatest = (a,b) => b.status.latest.date - a.status.latest.date || a.fallback.localeCompare(b.fallback);
@@ -9412,13 +9450,13 @@ function progressionFlagsPanel(){
 function htmlLoadCueManager(){
   const names = new Map();
   sortedWorkouts().forEach(w => w.exercises.forEach(ex => {
-    if (!ex.exerciseId) return;
+    if (!ex.exerciseId||!historyExerciseVisible(ex.exerciseId)) return;
     const id = canonicalExerciseId(ex.exerciseId);
     if (!names.has(id)) names.set(id, (historyExerciseById(id) || ex).name);
   }));
   (state.progressionPreferences || []).forEach(pref => {
     const id = canonicalExerciseId(pref.exerciseId);
-    if (!names.has(id)) names.set(id, (historyExerciseById(id) || {}).name || id);
+    if (historyExerciseVisible(id)&&!names.has(id)) names.set(id, (historyExerciseById(id) || {}).name || id);
   });
   const items = [...names].map(([id,name]) => {
     const status = progressionStatus(id), pref = progressionPreference(id);
@@ -9662,10 +9700,10 @@ function viewExercises(){
   const head = '<div class="view-head"><div><h1>Exercises</h1>' +
     '<p class="view-sub">' + plural(active.length, 'active movement') + (archived.length ? ' · ' + archived.length + ' archived' : '') + '</p></div>' +
     '<button type="button" class="btn btn-primary" data-action="ex-form-toggle">' + IC.plus + '<span>New exercise</span></button></div>';
-  let html = '<div class="form-row mb-4"><label class="field flex-2"><span class="cap">Search</span>' +
+  let html = '<p class="hint mb-3">Archived exercises are hidden in History and add-exercise menus. Unarchive them here to show them again.</p><div class="form-row mb-4"><label class="field flex-2"><span class="cap">Search</span>' +
     '<input type="search" id="ex-search" data-bind="exfilter" value="' + esc(ui.exerciseFilter) + '" ' +
     'placeholder="Filter by name, category or movement family…  ( / )" autocomplete="off"></label>' +
-    (archived.length ? '<button type="button" class="btn" data-action="ex-archived-toggle" aria-pressed="' + ui.showArchivedExercises + '">' +
+    (archived.length ? '<button type="button" class="btn" id="ex-archived-toggle" data-action="ex-archived-toggle" aria-pressed="' + ui.showArchivedExercises + '">' +
       (ui.showArchivedExercises ? 'Hide archived' : 'Show archived (' + archived.length + ')') + '</button>' : '') + '</div>';
   if (ui.showExerciseForm) html += htmlExerciseForm();
   if (!state.exercises.length){
@@ -9693,7 +9731,8 @@ function viewExercises(){
         esc(e.unit === 'bw' ? 'bodyweight + ' + exerciseLoadLabel(e) : exerciseLoadLabel(e)) + ' · ' + esc(e.movementFamily.replace(/_/g,' ')) +
         (e.equipmentKey ? ' · ' + esc(e.equipmentKey) : '') + (usedBy ? ' · in ' + plural(usedBy, 'routine') : '') +
         (last ? ' · last ' + relDays(last.date) : '') + '</span>' +
-      (e.notes ? '<span class="list-meta quote">“' + esc(e.notes) + '”</span>' : '') + '</span>' + IC.chev + '</button></li>';
+      (e.notes ? '<span class="list-meta quote">“' + esc(e.notes) + '”</span>' : '') + '</span>' + IC.chev + '</button>' +
+      '<div class="list-actions"><button type="button" class="btn" id="archive-ex-' + esc(encodeURIComponent(e.id)) + '" data-action="ex-archive" data-id="' + esc(e.id) + '" data-archived="' + !e.archived + '" aria-label="' + (e.archived?'Unarchive ':'Archive ') + esc(e.name) + '">' + (e.archived?'Unarchive':'Archive') + '</button></div></li>';
   });
   html += '</ul>';
   if (!shown.length) html += '<p class="hint">No exercises match this view.</p>';
@@ -9876,7 +9915,7 @@ function addBodyweightEntry(form){
 const actions = {
   nav(d){ navigate(d.view); },
   'go-history'(){ navigate('history'); },
-  'select-routine'(d){ ui.selectedRoutineId = d.id; render(); },
+  'select-routine'(d){ ui.selectedRoutineId = d.id;const r=routineById(d.id);if(r&&isPlan(r))openDetail('plan',r.id);else render(); },
   'routine-start'(d){ startRoutine(d.id); },
   'start-empty'(){ startEmpty(); },
   'add-workout-exercise'(d){ addExerciseToWorkout(d.id); },
@@ -9984,7 +10023,7 @@ const actions = {
   },
   'ex-edit-cancel'(){ ui.exerciseDraft = null; render(); },
   'ex-archived-toggle'(){ ui.showArchivedExercises = !ui.showArchivedExercises; render(); },
-  'ex-archive'(d){ setExerciseArchived(d.id, d.archived === 'true'); },
+  'ex-archive'(d){if(!ui.detail)ui.focus=d.archived==='true'?'ex-archived-toggle':'archive-ex-'+encodeURIComponent(d.id);setExerciseArchived(d.id, d.archived === 'true');},
   'ex-merge'(d){
     const e = exerciseById(d.id); if (!e) return;
     editFromDetail(() => {

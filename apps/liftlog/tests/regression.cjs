@@ -223,8 +223,8 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     await page.locator('#ex-list .ex-row').filter({hasText:'Leg Press'}).locator('.list-open').click();
     const legPressSheet = page.getByRole('dialog', {name:'Leg Press'});
     await legPressSheet.getByRole('button', {name:'Archive Leg Press'}).click();
-    assert.equal(await legPressSheet.getByRole('button', {name:'Restore Leg Press'}).count(), 1,
-      'archiving from the sheet keeps it open and offers Restore');
+    assert.equal(await legPressSheet.getByRole('button', {name:'Unarchive Leg Press'}).count(), 1,
+      'archiving from the sheet keeps it open and offers Unarchive');
     await legPressSheet.getByRole('button', {name:'Close exercise'}).click();
     assert.equal(await page.locator('#ex-list .ex-row').filter({hasText:'Leg Press'}).count(), 0,
       'archived exercises leave the normal Exercises view');
@@ -1385,6 +1385,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       await ds.locator('#ex-edit-form [data-field="name"]').inputValue() === 'Bench Press',
       'editing an archived exercise from its sheet reveals its row and opens the editor there');
     await ds.getByRole('button', {name:'Cancel', exact:true}).click();
+    await ds.locator('#archive-ex-ds-bench').click(); // Unarchive before inspecting its historical sets.
 
     await navigateUI(ds,'history');
     await ds.locator('.hist-row').click();
