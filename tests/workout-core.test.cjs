@@ -105,6 +105,13 @@ test('history filtering and trends keep contexts, machines, targets and missing 
   const filtered=B.filter(rides,{machine:B.machineKey(a),context:'fresh',from:'2026-10-01',to:'2026-10-01'});assert.equal(filtered.length,4);assert.equal(filtered.at(-1).id,'a');
   assert.equal(B.filter(rides,{from:'2026-10-02'}).length,0);
 });
+test('a series depends only on the durations its own plan uses',()=>{
+  const B=vm.runInContext('BikeHistory',context),key=config=>B.seriesKey({id:'r',config:C.config(config)});
+  assert.equal(key({recoverySeconds:30,settleMinutes:4,sprintCooldownMinutes:8,n:3,eff:20}),key({}),'sprint settings do not split Zone 2 history');
+  assert.notEqual(key({mainMinutes:40}),key({}));
+  assert.equal(key({mode:'sprint',mainMinutes:40,cooldown:9}),key({mode:'sprint'}),'Zone 2 settings do not split sprint history');
+  assert.notEqual(key({mode:'sprint',recoverySeconds:30}),key({mode:'sprint'}));
+});
 test('active-session versions 1 and 2 remain resumable; new plans carry version 3',()=>{
   const current=C.create({},1000,'migration');assert.equal(current.version,3);
   for(const version of [1,2]){const old=JSON.parse(JSON.stringify(current));old.version=version;old.status='paused';old.config.transition=false;delete old.config.targets;delete old.hr.targets;const restored=C.restore(old,1000);assert.equal(restored.version,3);assert.equal(restored.config.targets.zoneMax,122);}

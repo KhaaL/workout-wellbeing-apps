@@ -51,7 +51,12 @@ const {confirmAction}=require('./confirm-dialog.cjs');
     assert.equal(await page.evaluate(()=>window.testAPI.state.activeWorkout.exercises[0].sets.length),1,'last-set recovery retains the parent exercise');
 
     await page.evaluate(()=>{const api=window.testAPI,w=api.state.activeWorkout;w.exercises.forEach(ex=>ex.sets.forEach(s=>{s.completed=true;s.reps=5;s.weight=20;}));const a=structuredClone(w);a.id='previous';a.startedAt-=86400000;a.finishedAt=a.startedAt+60000;const b=structuredClone(a);b.id='different';b.startedAt=w.startedAt-1000;b.routineId='different';api.state.workouts=[b,a];api.save({immediate:true});api.finishWorkout();});
-    assert.equal(await page.locator('#finished-comparison').isVisible(),true);assert.equal(await page.locator('#finished-comparison details').getAttribute('open'),null);assert.match(await page.locator('#finished-comparison').textContent(),/Completed working sets/);
+    assert.equal(await page.locator('#finished-comparison').isVisible(),true);assert.equal(await page.locator('#finished-comparison details').getAttribute('open'),null);// Each exercise is compared with its latest earlier session, here the one from a different routine.
+    const finished=await page.locator('#finished-comparison').textContent();assert.match(finished,/Compared with each exercise’s last session/);assert.match(finished,/max logged load/);assert.doesNotMatch(finished,/Completed working sets/);
+    await page.locator('#finished-comparison summary').click();assert.equal(await page.locator('#finished-comparison td',{hasText:/^20 · /}).count()>0,true,'each earlier figure names its session');
+    // History pairs any workouts that share an exercise, most shared first, then the most recent.
+    const partners=await page.locator('#compareSecond option').allTextContents();assert.equal(partners.length,2,'a different routine sharing exercises is offered');
+    assert.match(partners[0],/\d+ shared exercises/);assert.equal(await page.locator('#compareSecond').inputValue(),'different');
     await confirmAction(page,()=>page.getByRole('button',{name:'Delete session',exact:true}).click());assert.equal(await page.evaluate(()=>window.testAPI.state.workouts.length),2);
     await page.reload();await navigate(page,'history');await page.locator('#recent-changes summary').click();await page.getByRole('button',{name:'Restore Deleted session',exact:true}).click();assert.equal(await page.evaluate(()=>window.testAPI.state.workouts.length),3);
    }

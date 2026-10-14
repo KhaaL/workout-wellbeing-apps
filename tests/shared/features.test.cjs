@@ -96,3 +96,54 @@ test('unreadable source holds protect active work without hiding backup/recovery
  await assert.rejects(d.api.handoff.offer(),/could not be read/);assert(d.api.backup().active);
  await d.api.handoff.cancel();assert.equal(d.api.handoff.held(),null);assert.equal(d.api.state.active.status,'paused');
 });
+test('Liftlog compares each exercise with its own last session from any routine',()=>{
+ const d=lift(),set=(weight,reps,extra={})=>({completed:true,reps,weight,unit:'kg',...extra});
+ const block=(exerciseId,name,sets,extra={})=>({exerciseId,name,unit:'kg',loadMode:'total',sets,...extra});
+ const workout=(id,routineId,startedAt,exercises)=>({id,routineId,routineName:'Routine '+routineId,startedAt,finishedAt:startedAt+60000,exercises});
+ const older=workout('older','B',1000,[block('press','Press',[set(20,10,{countForVolume:false,countForPR:false}),set(50,8),set(50,7)])]);
+ const perHand=workout('per-hand','C',2000,[block('press','Press',[set(25,8)],{loadMode:'per_hand'})]);
+ const today=workout('today','A',3000,[block('press','Press',[set(52.5,8),set(52.5,6)]),block('row','Row',[set(40,10)])]);
+ const options={canonical:x=>x,sameContract:d.api.sameProgressionContract,unit:'kg',load:d.api.setWeight,label:w=>w.id};
+ const model=d.api.LiftlogComparisons.compareExercises(today,[today,perHand,older],options);
+ assert.equal(model.before,null);
+ const load=model.rows.find(row=>row.label==='Press · max logged load');
+ assert.equal(load.beforeLabel,'older','a different load convention is skipped, a different routine is not');
+ assert.equal(load.before,50);assert.equal(load.delta,2.5);assert.equal(load.highlight,true);
+ assert.equal(model.rows.find(row=>row.label==='Press · working sets').before,2,'warm-ups stay out of the baseline');
+ assert.match(model.details[0],/Row/);
+ assert.equal(d.api.LiftlogComparisons.compareExercises(older,[today,perHand,older],options).rows.length,0,'later sessions never serve as a baseline');
+ assert.equal(d.api.LiftlogComparisons.sharedExercises(today,older,x=>x),1);
+ assert.equal(d.api.LiftlogComparisons.sharedExercises(today,workout('x','D',1,[block('squat','Squat',[])]),x=>x),0);
+});
+test('Liftlog estimates, day labels and load suggestions follow what was logged',()=>{
+ const d=lift();
+ assert.equal(d.api.epley(120,0),0,'a missed attempt estimates nothing');
+ assert.equal(d.api.epley(100,null),100*(1+1/30),'a set without a count is one rep');
+ const realNow=vm.runInContext('Date.now',d.ctx);
+ vm.runInContext('Date.now=()=>'+new Date(2026,9,14,8,0).getTime(),d.ctx);
+ assert.equal(d.api.relDays(new Date(2026,9,13,21,0).getTime()),'yesterday');
+ assert.equal(d.api.relDays(new Date(2026,9,14,0,30).getTime()),'today');
+ assert.equal(d.api.relDays(new Date(2026,9,11,23,0).getTime()),'3 days ago');
+ d.ctx.realNow=realNow;vm.runInContext('Date.now=realNow',d.ctx);
+ d.api.state.settings.unit='kg';d.api.state.settings.loadStep=1.25;
+ const next=d.api.nextLoadFor({cue:{latest:{kind:'weighted',load:50,targetMax:12}},ex:{unit:'kg',loadMode:'total'},item:{repsMin:8}});
+ assert.equal(next.next,'51.25 kg');assert.equal(next.last,'50 kg');
+});
+test('Liftlog seeds working sets from last time’s working sets in today’s unit and drops untouched rows on finish',()=>{
+ const d=lift(),s=d.api.state;
+ s.exercises.push({id:'bench',name:'Bench',category:'Push',unit:'kg',loadMode:'total',equipmentKey:'',movementFamily:'horizontal_push',archived:false,notes:'',url:''});
+ s.workouts=[{id:'last',routineId:'r',routineName:'R',startedAt:Date.now()-86400000,finishedAt:Date.now()-86000000,exercises:[{exerciseId:'bench',name:'Bench',unit:'kg',loadMode:'total',sets:[
+  {completed:true,reps:5,weight:40,unit:'kg',countForVolume:false,countForPR:false},{completed:true,reps:5,weight:100,unit:'kg'},{completed:true,reps:5,weight:90,unit:'kg'}]}]}];
+ s.settings.unit='lb';
+ const block=d.api.buildWorkoutExercise({exerciseId:'bench',sets:2});
+ assert.equal(JSON.stringify(block.sets.map(x=>[x.weight,x.unit])),'[[220.46,"lb"],[198.42,"lb"]]','warm-up skipped, kg converted to lb');
+ s.settings.unit='kg';
+ const untouched=()=>({id:Math.random().toString(36),weight:100,reps:null,durationSeconds:null,completed:false,unit:'kg'});
+ s.activeWorkout={id:'now',routineId:'',routineName:'Free',startedAt:Date.now()-60000,finishedAt:null,notes:'',currentExerciseIndex:0,timer:null,exercises:[
+  {exerciseId:'bench',name:'Bench',unit:'kg',loadMode:'total',skipped:false,sets:[{...untouched(),reps:5,completed:true},untouched(),{...untouched(),reps:4}]},
+  {exerciseId:'bench',name:'Bench',unit:'kg',loadMode:'total',skipped:false,sets:[untouched()]}]};
+ d.ctx.scrollTo=()=>{};d.api.finishWorkout();
+ const saved=s.workouts.find(w=>w.id==='now');
+ assert.equal(saved.exercises.length,1,'an exercise never started is not saved');
+ assert.equal(saved.exercises[0].sets.map(x=>x.reps).join(),'5,4','a seeded load alone is not a logged set');
+});

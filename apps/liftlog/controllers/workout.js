@@ -42,10 +42,13 @@ function buildWorkoutExercise(item){
     notes:exDef.notes || '', skipped:false, sets:[]
   };
   const n = Math.max(1, item.sets || 3);
+  /* Planned sets are working sets, so they line up with last time's working
+     sets: a warm-up ramp must not seed the first working set with its load. */
+  const prevWork = prev ? prev.sets.filter(s => !context.isWarmup(s)) : [];
   for (let i = 0; i < n; i++){
     const set = newSetFrom(ex, null);
     /* seed the bar with the plan, else with what was lifted last time */
-    const prevSet = prev && (prev.sets[i] || prev.sets[0]);
+    const prevSet = prevWork[i] || prevWork[0];
     if (ex.unit === 'bw'){
       if (item.weight != null){ set.addedWeight = item.weight; set.addedWeightUnit = context.unitLabel(); }
       else if (prevSet && prevSet.addedWeight != null){
@@ -53,7 +56,9 @@ function buildWorkoutExercise(item){
         set.addedWeightUnit = context.unitLabel();
       }
     } else if (item.weight != null) set.weight = item.weight;
-    else if (prevSet && prevSet.weight != null) set.weight = prevSet.weight;
+    /* the old set keeps its own unit; the new one is logged in today's */
+    else if (prevSet && prevSet.weight != null)
+      set.weight = Math.round(context.convertWeight(prevSet.weight, prevSet.unit === 'lb' ? 'lb' : 'kg', set.unit) * 100) / 100;
     ex.sets.push(set);
   }
   return ex;
@@ -603,9 +608,11 @@ function finishWorkout(){
     /* how the plan was performed stays with the session in progress */
     delete w.supersetSide;
     w.exercises.forEach(ex => { delete ex.supersetOf; });
-    /* drop rows never touched, then exercises left with nothing to show */
+    /* drop rows never touched, then exercises left with nothing to show. A
+       load alone does not mark a row as touched: buildWorkoutExercise seeds
+       it from the plan or the last session. */
     w.exercises.forEach(ex => {
-      ex.sets = ex.sets.filter(s => s.completed || s.weight != null || s.reps != null || s.durationSeconds != null);
+      ex.sets = ex.sets.filter(s => s.completed || s.reps != null || s.durationSeconds != null);
     });
     w.exercises = w.exercises.filter(ex => ex.sets.length > 0 || ex.skipped);
     context.state.workouts.push(w);

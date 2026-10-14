@@ -51,6 +51,9 @@ button{border:1px solid var(--line);background:var(--panel);color:var(--ink);pad
   #run .live-heart{grid-column:2;grid-row:2}
   .run-foot{margin-top:10px}
 }
+/* Progress chart colours come from the active theme, so axis text and series stay legible on light and dark backgrounds. */
+#progressChart .chart-grid{stroke:var(--border)}#progressChart .chart-axis{fill:var(--muted)}
+#progressChart .series-0{color:var(--accent)}#progressChart .series-1{color:var(--success)}#progressChart .series-2{color:var(--warning)}#progressChart .series-3{color:var(--either)}#progressChart .series-4{color:var(--danger)}
 @media(prefers-reduced-motion:no-preference){button{transition:background .15s}}
 </style>
 <style id="app-ui-styles">
@@ -652,35 +655,43 @@ const WorkoutUI = (() => {
   return {themes,schemes,applyTheme,createShell,attachSteppers,dialog,confirm,renderRecent,offerUndo};
 })();
 
-/* Side-by-side results; missing readings are never presented as zero. */
+/* Side-by-side results; missing readings are never presented as zero.
+   options.compareOne(first) replaces the second workout: its model has no
+   single `before`, and each row names its own earlier session in beforeLabel. */
 /* exported WorkoutComparisons */
 const WorkoutComparisons = (()=>{
   function render(container,options){
     if(!container)return;container.replaceChildren();const items=options.items;if(!items.length)return;if(items.length<2&&!options.compact)return;
-    container.className='comparison-panel';const title=document.createElement('h3');title.textContent=options.compact?'Compared with your previous session':'Compare two workouts';container.append(title);
+    container.className='comparison-panel';const title=document.createElement('h3');title.textContent=options.title||(options.compact?'Compared with your previous session':'Compare two workouts');container.append(title);
     let first=items.find(item=>item.id===options.first)||items[0];
+    if(options.compareOne){renderModel(container,options,options.compareOne(first));return;}
     const candidates=options.candidates?options.candidates(first):items;
     let second=candidates.find(item=>item.id===options.second&&item.id!==first.id)||candidates.filter(item=>item.id!==first.id&&(!options.compact||item.startedAt<first.startedAt)).sort((a,b)=>b.startedAt-a.startedAt)[0];
     const selectors=document.createElement('div');selectors.className='comparison-selectors';if(!options.compact)container.append(selectors);
-    for(const [id,label,list,selected]of [['compareFirst','Workout A',items,first],['compareSecond','Workout B',candidates,second]]){
+    for(const [id,label,list,selected,name]of [['compareFirst','Workout A',items,first,options.label],['compareSecond','Workout B',candidates,second,options.candidateLabel||options.label]]){
       const field=document.createElement('label');field.className='field';field.textContent=label;
       const select=document.createElement('select');select.id=id;
-      for(const item of list){if(id==='compareSecond'&&item.id===first.id)continue;const option=document.createElement('option');option.value=item.id;option.textContent=options.label(item);option.selected=item.id===selected?.id;select.append(option);}
+      for(const item of list){if(id==='compareSecond'&&item.id===first.id)continue;const option=document.createElement('option');option.value=item.id;option.textContent=name(item);option.selected=item.id===selected?.id;select.append(option);}
       select.addEventListener('change',()=>{options.onSelect(id==='compareFirst'?select.value:first.id,id==='compareSecond'?select.value:second?.id);});field.append(select);selectors.append(field);
     }
-    if(!second){const hint=document.createElement('p');hint.textContent=options.compact?'No earlier matching session yet. Future sessions with the same setup will appear here.':'No other workout matches this setup. Choose a different workout.';container.append(hint);return;}
-    const model=options.compare(first,second),notes=document.createElement('div');
-    const previous=document.createElement('p');previous.className='hint';previous.textContent='Previous: '+options.label(model.before);container.append(previous);
+    if(!second){const hint=document.createElement('p');hint.textContent=options.emptyHint||(options.compact?'No earlier matching session yet. Future sessions with the same setup will appear here.':'No other workout matches this setup. Choose a different workout.');container.append(hint);return;}
+    renderModel(container,options,options.compare(first,second));
+  }
+  function renderModel(container,options,model){
+    const notes=document.createElement('div');
+    if(!model.rows.length){const hint=document.createElement('p');hint.className='hint';hint.textContent=options.emptyHint||'No earlier session to compare with yet.';container.append(hint);return;}
+    if(model.before){const previous=document.createElement('p');previous.className='hint';previous.textContent='Previous: '+options.label(model.before);container.append(previous);}
     for(const detail of model.details||[]){const p=document.createElement('p');p.className='hint';p.textContent=detail;notes.append(p);}
     for(const warning of model.warnings||[]){const p=document.createElement('p');p.className='hint';p.textContent=warning;notes.append(p);}
     const format=value=>value==null||!Number.isFinite(Number(value))?'Unknown':Number(value).toLocaleString(undefined,{maximumFractionDigits:2});
     const highlights=document.createElement('div');highlights.className='comparison-highlights';container.append(highlights);
-    for(const row of [...model.rows.filter(row=>row.after!=null),...model.rows.filter(row=>row.after==null)].slice(0,3)){const card=document.createElement('div');card.className='comparison-highlight';const label=document.createElement('span');label.textContent=row.label;const value=document.createElement('strong');value.textContent=format(row.after)+(row.after==null?'':' '+row.unit);const delta=document.createElement('span');delta.textContent=row.delta==null?'No comparable difference':(row.delta>0?'+':'')+format(row.delta)+' '+row.unit+' from previous';card.append(label,value,delta);highlights.append(card);}
+    const lead=model.rows.some(row=>row.highlight)?model.rows.filter(row=>row.highlight):model.rows;
+    for(const row of [...lead.filter(row=>row.after!=null),...lead.filter(row=>row.after==null)].slice(0,3)){const card=document.createElement('div');card.className='comparison-highlight';const label=document.createElement('span');label.textContent=row.label;const value=document.createElement('strong');value.textContent=format(row.after)+(row.after==null?'':' '+row.unit);const delta=document.createElement('span');delta.textContent=row.delta==null?'No comparable difference':(row.delta>0?'+':'')+format(row.delta)+' '+row.unit+' from '+(row.beforeLabel||'previous');card.append(label,value,delta);highlights.append(card);}
     const details=document.createElement('details');details.className='comparison-details';details.open=false;const summary=document.createElement('summary');summary.textContent='Detailed comparison & notes';details.append(summary,notes);container.append(details);
     const wrap=document.createElement('div');wrap.className='comparison-scroll';details.append(wrap);
-    const table=document.createElement('table');table.className='comparison-table';const caption=document.createElement('caption');caption.textContent='Earlier to later: '+options.label(model.before)+' → '+options.label(model.after);table.append(caption);
+    const table=document.createElement('table');table.className='comparison-table';const caption=document.createElement('caption');caption.textContent=model.before?'Earlier to later: '+options.label(model.before)+' → '+options.label(model.after):'Each row against the earlier session named beside it → '+options.label(model.after);table.append(caption);
     const head=document.createElement('tr');for(const label of ['Measure','Earlier','Later','Difference']){const th=document.createElement('th');th.scope='col';th.textContent=label;head.append(th);}table.append(head);
-    for(const row of model.rows){const tr=document.createElement('tr');for(const [index,text]of [row.label+(row.unit?' ('+row.unit+')':''),format(row.before),format(row.after),row.delta==null?'—':(row.delta>0?'+':'')+format(row.delta)].entries()){const cell=document.createElement(index===0?'th':'td');if(index===0)cell.scope='row';cell.textContent=text;tr.append(cell);}table.append(tr);}wrap.append(table);
+    for(const row of model.rows){const tr=document.createElement('tr');for(const [index,text]of [row.label+(row.unit?' ('+row.unit+')':''),format(row.before)+(row.beforeLabel?' · '+row.beforeLabel:''),format(row.after),row.delta==null?'—':(row.delta>0?'+':'')+format(row.delta)].entries()){const cell=document.createElement(index===0?'th':'td');if(index===0)cell.scope='row';cell.textContent=text;tr.append(cell);}table.append(tr);}wrap.append(table);
   }
   return {render};
 })();
@@ -2323,7 +2334,9 @@ class H10Connection {
   visibilityChanged() {
     this.clearReading();
     if(!this.env.visible())this.clearRetry();
-    else if(this.state==='disconnected'&&!this.manual)this.scheduleRetry();
+    // Returning to the page starts a fresh round, so 3 failed attempts earlier
+    // do not leave the strap disconnected for the rest of the ride.
+    else if(this.state==='disconnected'&&!this.manual){if(this.retryTimer===null)this.attempts=0;this.scheduleRetry();}
     this.emit();
   }
 }
@@ -2439,7 +2452,10 @@ const BikeHistory = (() => {
   function seriesKey(ride){
     const c=BikeHistorySchema.config(ride.config);
     if(c.mode==='external'||c.bike==='unknown'||c.context==='unknown')return JSON.stringify(['unclassified',ride.id]);
-    return JSON.stringify([machineKey(ride),c.context,c.mode,c.targets,c.warmupMinutes,c.mainMinutes,c.cooldown,c.sprintCooldownMinutes,c.recoverySeconds,c.settleMinutes,...(c.mode==='sprint'?[c.n,c.eff]:[])]);
+    /* Only the durations the ride's own plan uses (WorkoutCore.build): a sprint
+       setting must not split Zone 2 history, nor the reverse. */
+    const plan=c.mode==='sprint'?[c.warmupMinutes,c.settleMinutes,c.n,c.eff,c.recoverySeconds,c.sprintCooldownMinutes]:[c.warmupMinutes,c.mainMinutes,c.cooldown];
+    return JSON.stringify([machineKey(ride),c.context,c.mode,c.targets,...plan]);
   }
   function filter(rides,query={}){
     const from=query.from?new Date(query.from+'T00:00:00').getTime():-Infinity;
@@ -2850,16 +2866,15 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     element('title',{},definition.label+'; detailed readings are in the table below');
     const minDate=Math.min(...points.map(p=>p.at)),maxDate=Math.max(...points.map(p=>p.at)),low=Math.min(...points.map(p=>p.value)),high=Math.max(...points.map(p=>p.value)),padding=Math.max(1,(high-low)*.15),min=Math.max(0,low-padding),max=high+padding;
     const x=at=>maxDate===minDate?196:52+(at-minDate)/(maxDate-minDate)*288,y=value=>200-(value-min)/(max-min)*175;
-    for(let i=0;i<=4;i++){const value=min+(max-min)*i/4,position=y(value);element('line',{x1:52,y1:position,x2:340,y2:position,stroke:'#334758'});element('text',{x:46,y:position+4,'text-anchor':'end',fill:'#b6c5cf','font-size':14},value.toFixed(1));}
-    element('text',{x:52,y:225,fill:'#b6c5cf','font-size':14},new Date(minDate).toLocaleDateString());element('text',{x:340,y:225,'text-anchor':'end',fill:'#b6c5cf','font-size':14},new Date(maxDate).toLocaleDateString());
-    const colors=['#bde9be','#acd4ff','#f0cb80','#d6c3fa','#ffb0a5'];
-    groups.forEach((group,index)=>{let previous=null;for(const point of group){if(point.value===null){previous=null;continue;}const color=colors[index%colors.length];if(previous)element('line',{x1:x(previous.at),y1:y(previous.value),x2:x(point.at),y2:y(point.value),stroke:color,'stroke-width':2});const n=element('circle',{cx:x(point.at),cy:y(point.value),r:4,fill:color});const title=document.createElementNS(ns,'title');title.textContent=`${dateLabel(point.at)} · ${bikeName(point.ride.config)} · ${contextName(point.ride.config)} · ${point.value} ${definition.unit}`;n.append(title);previous=point;}});
+    for(let i=0;i<=4;i++){const value=min+(max-min)*i/4,position=y(value);element('line',{x1:52,y1:position,x2:340,y2:position,class:'chart-grid'});element('text',{x:46,y:position+4,'text-anchor':'end',class:'chart-axis','font-size':14},value.toFixed(1));}
+    element('text',{x:52,y:225,class:'chart-axis','font-size':14},new Date(minDate).toLocaleDateString());element('text',{x:340,y:225,'text-anchor':'end',class:'chart-axis','font-size':14},new Date(maxDate).toLocaleDateString());
+    groups.forEach((group,index)=>{let previous=null;for(const point of group){if(point.value===null){previous=null;continue;}const series='series-'+index%5;if(previous)element('line',{x1:x(previous.at),y1:y(previous.value),x2:x(point.at),y2:y(point.value),class:series,stroke:'currentColor','stroke-width':2});const n=element('circle',{cx:x(point.at),cy:y(point.value),r:4,class:series,fill:'currentColor'});const title=document.createElementNS(ns,'title');title.textContent=`${dateLabel(point.at)} · ${bikeName(point.ride.config)} · ${contextName(point.ride.config)} · ${point.value} ${definition.unit}`;n.append(title);previous=point;}});
     $('progressChart').append(svg);
     const table=document.createElement('table'),head=document.createElement('tr');for(const label of ['Date','Machine / context','Recorded zone / comparison HR',definition.unit]){const cell=document.createElement('th');cell.scope='col';cell.textContent=label;head.append(cell);}const thead=document.createElement('thead');thead.append(head);table.append(thead);
     const tbody=document.createElement('tbody');for(const point of groups.flat().sort((a,b)=>b.at-a.at)){const row=document.createElement('tr'),t=WorkoutCore.config(point.ride.config).targets;for(const value of [dateLabel(point.at),bikeName(point.ride.config)+' / '+contextName(point.ride.config),`${t.zoneMin}–${t.zoneMax} / ${t.comparisonHR}`,point.value===null?'Unknown':String(point.value)]){const cell=document.createElement('td');cell.textContent=value;row.append(cell);}tbody.append(row);}table.append(tbody);$('chartTable').append(table);
   }
   function exportCSV(){if(selected&&!$('summary').hidden&&saveMetrics(true)===false&&!$('logForm').checkValidity())return;if(!records.length){toast('No sessions to export yet.');return;}const headers=['date','workout','bike','bike_id','context','outcome','interrupted','active_minutes','main_minutes','completed_efforts','average_hr_bpm','recorded_zone_minutes','resistance','cadence_rpm','main_average_watts','watts_at_comparison_hr','notes','h10_average_hr_bpm','h10_recorded_zone_minutes','h10_measured_minutes','h10_coverage_percent','h10_samples','main_average_hr_bpm','zone_min_bpm','zone_max_bpm','working_min_bpm','working_max_bpm','comparison_hr_bpm','planned_warmup_minutes','planned_main_minutes','planned_cooldown_minutes','planned_recovery_seconds','perceived_effort_1_10',...BikeHistorySchema.externalFields.map(field=>field.name),'trainingBenefit','externalSource','polar_z1_ms','polar_z2_ms','polar_z3_ms','polar_z4_ms','polar_z5_ms'];
-    const cell=v=>{let value=String(v??'');if(/^[=+\-@\t\r\n]/.test(value))value="'"+value;return '"'+value.replaceAll('"','""')+'"';};
+    const cell=v=>{let value=String(v??'');if(/^[=+\-@\t\r\n]/.test(value)&&!/^-?\d+(\.\d+)?$/.test(value))value="'"+value;return '"'+value.replaceAll('"','""')+'"';};
     const rows=records.map(r=>{const m=r.metrics||{};return [new Date(r.startedAt).toISOString(),r.config.mode,r.config.bike,r.config.bikeId,r.config.context,r.outcome,r.hadInterruption,(r.activeMs/60000).toFixed(2),(r.mainMs/60000).toFixed(2),r.effortsCompleted,m.averageHR,m.zoneMinutes,m.resistance,m.cadence,m.averageWatts,m.fixedHRWatts,m.notes,r.hr?.averageHR,r.hr?.measuredMs?(r.hr.zoneMs/60000).toFixed(3):'',r.hr?(r.hr.measuredMs/60000).toFixed(3):'',r.hr?.coverage,r.hr?.samples,m.mainAverageHR,...['zoneMin','zoneMax','targetMin','targetMax','comparisonHR'].map(name=>r.config.mode==='external'?'':C.config(r.config).targets[name]),...['warmupMinutes','mainMinutes',r.config.mode==='zone2'?'cooldown':'sprintCooldownMinutes','recoverySeconds'].map(name=>r.config.mode==='external'?'':r.config[name]),m.perceivedEffort,...BikeHistorySchema.externalFields.map(field=>m[field.name]),m.trainingBenefit,m.externalSource,...['z1','z2','z3','z4','z5'].map(name=>m.polarZonesMs?.[name])].map(cell).join(',');});
     const url=URL.createObjectURL(new Blob(['\ufeff'+headers.map(cell).join(',')+'\r\n'+rows.join('\r\n')],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=`bike-cardio-${new Date().toISOString().slice(0,10)}.csv`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('CSV export started. Keep the downloaded file as your backup.');
   }
