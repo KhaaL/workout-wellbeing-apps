@@ -383,7 +383,8 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
   <div id="restoreCard" class="card" hidden><h2>Session saved</h2><p id="restoreText"></p><div class="stack"><button id="restoreSession" class="primary">Review &amp; resume</button><button id="endSaved" class="secondary">End saved session</button></div></div>
   <div id="saved-setups"></div>
   <fieldset class="card"><legend>Workout</legend><div class="segments"><label><input type="radio" name="mode" value="zone2" checked><span>Zone 2</span></label><label><input type="radio" name="mode" value="sprint"><span>Sprint intervals</span></label></div></fieldset>
-  <div id="sensorSetup" class="card"><div class="row"><h2>Polar H10</h2><span id="setupHR" class="sensor-number">— <small>bpm</small></span></div><p id="sensorStatus" class="small" role="status" aria-live="polite"></p><div class="sensor-actions"><button id="connectH10">Connect H10</button><button id="disconnectH10" class="text-button" hidden>Disconnect</button></div><details><summary>Using H10 alongside Polar</summary><p class="small">Wear the strap and enable “2 receiving BLE devices” in Polar Beat, or “2 Bluetooth devices” in Flow’s sensor settings. Start Polar’s recording, then connect here. Keep this app visible during the ride; check that Polar continues recording on your phone.</p><p class="small">H10 uses an HTTPS page in Android Chrome. The downloaded file supports manual HR. Live samples are processed on this device. Saved ride summaries are included in backups.</p></details></div>
+  <div id="sensorSetup" class="card"><div class="row"><h2>Heart-rate strap</h2><span id="setupHR" class="sensor-number">— <small>bpm</small></span></div><p id="sensorStatus" class="small" role="status" aria-live="polite"></p><div class="sensor-actions"><button id="connectH10">Connect strap</button><button id="disconnectH10" class="text-button" hidden>Disconnect</button></div><details><summary>Using the strap alongside another app</summary><p class="small">Wear the strap and enable “2 receiving BLE devices” in Polar Beat, or “2 Bluetooth devices” in Flow’s sensor settings. Start Polar’s recording, then connect here. Keep this app visible during the ride; check that Polar continues recording on your phone.</p><p class="small">The strap connection uses an HTTPS page in Android Chrome. The downloaded file supports manual HR. Live samples are processed on this device. Saved ride summaries are included in backups.</p></details></div>
+  <div id="powerSetup" class="card"><div class="row"><h2>Bike power &amp; cadence</h2><span id="setupPower" class="sensor-number">— <small>W</small></span></div><p id="powerStatus" class="small" role="status" aria-live="polite"></p><div class="sensor-actions"><button id="connectPower">Connect bike</button><button id="disconnectPower" class="text-button" hidden>Disconnect</button></div><p class="small">Optional. A smart bike, trainer or power meter using the standard Bluetooth Fitness Machine or Cycling Power service. A Zone 2 ride then fills main-block watts, cadence and watts at the comparison HR.</p></div>
   <div class="card stack">
     <div class="grid"><label class="field">Bike<select id="bike"><option value="matrix">Matrix</option><option value="touchscreen">Freemotion iFIT b24 CoachBike</option></select></label><label class="field">Session context<select id="context"><option value="fresh">Fresh legs</option><option value="post-lifting">After lifting</option></select></label></div>
     <label class="field">Bike identifier <span class="small">Optional; helps you compare the same machine.</span><input id="bikeId" maxlength="80" placeholder="e.g. Matrix by the window"></label>
@@ -446,18 +447,18 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
     <details id="storageTools" hidden><summary>Provider checks &amp; cloud snapshots</summary><div id="remoteTools"></div></details>
   </details>
   <div id="handoffTools" class="card handoff-tools"></div>
-  <details><summary>Install &amp; offline use</summary><p class="small">When opened from an HTTPS website, use Chrome’s menu → Add to home screen / Install app. Open once online before using it offline. A downloaded HTML file also works for manual HR without a network. H10 support needs an HTTPS page in Android Chrome.</p><p id="offlineStatus" class="status"></p><div id="appUpdateControls"></div></details>
+  <details><summary>Install &amp; offline use</summary><p class="small">When opened from an HTTPS website, use Chrome’s menu → Add to home screen / Install app. Open once online before using it offline. A downloaded HTML file also works for manual HR without a network. Strap support needs an HTTPS page in Android Chrome.</p><p id="offlineStatus" class="status"></p><div id="appUpdateControls"></div></details>
 </section>
 <section id="run" hidden>
   <header class="row run-header"><div><span id="workoutLabel" class="eyebrow"></span><h1 id="phaseTitle" class="phase-title"></h1><span id="screenStatus" class="status" role="status">Screen stay-awake: checking</span></div></header>
   <div class="clock"><div id="timer">5:00</div><div id="timerNote">left in this phase</div></div>
   <div class="progress" role="progressbar" aria-label="Phase progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="progressFill"></span></div>
-  <div class="live-heart"><div><span class="eyebrow">Polar H10 · live HR</span><div id="liveHR" class="sensor-number">— <small>bpm</small></div></div><div class="heart-detail"><p id="liveAdvice"></p><p id="runSensorStatus" class="small"></p><button id="runConnectH10" class="text-button">Connect H10</button></div></div>
+  <div class="live-heart"><div><span class="eyebrow">Strap · live HR</span><div id="liveHR" class="sensor-number">— <small>bpm</small></div><p id="livePower" class="small" hidden></p></div><div class="heart-detail"><p id="liveAdvice"></p><p id="runSensorStatus" class="small"></p><button id="runConnectH10" class="text-button">Connect strap</button></div></div>
   <dl class="targets"><div><dt>HR target · bpm</dt><dd id="targetHR"></dd></div><div><dt>Cadence · rpm</dt><dd id="targetRPM"></dd></div><div><dt>Resistance</dt><dd id="targetResistance"></dd></div></dl>
   <p id="cue"></p>
   <div id="coaching" class="card" hidden><p id="checkStatus" role="status" aria-live="polite"></p><div class="steering"><button id="lowHR">Below 108<strong>+1 level</strong></button><button id="holdHR">108–122<strong>Hold</strong></button><button id="highHR" class="high">Above 122<strong>−1 level</strong></button></div><p id="steeringNote" class="small">Read HR in Polar. Keep cadence steady.</p><p class="small">Talk test: full sentences. If you cannot, ease off.</p></div>
   <div id="gateArea" hidden><label class="check"><input id="gateConfirm" type="checkbox"><span id="gateLabel"></span></label><p id="gateNote" class="small"></p></div>
-  <footer class="run-foot"><div class="row"><span id="elapsed"></span><span id="mainElapsed"></span></div><p id="next"></p><button id="runDisconnectH10" class="text-button" hidden>Disconnect H10</button></footer>
+  <footer class="run-foot"><div class="row"><span id="elapsed"></span><span id="mainElapsed"></span></div><p id="next"></p><button id="runDisconnectH10" class="text-button" hidden>Disconnect strap</button></footer>
 <div id="runActions" class="workout-actions"><button id="gate" class="primary" disabled></button><div class="actions-row"><button id="mute" class="icon" aria-label="Mute sound" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zm12 3a4 4 0 0 0-2-3.5v7a4 4 0 0 0 2-3.5zM14 3v2a7 7 0 0 1 0 14v2a9 9 0 0 0 0-18z"/></svg></button><button id="pause" class="btn primary" aria-label="Pause session">Pause</button><button id="skip" class="icon" aria-label="Skip current phase"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l9 7-9 7V5zm10 0h3v14h-3z"/></svg></button></div></div>
 </section>
 <section id="summary" hidden>
@@ -468,9 +469,10 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
   <button id="editSession" class="secondary">Edit session details</button>
   <div id="externalReadings" class="card" hidden></div>
   <div id="sensorSummary" class="card" hidden><h2 id="sensorSummaryTitle">Measured heart rate</h2><div class="grid"><div><span class="small">Average HR</span><p id="sensorAverage" class="sensor-number"></p></div><div><span id="sensorZoneLabel" class="small">Time in recorded zone</span><p id="sensorZone" class="sensor-number"></p></div></div><p id="sensorCoverage" class="small"></p><p id="sensorAnalysis" class="small" hidden></p><p class="small">Includes measured active riding in every phase. Missing readings and pauses are excluded.</p></div>
+  <div id="powerSummary" class="card" hidden><h2>Measured power</h2><p id="powerSummaryText" class="small"></p></div>
   <p id="summaryCaution" class="notice" hidden></p><p class="notice">Stop the Indoor cycling recording in Polar when you finish spinning.</p>
   <form id="logForm" class="card stack">
-    <h2>Add or edit readings</h2><p class="small">Optional Polar readings stay separate from H10 measurements above. Check that Polar’s zone boundaries match this ride’s recorded targets. Add resistance, cadence and watts from the bike.</p>
+    <h2>Add or edit readings</h2><p class="small">Optional Polar readings stay separate from the strap measurements above. Check that Polar’s zone boundaries match this ride’s recorded targets. Add resistance, cadence and watts from the bike; a connected bike fills main-block watts and cadence.</p>
     <div class="grid">
       <label class="field">Polar whole-session average HR · bpm<input id="averageHR" type="number" inputmode="decimal" min="1" max="300" step="0.1" placeholder="From Polar"></label>
       <label class="field"><span id="polarZoneLabel">Polar time in recorded zone · minutes</span><input id="zoneMinutes" type="number" inputmode="decimal" min="0" step="0.1" placeholder="From Polar"></label>
@@ -490,7 +492,7 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
 <label class="field">Machine<select id="historyMachine"><option value="">All machines</option></select></label><label class="field">Context<select id="historyContext"><option value="">All contexts</option><option value="fresh">Fresh legs</option><option value="post-lifting">After lifting</option><option value="unknown">Unknown context</option></select></label>
 <label class="field">Workout<select id="historyMode"><option value="">All workouts</option><option value="zone2">Zone 2</option><option value="sprint">Sprints</option><option value="external">Externally recorded</option></select></label><label class="field">Outcome<select id="historyOutcome"><option value="">All outcomes</option><option value="complete">Complete</option><option value="partial">Partial</option></select></label>
 <label class="field">From<input id="historyFrom" type="date"></label><label class="field">Through<input id="historyTo" type="date"></label></div><label class="check"><input id="historyUninterrupted" type="checkbox">Hide interrupted rides</label><button id="resetHistoryFilters" class="secondary">Reset filters</button></details>
-<p id="historyCount" class="small" role="status"></p><div class="card"><h2>Progress</h2><label class="field">Measure<select id="historyMetric"><option value="fixedHRWatts">Watts at recorded comparison HR</option><option value="averageWatts">Main-block average watts</option><option value="mainAverageHR">Main-block average HR</option><option value="mainMinutes">Main-block duration</option><option value="coverage">HR measurement coverage</option><option value="hrDrift">Main-block HR drift</option><option value="recovery60">60-second HR recovery</option></select></label><p id="chartNote" class="small"></p><div id="progressChart"></div><details><summary>Chart readings</summary><div id="chartTable" style="overflow-x:auto"></div></details></div><div id="workout-comparison"></div><div id="recent-changes"></div><div id="historyList"></div><div class="stack"><button id="exportHistory" class="secondary">Export CSV</button><button id="exportHistoryJSON" class="secondary">Download ride history</button><label class="field">Merge history from a Bike Cardio JSON file<input id="importHistory" type="file" accept=".json,application/json"></label><p id="historyImportStatus" class="small" role="status"></p><button id="clearHistory" class="secondary danger">Clear ride history…</button></div><p class="small">History imports add rides without replacing your settings. Local rides win conflicts. Browser data can be cleared by your phone or browser; keep a full backup.</p></section>
+<p id="historyCount" class="small" role="status"></p><div class="card"><h2>Progress</h2><label class="field">Measure<select id="historyMetric"><option value="fixedHRWatts">Watts at recorded comparison HR</option><option value="averageWatts">Main-block average watts</option><option value="mainAverageHR">Main-block average HR</option><option value="mainMinutes">Main-block duration</option><option value="coverage">HR measurement coverage</option><option value="hrDrift">Main-block HR drift</option><option value="recovery60">60-second HR recovery</option><option value="decoupling">Aerobic decoupling</option></select></label><p id="chartNote" class="small"></p><div id="progressChart"></div><details><summary>Chart readings</summary><div id="chartTable" style="overflow-x:auto"></div></details></div><div id="workout-comparison"></div><div id="recent-changes"></div><div id="historyList"></div><div class="stack"><button id="exportHistory" class="secondary">Export CSV</button><button id="exportHistoryJSON" class="secondary">Download ride history</button><label class="field">Merge history from a Bike Cardio JSON file<input id="importHistory" type="file" accept=".json,application/json"></label><p id="historyImportStatus" class="small" role="status"></p><button id="clearHistory" class="secondary danger">Clear ride history…</button></div><p class="small">History imports add rides without replacing your settings. Local rides win conflicts. Browser data can be cleared by your phone or browser; keep a full backup.</p></section>
 </main>
 <dialog id="pauseDialog" aria-labelledby="pauseTitle"><h2 id="pauseTitle">Paused</h2><p id="pauseMessage"></p><div class="dialog-actions"><button id="resume" class="primary">Resume</button><button id="end" class="secondary danger">End session &amp; save log</button></div></dialog>
 <dialog id="skipDialog" aria-labelledby="skipTitle"><h2 id="skipTitle">Skip this phase?</h2><p>Its time will be recorded, and the phase will be marked skipped. A skipped effort is not a completed effort.</p><div class="dialog-actions"><button id="cancelSkip" class="primary">Keep riding this phase</button><button id="confirmSkip" class="secondary danger">Skip phase</button></div></dialog>
@@ -503,7 +505,7 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
     <label class="field">Session context<select id="editContext"><option value="fresh">Fresh legs</option><option value="post-lifting">After lifting</option><option value="unknown">Unknown context</option></select></label>
     <div class="grid"><label class="field">Active time · minutes<input id="editActive" type="number" min="0" step="any" required inputmode="decimal"></label><label id="editMainField" class="field">Main block · minutes<input id="editMain" type="number" min="0" step="any" required inputmode="decimal"></label><label id="editEffortsField" class="field" hidden>Completed efforts<input id="editEfforts" type="number" min="0" max="6" step="1" required inputmode="numeric"></label></div>
     <label class="field">Outcome<select id="editOutcome"><option value="complete">Complete</option><option value="partial">Partial</option></select></label>
-    <p class="small">These edits update the session log. Recorded phase timings and H10 measurements stay as originally captured.</p>
+    <p class="small">These edits update the session log. Recorded phase timings and strap measurements stay as originally captured.</p>
     <p id="editStatus" class="save-status" role="status"></p>
     <div class="dialog-actions"><button type="submit" class="primary">Save changes</button><button id="cancelEdit" type="button" class="secondary">Cancel</button></div>
   </form>
@@ -804,6 +806,15 @@ globalThis.BikeStorage = (() => {
           if(r.hr.trace!=null&&(typeof r.hr.trace!=='object'||r.hr.trace.binSeconds!==5||!BikeTrace.decode(r.hr.trace.bpm,1,300)))fail('Invalid HR trace');
           if(r.hr.main!=null){if(typeof r.hr.main!=='object')fail('Invalid main-block HR');number(r.hr.main.averageHR,'Main-block HR',1,300);number(r.hr.main.coverage,'Main-block HR coverage',0,100);if(r.hr.main.driftPct!=null)number(r.hr.main.driftPct,'HR drift',-100,100);}
           if(r.hr.recovery60!=null){if(!Array.isArray(r.hr.recovery60)||r.hr.recovery60.length>21)fail('Invalid HR recovery');for(const n of r.hr.recovery60)if(n!==null)number(n,'HR recovery',-300,300);}
+        }
+        if(r.power!=null){
+          const p=r.power;if(typeof p!=='object'||Array.isArray(p))fail('Invalid measured power');
+          if(p.source!=null&&(typeof p.source!=='string'||p.source.length>500))fail('Invalid power source');
+          number(p.measuredMs,'Measured power time');number(p.coverage,'Power coverage',0,100);
+          for(const name of ['averageWatts','peak5sWatts'])if(p[name]!=null)number(p[name],'Measured '+name,0,2500);
+          if(p.trace!=null&&(typeof p.trace!=='object'||p.trace.binSeconds!==5||!BikeTrace.decode(p.trace.watts??'',0,2500)||!BikeTrace.decode(p.trace.rpm??'',0,250)))fail('Invalid power trace');
+          if(p.main!=null){if(typeof p.main!=='object')fail('Invalid main-block power');number(p.main.averageWatts,'Main-block power',0,2500);number(p.main.coverage,'Main-block power coverage',0,100);
+            if(p.main.cadence!=null)number(p.main.cadence,'Main-block cadence',0,250);if(p.main.decouplingPct!=null)number(p.main.decouplingPct,'Aerobic decoupling',-100,100);if(p.main.fixedHRWatts!=null)number(p.main.fixedHRWatts,'Watts at comparison HR',0,2500);}
         }
       }
       // Finishing saves the log before clearing the active ride. A crash
@@ -2353,7 +2364,7 @@ const HeartRateCore = (() => {
   }
   function summary(stats,activeMs) {
     const s=restoreStats(stats);
-    return {source:'H10 Bluetooth',targets:s.targets,averageHR:s.measuredMs?Math.round(s.bpmMs/s.measuredMs*10)/10:null,zoneMs:s.zoneMs,measuredMs:s.measuredMs,samples:s.samples,coverage:activeMs>0?Math.min(100,Math.round(s.measuredMs/activeMs*1000)/10):0};
+    return {source:'Bluetooth heart-rate strap',targets:s.targets,averageHR:s.measuredMs?Math.round(s.bpmMs/s.measuredMs*10)/10:null,zoneMs:s.zoneMs,measuredMs:s.measuredMs,samples:s.samples,coverage:activeMs>0?Math.min(100,Math.round(s.measuredMs/activeMs*1000)/10):0};
   }
   /* What the trace says about parts of the ride, given its finished phases in
      order (their ms add up along active time). Zone 2's main block gets an
@@ -2383,11 +2394,122 @@ const HeartRateCore = (() => {
 })();
 
 /* bike-heart-rate:end */
+/* bike-power:start */
+/* exported PowerCore */
+/* Bike power and cadence from two standard Bluetooth services: Fitness
+   Machine Indoor Bike Data (0x2AD2) and Cycling Power Measurement (0x2A63).
+   Cycling power reports crank revolutions rather than cadence, so cadence comes
+   from the change between two packets. Readings are kept like heart rate:
+   adjacent readings at most 5 seconds apart fill 5-second bins of active time. */
+const PowerCore = (() => {
+  const FITNESS_MACHINE = 0x1826, INDOOR_BIKE_DATA = 0x2AD2, CYCLING_POWER = 0x1818, CYCLING_POWER_MEASUREMENT = 0x2A63;
+  const FRESH_MS = 5000, MAX_GAP_MS = 5000, MAX_WATTS = 2500, MAX_RPM = 250;
+  const watts = n => Number.isFinite(n) && n >= 0 && n <= MAX_WATTS ? n : null;
+  const rpm = n => Number.isFinite(n) && n >= 0 && n <= MAX_RPM ? Math.round(n * 10) / 10 : null;
+  // Fields in Indoor Bike Data order; bit 0 set means instantaneous speed is absent.
+  function parseIndoorBike(value) {
+    if (!value || typeof value.getUint16 !== 'function' || value.byteLength < 2) return null;
+    const flags = value.getUint16(0, true);
+    let offset = 2, cadence = null, power = null;
+    const skip = n => { offset += n; return offset <= value.byteLength; };
+    if (!(flags & 1) && !skip(2)) return null;
+    if (flags & 2 && !skip(2)) return null;
+    if (flags & 4) { if (!skip(2)) return null; cadence = value.getUint16(offset - 2, true) / 2; }
+    if (flags & 8 && !skip(2)) return null;
+    if (flags & 16 && !skip(3)) return null;
+    if (flags & 32 && !skip(2)) return null;
+    if (flags & 64) { if (!skip(2)) return null; power = value.getInt16(offset - 2, true); }
+    if (power === null && cadence === null) return null;
+    return {watts:power === null ? null : watts(power), cadence:cadence === null ? null : rpm(cadence), valid:true};
+  }
+  function parseCyclingPower(value, previous) {
+    if (!value || typeof value.getUint16 !== 'function' || value.byteLength < 4) return null;
+    const flags = value.getUint16(0, true), power = value.getInt16(2, true);
+    let offset = 4, crank = null, cadence = null;
+    const skip = n => { offset += n; return offset <= value.byteLength; };
+    if (flags & 1 && !skip(1)) return null;
+    if (flags & 4 && !skip(2)) return null;
+    if (flags & 16 && !skip(6)) return null;
+    if (flags & 32) {
+      if (!skip(4)) return null;
+      crank = {revs:value.getUint16(offset - 4, true), time:value.getUint16(offset - 2, true)};
+      const last = previous?.crank;
+      if (last) {
+        const revs = (crank.revs - last.revs + 65536) % 65536, ticks = (crank.time - last.time + 65536) % 65536;
+        // No new crank event since the last packet: keep the last cadence.
+        cadence = ticks > 0 && revs < 20 ? rpm(revs * 60 * 1024 / ticks) : ticks === 0 ? previous.cadence ?? null : null;
+      }
+    }
+    return {watts:watts(power), cadence, crank, valid:true};
+  }
+  const fresh = (reading, now) => Boolean(reading?.valid && Number.isFinite(reading.at) && now >= reading.at && now - reading.at <= FRESH_MS);
+  const createStats = () => ({version:1, measuredMs:0, samples:0, last:null, watts:BikeTrace.create(), rpm:BikeTrace.create()});
+  function breakSeries(stats) { if (stats) stats.last = null; }
+  function sample(stats, reading, now, activeMs, eligible = true) {
+    if (!stats) return;
+    if (!eligible || !fresh(reading, now) || !Number.isFinite(activeMs)) { breakSeries(stats); return; }
+    const previous = stats.last, wall = previous ? now - previous.at : 0, active = previous ? activeMs - previous.activeMs : 0;
+    if (previous && wall > 0 && wall <= MAX_GAP_MS && active > 0 && active <= wall + 1) {
+      if (previous.watts !== null) { stats.measuredMs += active; BikeTrace.add(stats.watts, previous.activeMs, activeMs, previous.watts); }
+      if (previous.cadence !== null) BikeTrace.add(stats.rpm, previous.activeMs, activeMs, previous.cadence);
+    }
+    stats.samples++; stats.last = {at:now, activeMs, watts:reading.watts ?? null, cadence:reading.cadence ?? null};
+  }
+  function restoreStats(raw) {
+    const stats = createStats();
+    if (raw?.version === 1 && Number.isFinite(raw.measuredMs) && raw.measuredMs >= 0 && Number.isFinite(raw.samples) && raw.samples >= 0) {
+      stats.measuredMs = raw.measuredMs; stats.samples = raw.samples;
+      stats.watts = BikeTrace.restore(raw.watts); stats.rpm = BikeTrace.restore(raw.rpm);
+    }
+    return stats;
+  }
+  /* Summary for history, given the ride's finished phases and its heart-rate
+     stats. Zone 2's main block gets average watts and cadence, watts at the
+     comparison HR (5-second bins within 2 bpm of it, at least a minute of them)
+     and, when 10 minutes or longer, aerobic decoupling: watts per beat in the
+     first half against the second, as a percentage loss. */
+  function analyze(raw, phases, hrStats, targets) {
+    const s = restoreStats(raw), wattsTrace = BikeTrace.encode(s.watts), rpmTrace = BikeTrace.encode(s.rpm);
+    if (!/\d/.test(wattsTrace + rpmTrace)) return null;
+    const round = n => Math.round(n * 10) / 10, activeMs = (phases || []).reduce((sum, p) => sum + p.ms, 0);
+    const result = {source:'Bluetooth bike sensor', measuredMs:Math.round(s.measuredMs), coverage:activeMs > 0 ? round(Math.min(100, s.measuredMs / activeMs * 100)) : 0,
+      trace:{binSeconds:BikeTrace.BIN_MS / 1000, watts:wattsTrace, rpm:rpmTrace}};
+    const whole = BikeTrace.range(s.watts, 0, activeMs);
+    if (whole.average !== null) result.averageWatts = round(whole.average);
+    const bins = s.watts.ms.map((ms, i) => ms >= BikeTrace.BIN_MS / 2 ? s.watts.sum[i] / ms : null).filter(n => n !== null);
+    if (bins.length) result.peak5sWatts = Math.round(Math.max(...bins));
+    let at = 0; const main = (phases || []).map(p => { const span = {kind:p.kind, from:at, to:at + p.ms}; at += p.ms; return span; }).find(p => p.kind === 'main' && p.to > p.from);
+    if (!main) return result;
+    const w = BikeTrace.range(s.watts, main.from, main.to), c = BikeTrace.range(s.rpm, main.from, main.to);
+    if (w.coverage < 0.5) return result;
+    result.main = {averageWatts:round(w.average), cadence:c.coverage >= 0.5 ? round(c.average) : null, coverage:round(w.coverage * 100), decouplingPct:null, fixedHRWatts:null};
+    const hr = hrStats ? HeartRateCore.restoreStats(hrStats).trace : null;
+    if (!hr) return result;
+    const mid = (main.from + main.to) / 2, half = (from, to) => ({w:BikeTrace.range(s.watts, from, to), h:BikeTrace.range(hr, from, to)});
+    const a = half(main.from, mid), b = half(mid, main.to);
+    if (main.to - main.from >= 600000 && [a.w, a.h, b.w, b.h].every(x => x.coverage >= 0.5))
+      result.main.decouplingPct = round((a.w.average / a.h.average - b.w.average / b.h.average) / (a.w.average / a.h.average) * 100);
+    const near = [];
+    for (let bin = Math.floor(main.from / BikeTrace.BIN_MS); bin * BikeTrace.BIN_MS < main.to; bin++) {
+      const hrMs = hr.ms[bin], wMs = s.watts.ms[bin];
+      if (hrMs >= BikeTrace.BIN_MS / 2 && wMs >= BikeTrace.BIN_MS / 2 && Math.abs(hr.sum[bin] / hrMs - targets.comparisonHR) <= 2) near.push(s.watts.sum[bin] / wMs);
+    }
+    if (near.length >= 12) result.main.fixedHRWatts = round(near.reduce((sum, n) => sum + n, 0) / near.length);
+    return result;
+  }
+  return {FITNESS_MACHINE, INDOOR_BIKE_DATA, CYCLING_POWER, CYCLING_POWER_MEASUREMENT, FRESH_MS, parseIndoorBike, parseCyclingPower, fresh, createStats, breakSeries, sample, restoreStats, analyze};
+})();
+
+/* bike-power:end */
 /* bike-bluetooth:start */
-/* exported H10Connection */
-class H10Connection {
-  constructor(options={}) {
-    this.env=options;this.device=null;this.characteristic=null;this.reading=null;this.state='idle';this.error='';this.generation=0;this.retryTimer=null;this.attempts=0;this.manual=false;this.onPacket=null;this.onDisconnect=null;
+/* exported SensorConnection, H10Connection, BikeSensorConnection */
+/* One Bluetooth sensor: choose a device, subscribe to its measurements, and
+   reconnect after a drop. A profile says which services to offer in the
+   browser's chooser, which characteristic to read, how to parse a packet and
+   what to call the device in messages. */
+class SensorConnection {
+  constructor(options={},profile=SensorConnection.heartRate) {
+    this.env=options;this.profile=profile;this.device=null;this.characteristic=null;this.reading=null;this.state='idle';this.error='';this.generation=0;this.retryTimer=null;this.attempts=0;this.manual=false;this.onPacket=null;this.onDisconnect=null;
   }
   get supported(){return Boolean(this.env.bluetooth && this.env.secure && this.env.protocol!=='file:');}
   get busy(){return ['connecting','reconnecting'].includes(this.state);}
@@ -2406,26 +2528,35 @@ class H10Connection {
     this.retryTimer=this.env.setTimeout(()=>{this.retryTimer=null;if(!this.manual && this.env.visible())this.connect(true);},delay);
     this.emit();
   }
+  // The first service the device offers, in profile order, with its characteristic.
+  async characteristicOf(server,token) {
+    let lastError=null;
+    for(const [service,name] of this.profile.characteristics){
+      try{const found=await this.timed(server.getPrimaryService(service));if(token!==this.generation)return null;const characteristic=await this.timed(found.getCharacteristic(name));return {characteristic,parse:this.profile.parse[String(name)]};}
+      catch(error){if(error.name==='TimeoutError')throw error;lastError=error;}
+    }
+    throw lastError||new Error('No supported service');
+  }
   async connect(automatic=false) {
+    const label=this.profile.label;
     if(this.busy)return;
-    if(!this.supported){this.state='unavailable';this.error=this.env.protocol==='file:'?'Open the HTTPS version in Android Chrome to connect H10. Manual HR still works.':!this.env.secure?'H10 needs an HTTPS page in Android Chrome.':'Bluetooth is unavailable in this browser. Use Android Chrome or manual HR.';this.emit();return;}
+    if(!this.supported){this.state='unavailable';this.error=this.env.protocol==='file:'?`Open the HTTPS version in Android Chrome to connect a ${label}. ${this.profile.manual}`:!this.env.secure?`A ${label} needs an HTTPS page in Android Chrome.`:`Bluetooth is unavailable in this browser. Use Android Chrome. ${this.profile.manual}`;this.emit();return;}
     this.clearRetry();if(!automatic)this.attempts=0;this.manual=false;
     const token=++this.generation;this.detach();this.clearReading();this.state=automatic?'reconnecting':'connecting';this.error='';this.emit();let choosing=false;
     try {
-      if(!this.device){choosing=true;const device=await this.env.bluetooth.requestDevice({filters:[{namePrefix:'Polar H10'}],optionalServices:['heart_rate']});if(token!==this.generation)return;this.device=device;choosing=false;}
+      if(!this.device){choosing=true;const device=await this.env.bluetooth.requestDevice({filters:this.profile.filters,optionalServices:this.profile.characteristics.map(([service])=>service)});if(token!==this.generation)return;this.device=device;choosing=false;}
       const device=this.device;
-      this.onDisconnect=()=>{if(token!==this.generation)return;++this.generation;this.detach();this.clearReading();this.state='disconnected';this.error='H10 disconnected. Use Polar for HR while it reconnects.';this.emit();this.scheduleRetry();};
+      this.onDisconnect=()=>{if(token!==this.generation)return;++this.generation;this.detach();this.clearReading();this.state='disconnected';this.error=`The ${label} disconnected. ${this.profile.dropped}`;this.emit();this.scheduleRetry();};
       device.addEventListener('gattserverdisconnected',this.onDisconnect);
       // Each attempt obtains new services/characteristics after reconnecting.
       const server=await this.timed(device.gatt.connect().then(server=>{if(token!==this.generation && !this.busy && this.state!=='connected')device.gatt.disconnect();return server;}));if(token!==this.generation)return;
-      const service=await this.timed(server.getPrimaryService('heart_rate'));if(token!==this.generation)return;
-      const characteristic=await this.timed(service.getCharacteristic('heart_rate_measurement'));if(token!==this.generation)return;
-      this.characteristic=characteristic;
+      const found=await this.characteristicOf(server,token);if(!found||token!==this.generation)return;
+      const {characteristic,parse}=found;this.characteristic=characteristic;let previous=null;
       this.onPacket=event=>{
         if(token!==this.generation || !device.gatt.connected)return;
-        const parsed=HeartRateCore.parse(event.target.value);
+        const parsed=parse(event.target.value,previous);if(parsed)previous=parsed;
         this.reading=parsed?{...parsed,at:this.now()}:null;
-        this.error=parsed?(parsed.valid?'':parsed.contact===false?'Check strap contact.':'Waiting for a valid HR reading.'):'Unreadable sensor packet. Waiting for a fresh reading.';
+        this.error=parsed?this.profile.status(parsed):'Unreadable sensor packet. Waiting for a fresh reading.';
         this.env.onMeasurement?.(this.reading);this.emit();
       };
       characteristic.addEventListener('characteristicvaluechanged',this.onPacket);
@@ -2434,20 +2565,37 @@ class H10Connection {
     } catch(error) {
       if(token!==this.generation)return;
       ++this.generation;this.detach();this.clearReading();this.device?.gatt.disconnect();this.state=this.device?'disconnected':'idle';
-      this.error=choosing&&error.name==='NotFoundError'?'Connection cancelled. Manual HR is ready.':error.name==='NotAllowedError'?'Bluetooth permission was denied. Allow it in Chrome, or use manual HR.':error.name==='TimeoutError'?'H10 connection timed out. Check the strap and Bluetooth.':'Could not connect to H10. Wear the strap, check Bluetooth and enable two BLE receivers if Polar is connected.';
+      this.error=choosing&&error.name==='NotFoundError'?`Connection cancelled. ${this.profile.manual}`:error.name==='NotAllowedError'?`Bluetooth permission was denied. Allow it in Chrome. ${this.profile.manual}`:error.name==='TimeoutError'?`The ${label} connection timed out. Check the device and Bluetooth.`:this.profile.failed;
       this.emit();if(this.device&&error.name!=='NotAllowedError')this.scheduleRetry();
     }
   }
-  disconnect() {this.manual=true;++this.generation;this.clearRetry();this.detach();this.clearReading();this.device?.gatt.disconnect();this.state='idle';this.error='Disconnected by you. Manual HR is ready.';this.emit();}
+  disconnect() {this.manual=true;++this.generation;this.clearRetry();this.detach();this.clearReading();this.device?.gatt.disconnect();this.state='idle';this.error=`Disconnected by you. ${this.profile.manual}`;this.emit();}
   visibilityChanged() {
     this.clearReading();
     if(!this.env.visible())this.clearRetry();
     // Returning to the page starts a fresh round, so 3 failed attempts earlier
-    // do not leave the strap disconnected for the rest of the ride.
+    // do not leave the sensor disconnected for the rest of the ride.
     else if(this.state==='disconnected'&&!this.manual){if(this.retryTimer===null)this.attempts=0;this.scheduleRetry();}
     this.emit();
   }
 }
+// Any strap with the standard Heart Rate service.
+SensorConnection.heartRate={
+  label:'heart-rate strap',filters:[{services:['heart_rate']}],characteristics:[['heart_rate','heart_rate_measurement']],
+  parse:{heart_rate_measurement:value=>HeartRateCore.parse(value)},
+  status:parsed=>parsed.valid?'':parsed.contact===false?'Check strap contact.':'Waiting for a valid HR reading.',
+  manual:'Manual HR is ready.',dropped:'Read HR from your watch or app while it reconnects.',
+  failed:'Could not connect to the heart-rate strap. Wear it, check Bluetooth, and allow a second Bluetooth connection if another app also uses it.'
+};
+// A smart bike or trainer (Fitness Machine) or a power meter (Cycling Power).
+SensorConnection.bikePower={
+  label:'bike power sensor',filters:[{services:[0x1826]},{services:[0x1818]}],characteristics:[[0x1826,0x2AD2],[0x1818,0x2A63]],
+  parse:{[0x2AD2]:value=>PowerCore.parseIndoorBike(value),[0x2A63]:(value,previous)=>PowerCore.parseCyclingPower(value,previous)},
+  status:()=>'',manual:'Enter watts and cadence from the bike after the ride.',dropped:'Readings pause until it reconnects.',
+  failed:'Could not connect to the bike. Wake its console, check Bluetooth, and close other apps connected to it.'
+};
+class H10Connection extends SensorConnection {constructor(options={}){super(options,SensorConnection.heartRate);}}
+class BikeSensorConnection extends SensorConnection {constructor(options={}){super(options,SensorConnection.bikePower);}}
 
 /* bike-bluetooth:end */
 </script>
@@ -2485,7 +2633,7 @@ const WorkoutCore = (() => {
   }
   const phase = s => build(s.config)[s.index];
   function create(input, now, id) {
-    return {version:VERSION,id,config:config(input),startedAt:now,lastAt:now,status:'running',index:0,phaseMs:0,activeMs:0,mainMs:0,finishedPhases:[],pending:false,hadInterruption:false,pauseReason:'',nextCheckMs:CHECK_MS,settleEndMs:0,steering:'',endedAt:null,hr:HeartRateCore.createStats(config(input).targets)};
+    return {version:VERSION,id,config:config(input),startedAt:now,lastAt:now,status:'running',index:0,phaseMs:0,activeMs:0,mainMs:0,finishedPhases:[],pending:false,hadInterruption:false,pauseReason:'',nextCheckMs:CHECK_MS,settleEndMs:0,steering:'',endedAt:null,hr:HeartRateCore.createStats(config(input).targets),power:PowerCore.createStats()};
   }
   function accrue(s,ms) {s.phaseMs+=ms;s.activeMs+=ms;if(phase(s).kind==='main')s.mainMs+=ms;}
   function next(s,outcome='complete') {
@@ -2537,7 +2685,7 @@ const WorkoutCore = (() => {
       if(s.index>0){s.index--;s.finishedPhases.shift();s.finishedPhases=s.finishedPhases.map((p,id)=>({...p,id}));}
       else{s.phaseMs=0;s.pending=false;}
     }
-    s.version=VERSION;s.config=config(s.config);if(s.hr?.targets&&JSON.stringify(BikeTargets.normalize(s.hr.targets))!==JSON.stringify(s.config.targets))return null;s.hr=HeartRateCore.restoreStats(s.hr,s.config.targets);
+    s.version=VERSION;s.config=config(s.config);if(s.hr?.targets&&JSON.stringify(BikeTargets.normalize(s.hr.targets))!==JSON.stringify(s.config.targets))return null;s.hr=HeartRateCore.restoreStats(s.hr,s.config.targets);s.power=PowerCore.restoreStats(s.power);
     for(const key of ['startedAt','lastAt','index','phaseMs','activeMs','mainMs','nextCheckMs','settleEndMs'])if(!Number.isFinite(s[key])||s[key]<0)return null;
     if(!Number.isInteger(s.index)||!phase(s)||s.finishedPhases.length!==s.index)return null;
     if(s.status==='running'){advance(s,now,{visible:false});if(s.status==='running'){s.status='paused';s.pauseReason='Session restored. Elapsed time was recovered using the saved clock. Check your current phase and Polar recording before resuming.';}s.hadInterruption=true;}
@@ -2545,9 +2693,11 @@ const WorkoutCore = (() => {
   }
   function record(s) {
     const phases=build(s.config), complete=s.finishedPhases.length===phases.length && s.finishedPhases.every(p=>p.outcome==='complete');
-    // A main-block HR measured over at least 80% of the block fills the reading typed by hand before.
+    // Main-block readings measured over at least 80% of the block fill the readings typed by hand before.
     const analysis=HeartRateCore.analyze(s.hr,s.finishedPhases),metrics=analysis.main?.coverage>=80?{mainAverageHR:String(analysis.main.averageHR)}:{};
-    return {id:s.id,startedAt:s.startedAt,endedAt:s.endedAt,config:s.config,activeMs:s.activeMs,mainMs:s.mainMs,outcome:complete?'complete':'partial',hadInterruption:s.hadInterruption,effortsCompleted:s.finishedPhases.filter(p=>p.kind==='effort'&&p.outcome==='complete').length,phases:s.finishedPhases,hr:{...HeartRateCore.summary(s.hr,s.activeMs),...analysis},metrics};
+    const power=PowerCore.analyze(s.power,s.finishedPhases,s.hr,s.config.targets),main=power?.main;
+    if(main?.coverage>=80){metrics.averageWatts=String(main.averageWatts);if(main.cadence!==null)metrics.cadence=String(main.cadence);if(main.fixedHRWatts!==null)metrics.fixedHRWatts=String(main.fixedHRWatts);}
+    return {id:s.id,startedAt:s.startedAt,endedAt:s.endedAt,config:s.config,activeMs:s.activeMs,mainMs:s.mainMs,outcome:complete?'complete':'partial',hadInterruption:s.hadInterruption,effortsCompleted:s.finishedPhases.filter(p=>p.kind==='effort'&&p.outcome==='complete').length,phases:s.finishedPhases,hr:{...HeartRateCore.summary(s.hr,s.activeMs),...analysis},...(power?{power}:{}),metrics};
   }
   return {config,build,phase,create,advance,pause,resume,gate,skip,end,steer,restore,record};
 })();
@@ -2557,7 +2707,7 @@ const WorkoutCore = (() => {
 /* App-specific history interpretation, independent of storage and the DOM. */
 /* exported BikeHistory */
 const BikeHistory = (() => {
-  const metrics={fixedHRWatts:{label:'Watts at recorded comparison HR',unit:'W'},averageWatts:{label:'Main-block average watts',unit:'W'},mainAverageHR:{label:'Main-block average heart rate',unit:'bpm'},mainMinutes:{label:'Main-block duration',unit:'min'},coverage:{label:'HR measurement coverage',unit:'%'},hrDrift:{label:'Main-block HR drift',unit:'%'},recovery60:{label:'60-second HR recovery',unit:'bpm'}};
+  const metrics={fixedHRWatts:{label:'Watts at recorded comparison HR',unit:'W'},averageWatts:{label:'Main-block average watts',unit:'W'},mainAverageHR:{label:'Main-block average heart rate',unit:'bpm'},mainMinutes:{label:'Main-block duration',unit:'min'},coverage:{label:'HR measurement coverage',unit:'%'},hrDrift:{label:'Main-block HR drift',unit:'%'},recovery60:{label:'60-second HR recovery',unit:'bpm'},decoupling:{label:'Aerobic decoupling',unit:'%'}};
   // Mean of the recoveries a ride measured; a ride with none is unknown.
   const meanRecovery=ride=>{const values=(ride.hr?.recovery60||[]).filter(n=>Number.isFinite(n));return values.length?Math.round(values.reduce((a,b)=>a+b,0)/values.length*10)/10:null;};
   const machineKey=ride=>JSON.stringify([ride.config.bike,ride.config.bikeId||'']);
@@ -2575,7 +2725,7 @@ const BikeHistory = (() => {
     return rides.filter(r=>(!query.machine||machineKey(r)===query.machine)&&(!query.context||r.config.context===query.context)&&(!query.mode||r.config.mode===query.mode)&&(!query.outcome||r.outcome===query.outcome)&&(!query.uninterrupted||!r.hadInterruption)&&r.startedAt>=from&&r.startedAt<(until?until.getTime():Infinity)).sort((a,b)=>b.startedAt-a.startedAt||a.id.localeCompare(b.id));
   }
   function value(ride,metric){
-    const raw=metric==='coverage'?ride.hr?.coverage:metric==='hrDrift'?ride.hr?.main?.driftPct:metric==='recovery60'?meanRecovery(ride):metric==='mainMinutes'?(ride.config.mode==='zone2'?ride.mainMs/60000:null):ride.metrics?.[metric];
+    const raw=metric==='coverage'?ride.hr?.coverage:metric==='hrDrift'?ride.hr?.main?.driftPct:metric==='recovery60'?meanRecovery(ride):metric==='decoupling'?ride.power?.main?.decouplingPct:metric==='mainMinutes'?(ride.config.mode==='zone2'?ride.mainMs/60000:null):ride.metrics?.[metric];
     if(raw===null||raw===undefined||raw==='')return null;
     const number=Number(raw);return Number.isFinite(number)?number:null;
   }
@@ -2598,7 +2748,7 @@ const BikeHistory = (() => {
       ['Main-block watts','W',r=>number(r.metrics?.averageWatts)],['Main-block HR','bpm',r=>number(r.metrics?.mainAverageHR)],
       ['Watts at recorded comparison HR','W',r=>number(r.metrics?.fixedHRWatts)],['Measured average HR','bpm',r=>number(r.hr?.averageHR)],
       ['HR coverage','%',r=>number(r.hr?.coverage)],['Active duration','min',r=>r.activeMs/60000],['Main-block duration','min',r=>r.mainMs/60000],
-      ['Main-block HR drift','%',r=>number(r.hr?.main?.driftPct)],['60-second HR recovery','bpm',r=>meanRecovery(r)],
+      ['Main-block HR drift','%',r=>number(r.hr?.main?.driftPct)],['60-second HR recovery','bpm',r=>meanRecovery(r)],['Aerobic decoupling','%',r=>number(r.power?.main?.decouplingPct)],
       ['Perceived effort','1–10',r=>number(r.metrics?.perceivedEffort)]
     ].map(([label,unit,read])=>{const a=read(before),b=read(after);return {label,unit,before:a,after:b,delta:comparable&&a!==null&&b!==null?b-a:null};});
     warnings.push('Review heart rate and measurement coverage alongside watts. A higher output alone does not establish improved fitness.');
@@ -2687,6 +2837,7 @@ let storageControllerInstance;
   let targetsValid=true,appUpdates=null,shell=null,currentView='setup';
   let persistenceState='checking',storageEstimate=null;
   const h10=new H10Connection({bluetooth:navigator.bluetooth,secure:window.isSecureContext,protocol:location.protocol,now:()=>Date.now(),visible:()=>!document.hidden,setTimeout:(fn,ms)=>setTimeout(fn,ms),clearTimeout:id=>clearTimeout(id),onChange:()=>{if(h10.state!=='connected')H.breakSeries(session?.hr);renderSensors();if(session)render();},onMeasurement:receiveHR});
+  const power=new BikeSensorConnection({bluetooth:navigator.bluetooth,secure:window.isSecureContext,protocol:location.protocol,now:()=>Date.now(),visible:()=>!document.hidden,setTimeout:(fn,ms)=>setTimeout(fn,ms),clearTimeout:id=>clearTimeout(id),onChange:()=>{if(power.state!=='connected')PowerCore.breakSeries(session?.power);renderPower();},onMeasurement:receivePower});
   const fmt=ms=>{const s=Math.max(0,Math.ceil(ms/1000));return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;};
   const bikeName=c=>({matrix:'Matrix',touchscreen:'Freemotion iFIT b24 CoachBike',unknown:'Unknown bike'}[c.bike]||'Unknown bike')+(c.bikeId?` · ${c.bikeId}`:'');
   const contextName=c=>({fresh:'Fresh legs','post-lifting':'After lifting',unknown:'Unknown context'}[c.context]||'Unknown context');
@@ -2838,15 +2989,15 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     $('planTitle').textContent=zone?`${c.warmupMinutes+c.mainMinutes}-minute easy block`:'Maximal sprint session';$('start').textContent=zone?'Start Zone 2 session':'Start sprint session';$('plan').replaceChildren();
     const rows=zone?[['Warm-up',`${c.warmupMinutes} min`],['Steady Zone 2',`${c.mainMinutes} min`],['Cool-down',`${c.cooldown} min + HR check`]]:[['Warm-up',`${c.warmupMinutes} min`],['Primer + settle',`${c.settleMinutes} min + 15 s`],[`${c.n} maximal efforts`,`${c.eff} s each`],['Recoveries',`≥${c.recoverySeconds} s + HR check`],['Cool-down',`${c.sprintCooldownMinutes} min`]];
     for(const [title,time]of rows){const li=document.createElement('li'),b=document.createElement('b'),value=document.createElement('time');b.textContent=title;value.textContent=time;li.append(b,value);$('plan').append(li);}
-    $('planTotal').textContent=zone?`${c.warmupMinutes+c.mainMinutes+c.cooldown} minutes minimum pedalling. Cool-down can extend until HR is below ${t.zoneMin}. H10 measures time in your recorded band when connected.`:`Recovery length depends on HR. Minimum ${c.recoverySeconds} seconds, then confirm HR is ${t.zoneMax} or below. Keep this app visible for short sprint cues.`;
+    $('planTotal').textContent=zone?`${c.warmupMinutes+c.mainMinutes+c.cooldown} minutes minimum pedalling. Cool-down can extend until HR is below ${t.zoneMin}. A connected strap measures time in your recorded band when connected.`:`Recovery length depends on HR. Minimum ${c.recoverySeconds} seconds, then confirm HR is ${t.zoneMax} or below. Keep this app visible for short sprint cues.`;
     $('targetDescription').textContent=`Zone ${t.zoneMin}–${t.zoneMax} bpm. Working target ${t.targetMin}–${t.targetMax}. Comparison HR ${t.comparisonHR}.`;
     const previous=C.config(read(KEYS.settings,{}));
     write(KEYS.settings,{...previous,mode:c.mode,bike:c.bike,bikeId:c.bikeId,context:c.context,voice:c.voice,beeps:c.beeps});
   }
   const currentTargets=()=>session?.config.targets||C.config(read(KEYS.settings,{})).targets;
   function sensorMessage(){
-    if(!h10.supported)return location.protocol==='file:'?'Manual HR · open the HTTPS version in Android Chrome for H10.':!window.isSecureContext?'Manual HR · H10 needs HTTPS in Android Chrome.':'Manual HR · Bluetooth unavailable here. Use Android Chrome for H10.';
-    if(h10.busy)return h10.state==='reconnecting'?'Reconnecting to H10…':'Choose your H10, then wait for its reading…';
+    if(!h10.supported)return location.protocol==='file:'?'Manual HR · open the HTTPS version in Android Chrome for a strap.':!window.isSecureContext?'Manual HR · a strap needs HTTPS in Android Chrome.':'Manual HR · Bluetooth unavailable here. Use Android Chrome for a strap.';
+    if(h10.busy)return h10.state==='reconnecting'?'Reconnecting to the strap…':'Choose your strap, then wait for its reading…';
     if(h10.state==='connected')return H.fresh(h10.reading,Date.now())?'Connected · live readings':h10.error||'No fresh HR · check the strap or reconnect.';
     return h10.error||'Optional · connect your strap, or use Polar for HR.';
   }
@@ -2856,8 +3007,27 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     if($('sensorStatus').textContent!==message)$('sensorStatus').textContent=message;$('runSensorStatus').textContent=H.fresh(h10.reading,Date.now())?'Connected':!h10.supported?'Manual HR':h10.state==='connected'?(h10.error||'No fresh HR · check strap'):message;
     $('liveAdvice').textContent=advice?(session&&C.phase(session)?.kind==='effort'?'HR lags short sprints · judge effort by feel':session&&C.phase(session)?.kind==='main'?advice.text:session&&C.phase(session)?.gate==='cool'?(h10.reading.bpm<currentTargets().zoneMin?`Below ${currentTargets().zoneMin} · finish after cool-down`:'Keep spinning easily'):h10.reading.bpm<=currentTargets().comparisonHR?'Build gradually · easy spinning':'Spin easily · let HR settle'):'Read HR in Polar';
     document.querySelector('.live-heart').dataset.alert=session&&C.phase(session)?.kind==='main'?advice?.action||'':'';
-    for(const id of ['connectH10','runConnectH10']){const el=$(id);el.disabled=!h10.supported||busy||live;el.textContent=busy?'Connecting…':live?'H10 connected':h10.device?'Reconnect H10':'Connect H10';el.hidden=id==='runConnectH10'&&(live||!h10.supported);}
+    for(const id of ['connectH10','runConnectH10']){const el=$(id);el.disabled=!h10.supported||busy||live;el.textContent=busy?'Connecting…':live?'Strap connected':h10.device?'Reconnect strap':'Connect strap';el.hidden=id==='runConnectH10'&&(live||!h10.supported);}
     for(const id of ['disconnectH10','runDisconnectH10'])$(id).hidden=!h10.device||h10.state==='idle';
+    renderPower();
+  }
+  /* Bike readings join the ride like HR readings: only while it runs and the page is visible. */
+  function receivePower(reading){
+    const now=Date.now();
+    if(!session||session.status!=='running'||document.hidden||!PowerCore.fresh(reading,now)){PowerCore.breakSeries(session?.power);renderPower();return;}
+    handle(C.advance(session,now,{visible:true}));
+    if(!session||session.status!=='running')return;
+    PowerCore.sample(session.power,reading,now,session.activeMs);renderPower();save();
+  }
+  function renderPower(){
+    const r=power.reading,live=PowerCore.fresh(r,Date.now()),value=live&&r.watts!=null?String(r.watts):'—',el=$('setupPower');
+    if(el.dataset.reading!==value){el.dataset.reading=value;el.replaceChildren(document.createTextNode(value+' '));const unit=document.createElement('small');unit.textContent='W';el.append(unit);}
+    const text=live?[r.watts!=null?`${r.watts} W`:null,r.cadence!=null?`${r.cadence} rpm`:null].filter(Boolean).join(' · '):'';
+    $('livePower').hidden=!text;$('livePower').textContent=text?'Bike · '+text:'';
+    const status=!power.supported?'Optional · needs Bluetooth in Android Chrome on an HTTPS page.':power.busy?(power.state==='reconnecting'?'Reconnecting to the bike…':'Choose your bike, then wait for a reading…'):live?'Connected':power.error||(power.state==='connected'?'Waiting for a reading…':'Optional · connect a bike that shares power and cadence.');
+    if($('powerStatus').textContent!==status)$('powerStatus').textContent=status;
+    const button=$('connectPower');button.disabled=!power.supported||power.busy||live;button.textContent=power.busy?'Connecting…':live?'Bike connected':power.device?'Reconnect bike':'Connect bike';
+    $('disconnectPower').hidden=!power.device||power.state==='idle';
   }
   function receiveHR(reading){
     const now=Date.now();
@@ -2874,6 +3044,7 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   }
   for(const id of ['connectH10','runConnectH10'])$(id).addEventListener('click',()=>h10.connect());
   for(const id of ['disconnectH10','runDisconnectH10'])$(id).addEventListener('click',()=>h10.disconnect());
+  $('connectPower').addEventListener('click',()=>power.connect());$('disconnectPower').addEventListener('click',()=>power.disconnect());
   async function unlockAudio(){try{audio ||= new (window.AudioContext||window.webkitAudioContext)();await audio.resume();}catch(e){audio=null;}}
   function beep(freq=660,len=.14){if(muted||!(session?.config||C.config(read(KEYS.settings,{}))).beeps||!audio||audio.state!=='running')return;try{const o=audio.createOscillator(),g=audio.createGain(),t=audio.currentTime;o.frequency.value=freq;g.gain.setValueAtTime(.001,t);g.gain.exponentialRampToValueAtTime(.18,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+len);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+len+.02);}catch(e){}}
   function say(text){if(muted||!(session?.config||C.config(read(KEYS.settings,{}))).voice)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.rate=1;speechSynthesis.speak(u);}catch(e){}}
@@ -2889,7 +3060,7 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     for(const e of events){
       if(e.type==='check'||e.type==='settled'){
         const advice=H.advice(h10.reading,Date.now(),currentTargets());beep();
-        session.steering=advice?`Check HR · H10 ${h10.reading.bpm} bpm. ${advice.text}. Tap the matching control after changing resistance.`:'Check HR in Polar. Keep cadence steady; adjust resistance only.';
+        session.steering=advice?`Check HR · strap ${h10.reading.bpm} bpm. ${advice.text}. Tap the matching control after changing resistance.`:'Check HR in Polar. Keep cadence steady; adjust resistance only.';
         if(session.mainMs>=600000)session.steering+=' Drift is normal; lower resistance as needed and drink water.';
         say((e.type==='settled'?'One minute has passed. ':'')+(advice?`Heart rate ${h10.reading.bpm}. ${advice.text}.`:'Check your heart rate in Polar.')+' Keep cadence steady.');
       }
@@ -2917,7 +3088,7 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
       $('gateConfirm').parentElement.hidden=live;$('gateConfirm').disabled=!ready||session.status!=='running';
       $('gateLabel').textContent=p.gate==='cool'?`My current HR in Polar is below ${session.config.targets.zoneMin} bpm.`:`My current HR in Polar is ${session.config.targets.zoneMax} bpm or below.`;
       $('gate').textContent=p.gate==='cool'?'Finish & save session':'Start next effort';$('gate').disabled=!ready||!passed||session.status!=='running';
-      $('gateNote').textContent=!ready?`Available after ${fmt(p.min-session.phaseMs)}. Keep spinning easily.`:live?(passed?'H10 confirms the HR target. Continue when ready.':'HR is still above the target. Keep spinning easily.'):'No fresh H10 reading. Check HR in Polar and confirm it to continue.';
+      $('gateNote').textContent=!ready?`Available after ${fmt(p.min-session.phaseMs)}. Keep spinning easily.`:live?(passed?'The strap confirms the HR target. Continue when ready.':'HR is still above the target. Keep spinning easily.'):'No fresh strap reading. Check HR in Polar and confirm it to continue.';
     }
     $('elapsed').textContent=`Active ${fmt(session.activeMs)}`;$('mainElapsed').textContent=session.config.mode==='zone2'?`Main ${fmt(session.mainMs)} / ${fmt(session.config.mainMinutes*60000)}`:'';const next=C.build(session.config)[session.index+1];$('next').textContent=next?`Next: ${next.title.toLowerCase()}`:'Next: save your session readings';
   }
@@ -2930,6 +3101,12 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     const analysis=[];if(r.hr?.main)analysis.push(`Main block ${r.hr.main.averageHR} bpm, ${r.hr.main.coverage}% measured`+(r.hr.main.driftPct!=null?`. HR drift ${r.hr.main.driftPct>0?'+':''}${r.hr.main.driftPct}% (second half against first)`:''));
     if(r.hr?.recovery60)analysis.push(`60-second HR recovery: ${r.hr.recovery60.map(n=>n===null?'unknown':`${n} bpm`).join(', ')}`);
     $('sensorAnalysis').hidden=!analysis.length;$('sensorAnalysis').textContent=analysis.join('. ')+(analysis.length?'.':'');
+    const p=r.power,parts=[];$('powerSummary').hidden=!p;
+    if(p){if(p.averageWatts!=null)parts.push(`Whole ride ${p.averageWatts} W, ${p.coverage}% measured`);if(p.peak5sWatts!=null)parts.push(`Peak 5 seconds ${p.peak5sWatts} W`);
+      if(p.main)parts.push(`Main block ${p.main.averageWatts} W`+(p.main.cadence!=null?` at ${p.main.cadence} rpm`:'')+`, ${p.main.coverage}% measured`);
+      if(p.main?.fixedHRWatts!=null)parts.push(`${p.main.fixedHRWatts} W within 2 bpm of ${t.comparisonHR} bpm`);
+      if(p.main?.decouplingPct!=null)parts.push(`Aerobic decoupling ${p.main.decouplingPct}% (watts per beat, first half against second)`);
+      $('powerSummaryText').textContent=parts.join('. ')+'.';}
     renderSummaryComparison();for(const key of fields)$(key).value=r.metrics?.[key]??'';$('logStatus').textContent=storageOK?'Session saved. Readings save as you enter them.':'Session is in memory only. Export before closing.';}
   function renderExternalReadings(ride){
     const container=$('externalReadings'),metrics=ride.metrics||{};container.replaceChildren();
@@ -2999,9 +3176,9 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     const table=document.createElement('table'),head=document.createElement('tr');for(const label of ['Date','Machine / context','Recorded zone / comparison HR',definition.unit]){const cell=document.createElement('th');cell.scope='col';cell.textContent=label;head.append(cell);}const thead=document.createElement('thead');thead.append(head);table.append(thead);
     const tbody=document.createElement('tbody');for(const point of groups.flat().sort((a,b)=>b.at-a.at)){const row=document.createElement('tr'),t=WorkoutCore.config(point.ride.config).targets;for(const value of [dateLabel(point.at),bikeName(point.ride.config)+' / '+contextName(point.ride.config),`${t.zoneMin}–${t.zoneMax} / ${t.comparisonHR}`,point.value===null?'Unknown':String(point.value)]){const cell=document.createElement('td');cell.textContent=value;row.append(cell);}tbody.append(row);}table.append(tbody);$('chartTable').append(table);
   }
-  function exportCSV(){if(selected&&!$('summary').hidden&&saveMetrics(true)===false&&!$('logForm').checkValidity())return;if(!records.length){toast('No sessions to export yet.');return;}const headers=['date','workout','bike','bike_id','context','outcome','interrupted','active_minutes','main_minutes','completed_efforts','average_hr_bpm','recorded_zone_minutes','resistance','cadence_rpm','main_average_watts','watts_at_comparison_hr','notes','h10_average_hr_bpm','h10_recorded_zone_minutes','h10_measured_minutes','h10_coverage_percent','h10_samples','main_average_hr_bpm','zone_min_bpm','zone_max_bpm','working_min_bpm','working_max_bpm','comparison_hr_bpm','planned_warmup_minutes','planned_main_minutes','planned_cooldown_minutes','planned_recovery_seconds','perceived_effort_1_10',...BikeHistorySchema.externalFields.map(field=>field.name),'trainingBenefit','externalSource','polar_z1_ms','polar_z2_ms','polar_z3_ms','polar_z4_ms','polar_z5_ms','measured_main_hr_bpm','measured_main_hr_coverage_percent','hr_drift_percent','hr_recovery_60s_bpm'];
+  function exportCSV(){if(selected&&!$('summary').hidden&&saveMetrics(true)===false&&!$('logForm').checkValidity())return;if(!records.length){toast('No sessions to export yet.');return;}const headers=['date','workout','bike','bike_id','context','outcome','interrupted','active_minutes','main_minutes','completed_efforts','average_hr_bpm','recorded_zone_minutes','resistance','cadence_rpm','main_average_watts','watts_at_comparison_hr','notes','h10_average_hr_bpm','h10_recorded_zone_minutes','h10_measured_minutes','h10_coverage_percent','h10_samples','main_average_hr_bpm','zone_min_bpm','zone_max_bpm','working_min_bpm','working_max_bpm','comparison_hr_bpm','planned_warmup_minutes','planned_main_minutes','planned_cooldown_minutes','planned_recovery_seconds','perceived_effort_1_10',...BikeHistorySchema.externalFields.map(field=>field.name),'trainingBenefit','externalSource','polar_z1_ms','polar_z2_ms','polar_z3_ms','polar_z4_ms','polar_z5_ms','measured_main_hr_bpm','measured_main_hr_coverage_percent','hr_drift_percent','hr_recovery_60s_bpm','measured_average_watts','peak_5s_watts','measured_main_watts','measured_main_cadence_rpm','measured_power_coverage_percent','aerobic_decoupling_percent'];
     const cell=v=>{let value=String(v??'');if(/^[=+\-@\t\r\n]/.test(value)&&!/^-?\d+(\.\d+)?$/.test(value))value="'"+value;return '"'+value.replaceAll('"','""')+'"';};
-    const rows=records.map(r=>{const m=r.metrics||{};return [new Date(r.startedAt).toISOString(),r.config.mode,r.config.bike,r.config.bikeId,r.config.context,r.outcome,r.hadInterruption,(r.activeMs/60000).toFixed(2),(r.mainMs/60000).toFixed(2),r.effortsCompleted,m.averageHR,m.zoneMinutes,m.resistance,m.cadence,m.averageWatts,m.fixedHRWatts,m.notes,r.hr?.averageHR,r.hr?.measuredMs?(r.hr.zoneMs/60000).toFixed(3):'',r.hr?(r.hr.measuredMs/60000).toFixed(3):'',r.hr?.coverage,r.hr?.samples,m.mainAverageHR,...['zoneMin','zoneMax','targetMin','targetMax','comparisonHR'].map(name=>r.config.mode==='external'?'':C.config(r.config).targets[name]),...['warmupMinutes','mainMinutes',r.config.mode==='zone2'?'cooldown':'sprintCooldownMinutes','recoverySeconds'].map(name=>r.config.mode==='external'?'':r.config[name]),m.perceivedEffort,...BikeHistorySchema.externalFields.map(field=>m[field.name]),m.trainingBenefit,m.externalSource,...['z1','z2','z3','z4','z5'].map(name=>m.polarZonesMs?.[name]),r.hr?.main?.averageHR,r.hr?.main?.coverage,r.hr?.main?.driftPct,BikeHistory.meanRecovery(r)].map(cell).join(',');});
+    const rows=records.map(r=>{const m=r.metrics||{};return [new Date(r.startedAt).toISOString(),r.config.mode,r.config.bike,r.config.bikeId,r.config.context,r.outcome,r.hadInterruption,(r.activeMs/60000).toFixed(2),(r.mainMs/60000).toFixed(2),r.effortsCompleted,m.averageHR,m.zoneMinutes,m.resistance,m.cadence,m.averageWatts,m.fixedHRWatts,m.notes,r.hr?.averageHR,r.hr?.measuredMs?(r.hr.zoneMs/60000).toFixed(3):'',r.hr?(r.hr.measuredMs/60000).toFixed(3):'',r.hr?.coverage,r.hr?.samples,m.mainAverageHR,...['zoneMin','zoneMax','targetMin','targetMax','comparisonHR'].map(name=>r.config.mode==='external'?'':C.config(r.config).targets[name]),...['warmupMinutes','mainMinutes',r.config.mode==='zone2'?'cooldown':'sprintCooldownMinutes','recoverySeconds'].map(name=>r.config.mode==='external'?'':r.config[name]),m.perceivedEffort,...BikeHistorySchema.externalFields.map(field=>m[field.name]),m.trainingBenefit,m.externalSource,...['z1','z2','z3','z4','z5'].map(name=>m.polarZonesMs?.[name]),r.hr?.main?.averageHR,r.hr?.main?.coverage,r.hr?.main?.driftPct,BikeHistory.meanRecovery(r),r.power?.averageWatts,r.power?.peak5sWatts,r.power?.main?.averageWatts,r.power?.main?.cadence,r.power?.coverage,r.power?.main?.decouplingPct].map(cell).join(',');});
     const url=URL.createObjectURL(new Blob(['\ufeff'+headers.map(cell).join(',')+'\r\n'+rows.join('\r\n')],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=`bike-cardio-${new Date().toISOString().slice(0,10)}.csv`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('CSV export started. Keep the downloaded file as your backup.');
   }
   function updateRestore(){const saved=read(KEYS.active,null);$('restoreCard').hidden=!saved||!['running','paused'].includes(saved.status);$('start').disabled=!targetsValid||!$('restoreCard').hidden;$('start').hidden=!$('restoreCard').hidden;$('resumeSaved').hidden=$('restoreCard').hidden;updateShell();if(!$('restoreCard').hidden){const restored=C.restore(saved,Date.now());if(restored)$('restoreText').textContent=`${restored.config.mode==='zone2'?'Zone 2':'Sprint intervals'} · ${C.phase(restored).title} · ${fmt(restored.activeMs)} active time. Review the saved session before starting another.`;else{$('restoreText').textContent='Saved session could not be recovered. End it to start a new one.';}}
@@ -3079,7 +3256,7 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   window.addEventListener('offline',renderStorageStatus);
   window.addEventListener('storage',renderStorageStatus);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)save(true);storage.local.flush();if(document.hidden)storage.remote.flushScheduled();else storage.remote.remoteStartupSync();});
-  document.addEventListener('visibilitychange',()=>{h10.visibilityChanged();H.breakSeries(session?.hr);highSince=null;lastHighAt=null;if(!session||storage.handoff.held())return;if(document.hidden){handle(C.advance(session,Date.now(),{visible:false}));if(session&&session.config.mode==='sprint'&&session.status==='running'){C.pause(session,Date.now(),'Sprint cues need this app visible. Timing paused when you switched away.');save(true);}cancelVoice();release();}else{cancelVoice();tick();if(session?.status==='paused')openPause();else if(session){audio?.resume().catch(()=>{});lock();render();}}});
+  document.addEventListener('visibilitychange',()=>{h10.visibilityChanged();H.breakSeries(session?.hr);power.visibilityChanged();PowerCore.breakSeries(session?.power);highSince=null;lastHighAt=null;if(!session||storage.handoff.held())return;if(document.hidden){handle(C.advance(session,Date.now(),{visible:false}));if(session&&session.config.mode==='sprint'&&session.status==='running'){C.pause(session,Date.now(),'Sprint cues need this app visible. Timing paused when you switched away.');save(true);}cancelVoice();release();}else{cancelVoice();tick();if(session?.status==='paused')openPause();else if(session){audio?.resume().catch(()=>{});lock();render();}}});
   window.addEventListener('pagehide',()=>{h10.disconnect();H.breakSeries(session?.hr);if(session){handle(C.advance(session,Date.now(),{visible:false}));save(true);}if(selected&&!$('summary').hidden)saveMetrics();});
   shell=WorkoutUI.createShell({name:'Bike Cardio',items:[{id:'setup',label:'Workout',icon:'workout'},{id:'history',label:'History',icon:'history'},{id:'settings',label:'Settings',icon:'settings'}],onNavigate:navigate});
   configureAppearance();WorkoutUI.attachSteppers($('setup'));buildDefaultFields();

@@ -129,6 +129,21 @@ the history category prevents comparisons based on that default plan.
   main block: bpm in the last 5 seconds of the phase minus bpm 55 to 60 seconds
   after it (-300..300), or `null` when either window was under half measured.
 
+- `power` (optional): readings from a Bluetooth bike sensor.
+  `{ "source": "Bluetooth bike sensor", "measuredMs": 1500000, "coverage": 95,
+  "averageWatts": 140, "peak5sWatts": 180, "trace": { "binSeconds": 5,
+  "watts": "140,,150", "rpm": "90,,88" }, "main": { "averageWatts": 147.5,
+  "cadence": 90, "coverage": 100, "decouplingPct": 3.2, "fixedHRWatts": 150 } }`.
+  `measuredMs` is active time with a power reading; `coverage` is its percentage
+  of active time (0..100). Watts are 0..2500 and cadence 0..250 rpm; the traces
+  use the same 5-second string format as `hr.trace`. `main` (Zone 2) holds the
+  main block's average watts and cadence, the percentage of it with power,
+  `decouplingPct` (-100..100 or `null`: watts per beat in the first half against
+  the second, for main blocks of 10 minutes or more) and `fixedHRWatts` (average
+  watts over 5-second bins within 2 bpm of `comparisonHR`, needing at least 12
+  bins, or `null`). At 80% main-block coverage, native rides copy these into
+  `metrics.averageWatts`, `metrics.cadence` and `metrics.fixedHRWatts`.
+
 There is **no defined `recording` object** in this implementation. It has no
 `nextSeq`/`sampleCount` contract or raw-sample storage. The live accumulator keeps
 weighted totals, 5-second bins and the last reading; finished history stores

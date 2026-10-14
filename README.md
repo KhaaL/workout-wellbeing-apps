@@ -305,6 +305,17 @@ ride keeps them as a compact trace and derives the Zone 2 main-block average
 HR drift between the halves of a main block of 10 minutes or more, and the
 60-second HR recovery after each sprint effort or the Zone 2 main block.
 
+Any strap with the standard Bluetooth Heart Rate service connects. Workout →
+**Bike power & cadence** optionally connects a smart bike, trainer or power meter
+that uses the standard Fitness Machine (Indoor Bike Data) or Cycling Power
+service; cadence from a power meter comes from its crank revolution counts.
+Its readings fill 5-second bins like heart rate. A finished ride stores the
+whole-ride average, the best 5 seconds and the trace; a Zone 2 ride also gets
+main-block watts and cadence, watts within 2 bpm of the comparison HR (at least
+a minute of it) and aerobic decoupling (watts per beat in the first half of a
+main block of 10 minutes or more, against the second). At 80% main-block
+coverage these fill the main-block watts, cadence and comparison readings.
+
 For external recordings, use History → Merge history. See the
 [history contract](docs/BIKE-HISTORY.md), [TypeScript types](apps/bike-cardio/history-types.d.ts),
 and tested [example exports](examples/). Version 3 supports an Externally recorded

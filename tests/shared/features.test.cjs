@@ -203,3 +203,12 @@ test('Bike backups accept a measured HR trace and reject malformed ones',()=>{
   const bad=JSON.parse(JSON.stringify(backup));change(bad.history[0]);assert.throws(()=>d.api.prepare(bad),pattern);
  }
 });
+test('Bike backups accept measured power and reject malformed power',()=>{
+ const d=bike(),backup=d.api.backup(),s=d.ctx.C.create({},Date.now(),'powered');d.ctx.C.end(s,Date.now());
+ const ride=d.ctx.C.record(s);ride.power={source:'Bluetooth bike sensor',measuredMs:600000,coverage:95,averageWatts:140,peak5sWatts:180,trace:{binSeconds:5,watts:'140,,150',rpm:'90,,88'},main:{averageWatts:147.5,cadence:90,coverage:100,decouplingPct:3.2,fixedHRWatts:150}};backup.history=[ride];
+ assert.equal(d.api.prepare(backup).history[0].power.main.fixedHRWatts,150);
+ for(const [change,pattern] of [[r=>r.power.coverage=120,/Power coverage/],[r=>r.power.trace.watts='140,x',/power trace/],[r=>r.power.trace.rpm='900',/power trace/],
+  [r=>r.power.main.cadence=400,/cadence/],[r=>r.power.main.decouplingPct=200,/decoupling/],[r=>r.power=[],/measured power/]]){
+  const bad=JSON.parse(JSON.stringify(backup));change(bad.history[0]);assert.throws(()=>d.api.prepare(bad),pattern);
+ }
+});

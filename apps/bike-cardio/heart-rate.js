@@ -44,7 +44,7 @@ const HeartRateCore = (() => {
   }
   function summary(stats,activeMs) {
     const s=restoreStats(stats);
-    return {source:'H10 Bluetooth',targets:s.targets,averageHR:s.measuredMs?Math.round(s.bpmMs/s.measuredMs*10)/10:null,zoneMs:s.zoneMs,measuredMs:s.measuredMs,samples:s.samples,coverage:activeMs>0?Math.min(100,Math.round(s.measuredMs/activeMs*1000)/10):0};
+    return {source:'Bluetooth heart-rate strap',targets:s.targets,averageHR:s.measuredMs?Math.round(s.bpmMs/s.measuredMs*10)/10:null,zoneMs:s.zoneMs,measuredMs:s.measuredMs,samples:s.samples,coverage:activeMs>0?Math.min(100,Math.round(s.measuredMs/activeMs*1000)/10):0};
   }
   /* What the trace says about parts of the ride, given its finished phases in
      order (their ms add up along active time). Zone 2's main block gets an

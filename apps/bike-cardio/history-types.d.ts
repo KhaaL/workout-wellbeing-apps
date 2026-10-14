@@ -47,6 +47,13 @@ export interface HeartRateSummary {
   main?: { averageHR: number; coverage: number; driftPct?: number | null } | null; // Zone 2 main block
   recovery60?: Array<number | null> | null; // bpm drop 60 s after each effort, or after the Zone 2 main block
 }
+export interface PowerSummary {
+  source?: string | null; // free text, max 500 characters
+  measuredMs: Milliseconds; coverage: number; // percentage of active time with power, 0..100
+  averageWatts?: number | null; peak5sWatts?: number | null; // W, 0..2500
+  trace?: { binSeconds: 5; watts: string; rpm: string } | null; // same format as HeartRateSummary.trace
+  main?: { averageWatts: number; cadence?: number | null; coverage: number; decouplingPct?: number | null; fixedHRWatts?: number | null } | null;
+}
 export interface PolarZonesMs {
   z1?: Milliseconds | null; z2?: Milliseconds | null; z3?: Milliseconds | null;
   z4?: Milliseconds | null; z5?: Milliseconds | null;
@@ -81,6 +88,7 @@ export interface HistoryEntry {
   hadInterruption?: boolean;
   phases?: HistoryPhase[] | null;
   hr?: HeartRateSummary | null;
+  power?: PowerSummary | null;
   editedAt?: EpochMs;
   [extension: string]: unknown; // no defined recording/nextSeq/sampleCount contract
 }

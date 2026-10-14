@@ -28,7 +28,7 @@ const WorkoutCore = (() => {
   }
   const phase = s => build(s.config)[s.index];
   function create(input, now, id) {
-    return {version:VERSION,id,config:config(input),startedAt:now,lastAt:now,status:'running',index:0,phaseMs:0,activeMs:0,mainMs:0,finishedPhases:[],pending:false,hadInterruption:false,pauseReason:'',nextCheckMs:CHECK_MS,settleEndMs:0,steering:'',endedAt:null,hr:HeartRateCore.createStats(config(input).targets)};
+    return {version:VERSION,id,config:config(input),startedAt:now,lastAt:now,status:'running',index:0,phaseMs:0,activeMs:0,mainMs:0,finishedPhases:[],pending:false,hadInterruption:false,pauseReason:'',nextCheckMs:CHECK_MS,settleEndMs:0,steering:'',endedAt:null,hr:HeartRateCore.createStats(config(input).targets),power:PowerCore.createStats()};
   }
   function accrue(s,ms) {s.phaseMs+=ms;s.activeMs+=ms;if(phase(s).kind==='main')s.mainMs+=ms;}
   function next(s,outcome='complete') {
@@ -80,7 +80,7 @@ const WorkoutCore = (() => {
       if(s.index>0){s.index--;s.finishedPhases.shift();s.finishedPhases=s.finishedPhases.map((p,id)=>({...p,id}));}
       else{s.phaseMs=0;s.pending=false;}
     }
-    s.version=VERSION;s.config=config(s.config);if(s.hr?.targets&&JSON.stringify(BikeTargets.normalize(s.hr.targets))!==JSON.stringify(s.config.targets))return null;s.hr=HeartRateCore.restoreStats(s.hr,s.config.targets);
+    s.version=VERSION;s.config=config(s.config);if(s.hr?.targets&&JSON.stringify(BikeTargets.normalize(s.hr.targets))!==JSON.stringify(s.config.targets))return null;s.hr=HeartRateCore.restoreStats(s.hr,s.config.targets);s.power=PowerCore.restoreStats(s.power);
     for(const key of ['startedAt','lastAt','index','phaseMs','activeMs','mainMs','nextCheckMs','settleEndMs'])if(!Number.isFinite(s[key])||s[key]<0)return null;
     if(!Number.isInteger(s.index)||!phase(s)||s.finishedPhases.length!==s.index)return null;
     if(s.status==='running'){advance(s,now,{visible:false});if(s.status==='running'){s.status='paused';s.pauseReason='Session restored. Elapsed time was recovered using the saved clock. Check your current phase and Polar recording before resuming.';}s.hadInterruption=true;}
@@ -88,9 +88,11 @@ const WorkoutCore = (() => {
   }
   function record(s) {
     const phases=build(s.config), complete=s.finishedPhases.length===phases.length && s.finishedPhases.every(p=>p.outcome==='complete');
-    // A main-block HR measured over at least 80% of the block fills the reading typed by hand before.
+    // Main-block readings measured over at least 80% of the block fill the readings typed by hand before.
     const analysis=HeartRateCore.analyze(s.hr,s.finishedPhases),metrics=analysis.main?.coverage>=80?{mainAverageHR:String(analysis.main.averageHR)}:{};
-    return {id:s.id,startedAt:s.startedAt,endedAt:s.endedAt,config:s.config,activeMs:s.activeMs,mainMs:s.mainMs,outcome:complete?'complete':'partial',hadInterruption:s.hadInterruption,effortsCompleted:s.finishedPhases.filter(p=>p.kind==='effort'&&p.outcome==='complete').length,phases:s.finishedPhases,hr:{...HeartRateCore.summary(s.hr,s.activeMs),...analysis},metrics};
+    const power=PowerCore.analyze(s.power,s.finishedPhases,s.hr,s.config.targets),main=power?.main;
+    if(main?.coverage>=80){metrics.averageWatts=String(main.averageWatts);if(main.cadence!==null)metrics.cadence=String(main.cadence);if(main.fixedHRWatts!==null)metrics.fixedHRWatts=String(main.fixedHRWatts);}
+    return {id:s.id,startedAt:s.startedAt,endedAt:s.endedAt,config:s.config,activeMs:s.activeMs,mainMs:s.mainMs,outcome:complete?'complete':'partial',hadInterruption:s.hadInterruption,effortsCompleted:s.finishedPhases.filter(p=>p.kind==='effort'&&p.outcome==='complete').length,phases:s.finishedPhases,hr:{...HeartRateCore.summary(s.hr,s.activeMs),...analysis},...(power?{power}:{}),metrics};
   }
   return {config,build,phase,create,advance,pause,resume,gate,skip,end,steer,restore,record};
 })();

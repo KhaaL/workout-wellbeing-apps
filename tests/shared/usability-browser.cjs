@@ -13,6 +13,7 @@ const {confirmAction}=require('./confirm-dialog.cjs');
    const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block'}),page=await context.newPage(),errors=[];
    page.on('pageerror',error=>errors.push(error.message));await page.route('https://usability.test/**',route=>route.fulfill({contentType:'text/html',body:html}));await page.goto('https://usability.test/'+app);
    if(app==='bike-cardio'){
+    assert.match(await page.locator('#powerSetup').textContent(),/Bike power & cadence.*(Connect bike|Bike connected)/);assert.equal(await page.locator('#sensorSetup h2').textContent(),'Heart-rate strap');
     await page.locator('#saved-setups summary').filter({hasText:'Saved workout presets'}).click();
     await page.locator('#rideAdjustments > summary').click();await page.fill('#mainMinutes','40');await page.locator('#mainMinutes').press('Tab');await page.fill('#bikeId','bike-a');await page.fill('#presets-name','Steady 40');
     const presets=page.locator('#saved-setups details').first();await presets.getByRole('button',{name:'Save new',exact:true}).click();
@@ -25,9 +26,12 @@ const {confirmAction}=require('./confirm-dialog.cjs');
     await page.click('#start');await navigate(page,'setup');
     const activeBefore=await page.evaluate(()=>JSON.stringify(window.testAPI.state.active.config));
     await navigate(page,'settings');await navigate(page,'history');
-    await page.evaluate(()=>{const api=window.testAPI,s=WorkoutCore.create({},Date.now()-10000,'current');WorkoutCore.end(s,Date.now());const a=WorkoutCore.record(s);a.metrics={averageWatts:'120'};const b=structuredClone(a);b.id='previous';b.startedAt-=86400000;b.metrics.averageWatts='100';const c=structuredClone(b);c.id='different';c.startedAt=a.startedAt-1000;c.config.bikeId='different';api.storage.write('bike-cardio.history.v1',[a,c,b],{atomic:true});api.records=api.state.history;api.showSummary(a);});
+    await page.evaluate(()=>{const api=window.testAPI,s=WorkoutCore.create({},Date.now()-10000,'current');WorkoutCore.end(s,Date.now());const a=WorkoutCore.record(s);a.metrics={averageWatts:'120'};a.power={source:'Bluetooth bike sensor',measuredMs:600000,coverage:95,averageWatts:140,peak5sWatts:180,main:{averageWatts:147.5,cadence:90,coverage:100,decouplingPct:3.2,fixedHRWatts:150}};a.hr={...a.hr,main:{averageHR:118,coverage:96,driftPct:2.5},recovery60:[25,null]};const b=structuredClone(a);b.id='previous';b.startedAt-=86400000;b.metrics.averageWatts='100';const c=structuredClone(b);c.id='different';c.startedAt=a.startedAt-1000;c.config.bikeId='different';api.storage.write('bike-cardio.history.v1',[a,c,b],{atomic:true});api.records=api.state.history;api.showSummary(a);});
     assert.equal(await page.evaluate(()=>JSON.stringify(window.testAPI.state.active.config)),activeBefore);
-    assert.match(await page.locator('#finished-comparison').textContent(),/\+20 W/);assert.equal(await page.locator('#finished-comparison details').getAttribute('open'),null);
+    assert.match(await page.locator('#finished-comparison').textContent(),/\+20 W/);
+    // Measured power and the HR trace's readings appear in the ride summary.
+    assert.match(await page.locator('#powerSummaryText').textContent(),/Main block 147\.5 W at 90 rpm, 100% measured\. 150 W within 2 bpm of 115 bpm\. Aerobic decoupling 3\.2%/);
+    assert.match(await page.locator('#sensorAnalysis').textContent(),/Main block 118 bpm, 96% measured\. HR drift \+2\.5%.*60-second HR recovery: 25 bpm, unknown/);assert.equal(await page.locator('#finished-comparison details').getAttribute('open'),null);
     await page.fill('#averageWatts','135');await page.locator('#undo-bar').getByRole('button',{name:'Undo',exact:true}).click();assert.equal(await page.inputValue('#averageWatts'),'120');
     await page.fill('#averageWatts','140');await page.locator('#undo-bar').getByRole('button',{name:'Dismiss'}).click();
     await page.evaluate(()=>{window.originalSetItem=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(key==='bike-cardio.v1.recent-changes')throw Error('quota');return window.originalSetItem.call(this,key,value);};});

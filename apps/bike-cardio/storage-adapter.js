@@ -57,6 +57,15 @@ globalThis.BikeStorage = (() => {
           if(r.hr.main!=null){if(typeof r.hr.main!=='object')fail('Invalid main-block HR');number(r.hr.main.averageHR,'Main-block HR',1,300);number(r.hr.main.coverage,'Main-block HR coverage',0,100);if(r.hr.main.driftPct!=null)number(r.hr.main.driftPct,'HR drift',-100,100);}
           if(r.hr.recovery60!=null){if(!Array.isArray(r.hr.recovery60)||r.hr.recovery60.length>21)fail('Invalid HR recovery');for(const n of r.hr.recovery60)if(n!==null)number(n,'HR recovery',-300,300);}
         }
+        if(r.power!=null){
+          const p=r.power;if(typeof p!=='object'||Array.isArray(p))fail('Invalid measured power');
+          if(p.source!=null&&(typeof p.source!=='string'||p.source.length>500))fail('Invalid power source');
+          number(p.measuredMs,'Measured power time');number(p.coverage,'Power coverage',0,100);
+          for(const name of ['averageWatts','peak5sWatts'])if(p[name]!=null)number(p[name],'Measured '+name,0,2500);
+          if(p.trace!=null&&(typeof p.trace!=='object'||p.trace.binSeconds!==5||!BikeTrace.decode(p.trace.watts??'',0,2500)||!BikeTrace.decode(p.trace.rpm??'',0,250)))fail('Invalid power trace');
+          if(p.main!=null){if(typeof p.main!=='object')fail('Invalid main-block power');number(p.main.averageWatts,'Main-block power',0,2500);number(p.main.coverage,'Main-block power coverage',0,100);
+            if(p.main.cadence!=null)number(p.main.cadence,'Main-block cadence',0,250);if(p.main.decouplingPct!=null)number(p.main.decouplingPct,'Aerobic decoupling',-100,100);if(p.main.fixedHRWatts!=null)number(p.main.fixedHRWatts,'Watts at comparison HR',0,2500);}
+        }
       }
       // Finishing saves the log before clearing the active ride. A crash
       // between those writes must not make an otherwise valid log unreadable.

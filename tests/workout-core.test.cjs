@@ -143,3 +143,16 @@ test('a saved ride keeps its HR trace when restored',()=>{
   assert.equal(restored.hr.trace.ms.length,6);assert.equal(restored.hr.trace.sum[0],110*5000);
   const broken=JSON.parse(JSON.stringify(s));broken.hr.trace={ms:[1],sum:[]};assert.equal(C.restore(broken,t0+31000).hr.trace.ms.length,0,'a malformed trace is dropped, the ride is kept');
 });
+test('a Zone 2 ride with a bike sensor fills main-block watts, cadence, watts at comparison HR and decoupling',()=>{
+  const H=vm.runInContext('HeartRateCore',context),P=vm.runInContext('PowerCore',context),t0=1000000;
+  const s=C.create({mode:'zone2',warmupMinutes:1,mainMinutes:10,cooldown:1},t0,'powered');
+  const bpm=sec=>sec<60?100:sec<360?115:sec<660?121:96,watts=sec=>sec<60?100:sec<360?150:sec<660?145:80;
+  for(let sec=0;sec<=730;sec++){const now=t0+sec*1000;C.advance(s,now,{visible:true});
+    H.sample(s.hr,{bpm:bpm(sec),valid:true,at:now},now,s.activeMs);P.sample(s.power,{watts:watts(sec),cadence:90,valid:true,at:now},now,s.activeMs);}
+  C.gate(s,t0+730000,true);const r=C.record(s);
+  assert.equal(JSON.stringify(r.power.main),'{"averageWatts":147.5,"cadence":90,"coverage":100,"decouplingPct":8.1,"fixedHRWatts":150}');
+  assert.equal(r.power.peak5sWatts,150);assert.equal(r.power.coverage,100);
+  assert.equal(JSON.stringify([r.metrics.averageWatts,r.metrics.cadence,r.metrics.fixedHRWatts]),'["147.5","90","150"]');
+  const restored=C.restore(JSON.parse(JSON.stringify(C.create({},t0,'old'))),t0);assert.equal(restored.power.watts.ms.length,0);
+  const legacy=JSON.parse(JSON.stringify(C.create({},t0,'legacy')));delete legacy.power;assert.equal(C.restore(legacy,t0).power.samples,0,'a saved ride from before keeps working');
+});
