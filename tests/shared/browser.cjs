@@ -24,6 +24,10 @@ const csp=fs.readFileSync(path.join(root,'dist/bike-cardio/_headers'),'utf8').ma
     await page.click('#editSession');await page.fill('#editBikeId','window');await page.locator('#editForm button[type=submit]').click();assert.equal((await saved()).history[0].config.bikeId,'window');
     assert.equal((await saved()).history[0].startedAt,1720000000123);
     await page.click('#summaryHistory');assert.match(await page.locator('#historyList').textContent(),/140 W main-block average at 115.5 bpm/);assert.equal(await page.locator('#progressChart circle').count(),1);assert.match(await page.locator('#chartTable').textContent(),/105–122 \/ 115/);
+    // Chart text and series take the theme's colours, so they stay legible on the light background.
+    const chart=await page.evaluate(()=>{const probe=document.createElement('span');document.body.append(probe);const resolve=value=>{probe.style.color=value;return getComputedStyle(probe).color;};
+      const result={axis:getComputedStyle(document.querySelector('#progressChart .chart-axis')).fill,dot:getComputedStyle(document.querySelector('#progressChart circle')).fill,muted:resolve('var(--muted)'),accent:resolve('var(--accent)')};probe.remove();return result;});
+    assert.equal(chart.axis,chart.muted);assert.equal(chart.dot,chart.accent);
     await page.click('#historyBack');await page.click('#again');
     await navigateUI(page,'settings');await page.locator('summary').filter({hasText:'Backups & cloud storage'}).click();
     const downloadWait=page.waitForEvent('download');await page.click('#exportBackup');const download=await downloadWait;

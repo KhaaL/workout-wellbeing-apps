@@ -49,6 +49,15 @@ test('hidden pages suspend reconnects and manual disconnect cancels them',async(
   d.connection.disconnect();assert.equal(d.timers.size,0);
   d.connection.visibilityChanged();assert.equal(d.timers.size,0);
 });
+test('returning to the page retries again after three failed reconnects',async()=>{
+  const d=setup();await d.connection.connect();
+  d.device.gatt.connect=async()=>{throw Object.assign(new Error('gone'),{name:'NetworkError'});};
+  d.device.gatt.connected=false;d.device.dispatchEvent(new Event('gattserverdisconnected'));
+  for(let attempt=0;attempt<3;attempt++){const [key,timer]=[...d.timers].at(-1);d.timers.delete(key);timer.fn();await new Promise(resolve=>setImmediate(resolve));}
+  assert.equal(d.connection.state,'disconnected');assert.equal(d.timers.size,0,'automatic retries stop after three attempts');
+  d.setVisible(false);d.connection.visibilityChanged();d.setVisible(true);d.connection.visibilityChanged();
+  assert.equal(d.timers.size,1);assert.equal([...d.timers.values()][0].delay,1000);
+});
 test('manual HR remains available when Bluetooth cannot be used',async()=>{
   const connection=new Connection({secure:false,protocol:'https:'});
   await connection.connect();assert.equal(connection.state,'unavailable');assert.match(connection.error,/HTTPS/);

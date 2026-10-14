@@ -56,7 +56,9 @@ class H10Connection {
   visibilityChanged() {
     this.clearReading();
     if(!this.env.visible())this.clearRetry();
-    else if(this.state==='disconnected'&&!this.manual)this.scheduleRetry();
+    // Returning to the page starts a fresh round, so 3 failed attempts earlier
+    // do not leave the strap disconnected for the rest of the ride.
+    else if(this.state==='disconnected'&&!this.manual){if(this.retryTimer===null)this.attempts=0;this.scheduleRetry();}
     this.emit();
   }
 }

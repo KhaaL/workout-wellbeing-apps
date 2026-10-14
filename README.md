@@ -23,10 +23,13 @@ Builds produce two standalone app folders:
   reuse bike identifiers. Save, update or delete named entries; applying them
   affects the next ride only. Both collections are included in full backups;
   older backups start with empty collections.
-- **Comparisons:** completed session summaries select an earlier matching
-  session and show three key readings first. Expand **Detailed comparison &
-  notes** for the full table and caveats. History retains manual selection.
-  Missing readings stay unknown and incompatible measurements have no delta.
+- **Comparisons:** Bike session summaries select an earlier matching ride and
+  show three key readings first. Liftlog session summaries compare each
+  exercise with its own most recent earlier session that used the same load
+  convention, from any routine; each row names that session. Expand
+  **Detailed comparison & notes** for the full table and caveats. History
+  retains manual selection. Missing readings stay unknown and incompatible
+  measurements have no delta.
 - Both apps use the same confirmation layout, with Cancel focused first and
   explicit action buttons; keyboard Escape cancels.
 
@@ -40,8 +43,11 @@ for permissions and how to finish a handoff.
 
 History → Compare two workouts shows earlier/later measurements and differences.
 Bike comparisons distinguish machines, context, targets, plans and interrupted
-rides; optional perceived effort is also exported to CSV. Liftlog compares the
-same routine, uses recorded load conventions and converts historical units.
+rides; optional perceived effort is also exported to CSV. Liftlog offers any
+workout that shares an exercise, most shared exercises first, then the most
+recent. Whole-workout totals get differences only for the same routine and
+exercise list; shared exercises are compared by recorded load convention with
+historical units converted.
 Missing readings remain unknown; warm-ups are excluded from working totals.
 
 Local saves skip unchanged data and cache finished histories while active fields

@@ -18,7 +18,7 @@ function device(storage = new Map()) {
     render=()=>{}; renderStorageStatus=()=>{}; applyTheme=()=>{}; drawTimer=()=>{}; cancelRestBeep=()=>{}; restoreTimer=()=>{};
     toast=(text)=>messages.push(text); announce=()=>{}; updateSaveBanner=()=>{};
     confirmDlg=async()=>true; dialog=async()=>true;
-    window.api={workoutHandoff,localStore,remoteEngine,beginWorkout,newWorkout, pauseTimer, timer, LiftlogComparisons,workoutVolume,workoutDuration,sameProgressionContract,canonicalExerciseId,setWeight,addedSetWeight,save,flushSave,clearWorkoutData,prepareBackup,backupPayload,backupDataKey,remoteStartupSync,autoRemoteBackup,remoteBackup,remoteRestore,remotePublishLocal,remoteResumeSync,pauseRemoteSync,remoteSyncPaused,remoteStorageHTML,
+    window.api={workoutHandoff,localStore,remoteEngine,beginWorkout,newWorkout, pauseTimer, timer, LiftlogComparisons,epley,relDays,nextLoadFor,buildWorkoutExercise,finishWorkout,workoutVolume,workoutDuration,sameProgressionContract,canonicalExerciseId,setWeight,addedSetWeight,save,flushSave,clearWorkoutData,prepareBackup,backupPayload,backupDataKey,remoteStartupSync,autoRemoteBackup,remoteBackup,remoteRestore,remotePublishLocal,remoteResumeSync,pauseRemoteSync,remoteSyncPaused,remoteStorageHTML,
       putRemoteBackup,installRemoteSnapshot,commitSnapshot,applyFullBackup,readRemoteBackup,s3Request,validateRemoteConfig,
       testAndSaveRemoteConfig,saveRemoteConfig,clearRemoteConfig,readRemoteWork,scheduleRemoteBackup,remoteTestConnection,
       get state(){return state},set state(v){state=v},get ui(){return ui},get saveFailed(){return localStore.failed},
