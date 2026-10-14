@@ -411,7 +411,14 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
   <h1>Settings</h1>
   <div id="storage-summary"></div>
   <section class="card"><h2>Appearance</h2><label class="field">Theme<select id="themeChoice"></select></label></section>
-  <details id="defaultTargets" class="card"><summary>Default targets &amp; durations</summary><p class="small">New rides start with these defaults. A running ride keeps its recorded plan.</p><div id="defaultTargetFields" class="grid"></div><p id="defaultTargetError" class="notice" role="alert" hidden></p><button id="saveDefaults" class="secondary">Save workout defaults</button></details>
+  <details id="defaultTargets" class="card"><summary>Default targets &amp; durations</summary><p class="small">New rides start with these defaults. A running ride keeps its recorded plan.</p><div id="defaultTargetFields" class="grid"></div>
+    <details id="zoneCalculator"><summary>Calculate heart-rate targets</summary><p class="small">Fills the six heart-rate fields above from your measured numbers. Review them, then save the defaults. Zone 2 is 60 to 70% of maximum HR or of heart-rate reserve, or 81 to 89% of threshold HR.</p>
+      <div class="grid"><label class="field">Based on<select id="zoneMethod"><option value="max">Maximum HR</option><option value="reserve">Heart-rate reserve</option><option value="threshold">Threshold HR</option></select></label>
+        <label class="field" id="maxHRField">Maximum HR · bpm<input id="profileMaxHR" type="number" inputmode="numeric" min="100" max="230" step="1"></label>
+        <label class="field" id="restingHRField" hidden>Resting HR · bpm<input id="profileRestingHR" type="number" inputmode="numeric" min="30" max="120" step="1"></label>
+        <label class="field" id="thresholdHRField" hidden>Threshold HR · bpm<input id="profileThresholdHR" type="number" inputmode="numeric" min="80" max="220" step="1"></label></div>
+      <button id="fillTargets" class="secondary">Fill heart-rate targets</button><p id="zoneError" class="notice" role="alert" hidden></p><ol id="zoneList" class="small" hidden></ol></details>
+    <p id="defaultTargetError" class="notice" role="alert" hidden></p><button id="saveDefaults" class="secondary">Save workout defaults</button></details>
   <div class="card stack"><label class="check"><input type="checkbox" id="voice" checked>Voice cues</label><label class="check"><input type="checkbox" id="beeps" checked>Beeps</label><button id="testSound" class="secondary">Test sound</button><p class="small">If you use Polar, start a separate Indoor cycling recording before riding. Mount your phone where it is easy to read.</p></div>
   <details id="storage-options" class="card"><summary>Backups &amp; cloud storage</summary>
     <p class="small">Your rides save on this device. A full JSON backup can restore your history and settings. Cloud backup is optional and uses your own S3-compatible storage.</p>
@@ -2222,7 +2229,29 @@ const BikeTargets = (() => {
     if(!(result.zoneMin<=result.adjustBelow&&result.adjustBelow<=result.targetMin&&result.targetMin<=result.comparisonHR&&result.comparisonHR<=result.targetMax&&result.targetMax<=result.zoneMax))throw new Error('Use ascending targets: zone minimum, add-below, working minimum, comparison HR, working maximum, zone maximum.');
     return Object.fromEntries(Object.keys(defaults).map(name=>[name,result[name]]));
   }
-  return {defaults,normalize};
+  /* Five zones from one or two measured numbers, and the six ride targets from
+     zone 2. Maximum HR and heart-rate reserve (Karvonen: resting HR plus a
+     share of max minus resting) use 50/60/70/80/90/100%; threshold HR uses
+     81/90/94/100% bands for zones 2 to 5. Inside zone 2 the working band,
+     add-below point and comparison HR keep the proportions of the 105 to 122
+     default, so that default comes back from a zone 2 of 105 to 122.
+     Percentages stay whole numbers so a half-beat boundary rounds up exactly. */
+  const methods={max:'Maximum HR',reserve:'Heart-rate reserve',threshold:'Threshold HR'};
+  function fromProfile(profile={}){
+    const whole=(value,label,min,max)=>{const n=Number(value);if(!Number.isInteger(n)||n<min||n>max)throw new Error(`${label} must be a whole number from ${min} to ${max}.`);return n;};
+    let bpm,bands;
+    if(profile.method==='threshold'){const t=whole(profile.thresholdHR,'Threshold HR',80,220);bpm=p=>Math.round(t*p/100);bands=[[65,81],[81,89],[90,93],[94,99],[100,106]];}
+    else if(profile.method==='max'||profile.method==='reserve'){
+      const max=whole(profile.maxHR,'Maximum HR',100,230),rest=profile.method==='reserve'?whole(profile.restingHR,'Resting HR',30,120):0;
+      if(max-rest<40)throw new Error('Maximum HR must be at least 40 above resting HR.');
+      bpm=p=>Math.round(rest+(max-rest)*p/100);bands=[[50,60],[60,70],[70,80],[80,90],[90,100]];
+    }else throw new Error('Choose maximum HR, heart-rate reserve or threshold HR.');
+    const zones=bands.map(([low,high],i)=>({zone:i+1,min:bpm(low),max:bpm(high)}));
+    const low=zones[1].min,high=zones[1].max,w=high-low,at=share=>Math.round(low+w*share);
+    const targetMin=at(0.3),targetMax=at(0.88);
+    return {zones,targets:normalize({zoneMin:low,zoneMax:high,adjustBelow:at(0.18),targetMin,targetMax,comparisonHR:Math.round((targetMin+targetMax)/2)})};
+  }
+  return {defaults,normalize,methods,fromProfile};
 })();
 
 /* bike-targets:end */
@@ -2781,6 +2810,16 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
       applySavedSettings();$('defaultTargetError').hidden=true;toast('Workout defaults saved. Running rides keep their original plan.');
     }catch(error){$('defaultTargetError').textContent=error.message;$('defaultTargetError').hidden=false;}
   }
+  /* The calculator only fills the fields; Save workout defaults stores them as before. */
+  function showZoneMethod(){const method=$('zoneMethod').value;$('maxHRField').hidden=method==='threshold';$('restingHRField').hidden=method!=='reserve';$('thresholdHRField').hidden=method!=='threshold';$('zoneError').hidden=true;}
+  function fillTargetsFromProfile(){
+    try{
+      const {zones,targets}=BikeTargets.fromProfile({method:$('zoneMethod').value,maxHR:$('profileMaxHR').value,restingHR:$('profileRestingHR').value,thresholdHR:$('profileThresholdHR').value});
+      for(const name of targetFields)$('default-'+name).value=targets[name];
+      const list=$('zoneList');list.replaceChildren(...zones.map(z=>{const item=document.createElement('li');item.textContent=`Zone ${z.zone}: ${z.min} to ${z.max} bpm`+(z.zone===2?' (ride zone)':'');return item;}));
+      list.hidden=false;$('zoneError').hidden=true;toast('Heart-rate targets filled. Save workout defaults to keep them.');
+    }catch(error){$('zoneError').textContent=error.message;$('zoneError').hidden=false;}
+  }
   function configureAppearance(){
     const select=$('themeChoice');for(const theme of WorkoutUI.themes){const option=document.createElement('option');option.value=theme.id;option.textContent=theme.label;select.append(option);}
     let theme='system';try{theme=localStorage.getItem('bike-cardio.ui.theme')||'system';}catch{}
@@ -2989,7 +3028,7 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   $('editForm').addEventListener('input',()=>{for(const id of ['editDate','editActive','editMain','editEfforts'])$(id).setCustomValidity('');});
   for(const id of ['historyMachine','historyContext','historyMode','historyOutcome','historyFrom','historyTo','historyUninterrupted','historyMetric'])$(id).addEventListener('change',showHistory);
   $('resetHistoryFilters').addEventListener('click',()=>{for(const id of ['historyMachine','historyContext','historyMode','historyOutcome','historyFrom','historyTo'])$(id).value='';$('historyUninterrupted').checked=false;showHistory();});
-  $('saveDefaults').addEventListener('click',saveDefaults);
+  $('saveDefaults').addEventListener('click',saveDefaults);$('zoneMethod').addEventListener('change',showZoneMethod);$('fillTargets').addEventListener('click',fillTargetsFromProfile);
   $('openHistory').addEventListener('click',()=>{historyReturn='setup';showHistory();});$('summaryHistory').addEventListener('click',()=>{if(saveMetrics(true)===false&&!$('logForm').checkValidity())return;historyReturn='summary';showHistory();});$('historyBack').addEventListener('click',()=>{if(historyReturn==='summary'&&selected)showSummary(selected);else if(session){show('run');render();}else{show('setup');updateRestore();}});
   $('again').addEventListener('click',()=>{if(saveMetrics(true)===false&&!$('logForm').checkValidity())return;show('setup');updateRestore();});$('exportSummary').addEventListener('click',exportCSV);$('exportHistory').addEventListener('click',exportCSV);
   for(const id of ['exportBackup','exportSummaryBackup'])$(id).addEventListener('click',exportFullBackup);

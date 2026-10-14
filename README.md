@@ -292,6 +292,19 @@ old rides retain the original 105–122 bpm zone and 115 bpm comparison target.
 Bike migrates version 1/2 backups to version 3 and active sessions to version 3.
 The history/backup and active-workout version numbers are independent.
 
+Settings → Default targets & durations → **Calculate heart-rate targets** fills
+the six heart-rate fields from maximum HR, heart-rate reserve (maximum and
+resting HR) or threshold HR, and lists the five zones it used. Zone 2 is 60 to
+70% of maximum HR or of the reserve, or 81 to 89% of threshold HR; the working
+band, add-below point and comparison HR keep the proportions of the 105 to 122
+default inside it. Nothing changes until **Save workout defaults**.
+
+Measured heart rate also fills 5-second bins of active riding time. A finished
+ride keeps them as a compact trace and derives the Zone 2 main-block average
+(filling the main-block HR reading when at least 80% of the block was measured),
+HR drift between the halves of a main block of 10 minutes or more, and the
+60-second HR recovery after each sprint effort or the Zone 2 main block.
+
 For external recordings, use History → Merge history. See the
 [history contract](docs/BIKE-HISTORY.md), [TypeScript types](apps/bike-cardio/history-types.d.ts),
 and tested [example exports](examples/). Version 3 supports an Externally recorded
@@ -303,7 +316,8 @@ Live advice, HR gates, measured zone time, summaries and CSV exports use those
 recorded values. Input validation prevents inconsistent target ordering.
 
 History filters cover machine, context, workout, dates, outcome and interruptions.
-Progress charts show watts, main-block HR, duration and H10 coverage with an
+Progress charts show watts, main-block HR, duration, HR coverage, HR drift and
+60-second HR recovery with an
 accessible readings table. Lines join only matching machines, contexts, targets
 and plans. Missing readings remain unknown and break a line. Exports retain the
 complete history regardless of the current viewing filters.
