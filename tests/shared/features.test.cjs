@@ -194,3 +194,12 @@ test('Liftlog swaps an exercise for this session and keeps its prescription',()=
  timed.sets[0].completed=true;assert.equal(d.api.canSwap(timed),false);
  d.api.swapExercise(0,'bench');assert.equal(s.activeWorkout.exercises[0].exerciseId,'plank','logged work is never relabelled');
 });
+test('Bike backups accept a measured HR trace and reject malformed ones',()=>{
+ const d=bike(),backup=d.api.backup(),s=d.ctx.C.create({},Date.now(),'traced');d.ctx.C.end(s,Date.now());
+ const ride=d.ctx.C.record(s);ride.hr={...ride.hr,trace:{binSeconds:5,bpm:'100,,115,121'},main:{averageHR:118,coverage:96,driftPct:2.5},recovery60:[25,null]};backup.history=[ride];
+ assert.equal(d.api.prepare(backup).history[0].hr.trace.bpm,'100,,115,121');
+ for(const [change,pattern] of [[r=>r.hr.trace.bpm='100,abc',/HR trace/],[r=>r.hr.trace.binSeconds=1,/HR trace/],[r=>r.hr.trace.bpm='100,900',/HR trace/],
+  [r=>r.hr.main.averageHR=0,/Main-block HR/],[r=>r.hr.main.driftPct=500,/HR drift/],[r=>r.hr.recovery60=['x'],/HR recovery/]]){
+  const bad=JSON.parse(JSON.stringify(backup));change(bad.history[0]);assert.throws(()=>d.api.prepare(bad),pattern);
+ }
+});

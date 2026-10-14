@@ -1,7 +1,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const ctx=vm.createContext({});
-for(const file of ['targets.js','heart-rate.js','bluetooth.js','workout-core.js'])
+for(const file of ['targets.js','trace.js','heart-rate.js','bluetooth.js','workout-core.js'])
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../apps/bike-cardio',file),'utf8'),ctx);
 const {H,Connection}=vm.runInContext('({H:HeartRateCore,Connection:H10Connection})',ctx);
 const packet=bytes=>new DataView(Uint8Array.from(bytes).buffer);

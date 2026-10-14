@@ -88,7 +88,9 @@ const WorkoutCore = (() => {
   }
   function record(s) {
     const phases=build(s.config), complete=s.finishedPhases.length===phases.length && s.finishedPhases.every(p=>p.outcome==='complete');
-    return {id:s.id,startedAt:s.startedAt,endedAt:s.endedAt,config:s.config,activeMs:s.activeMs,mainMs:s.mainMs,outcome:complete?'complete':'partial',hadInterruption:s.hadInterruption,effortsCompleted:s.finishedPhases.filter(p=>p.kind==='effort'&&p.outcome==='complete').length,phases:s.finishedPhases,hr:HeartRateCore.summary(s.hr,s.activeMs),metrics:{}};
+    // A main-block HR measured over at least 80% of the block fills the reading typed by hand before.
+    const analysis=HeartRateCore.analyze(s.hr,s.finishedPhases),metrics=analysis.main?.coverage>=80?{mainAverageHR:String(analysis.main.averageHR)}:{};
+    return {id:s.id,startedAt:s.startedAt,endedAt:s.endedAt,config:s.config,activeMs:s.activeMs,mainMs:s.mainMs,outcome:complete?'complete':'partial',hadInterruption:s.hadInterruption,effortsCompleted:s.finishedPhases.filter(p=>p.kind==='effort'&&p.outcome==='complete').length,phases:s.finishedPhases,hr:{...HeartRateCore.summary(s.hr,s.activeMs),...analysis},metrics};
   }
   return {config,build,phase,create,advance,pause,resume,gate,skip,end,steer,restore,record};
 })();

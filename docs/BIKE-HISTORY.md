@@ -113,9 +113,26 @@ the history category prevents comparisons based on that default plan.
   fields `zoneMs`, `measuredMs`, `samples`, `coverage` are required. Optional
   `hr.targets` are normalized and must match the ride's configured targets.
 
+- `hr.trace` (optional): `{ "binSeconds": 5, "bpm": "100,101,,118" }`. Each
+  comma-separated entry is the whole-number average bpm (1..300) for 5 seconds of
+  **active riding time**, in order from the start; an empty entry is a bin measured
+  for under half its length. Paused time is not active time and has no bins. The
+  string holds at most 8640 entries (12 hours). One string per ride keeps backups
+  under the object-count limit that an array of numbers would reach.
+- `hr.main` (optional, Zone 2): `{ "averageHR": 118, "coverage": 96, "driftPct": 2.5 }`.
+  The main block's measured average (1..300) and the percentage of it that was
+  measured (0..100). `driftPct` (-100..100 or `null`) compares the second half's
+  average with the first's; native output requires a main block of at least 10
+  minutes with each half at least half measured. When `coverage` is at least 80,
+  native rides also fill `metrics.mainAverageHR` with the same value.
+- `hr.recovery60` (optional): one entry per sprint effort, or one for the Zone 2
+  main block: bpm in the last 5 seconds of the phase minus bpm 55 to 60 seconds
+  after it (-300..300), or `null` when either window was under half measured.
+
 There is **no defined `recording` object** in this implementation. It has no
 `nextSeq`/`sampleCount` contract or raw-sample storage. The live accumulator keeps
-weighted totals and the last reading; finished history stores summaries only.
+weighted totals, 5-second bins and the last reading; finished history stores
+summaries and the 5-second trace.
 An unknown `recording` extension is preserved but ignored. Omit it for imports;
 do not fabricate sequence numbers or raw readings.
 

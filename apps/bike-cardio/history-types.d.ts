@@ -43,6 +43,9 @@ export interface HeartRateSummary {
   zoneMs: Milliseconds; measuredMs: Milliseconds;
   samples: number; // count of accepted readings; 0 is accepted for an imported aggregate
   coverage: number; // percentage, 0..100, NOT a fraction
+  trace?: { binSeconds: 5; bpm: string } | null; // comma-separated whole bpm per 5 s of active time; empty entry = unknown
+  main?: { averageHR: number; coverage: number; driftPct?: number | null } | null; // Zone 2 main block
+  recovery60?: Array<number | null> | null; // bpm drop 60 s after each effort, or after the Zone 2 main block
 }
 export interface PolarZonesMs {
   z1?: Milliseconds | null; z2?: Milliseconds | null; z3?: Milliseconds | null;

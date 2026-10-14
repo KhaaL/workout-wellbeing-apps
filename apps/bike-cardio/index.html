@@ -460,7 +460,7 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
   <button id="deleteSession" class="secondary danger">Delete session…</button>
   <button id="editSession" class="secondary">Edit session details</button>
   <div id="externalReadings" class="card" hidden></div>
-  <div id="sensorSummary" class="card" hidden><h2 id="sensorSummaryTitle">Measured heart rate</h2><div class="grid"><div><span class="small">Average HR</span><p id="sensorAverage" class="sensor-number"></p></div><div><span id="sensorZoneLabel" class="small">Time in recorded zone</span><p id="sensorZone" class="sensor-number"></p></div></div><p id="sensorCoverage" class="small"></p><p class="small">Includes measured active riding in every phase. Missing readings and pauses are excluded.</p></div>
+  <div id="sensorSummary" class="card" hidden><h2 id="sensorSummaryTitle">Measured heart rate</h2><div class="grid"><div><span class="small">Average HR</span><p id="sensorAverage" class="sensor-number"></p></div><div><span id="sensorZoneLabel" class="small">Time in recorded zone</span><p id="sensorZone" class="sensor-number"></p></div></div><p id="sensorCoverage" class="small"></p><p id="sensorAnalysis" class="small" hidden></p><p class="small">Includes measured active riding in every phase. Missing readings and pauses are excluded.</p></div>
   <p id="summaryCaution" class="notice" hidden></p><p class="notice">Stop the Indoor cycling recording in Polar when you finish spinning.</p>
   <form id="logForm" class="card stack">
     <h2>Add or edit readings</h2><p class="small">Optional Polar readings stay separate from H10 measurements above. Check that Polar’s zone boundaries match this ride’s recorded targets. Add resistance, cadence and watts from the bike.</p>
@@ -473,7 +473,7 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
       <label class="field">Main-block average HR · bpm<input id="mainAverageHR" type="number" inputmode="decimal" min="1" max="300" step="0.1" placeholder="Main block only" aria-describedby="mainHRNote"></label>
       <label class="field"><span id="comparisonLabel">Watts at comparison HR</span><input id="fixedHRWatts" type="number" inputmode="decimal" min="0" max="2500" step="0.1" placeholder="Optional comparison"></label>
     </div>
-    <p id="mainHRNote" class="small">Enter the average HR for the same main block as your average watts. This pairs watts with HR in history, without full HR samples. Leave blank if you only have a whole-session average.</p>
+    <p id="mainHRNote" class="small">Filled from the strap when it measured at least 80% of the main block. Otherwise enter the average HR for the same main block as your average watts, or leave it blank if you only have a whole-session average.</p>
     <label class="field">Perceived effort · 1–10<input id="perceivedEffort" type="number" min="1" max="10" step="1" inputmode="numeric" placeholder="Optional"></label><label class="field">Notes<textarea id="notes" rows="3" maxlength="2000" placeholder="Talk test, fluids, drift, or anything worth remembering"></textarea></label><p id="logStatus" class="save-status" role="status"></p>
     <p id="comparisonNote" class="small"></p>
   </form>
@@ -483,7 +483,7 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
 <label class="field">Machine<select id="historyMachine"><option value="">All machines</option></select></label><label class="field">Context<select id="historyContext"><option value="">All contexts</option><option value="fresh">Fresh legs</option><option value="post-lifting">After lifting</option><option value="unknown">Unknown context</option></select></label>
 <label class="field">Workout<select id="historyMode"><option value="">All workouts</option><option value="zone2">Zone 2</option><option value="sprint">Sprints</option><option value="external">Externally recorded</option></select></label><label class="field">Outcome<select id="historyOutcome"><option value="">All outcomes</option><option value="complete">Complete</option><option value="partial">Partial</option></select></label>
 <label class="field">From<input id="historyFrom" type="date"></label><label class="field">Through<input id="historyTo" type="date"></label></div><label class="check"><input id="historyUninterrupted" type="checkbox">Hide interrupted rides</label><button id="resetHistoryFilters" class="secondary">Reset filters</button></details>
-<p id="historyCount" class="small" role="status"></p><div class="card"><h2>Progress</h2><label class="field">Measure<select id="historyMetric"><option value="fixedHRWatts">Watts at recorded comparison HR</option><option value="averageWatts">Main-block average watts</option><option value="mainAverageHR">Main-block average HR</option><option value="mainMinutes">Main-block duration</option><option value="coverage">HR measurement coverage</option></select></label><p id="chartNote" class="small"></p><div id="progressChart"></div><details><summary>Chart readings</summary><div id="chartTable" style="overflow-x:auto"></div></details></div><div id="workout-comparison"></div><div id="recent-changes"></div><div id="historyList"></div><div class="stack"><button id="exportHistory" class="secondary">Export CSV</button><button id="exportHistoryJSON" class="secondary">Download ride history</button><label class="field">Merge history from a Bike Cardio JSON file<input id="importHistory" type="file" accept=".json,application/json"></label><p id="historyImportStatus" class="small" role="status"></p><button id="clearHistory" class="secondary danger">Clear ride history…</button></div><p class="small">History imports add rides without replacing your settings. Local rides win conflicts. Browser data can be cleared by your phone or browser; keep a full backup.</p></section>
+<p id="historyCount" class="small" role="status"></p><div class="card"><h2>Progress</h2><label class="field">Measure<select id="historyMetric"><option value="fixedHRWatts">Watts at recorded comparison HR</option><option value="averageWatts">Main-block average watts</option><option value="mainAverageHR">Main-block average HR</option><option value="mainMinutes">Main-block duration</option><option value="coverage">HR measurement coverage</option><option value="hrDrift">Main-block HR drift</option><option value="recovery60">60-second HR recovery</option></select></label><p id="chartNote" class="small"></p><div id="progressChart"></div><details><summary>Chart readings</summary><div id="chartTable" style="overflow-x:auto"></div></details></div><div id="workout-comparison"></div><div id="recent-changes"></div><div id="historyList"></div><div class="stack"><button id="exportHistory" class="secondary">Export CSV</button><button id="exportHistoryJSON" class="secondary">Download ride history</button><label class="field">Merge history from a Bike Cardio JSON file<input id="importHistory" type="file" accept=".json,application/json"></label><p id="historyImportStatus" class="small" role="status"></p><button id="clearHistory" class="secondary danger">Clear ride history…</button></div><p class="small">History imports add rides without replacing your settings. Local rides win conflicts. Browser data can be cleared by your phone or browser; keep a full backup.</p></section>
 </main>
 <dialog id="pauseDialog" aria-labelledby="pauseTitle"><h2 id="pauseTitle">Paused</h2><p id="pauseMessage"></p><div class="dialog-actions"><button id="resume" class="primary">Resume</button><button id="end" class="secondary danger">End session &amp; save log</button></div></dialog>
 <dialog id="skipDialog" aria-labelledby="skipTitle"><h2 id="skipTitle">Skip this phase?</h2><p>Its time will be recorded, and the phase will be marked skipped. A skipped effort is not a completed effort.</p><div class="dialog-actions"><button id="cancelSkip" class="primary">Keep riding this phase</button><button id="confirmSkip" class="secondary danger">Skip phase</button></div></dialog>
@@ -794,6 +794,9 @@ globalThis.BikeStorage = (() => {
           if(r.hr.averageHR!=null)number(r.hr.averageHR,'Measured HR',1,300);
           for(const name of ['zoneMs','measuredMs','samples','coverage'])number(r.hr[name],'Measured '+name);
           if(r.hr.zoneMs>r.hr.measuredMs||r.hr.coverage>100)fail('Invalid HR coverage');
+          if(r.hr.trace!=null&&(typeof r.hr.trace!=='object'||r.hr.trace.binSeconds!==5||!BikeTrace.decode(r.hr.trace.bpm,1,300)))fail('Invalid HR trace');
+          if(r.hr.main!=null){if(typeof r.hr.main!=='object')fail('Invalid main-block HR');number(r.hr.main.averageHR,'Main-block HR',1,300);number(r.hr.main.coverage,'Main-block HR coverage',0,100);if(r.hr.main.driftPct!=null)number(r.hr.main.driftPct,'HR drift',-100,100);}
+          if(r.hr.recovery60!=null){if(!Array.isArray(r.hr.recovery60)||r.hr.recovery60.length>21)fail('Invalid HR recovery');for(const n of r.hr.recovery60)if(n!==null)number(n,'HR recovery',-300,300);}
         }
       }
       // Finishing saves the log before clearing the active ride. A crash
@@ -2223,6 +2226,57 @@ const BikeTargets = (() => {
 })();
 
 /* bike-targets:end */
+/* bike-trace:start */
+/* exported BikeTrace */
+/* Readings spread over 5-second bins of active riding time, so an average over
+   any part of a ride (the main block, its halves, the minute after an effort)
+   comes from what was measured. Paused time is not active time and never
+   enters a bin; a gap in readings leaves a bin partly or wholly unmeasured. */
+const BikeTrace = (() => {
+  const BIN_MS = 5000, MAX_BINS = 8640; // 12 hours of riding
+  const create = () => ({ms:[], sum:[]});
+  function valid(raw) {
+    return Boolean(raw && Array.isArray(raw.ms) && Array.isArray(raw.sum) && raw.ms.length === raw.sum.length && raw.ms.length <= MAX_BINS &&
+      raw.ms.every((ms, i) => Number.isFinite(ms) && ms >= 0 && ms <= BIN_MS + 1 && Number.isFinite(raw.sum[i]) && raw.sum[i] >= 0));
+  }
+  const restore = raw => valid(raw) ? {ms:raw.ms.slice(), sum:raw.sum.slice()} : create();
+  // `value` was held from active time `from` to `to` (milliseconds).
+  function add(trace, from, to, value) {
+    for (let at = Math.max(0, from); at < to;) {
+      const bin = Math.floor(at / BIN_MS);
+      if (bin >= MAX_BINS) return;
+      while (trace.ms.length <= bin) { trace.ms.push(0); trace.sum.push(0); }
+      const end = Math.min(to, (bin + 1) * BIN_MS), ms = end - at;
+      trace.ms[bin] += ms; trace.sum[bin] += value * ms; at = end;
+    }
+  }
+  // Measured time and average over [from, to), taking readings as spread evenly within a bin.
+  function range(trace, from, to) {
+    let ms = 0, sum = 0;
+    for (let bin = Math.max(0, Math.floor(from / BIN_MS)); bin < trace.ms.length && bin * BIN_MS < to; bin++) {
+      const overlap = Math.min(to, (bin + 1) * BIN_MS) - Math.max(from, bin * BIN_MS);
+      if (overlap <= 0) continue;
+      ms += trace.ms[bin] * overlap / BIN_MS; sum += trace.sum[bin] * overlap / BIN_MS;
+    }
+    return {ms, average:ms > 0 ? sum / ms : null, coverage:to > from ? Math.min(1, ms / (to - from)) : 0};
+  }
+  /* History keeps one whole number per bin in a comma-separated string: one
+     value for the backup's object-count limit instead of one per bin. A bin
+     measured for under half its length is stored empty (unknown). */
+  function encode(trace) {
+    const values = trace.ms.map((ms, i) => ms >= BIN_MS / 2 ? String(Math.round(trace.sum[i] / ms)) : '');
+    while (values.length && values[values.length - 1] === '') values.pop();
+    return values.join(',');
+  }
+  function decode(text, min, max) {
+    if (typeof text !== 'string' || !/^\d*(,\d*)*$/.test(text)) return null;
+    const values = text === '' ? [] : text.split(',').map(value => value === '' ? null : Number(value));
+    return values.length <= MAX_BINS && values.every(value => value === null || (value >= min && value <= max)) ? values : null;
+  }
+  return {BIN_MS, MAX_BINS, create, restore, add, range, encode, decode};
+})();
+
+/* bike-trace:end */
 /* bike-heart-rate:start */
 /* exported HeartRateCore */
 const HeartRateCore = (() => {
@@ -2247,7 +2301,7 @@ const HeartRateCore = (() => {
     const t=BikeTargets.normalize(targets);
     return reading.bpm>t.zoneMax ? {action:'high',text:`Above ${t.zoneMax} · reduce one level`} : reading.bpm<t.adjustBelow ? {action:'low',text:`Below ${t.adjustBelow} · add one level`} : {action:'hold',text:`Hold resistance · aim for ${t.targetMin}–${t.targetMax}`};
   }
-  function createStats(targets){return {targets:BikeTargets.normalize(targets),version:1,measuredMs:0,bpmMs:0,zoneMs:0,samples:0,last:null};}
+  function createStats(targets){return {targets:BikeTargets.normalize(targets),version:1,measuredMs:0,bpmMs:0,zoneMs:0,samples:0,last:null,trace:BikeTrace.create()};}
   function breakSeries(stats){if(stats)stats.last=null;}
   function sample(stats,reading,now,activeMs,eligible=true) {
     if(!stats)return;
@@ -2255,7 +2309,7 @@ const HeartRateCore = (() => {
     const previous=stats.last, wall=previous?now-previous.at:0, active=previous?activeMs-previous.activeMs:0;
     // Only join adjacent, visible, valid samples. Never fill a pause or missing interval.
     if(previous && wall>0 && wall<=MAX_GAP_MS && active>0 && active<=wall+1){
-      stats.measuredMs+=active;stats.bpmMs+=previous.bpm*active;
+      stats.measuredMs+=active;stats.bpmMs+=previous.bpm*active;BikeTrace.add(stats.trace,previous.activeMs,activeMs,previous.bpm);
       if(previous.bpm>=stats.targets.zoneMin && previous.bpm<=stats.targets.zoneMax)stats.zoneMs+=active;
     }
     stats.samples++;stats.last={at:now,activeMs,bpm:reading.bpm};
@@ -2264,6 +2318,7 @@ const HeartRateCore = (() => {
     const stats=createStats(raw?.targets||targets);
     if(raw?.version===1 && ['measuredMs','bpmMs','zoneMs','samples'].every(k=>Number.isFinite(raw[k])&&raw[k]>=0) && raw.zoneMs<=raw.measuredMs && raw.bpmMs<=raw.measuredMs*300){
       for(const k of ['measuredMs','bpmMs','zoneMs','samples'])stats[k]=raw[k];
+      stats.trace=BikeTrace.restore(raw.trace);
     }
     return stats;
   }
@@ -2271,7 +2326,31 @@ const HeartRateCore = (() => {
     const s=restoreStats(stats);
     return {source:'H10 Bluetooth',targets:s.targets,averageHR:s.measuredMs?Math.round(s.bpmMs/s.measuredMs*10)/10:null,zoneMs:s.zoneMs,measuredMs:s.measuredMs,samples:s.samples,coverage:activeMs>0?Math.min(100,Math.round(s.measuredMs/activeMs*1000)/10):0};
   }
-  return {FRESH_MS,MAX_GAP_MS,parse,fresh,advice,createStats,breakSeries,sample,restoreStats,summary};
+  /* What the trace says about parts of the ride, given its finished phases in
+     order (their ms add up along active time). Zone 2's main block gets an
+     average and, when 10 minutes or longer, HR drift: the second half's
+     average against the first's. Each sprint effort and the Zone 2 main
+     block get a 60-second recovery: the last 5 seconds of the phase against
+     seconds 55 to 60 after it. Any figure needs half its window measured. */
+  function analyze(stats,phases){
+    const s=restoreStats(stats),trace=BikeTrace.encode(s.trace),round=n=>Math.round(n*10)/10;
+    if(!/\d/.test(trace))return {};
+    const result={trace:{binSeconds:BikeTrace.BIN_MS/1000,bpm:trace}},range=(from,to)=>BikeTrace.range(s.trace,from,to);
+    let at=0;const spans=(phases||[]).map(p=>{const span={kind:p.kind,from:at,to:at+p.ms};at+=p.ms;return span;});
+    const main=spans.find(p=>p.kind==='main'&&p.to>p.from),whole=main&&range(main.from,main.to);
+    if(whole&&whole.coverage>=0.5){
+      const mid=(main.from+main.to)/2,a=range(main.from,mid),b=range(mid,main.to);
+      result.main={averageHR:round(whole.average),coverage:round(whole.coverage*100),
+        driftPct:main.to-main.from>=600000&&a.coverage>=0.5&&b.coverage>=0.5?round((b.average-a.average)/a.average*100):null};
+    }
+    const recovery=spans.filter(p=>p.kind==='effort'||p.kind==='main').map(p=>{
+      const end=range(p.to-5000,p.to),later=range(p.to+55000,p.to+60000);
+      return end.coverage>=0.5&&later.coverage>=0.5?Math.round(end.average-later.average):null;
+    });
+    if(recovery.some(n=>n!==null))result.recovery60=recovery;
+    return result;
+  }
+  return {FRESH_MS,MAX_GAP_MS,parse,fresh,advice,createStats,breakSeries,sample,restoreStats,summary,analyze};
 })();
 
 /* bike-heart-rate:end */
@@ -2437,7 +2516,9 @@ const WorkoutCore = (() => {
   }
   function record(s) {
     const phases=build(s.config), complete=s.finishedPhases.length===phases.length && s.finishedPhases.every(p=>p.outcome==='complete');
-    return {id:s.id,startedAt:s.startedAt,endedAt:s.endedAt,config:s.config,activeMs:s.activeMs,mainMs:s.mainMs,outcome:complete?'complete':'partial',hadInterruption:s.hadInterruption,effortsCompleted:s.finishedPhases.filter(p=>p.kind==='effort'&&p.outcome==='complete').length,phases:s.finishedPhases,hr:HeartRateCore.summary(s.hr,s.activeMs),metrics:{}};
+    // A main-block HR measured over at least 80% of the block fills the reading typed by hand before.
+    const analysis=HeartRateCore.analyze(s.hr,s.finishedPhases),metrics=analysis.main?.coverage>=80?{mainAverageHR:String(analysis.main.averageHR)}:{};
+    return {id:s.id,startedAt:s.startedAt,endedAt:s.endedAt,config:s.config,activeMs:s.activeMs,mainMs:s.mainMs,outcome:complete?'complete':'partial',hadInterruption:s.hadInterruption,effortsCompleted:s.finishedPhases.filter(p=>p.kind==='effort'&&p.outcome==='complete').length,phases:s.finishedPhases,hr:{...HeartRateCore.summary(s.hr,s.activeMs),...analysis},metrics};
   }
   return {config,build,phase,create,advance,pause,resume,gate,skip,end,steer,restore,record};
 })();
@@ -2447,7 +2528,9 @@ const WorkoutCore = (() => {
 /* App-specific history interpretation, independent of storage and the DOM. */
 /* exported BikeHistory */
 const BikeHistory = (() => {
-  const metrics={fixedHRWatts:{label:'Watts at recorded comparison HR',unit:'W'},averageWatts:{label:'Main-block average watts',unit:'W'},mainAverageHR:{label:'Main-block average heart rate',unit:'bpm'},mainMinutes:{label:'Main-block duration',unit:'min'},coverage:{label:'HR measurement coverage',unit:'%'}};
+  const metrics={fixedHRWatts:{label:'Watts at recorded comparison HR',unit:'W'},averageWatts:{label:'Main-block average watts',unit:'W'},mainAverageHR:{label:'Main-block average heart rate',unit:'bpm'},mainMinutes:{label:'Main-block duration',unit:'min'},coverage:{label:'HR measurement coverage',unit:'%'},hrDrift:{label:'Main-block HR drift',unit:'%'},recovery60:{label:'60-second HR recovery',unit:'bpm'}};
+  // Mean of the recoveries a ride measured; a ride with none is unknown.
+  const meanRecovery=ride=>{const values=(ride.hr?.recovery60||[]).filter(n=>Number.isFinite(n));return values.length?Math.round(values.reduce((a,b)=>a+b,0)/values.length*10)/10:null;};
   const machineKey=ride=>JSON.stringify([ride.config.bike,ride.config.bikeId||'']);
   function seriesKey(ride){
     const c=BikeHistorySchema.config(ride.config);
@@ -2463,7 +2546,7 @@ const BikeHistory = (() => {
     return rides.filter(r=>(!query.machine||machineKey(r)===query.machine)&&(!query.context||r.config.context===query.context)&&(!query.mode||r.config.mode===query.mode)&&(!query.outcome||r.outcome===query.outcome)&&(!query.uninterrupted||!r.hadInterruption)&&r.startedAt>=from&&r.startedAt<(until?until.getTime():Infinity)).sort((a,b)=>b.startedAt-a.startedAt||a.id.localeCompare(b.id));
   }
   function value(ride,metric){
-    const raw=metric==='coverage'?ride.hr?.coverage:metric==='mainMinutes'?(ride.config.mode==='zone2'?ride.mainMs/60000:null):ride.metrics?.[metric];
+    const raw=metric==='coverage'?ride.hr?.coverage:metric==='hrDrift'?ride.hr?.main?.driftPct:metric==='recovery60'?meanRecovery(ride):metric==='mainMinutes'?(ride.config.mode==='zone2'?ride.mainMs/60000:null):ride.metrics?.[metric];
     if(raw===null||raw===undefined||raw==='')return null;
     const number=Number(raw);return Number.isFinite(number)?number:null;
   }
@@ -2486,13 +2569,14 @@ const BikeHistory = (() => {
       ['Main-block watts','W',r=>number(r.metrics?.averageWatts)],['Main-block HR','bpm',r=>number(r.metrics?.mainAverageHR)],
       ['Watts at recorded comparison HR','W',r=>number(r.metrics?.fixedHRWatts)],['Measured average HR','bpm',r=>number(r.hr?.averageHR)],
       ['HR coverage','%',r=>number(r.hr?.coverage)],['Active duration','min',r=>r.activeMs/60000],['Main-block duration','min',r=>r.mainMs/60000],
+      ['Main-block HR drift','%',r=>number(r.hr?.main?.driftPct)],['60-second HR recovery','bpm',r=>meanRecovery(r)],
       ['Perceived effort','1–10',r=>number(r.metrics?.perceivedEffort)]
     ].map(([label,unit,read])=>{const a=read(before),b=read(after);return {label,unit,before:a,after:b,delta:comparable&&a!==null&&b!==null?b-a:null};});
     warnings.push('Review heart rate and measurement coverage alongside watts. A higher output alone does not establish improved fitness.');
     const context=ride=>{if(ride.config.mode==='external')return 'Externally recorded · app plan unknown';const c=WorkoutCore.config(ride.config);return ({fresh:'Fresh legs','post-lifting':'After lifting',unknown:'Unknown context'}[ride.config.context]||'Unknown context')+' · Zone 2 '+c.targets.zoneMin+'–'+c.targets.zoneMax+' bpm · comparison HR '+c.targets.comparisonHR+' bpm';};
     return {before,after,rows,warnings,details:['Earlier: '+context(before),'Later: '+context(after)]};
   }
-  return {metrics,machineKey,seriesKey,filter,value,series,compare};
+  return {metrics,machineKey,seriesKey,filter,value,series,compare,meanRecovery};
 })();
 
 /* bike-history:end */
@@ -2804,6 +2888,9 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   function showSummary(r){selected=r;show('summary');const t=C.config(r.config).targets;$('sensorZoneLabel').textContent=`Time at ${t.zoneMin}–${t.zoneMax}`;$('polarZoneLabel').textContent=`Polar time at ${t.zoneMin}–${t.zoneMax} · minutes`;$('comparisonLabel').textContent=`Watts near ${t.comparisonHR} bpm`;$('comparisonNote').textContent=r.config.mode==='external'?'Externally recorded workout. App plan targets are placeholders; progress differences are withheld. Imported readings keep their original source.':`Compare the same machine, context and targets. This ride used ${t.zoneMin}–${t.zoneMax} bpm and a comparison HR of ${t.comparisonHR}. Missing readings remain unknown.`;$('summaryTitle').textContent=r.outcome==='complete'?'Session finished':'Session ended early';$('summaryContext').textContent=`${dateLabel(r.startedAt)} · ${BikeHistorySchema.modeLabel(r.config.mode)} · ${bikeName(r.config)} · ${contextName(r.config)}`;$('summaryTime').textContent=fmt(r.activeMs);$('summaryWorkLabel').textContent=r.config.mode==='sprint'?'Full efforts':'Main block';$('summaryWork').textContent=r.config.mode!=='sprint'?(r.config.mode==='external'&&r.mainMs===0?'Not recorded':fmt(r.mainMs)):`${r.effortsCompleted} / ${r.config.n}`;$('summaryOutcome').textContent=r.outcome==='complete'?'Complete':'Partial';$('summaryCaution').hidden=!r.hadInterruption;$('summaryCaution').textContent='This session was interrupted. Review timing against Polar before comparing it with other sessions. Unconfirmed time beyond a phase boundary was not counted.';$('sensorSummary').hidden=!(r.hr&&(r.hr.samples||r.hr.measuredMs||r.hr.averageHR!=null));
     renderExternalReadings(r);$('sensorSummaryTitle').textContent=r.hr?.source?'Measured heart rate · '+r.hr.source:'Measured heart rate';
     if(r.hr&&(r.hr.samples||r.hr.measuredMs||r.hr.averageHR!=null)){$('sensorAverage').textContent=r.hr.averageHR===null?'—':`${r.hr.averageHR} bpm`;$('sensorZone').textContent=r.hr.measuredMs?fmt(r.hr.zoneMs):'—';$('sensorCoverage').textContent=`${fmt(r.hr.measuredMs)} measured · ${r.hr.coverage}% of active riding covered. ${r.hr.measuredMs?'HR averages use measured time only.':'Not enough consecutive readings to calculate an average.'}`;}
+    const analysis=[];if(r.hr?.main)analysis.push(`Main block ${r.hr.main.averageHR} bpm, ${r.hr.main.coverage}% measured`+(r.hr.main.driftPct!=null?`. HR drift ${r.hr.main.driftPct>0?'+':''}${r.hr.main.driftPct}% (second half against first)`:''));
+    if(r.hr?.recovery60)analysis.push(`60-second HR recovery: ${r.hr.recovery60.map(n=>n===null?'unknown':`${n} bpm`).join(', ')}`);
+    $('sensorAnalysis').hidden=!analysis.length;$('sensorAnalysis').textContent=analysis.join('. ')+(analysis.length?'.':'');
     renderSummaryComparison();for(const key of fields)$(key).value=r.metrics?.[key]??'';$('logStatus').textContent=storageOK?'Session saved. Readings save as you enter them.':'Session is in memory only. Export before closing.';}
   function renderExternalReadings(ride){
     const container=$('externalReadings'),metrics=ride.metrics||{};container.replaceChildren();
@@ -2873,9 +2960,9 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     const table=document.createElement('table'),head=document.createElement('tr');for(const label of ['Date','Machine / context','Recorded zone / comparison HR',definition.unit]){const cell=document.createElement('th');cell.scope='col';cell.textContent=label;head.append(cell);}const thead=document.createElement('thead');thead.append(head);table.append(thead);
     const tbody=document.createElement('tbody');for(const point of groups.flat().sort((a,b)=>b.at-a.at)){const row=document.createElement('tr'),t=WorkoutCore.config(point.ride.config).targets;for(const value of [dateLabel(point.at),bikeName(point.ride.config)+' / '+contextName(point.ride.config),`${t.zoneMin}–${t.zoneMax} / ${t.comparisonHR}`,point.value===null?'Unknown':String(point.value)]){const cell=document.createElement('td');cell.textContent=value;row.append(cell);}tbody.append(row);}table.append(tbody);$('chartTable').append(table);
   }
-  function exportCSV(){if(selected&&!$('summary').hidden&&saveMetrics(true)===false&&!$('logForm').checkValidity())return;if(!records.length){toast('No sessions to export yet.');return;}const headers=['date','workout','bike','bike_id','context','outcome','interrupted','active_minutes','main_minutes','completed_efforts','average_hr_bpm','recorded_zone_minutes','resistance','cadence_rpm','main_average_watts','watts_at_comparison_hr','notes','h10_average_hr_bpm','h10_recorded_zone_minutes','h10_measured_minutes','h10_coverage_percent','h10_samples','main_average_hr_bpm','zone_min_bpm','zone_max_bpm','working_min_bpm','working_max_bpm','comparison_hr_bpm','planned_warmup_minutes','planned_main_minutes','planned_cooldown_minutes','planned_recovery_seconds','perceived_effort_1_10',...BikeHistorySchema.externalFields.map(field=>field.name),'trainingBenefit','externalSource','polar_z1_ms','polar_z2_ms','polar_z3_ms','polar_z4_ms','polar_z5_ms'];
+  function exportCSV(){if(selected&&!$('summary').hidden&&saveMetrics(true)===false&&!$('logForm').checkValidity())return;if(!records.length){toast('No sessions to export yet.');return;}const headers=['date','workout','bike','bike_id','context','outcome','interrupted','active_minutes','main_minutes','completed_efforts','average_hr_bpm','recorded_zone_minutes','resistance','cadence_rpm','main_average_watts','watts_at_comparison_hr','notes','h10_average_hr_bpm','h10_recorded_zone_minutes','h10_measured_minutes','h10_coverage_percent','h10_samples','main_average_hr_bpm','zone_min_bpm','zone_max_bpm','working_min_bpm','working_max_bpm','comparison_hr_bpm','planned_warmup_minutes','planned_main_minutes','planned_cooldown_minutes','planned_recovery_seconds','perceived_effort_1_10',...BikeHistorySchema.externalFields.map(field=>field.name),'trainingBenefit','externalSource','polar_z1_ms','polar_z2_ms','polar_z3_ms','polar_z4_ms','polar_z5_ms','measured_main_hr_bpm','measured_main_hr_coverage_percent','hr_drift_percent','hr_recovery_60s_bpm'];
     const cell=v=>{let value=String(v??'');if(/^[=+\-@\t\r\n]/.test(value)&&!/^-?\d+(\.\d+)?$/.test(value))value="'"+value;return '"'+value.replaceAll('"','""')+'"';};
-    const rows=records.map(r=>{const m=r.metrics||{};return [new Date(r.startedAt).toISOString(),r.config.mode,r.config.bike,r.config.bikeId,r.config.context,r.outcome,r.hadInterruption,(r.activeMs/60000).toFixed(2),(r.mainMs/60000).toFixed(2),r.effortsCompleted,m.averageHR,m.zoneMinutes,m.resistance,m.cadence,m.averageWatts,m.fixedHRWatts,m.notes,r.hr?.averageHR,r.hr?.measuredMs?(r.hr.zoneMs/60000).toFixed(3):'',r.hr?(r.hr.measuredMs/60000).toFixed(3):'',r.hr?.coverage,r.hr?.samples,m.mainAverageHR,...['zoneMin','zoneMax','targetMin','targetMax','comparisonHR'].map(name=>r.config.mode==='external'?'':C.config(r.config).targets[name]),...['warmupMinutes','mainMinutes',r.config.mode==='zone2'?'cooldown':'sprintCooldownMinutes','recoverySeconds'].map(name=>r.config.mode==='external'?'':r.config[name]),m.perceivedEffort,...BikeHistorySchema.externalFields.map(field=>m[field.name]),m.trainingBenefit,m.externalSource,...['z1','z2','z3','z4','z5'].map(name=>m.polarZonesMs?.[name])].map(cell).join(',');});
+    const rows=records.map(r=>{const m=r.metrics||{};return [new Date(r.startedAt).toISOString(),r.config.mode,r.config.bike,r.config.bikeId,r.config.context,r.outcome,r.hadInterruption,(r.activeMs/60000).toFixed(2),(r.mainMs/60000).toFixed(2),r.effortsCompleted,m.averageHR,m.zoneMinutes,m.resistance,m.cadence,m.averageWatts,m.fixedHRWatts,m.notes,r.hr?.averageHR,r.hr?.measuredMs?(r.hr.zoneMs/60000).toFixed(3):'',r.hr?(r.hr.measuredMs/60000).toFixed(3):'',r.hr?.coverage,r.hr?.samples,m.mainAverageHR,...['zoneMin','zoneMax','targetMin','targetMax','comparisonHR'].map(name=>r.config.mode==='external'?'':C.config(r.config).targets[name]),...['warmupMinutes','mainMinutes',r.config.mode==='zone2'?'cooldown':'sprintCooldownMinutes','recoverySeconds'].map(name=>r.config.mode==='external'?'':r.config[name]),m.perceivedEffort,...BikeHistorySchema.externalFields.map(field=>m[field.name]),m.trainingBenefit,m.externalSource,...['z1','z2','z3','z4','z5'].map(name=>m.polarZonesMs?.[name]),r.hr?.main?.averageHR,r.hr?.main?.coverage,r.hr?.main?.driftPct,BikeHistory.meanRecovery(r)].map(cell).join(',');});
     const url=URL.createObjectURL(new Blob(['\ufeff'+headers.map(cell).join(',')+'\r\n'+rows.join('\r\n')],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=`bike-cardio-${new Date().toISOString().slice(0,10)}.csv`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('CSV export started. Keep the downloaded file as your backup.');
   }
   function updateRestore(){const saved=read(KEYS.active,null);$('restoreCard').hidden=!saved||!['running','paused'].includes(saved.status);$('start').disabled=!targetsValid||!$('restoreCard').hidden;$('start').hidden=!$('restoreCard').hidden;$('resumeSaved').hidden=$('restoreCard').hidden;updateShell();if(!$('restoreCard').hidden){const restored=C.restore(saved,Date.now());if(restored)$('restoreText').textContent=`${restored.config.mode==='zone2'?'Zone 2':'Sprint intervals'} · ${C.phase(restored).title} · ${fmt(restored.activeMs)} active time. Review the saved session before starting another.`;else{$('restoreText').textContent='Saved session could not be recovered. End it to start a new one.';}}

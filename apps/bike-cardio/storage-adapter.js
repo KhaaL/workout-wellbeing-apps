@@ -53,6 +53,9 @@ globalThis.BikeStorage = (() => {
           if(r.hr.averageHR!=null)number(r.hr.averageHR,'Measured HR',1,300);
           for(const name of ['zoneMs','measuredMs','samples','coverage'])number(r.hr[name],'Measured '+name);
           if(r.hr.zoneMs>r.hr.measuredMs||r.hr.coverage>100)fail('Invalid HR coverage');
+          if(r.hr.trace!=null&&(typeof r.hr.trace!=='object'||r.hr.trace.binSeconds!==5||!BikeTrace.decode(r.hr.trace.bpm,1,300)))fail('Invalid HR trace');
+          if(r.hr.main!=null){if(typeof r.hr.main!=='object')fail('Invalid main-block HR');number(r.hr.main.averageHR,'Main-block HR',1,300);number(r.hr.main.coverage,'Main-block HR coverage',0,100);if(r.hr.main.driftPct!=null)number(r.hr.main.driftPct,'HR drift',-100,100);}
+          if(r.hr.recovery60!=null){if(!Array.isArray(r.hr.recovery60)||r.hr.recovery60.length>21)fail('Invalid HR recovery');for(const n of r.hr.recovery60)if(n!==null)number(n,'HR recovery',-300,300);}
         }
       }
       // Finishing saves the log before clearing the active ride. A crash
