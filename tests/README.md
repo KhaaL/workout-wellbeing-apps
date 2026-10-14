@@ -27,7 +27,7 @@ All scenarios use synthetic records, isolated storage and mocked cloud requests.
 | `shared/browser.cjs` | Bike UI, production CSP, history editing/merging, backup/restore, configuration transfer, persistence, reminders, cloud and mobile layout |
 | `shared/updates-browser.cjs` | Real local service-worker install/update, multiple-tab workout deferral, saved-workout protection, retained data and offline version |
 | `shared/updates.test.cjs` | Startup/foreground/reconnect update checks, throttling, delayed waiting-state notification and active-workout protection |
-| `shared/liftlog-library-browser.cjs` | Planned-workout preview, archive/unarchive, hidden history and picker entries, focus return, reload and retained workout blocks |
+| `shared/liftlog-library-browser.cjs` | Planned-workout preview, archive/unarchive, hidden history and picker entries, focus return, reload, retained workout blocks, session exercise swap and per-exercise rest |
 | `shared/theme-bars-browser.cjs` | Saved theme before main scripts, full-height canvas/body backgrounds, browser hints, every appearance under both OS color schemes, and live theme changes |
 | `shared/app-ui-browser.cjs` | Shared themes, phone/desktop navigation, touch targets, ride defaults versus adjustments, set-editor drafts and preserved active workouts/timers |
 | `shared/remote-tools-browser.cjs` | Both apps with production CSP and generated browser CORS: provider probes, independent SigV4 verification, diagnostics redaction, mode-aware connection tests, global newest-first ordering across provider pages, local pagination/preview/download/restore and mobile layout |

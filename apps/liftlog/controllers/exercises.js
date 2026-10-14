@@ -23,7 +23,8 @@ function saveNewExercise(form){
     movementFamily: String(form.movementFamily || '').trim() || context.inferMovementFamily(name, form.category),
     archived:false,
     notes: form.notes.trim(),
-    url
+    url,
+    ...(context.normalizeRestSeconds(form.restSeconds) != null ? { restSeconds:context.normalizeRestSeconds(form.restSeconds) } : {})
   });
   context.ui.showExerciseForm = false; context.ui.exerciseFormError = '';
   context.save(); context.render();
@@ -74,7 +75,8 @@ function saveExerciseDraft(){
                     unit:context.normalizedExerciseUnit(d.unit, context.state.settings.unit),
                     loadMode:context.normalizeLoadMode(d.loadMode, d.unit), equipmentKey:String(d.equipmentKey || '').trim(),
                     movementFamily:String(d.movementFamily || '').trim() || context.inferMovementFamily(d.name, d.category),
-                    archived:!!d.archived, notes:d.notes.trim(), url };
+                    archived:!!d.archived, notes:d.notes.trim(), url,
+                    ...(context.normalizeRestSeconds(d.restSeconds) != null ? { restSeconds:context.normalizeRestSeconds(d.restSeconds) } : {}) };
   const broken = context.linksBrokenBy(d.id, updated);
   if (!broken.length) return applyExerciseDraft(updated, badUrl ? ['the link was not a valid web address'] : []);
   return confirmHistorySplit(previous, updated, broken).then(choice => {

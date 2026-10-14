@@ -4,7 +4,8 @@ const {navigate}=require('./ui-navigation.cjs');
 const html=appWithTestAPI('{get state(){return state},get ui(){return ui},prepareBackup,navigate,render,save,flushSave}');
 const fixture={version:14,settings:{lastModifiedAt:1},exercises:[
  {id:'press',name:'Visible Press',unit:'kg',category:'Push',movementFamily:'horizontal_push'},
- {id:'row',name:'Archive Row',unit:'kg',category:'Pull',movementFamily:'horizontal_pull'}
+ {id:'row',name:'Archive Row',unit:'kg',category:'Pull',movementFamily:'horizontal_pull'},
+ {id:'incline',name:'Incline Press',unit:'kg',category:'Push',movementFamily:'horizontal_push',restSeconds:150}
 ],exerciseLinks:[{sourceId:'old-row',targetId:'row'}],routines:[{id:'plan',name:'Planned strength',plan:true,plannedFor:'2030-01-01',items:[
  {id:'p',exerciseId:'press',sets:3,repsMin:8,repsMax:10,weight:20},
  {id:'r',exerciseId:'row',sets:2,repsMin:10,repsMax:12,weight:30}
@@ -42,7 +43,19 @@ const fixture={version:14,settings:{lastModifiedAt:1},exercises:[
   assert.equal(await page.evaluate(()=>testAPI.state.activeWorkout.exercises.length),2);
   assert.equal(await sheet.isVisible(),false,'starting closes the preview and exposes workout controls');
   assert.equal(await page.evaluate(()=>document.activeElement.id),'workout-title');
+  // Swap keeps the prescription for this session; the swapped-in exercise brings its own rest.
+  await page.locator('[data-action="swap-exercise"]').click();const swap=page.getByRole('dialog',{name:'Swap Visible Press'});
+  assert.match(await swap.textContent(),/keeps 3 sets of 8 to 10 reps/);assert.equal(await swap.locator('optgroup[label="Same movement family"] option').count(),1);
+  await swap.getByRole('button',{name:'Swap',exact:true}).click();
+  const swapped=await page.evaluate(()=>testAPI.state.activeWorkout.exercises[0]);assert.equal(swapped.exerciseId,'incline');assert.equal(swapped.targetRepsMax,10);assert.equal(swapped.targetWeight,null);
+  assert.equal(await page.evaluate(()=>testAPI.state.routines.find(r=>r.id==='plan').items[0].exerciseId),'press','the routine is unchanged');
+  assert.match(await page.locator('#ex-panel-top .ex-tags').textContent(),/rest 2:30 \(this exercise\)/);
+  // A rest override is set and cleared in the exercise editor.
+  await navigate(page,'exercises');await page.locator('#open-exercise-press').click();await page.locator('#detail-edit').click();
+  await page.fill('#ex-edit-form [data-field="restSeconds"]','120');await page.locator('#ex-edit-form button[type=submit]').click();
+  assert.equal(await page.evaluate(()=>testAPI.state.exercises.find(e=>e.id==='press').restSeconds),120);
+  await page.locator('#open-exercise-press').click();assert.match(await page.locator('#detail-body').textContent(),/2:00 \(this exercise\)/);await page.locator('#detail-close').click();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);assert.deepEqual(errors,[]);
-  console.log('PASS Liftlog: plan preview, focus return, archive/unarchive, history visibility, routine picker, persisted recovery and unchanged saved blocks');
+  console.log('PASS Liftlog: plan preview, focus return, archive/unarchive, history visibility, routine picker, persisted recovery, unchanged saved blocks, session swap and per-exercise rest');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

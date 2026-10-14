@@ -258,6 +258,21 @@ step, saves only on confirmation, and contains the less frequent warm-up/delete
 actions. Direct row entry and Done remain available. Shared frequent controls have
 48px touch targets, and navigation/action bars yield space to the software keyboard.
 
+When the last session met an exercise's full prescription (every working set at
+the top of the rep range, and the target RIR when one is set), Liftlog starts the
+next session's working sets at the suggested load: the last working load plus
+the Settings load step. A planned routine weight still wins; dismissed or
+turned-off suggestions seed the last load. Bodyweight work steps only a load that
+was already added. The exercise's load cue says when sets start at the suggestion.
+
+Rest comes from Settings unless a library exercise sets its own (Exercises →
+Edit → Rest after a set). The override belongs to the movement, so it rests the
+same in every routine; the rest tag marks it "(this exercise)", and a superset
+round rests as long as its longest member. Before any set is logged, **Swap…**
+replaces the current exercise for that session only. The new one keeps the set
+count, and the rep range and target RIR when both are counted the same way;
+pairings carry over and the routine is unchanged.
+
 ## Updates and Bike progress
 
 Both apps check for new app files on startup, return to the foreground and

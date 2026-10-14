@@ -3577,17 +3577,24 @@ function buildWorkoutExercise(item){
   /* Planned sets are working sets, so they line up with last time's working
      sets: a warm-up ramp must not seed the first working set with its load. */
   const prevWork = prev ? prev.sets.filter(s => !context.isWarmup(s)) : [];
+  /* When last time met this prescription, working sets start at the suggested
+     next load (the same figure the load cue shows) instead of repeating it.
+     Bodyweight work only steps a load that was already added. */
+  const cue = item.weight == null ? context.loadCueFor(item.exerciseId, item) : null;
+  const suggested = cue ? context.suggestedLoad(cue) : null;
   for (let i = 0; i < n; i++){
     const set = newSetFrom(ex, null);
-    /* seed the bar with the plan, else with what was lifted last time */
+    /* seed the bar with the plan, else the suggestion, else what was lifted last time */
     const prevSet = prevWork[i] || prevWork[0];
     if (ex.unit === 'bw'){
       if (item.weight != null){ set.addedWeight = item.weight; set.addedWeightUnit = context.unitLabel(); }
+      else if (suggested && suggested.kind === 'bw' && suggested.last > 0){ set.addedWeight = suggested.next; set.addedWeightUnit = suggested.unit; }
       else if (prevSet && prevSet.addedWeight != null){
         set.addedWeight = context.convertWeight(prevSet.addedWeight, prevSet.addedWeightUnit || context.unitLabel(), context.unitLabel());
         set.addedWeightUnit = context.unitLabel();
       }
     } else if (item.weight != null) set.weight = item.weight;
+    else if (suggested && suggested.kind === 'loaded' && suggested.unit === set.unit) set.weight = suggested.next;
     /* the old set keeps its own unit; the new one is logged in today's */
     else if (prevSet && prevSet.weight != null)
       set.weight = Math.round(context.convertWeight(prevSet.weight, prevSet.unit === 'lb' ? 'lb' : 'kg', set.unit) * 100) / 100;
@@ -3799,7 +3806,8 @@ function toggleSet(setId){
   if (s.completed){
     context.announce('Set ' + (i+1) + ' of ' + ex.sets.length + ' complete.' + (handOver ? ' Now: ' + handOver.name + '.' : ''));
     if (context.state.settings.autoRest && (!turn || turn.wrapped || holdForWarmup)){
-      context.loadTimer(context.currentRestSeconds());
+      /* rest belongs to what was just performed: this exercise, or the whole round */
+      context.loadTimer(context.currentRestSeconds(turn && turn.wrapped && !holdForWarmup ? supersetRun(w, w.currentExerciseIndex).map(i => w.exercises[i]) : [ex]));
       context.startTimer();
     }
   }
@@ -3893,6 +3901,66 @@ function openSetEditor(setId){
   dialog.addEventListener('close',()=>{dialog.remove();if(opener?.isConnected)opener.focus();},{once:true});document.body.append(dialog);context.WorkoutUI.attachSteppers(dialog);dialog.showModal();
 }
 
+/* Swap the current exercise for another, for this session only, keeping the
+   prescription: the set count, and the rep range and target RIR when both
+   movements are counted the same way (reps or seconds). A planned load belongs
+   to the old movement, so the new one is seeded from its own history. Pairings
+   carry over. It is offered only before a set is logged, so logged work is
+   never relabelled. */
+function swapCandidates(w, ex){
+  const inSession = new Set(w.exercises.map(x => x.exerciseId));
+  const pool = context.state.exercises.filter(e => !e.archived && !inSession.has(e.id))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { numeric:true, sensitivity:'base' }));
+  return { related:pool.filter(e => e.movementFamily === ex.movementFamily), other:pool.filter(e => e.movementFamily !== ex.movementFamily) };
+}
+function canSwap(ex){ return !!ex && !ex.sets.some(s => s.completed); }
+function swapExercise(idx, newId){
+  if(context.workoutHandoff.held())return;
+  const w = context.state.activeWorkout, ex = w && w.exercises[idx], def = context.exerciseById(newId);
+  if (!ex || !def || def.archived) return;
+  if (!canSwap(ex)){ context.toast('Sets are already logged for ' + ex.name + '. Add the other exercise instead.'); return; }
+  if (w.exercises.some(x => x.exerciseId === newId)){ context.toast(def.name + ' is already in this session'); return; }
+  const sameCount = (ex.unit === 'time') === (def.unit === 'time');
+  const fresh = newRoutineItem(newId);
+  const block = buildWorkoutExercise({ exerciseId:newId, sets:ex.plannedSets || ex.sets.length,
+    repsMin:sameCount ? ex.targetRepsMin : fresh.repsMin, repsMax:sameCount ? ex.targetRepsMax : fresh.repsMax,
+    targetRir:sameCount ? ex.targetRir : null, weight:null,
+    ...(ex.eitherOf ? { eitherOf:ex.eitherOf } : {}), ...(ex.supersetOf ? { supersetOf:ex.supersetOf } : {}) });
+  /* the session's own row count, which may differ from the plan after Add set */
+  while (block.sets.length < ex.sets.length) block.sets.push(newSetFrom(block, block.sets[block.sets.length - 1]));
+  block.sets.length = Math.max(1, ex.sets.length);
+  w.exercises[idx] = block;
+  context.save(); context.ui.focus = 'ex-panel-top'; context.render();
+  context.toast('Swapped ' + ex.name + ' for ' + def.name + (sameCount ? '. Sets, reps and RIR kept for this session.' : '. Set count kept for this session.'));
+}
+function openSwapDialog(){
+  if(context.workoutHandoff.held())return;
+  const w = context.state.activeWorkout, ex = currentExercise(); if (!w || !ex) return;
+  const idx = w.exercises.indexOf(ex), opener = document.querySelector('[data-action="swap-exercise"]');
+  const { related, other } = swapCandidates(w, ex);
+  const dialog = document.createElement('dialog'); dialog.className = 'numeric-editor'; dialog.setAttribute('aria-label', 'Swap ' + ex.name);
+  const heading = document.createElement('h2'); heading.textContent = 'Swap ' + ex.name; dialog.append(heading);
+  const hint = document.createElement('p'); hint.className = 'hint';
+  hint.textContent = 'For this session only; the routine is unchanged. The new exercise keeps ' + (ex.plannedSets || ex.sets.length) + ' sets' +
+    (ex.targetRepsMin != null ? ' of ' + ex.targetRepsMin + (ex.targetRepsMax !== ex.targetRepsMin ? ' to ' + ex.targetRepsMax : '') + (ex.unit === 'time' ? ' seconds' : ' reps') : '') +
+    (ex.targetRir != null ? ' at RIR ' + ex.targetRir : '') + '.';
+  const label = document.createElement('label'); label.className = 'field'; const cap = document.createElement('span'); cap.className = 'cap'; cap.textContent = 'Swap for';
+  const select = document.createElement('select'); select.id = 'swap-select';
+  for (const [title, list] of [['Same movement family', related], ['Other exercises', other]]){
+    if (!list.length) continue;
+    const group = document.createElement('optgroup'); group.label = title;
+    for (const e of list){ const option = document.createElement('option'); option.value = e.id; option.textContent = e.name; group.append(option); }
+    select.append(group);
+  }
+  label.append(cap, select); dialog.append(hint, label);
+  const actions = document.createElement('div'); actions.className = 'editor-actions'; dialog.append(actions);
+  const button = (text, css, action, disabled) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + css; b.textContent = text; b.disabled = !!disabled; b.addEventListener('click', action); actions.append(b); };
+  button('Swap', 'btn-primary', () => { dialog.close(); swapExercise(idx, select.value); }, !select.options.length);
+  button('Cancel', '', () => dialog.close());
+  if (!select.options.length){ const none = document.createElement('p'); none.className = 'hint'; none.textContent = 'Every library exercise is already in this session.'; label.after(none); }
+  dialog.addEventListener('close', () => { dialog.remove(); if (opener?.isConnected) opener.focus(); }, { once:true });
+  document.body.append(dialog); dialog.showModal();
+}
 function deleteSet(setId){
   if(context.workoutHandoff.held())return;
   const w = context.state.activeWorkout, ex = currentExercise();
@@ -4183,7 +4251,7 @@ function discardWorkout(){
       context.render(); context.toast('Workout discarded');
     });
 }
-    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,cascadeReps,openSetEditor,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,discardWorkout};
+    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,cascadeReps,openSetEditor,canSwap,swapExercise,openSwapDialog,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,discardWorkout};
   }
 };
 
@@ -4584,7 +4652,8 @@ function saveNewExercise(form){
     movementFamily: String(form.movementFamily || '').trim() || context.inferMovementFamily(name, form.category),
     archived:false,
     notes: form.notes.trim(),
-    url
+    url,
+    ...(context.normalizeRestSeconds(form.restSeconds) != null ? { restSeconds:context.normalizeRestSeconds(form.restSeconds) } : {})
   });
   context.ui.showExerciseForm = false; context.ui.exerciseFormError = '';
   context.save(); context.render();
@@ -4635,7 +4704,8 @@ function saveExerciseDraft(){
                     unit:context.normalizedExerciseUnit(d.unit, context.state.settings.unit),
                     loadMode:context.normalizeLoadMode(d.loadMode, d.unit), equipmentKey:String(d.equipmentKey || '').trim(),
                     movementFamily:String(d.movementFamily || '').trim() || context.inferMovementFamily(d.name, d.category),
-                    archived:!!d.archived, notes:d.notes.trim(), url };
+                    archived:!!d.archived, notes:d.notes.trim(), url,
+                    ...(context.normalizeRestSeconds(d.restSeconds) != null ? { restSeconds:context.normalizeRestSeconds(d.restSeconds) } : {}) };
   const broken = context.linksBrokenBy(d.id, updated);
   if (!broken.length) return applyExerciseDraft(updated, badUrl ? ['the link was not a valid web address'] : []);
   return confirmHistorySplit(previous, updated, broken).then(choice => {
@@ -5189,7 +5259,7 @@ const BACKUP_MAX_NODES = 200000;
 const LS_KEY = 'liftlog.v1';
 const LS_RESCUE_KEY = 'liftlog.v1.unreadable';  /* holds data we could not load, so nothing is lost silently */
 const LS_REMOTE_RESTORE_KEY = 'liftlog.v1.before-remote-restore';
-const SCHEMA_VERSION = 14;  /* v3: sets carry durationSeconds (time no longer overloads reps)
+const SCHEMA_VERSION = 15;  /* v3: sets carry durationSeconds (time no longer overloads reps)
                                + countForVolume / countForPR split execution from analytics
                                v4: settings carry effortMetric ('none'|'rpe'|'rir'), sets carry rir
                                v5: library exercises carry url (how to perform the movement)
@@ -5202,8 +5272,9 @@ const SCHEMA_VERSION = 14;  /* v3: sets carry durationSeconds (time no longer ov
                                v11: archive, load convention, equipment and movement family
                                v12: per-series load cue preferences
                                v13: routine items can share a supersetOf pair key
-                               v14: routines can be one-off plans (plan, plannedFor) */
-const EXPORT_SCHEMA = '1.12.0'; /* version of the documented import/export contract — 1.1: sets[].rir;
+                               v14: routines can be one-off plans (plan, plannedFor)
+                               v15: library exercises can override the rest length (restSeconds) */
+const EXPORT_SCHEMA = '1.13.0'; /* version of the documented import/export contract — 1.1: sets[].rir;
                                   1.2: exercises[].url; 1.3: per-item rest dropped; 1.4: items[].eitherOf;
                                   1.5: lower/upper rep targets and optional target RIR;
                                   1.6: reversible historical exercise links;
@@ -5211,7 +5282,8 @@ const EXPORT_SCHEMA = '1.12.0'; /* version of the documented import/export contr
                                   1.8: settings.lastModifiedAt for automatic remote backup/restore;
                                   1.9: archived/loadMode/equipmentKey/movementFamily exercise metadata;
                                   1.10: progressionPreferences in full backups and history transfers;
-                                  1.11: items[].supersetOf; 1.12: routines[].plan/plannedFor */
+                                  1.11: items[].supersetOf; 1.12: routines[].plan/plannedFor;
+                                  1.13: exercises[].restSeconds */
 
 /* Set by load() when stored data could not be used, surfaced once after init. */
 const localStore = LiftlogStorage.createLocal({
@@ -5413,6 +5485,7 @@ function validateBackup(s){
     const path = 'exercises[' + i + ']'; object(e, path);
     id(e.id, path + '.id', exercises); text(e.name, path + '.name', true);
     fields(e, path, ['category', 'unit', 'notes', 'url', 'loadMode', 'equipmentKey', 'movementFamily'], text);
+    number(e.restSeconds, path + '.restSeconds');
     bool(e.archived, path + '.archived');
   });
   const linkSources = new Set();
@@ -5518,6 +5591,7 @@ function migrateState(s){
   if (s.version === 11) migrateToV12(s);
   if (s.version === 12) s.version = 13; // optional supersetOf: old routines need no conversion
   if (s.version === 13) s.version = 14; // optional plan fields: old routines stay stable routines
+  if (s.version === 14) s.version = 15; // optional rest override: old exercises use Settings
   return s;
 }
 /* v1 shipped an earlier seed library/routines. v2 refreshes both to the
@@ -5673,7 +5747,8 @@ function normalizeState(s){
       if (bodyweightIds.has(entry.id) || bodyweightDates.has(entry.loggedAt)) return false;
       bodyweightIds.add(entry.id); bodyweightDates.add(entry.loggedAt); return true;
     });
-  s.exercises = (s.exercises || []).map(e => ({ ...e,
+  s.exercises = (s.exercises || []).map(({ restSeconds, ...e }) => ({ ...e,
+    ...(normalizeRestSeconds(restSeconds) != null ? { restSeconds:normalizeRestSeconds(restSeconds) } : {}),
     category: normalizeCategory(e.category, e.name),
     unit: normalizedExerciseUnit(isUnit(e.unit) ? e.unit : set.unit, set.unit),
     loadMode: normalizeLoadMode(e.loadMode, isUnit(e.unit) ? e.unit : set.unit),
@@ -6376,13 +6451,28 @@ function resetTimer(){
 function canResetTimer(){
   return !timer.running && (timer.done || timer.remaining < timer.total);
 }
-/* One rest length, and it lives in Settings. Rest used to be per routine item,
-   seeded from this setting and then hand-tuned, which meant the same movement
-   could rest for 45s in one routine and 90s in another and nothing on screen
-   said why. A single number is a worse model of training and a much better one
-   of what anybody actually adjusts. */
-function currentRestSeconds(){
-  return state.settings.defaultRest;
+/* Settings holds the rest length; an exercise in the library may set its own.
+   Rest used to be per routine item, seeded from this setting and then
+   hand-tuned, which meant the same movement could rest for 45s in one routine
+   and 90s in another and nothing on screen said why (v6 removed it). The
+   override lives on the library entry, so a movement rests the same in every
+   routine, and the rest tag says when the length is the exercise's own. A
+   superset round rests as long as its longest member. */
+function normalizeRestSeconds(value){
+  const n = toNum(value);
+  return n == null || n <= 0 ? null : clamp(Math.round(n), REST_MIN, REST_MAX);
+}
+function restOverride(block){
+  const def = block && exerciseById(canonicalExerciseId(block.exerciseId));
+  return def ? normalizeRestSeconds(def.restSeconds) : null;
+}
+/* blocks: the exercises just performed; by default the current one and its
+   superset partners. */
+function currentRestSeconds(blocks){
+  const w = state.activeWorkout;
+  if (!blocks) blocks = w && w.exercises[w.currentExerciseIndex] ? supersetRun(w, w.currentExerciseIndex).map(i => w.exercises[i]) : [];
+  const own = blocks.map(restOverride).filter(n => n != null);
+  return own.length ? Math.max(...own) : state.settings.defaultRest;
 }
 function timerRemaining(){
   return timer.running ? Math.max(0, (timer.endsAt - Date.now())/1000) : timer.remaining;
@@ -6674,6 +6764,7 @@ function workoutController(){
     get isPlan(){return isPlan;},
     get isWarmup(){return isWarmup;},
     get lastPerformance(){return lastPerformance;},
+    get loadCueFor(){return loadCueFor;},
     get loadTimer(){return loadTimer;},
     get maybeNagBackup(){return maybeNagBackup;},
     get navigate(){return navigate;},
@@ -6689,6 +6780,7 @@ function workoutController(){
     get setWarmup(){return setWarmup;},
     get sortWorkouts(){return sortWorkouts;},
     get startTimer(){return startTimer;},
+    get suggestedLoad(){return suggestedLoad;},
     get state(){return state;},
     get toNum(){return toNum;},
     get toast(){return toast;},
@@ -6730,6 +6822,9 @@ function openSetEditor(...args){return workoutController().openSetEditor(...args
 function deleteSet(...args){return workoutController().deleteSet(...args);}
 function confirmExerciseRemoval(...args){return workoutController().confirmExerciseRemoval(...args);}
 function addSet(...args){return workoutController().addSet(...args);}
+function canSwap(...args){return workoutController().canSwap(...args);}
+function swapExercise(...args){return workoutController().swapExercise(...args);}
+function openSwapDialog(...args){return workoutController().openSwapDialog(...args);}
 function advanceExercise(...args){return workoutController().advanceExercise(...args);}
 function goToPreviousExercise(...args){return workoutController().goToPreviousExercise(...args);}
 function reopenExercise(...args){return workoutController().reopenExercise(...args);}
@@ -6839,6 +6934,7 @@ function exercisesController(){
     get plural(){return plural;},
     get render(){return render;},
     get safeUrl(){return safeUrl;},
+    get normalizeRestSeconds(){return normalizeRestSeconds;},
     get sameLoadNumbers(){return sameLoadNumbers;},
     get sameProgressionContract(){return sameProgressionContract;},
     get save(){return save;},
@@ -7977,6 +8073,10 @@ function render(){
     !!state.activeWorkout && ui.view === 'today');
   appShell?.update(ui.view,!!state.activeWorkout,!!state.activeWorkout && ui.view==='today');
   if (switched){ window.scrollTo(0,0); if(!ui.focus) main.focus({preventScroll:true}); }
+  /* An untouched timer shows the rest the current exercise will use, so the
+     clock and the rest tag agree when an exercise sets its own length. */
+  if (state.activeWorkout && !timer.running && !timer.done && timer.remaining >= timer.total &&
+      timer.seconds !== currentRestSeconds()) loadTimer(currentRestSeconds());
   drawTimer();
   liftToasts();      /* the bar's height changes with the sheet and the set row */
   syncWakeLock();
@@ -8202,19 +8302,32 @@ function routineLoadCues(routine){
    the bottom of the rep range — double progression, climbing again from the
    low end. Bodyweight work steps its added load, which progressionStatus()
    folds into a total with the bodyweight, so it is read from the logged sets. */
-function nextLoadFor({ cue, ex, item }){
+function suggestedLoad(cue){
   const unit = unitLabel(), step = state.settings.loadStep, last = cue.latest;
-  const reps = toNum(item.repsMin) > 0 ? item.repsMin : last.targetMax;
+  const round = n => Math.round(n * 100) / 100;
   if (last.kind === 'bw'){
     const w = state.workouts.find(x => x.id === last.workoutId);
     const set = w && w.exercises[last.blockIndex] && w.exercises[last.blockIndex].sets.find(s => s.completed && !isWarmup(s));
     const added = set && toNum(set.addedWeight) ? convertWeight(toNum(set.addedWeight), set.addedWeightUnit === 'lb' ? 'lb' : 'kg', unit) : 0;
-    return { last:'+' + fmtNum(added) + ' ' + unit, next:'+' + fmtNum(added + step) + ' ' + unit, reps };
+    return { kind:'bw', last:round(added), next:round(added + step), unit };
   }
-  const load = convertWeight(last.load, 'kg', unit), label = exerciseLoadLabel(ex);
+  const load = convertWeight(last.load, 'kg', unit);
+  return { kind:'loaded', last:round(load), next:round(load + step), unit };
+}
+/* Says so when buildWorkoutExercise started this block's working sets at the
+   suggestion, so a heavier bar is never a surprise. */
+function seededNote(cue, ex){
+  const load = suggestedLoad(cue), field = load.kind === 'bw' ? 'addedWeight' : 'weight';
+  if (!ex.sets.some(s => !isWarmup(s) && toNum(s[field]) === load.next)) return '';
+  return 'Working sets start at ' + (load.kind === 'bw' ? '+' : '') + fmtNum(load.next) + ' ' + load.unit + '. Lower them if technique slips.';
+}
+function nextLoadFor({ cue, ex, item }){
+  const load = suggestedLoad(cue);
+  const reps = toNum(item.repsMin) > 0 ? item.repsMin : cue.latest.targetMax;
+  if (load.kind === 'bw') return { last:'+' + fmtNum(load.last) + ' ' + load.unit, next:'+' + fmtNum(load.next) + ' ' + load.unit, reps };
   /* the convention (stack, per hand) is on the last result; Next stays short.
      fmtNum keeps two decimals, so a 1.25 or 0.25 step is shown as stepped. */
-  return { last:fmtNum(load) + ' ' + label, next:fmtNum(load + step) + ' ' + unit, reps };
+  return { last:fmtNum(load.last) + ' ' + exerciseLoadLabel(ex), next:fmtNum(load.next) + ' ' + load.unit, reps };
 }
 /* One row per movement whose target was met: when, what was lifted, and what
    to put on the stack next time. What can be done about a result — look at
@@ -8496,7 +8609,8 @@ function htmlCurrentExercise(w, ex){
         '<span class="tag">target ' + ex.sets.length + ' × ' + esc(targetRangeLabel(ex)) +
           (ex.targetWeight != null ? ' @ ' + (bodyweight ? '+' : '') + fmtNum(ex.targetWeight) + ' ' + exerciseLoadLabel(ex) : '') +
           (ex.targetRir != null ? ' · RIR ' + fmtNum(ex.targetRir) : '') + '</span>' +
-        '<span class="tag">' + icon('timer','ic-inline') + ' rest ' + fmtClock(currentRestSeconds()) + '</span>' +
+        '<span class="tag">' + icon('timer','ic-inline') + ' rest ' + fmtClock(currentRestSeconds()) +
+          (restOverride(ex) != null ? ' (this exercise)' : '') + '</span>' +
       '</span>' +
       /* Read from the library rather than from the session's own copy of the
          exercise: a link corrected today should work in a session started
@@ -8506,10 +8620,11 @@ function htmlCurrentExercise(w, ex){
     htmlSupersetNote(w, ex, run) +
     prevHTML +
     (ex.notes ? '<p class="ex-notes">“' + esc(ex.notes) + '”</p>' : '') +
-    (cue ? loadCueHTML(cue, ex.name, true) : '') +
+    (cue ? loadCueHTML(cue, ex.name, true, seededNote(cue, ex)) : '') +
     '<div class="mt-4 ' + cols + '" role="group" aria-label="Sets for ' + esc(ex.name) + '">' + setsHTML + '</div>' +
     '<div class="sets-foot">' +
       '<button type="button" class="btn" data-action="add-set">' + IC.plus + '<span>Add set</span></button>' +
+      (canSwap(ex) ? '<button type="button" class="btn" data-action="swap-exercise" aria-label="Swap ' + esc(ex.name) + ' for another exercise">Swap…</button>' : '') +
       (next ? '<span class="next-up muted small">Next: ' + esc(next.name) + '</span>' : '') +
     '</div>' +
   '</div>';
@@ -8819,6 +8934,7 @@ function exerciseDetailHTML(e){
   const facts = [['Measured', e.unit === 'bw' ? 'bodyweight + ' + exerciseLoadLabel(e) : exerciseLoadLabel(e)],
     ['Movement', e.movementFamily.replace(/_/g,' ')]];
   if (e.equipmentKey) facts.push(['Equipment', e.equipmentKey]);
+  facts.push(['Rest', normalizeRestSeconds(e.restSeconds) != null ? fmtClock(normalizeRestSeconds(e.restSeconds)) + ' (this exercise)' : fmtClock(state.settings.defaultRest) + ' (Settings)']);
   const dl = rows => '<dl class="detail-facts">' + rows.map(([k, v]) => '<dt>' + esc(k) + '</dt><dd>' + v + '</dd>').join('') + '</dl>';
   let html = '<div class="detail-section">' + dl(facts.map(([k, v]) => [k, esc(v)])) +
     (e.notes ? '<p class="detail-note quote">“' + esc(e.notes) + '”</p>' : '') +
@@ -9508,7 +9624,7 @@ function dismissLoadCue(id){
   save(); render(); toast('Dismissed until the next exposure');
 }
 function loadCueTitle(cue){ return cue.targetRir == null ? 'Rep target met' : 'Ready to increase load'; }
-function loadCueHTML(cue, name, compact = false){
+function loadCueHTML(cue, name, compact = false, note = ''){
   const last = cue.latest, title = loadCueTitle(cue);
   const load = last.load > 0 ? fmtNum(convertWeight(last.load, 'kg', unitLabel())) + ' ' +
     exerciseLoadLabel(historyExerciseById(cue.id)) + ' · ' : '';
@@ -9518,6 +9634,7 @@ function loadCueHTML(cue, name, compact = false){
     '<p class="hint">' + (cue.targetRir == null
       ? 'Confirm good technique and about 1–2 reps in reserve before increasing load.'
       : 'Prescribed reps and RIR met. If technique was good, increase load slightly next time.') + '</p>' +
+    (note ? '<p class="hint load-cue-note">' + esc(note) + '</p>' : '') +
     '<div class="load-cue-actions">' +
       '<button type="button" class="btn btn-sm" data-action="cue-view-session" data-workout="' + esc(last.workoutId) + '" data-idx="' + last.blockIndex + '">View last session</button>' +
       '<button type="button" class="btn btn-sm" data-action="cue-dismiss" data-id="' + esc(cue.id) + '">Dismiss this result</button>' +
@@ -9892,6 +10009,7 @@ function htmlExerciseForm(){
         '<label class="field"><span class="cap">Equipment key (optional)</span><input name="exequipment" placeholder="gym-a-leg-press">' +
           '<span class="hint">Use the same stable key only for the same implement or machine.</span></label>' +
       '</div>' +
+      restField('name="exrest"', '') +
       '<label class="field mt-3"><span class="cap">Notes (optional)</span>' +
         '<input type="text" name="exnotes" placeholder="Machine setting, grip, load convention, technique cue…">' +
         '<span class="hint">Keep stable facts here. Sets, rep ranges, RIR and starting load belong in the routine.</span></label>' +
@@ -9921,6 +10039,13 @@ function htmlHowTo(rawUrl, name){
   return '<a class="how-to" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" ' +
     'aria-label="How to perform ' + esc(name) + ' (opens in a new tab)">' + IC.link + '<span>How to</span></a>';
 }
+/* Blank keeps the Settings rest, which the placeholder shows. */
+function restField(attrs, value){
+  return '<label class="field mt-3"><span class="cap">Rest after a set (seconds, optional)</span>' +
+    '<input type="number" ' + attrs + ' min="' + REST_MIN + '" max="' + REST_MAX + '" step="15" inputmode="numeric" ' +
+    'value="' + esc(value == null ? '' : String(value)) + '" placeholder="' + state.settings.defaultRest + ' (Settings)">' +
+    '<span class="hint">For movements that need longer or shorter rest in every routine.</span></label>';
+}
 function htmlExerciseEditRow(e){
   const d = ui.exerciseDraft;
   return '<li class="list-row is-editing">' +
@@ -9939,6 +10064,7 @@ function htmlExerciseEditRow(e){
         '<label class="field"><span class="cap">Equipment key (optional)</span><input data-bind="edraft" data-field="equipmentKey" value="' + esc(d.equipmentKey || '') + '" placeholder="gym-a-leg-press">' +
           '<span class="hint">Same key means the same implement or machine.</span></label>' +
       '</div>' +
+      restField('data-bind="edraft" data-field="restSeconds"', d.restSeconds) +
       '<label class="field mt-3"><span class="cap">Notes</span>' +
         '<input type="text" data-bind="edraft" data-field="notes" value="' + esc(d.notes) + '">' +
         '<span class="hint">Stable facts only; prescription belongs in the routine.</span></label>' +
@@ -10028,6 +10154,7 @@ const actions = {
   'toggle-set'(d){ toggleSet(d.id); },
   'toggle-warmup'(d, el){ toggleWarmup(d.id, el && el.id); },
   'add-set'(){ addSet(); },
+  'swap-exercise'(){ openSwapDialog(); },
   'delete-set'(d){ deleteSet(d.id); },
   'edit-set'(d){ openSetEditor(d.id); },
   'next-exercise'(){ advanceExercise(false); },
@@ -10562,7 +10689,7 @@ document.addEventListener('click', e => {
   if (gSwallow){ gSwallow = false; return; }
   const el = e.target.closest('[data-action]');
   if (!el) return;
-  if(workoutHandoff.held()&&['toggle-set','edit-set','finish-workout','discard-workout','timer-toggle','timer-reset','timer-add30','add-set','delete-set','remove-workout-exercise','toggle-warmup','add-workout-exercise'].includes(el.dataset.action)){toast('Workout held for handoff');return;}
+  if(workoutHandoff.held()&&['toggle-set','edit-set','finish-workout','discard-workout','timer-toggle','timer-reset','timer-add30','add-set','delete-set','remove-workout-exercise','toggle-warmup','add-workout-exercise','swap-exercise'].includes(el.dataset.action)){toast('Workout held for handoff');return;}
   const fn = actions[el.dataset.action];
   if (fn) fn(el.dataset, el, e);
 });
@@ -10683,7 +10810,7 @@ const changeHandlers = {
        under way. An idle timer takes the new value at once; one that is
        running or paused part-way keeps its own countdown and picks the new
        length up on the next rest. */
-    if (!timer.running && !timer.done && timer.remaining >= timer.total) loadTimer(v);
+    if (!timer.running && !timer.done && timer.remaining >= timer.total) loadTimer(currentRestSeconds());
     toast('Rest between sets: ' + fmtClock(v));
   },
   'workout-time'(t){
@@ -10745,7 +10872,7 @@ document.addEventListener('submit', e => {
   else if (kind === 'ex-new'){
     const g = n => { const el = form.elements.namedItem(n); return el ? el.value : ''; };
     saveNewExercise({ name:g('exname'), category:g('excat'), unit:g('exunit'), loadMode:g('exloadmode'),
-      equipmentKey:g('exequipment'), movementFamily:g('exfamily'), notes:g('exnotes'), url:g('exurl') });
+      equipmentKey:g('exequipment'), movementFamily:g('exfamily'), notes:g('exnotes'), url:g('exurl'), restSeconds:g('exrest') });
   }
   else if (kind === 'ex-save'){ saveExerciseDraft(); }
   else if (kind === 'ex-merge'){

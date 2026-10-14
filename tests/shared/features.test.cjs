@@ -147,3 +147,50 @@ test('Liftlog seeds working sets from last time’s working sets in today’s un
  assert.equal(saved.exercises.length,1,'an exercise never started is not saved');
  assert.equal(saved.exercises[0].sets.map(x=>x.reps).join(),'5,4','a seeded load alone is not a logged set');
 });
+test('Liftlog starts working sets at the suggested load once the prescription was met',()=>{
+ const d=lift(),s=d.api.state;s.settings.unit='kg';s.settings.loadStep=2.5;
+ s.exercises.push({id:'bench',name:'Bench',category:'Push',unit:'kg',loadMode:'total',equipmentKey:'',movementFamily:'horizontal_push',archived:false,notes:'',url:''});
+ const set=(weight,reps)=>({completed:true,reps,weight,unit:'kg'});
+ const last=(reps)=>({id:'last',routineId:'r',routineName:'R',startedAt:Date.now()-86400000,finishedAt:Date.now()-86000000,exercises:[{exerciseId:'bench',name:'Bench',unit:'kg',loadMode:'total',equipmentKey:'',plannedSets:3,targetRepsMin:8,targetRepsMax:10,targetRir:null,
+  sets:[{completed:true,reps:5,weight:60,unit:'kg',countForVolume:false,countForPR:false},set(100,reps),set(100,reps),set(100,reps)]}]});
+ const item={exerciseId:'bench',sets:3,repsMin:8,repsMax:10};
+ const weights=()=>d.api.buildWorkoutExercise(item).sets.map(x=>x.weight).join();
+ s.workouts=[last(10)];assert.equal(weights(),'102.5,102.5,102.5','top of the range met: next load');
+ s.workouts=[last(9)];assert.equal(weights(),'100,100,100','range not met: same load');
+ s.workouts=[last(10)];assert.equal(d.api.buildWorkoutExercise({...item,weight:90}).sets[0].weight,90,'a planned weight wins');
+ s.progressionPreferences=[{exerciseId:'bench',loadCuesOff:true,dismissedExposureKey:''}];assert.equal(weights(),'100,100,100','suggestions turned off');
+});
+test('Liftlog rest comes from the exercise when it sets one, else from Settings',()=>{
+ const d=lift(),s=d.api.state;s.settings.defaultRest=90;
+ const def=(id,extra={})=>({id,name:id,category:'Legs',unit:'kg',loadMode:'total',equipmentKey:'',movementFamily:'squat',archived:false,notes:'',url:'',...extra});
+ s.exercises.push(def('squat',{restSeconds:180}),def('curl'),def('dips',{restSeconds:120}));
+ assert.equal(d.api.currentRestSeconds([{exerciseId:'squat'}]),180);
+ assert.equal(d.api.currentRestSeconds([{exerciseId:'curl'}]),90);
+ assert.equal(d.api.currentRestSeconds([{exerciseId:'curl'},{exerciseId:'dips'}]),120,'a superset round rests as long as its longest member');
+ const backup=JSON.parse(JSON.stringify(s));backup.exercises.find(e=>e.id==='curl').restSeconds=5;backup.exercises.find(e=>e.id==='dips').restSeconds=0;
+ const prepared=d.api.prepareBackup(backup);
+ assert.equal(prepared.version,15);
+ assert.equal(prepared.exercises.find(e=>e.id==='squat').restSeconds,180);
+ assert.equal(prepared.exercises.find(e=>e.id==='curl').restSeconds,15,'clamped to the shortest rest');
+ assert.equal('restSeconds' in prepared.exercises.find(e=>e.id==='dips'),false,'0 means use Settings');
+ backup.exercises.find(e=>e.id==='curl').restSeconds='long';assert.throws(()=>d.api.prepareBackup(backup),/restSeconds/);
+ const v14=JSON.parse(JSON.stringify(s));v14.version=14;v14.exercises.forEach(e=>delete e.restSeconds);assert.equal(d.api.prepareBackup(v14).version,15);
+});
+test('Liftlog swaps an exercise for this session and keeps its prescription',()=>{
+ const d=lift(),s=d.api.state;s.settings.unit='kg';
+ const def=(id,unit='kg')=>({id,name:id,category:'Push',unit,loadMode:'total',equipmentKey:'',movementFamily:'horizontal_push',archived:false,notes:'',url:''});
+ s.exercises.push(def('bench'),def('incline'),def('plank','time'),def('row'));
+ const row=()=>({id:Math.random().toString(36).slice(2),weight:100,reps:null,durationSeconds:null,completed:false,unit:'kg'});
+ const block=(exerciseId,extra={})=>({exerciseId,name:exerciseId,unit:'kg',loadMode:'total',equipmentKey:'',movementFamily:'horizontal_push',plannedSets:4,targetRepsMin:6,targetRepsMax:8,targetRir:2,targetWeight:100,skipped:false,notes:'',sets:[row(),row(),row(),row(),row()],...extra});
+ s.activeWorkout={id:'now',routineId:'r',routineName:'R',startedAt:Date.now(),finishedAt:null,notes:'',currentExerciseIndex:0,timer:null,exercises:[block('bench',{supersetOf:'k'}),block('row',{supersetOf:'k'})]};
+ d.api.swapExercise(0,'incline');
+ const swapped=s.activeWorkout.exercises[0];
+ assert.equal(JSON.stringify([swapped.exerciseId,swapped.plannedSets,swapped.sets.length,swapped.targetRepsMin,swapped.targetRepsMax,swapped.targetRir,swapped.targetWeight,swapped.supersetOf]),
+  JSON.stringify(['incline',4,5,6,8,2,null,'k']),'count, range, RIR and pairing kept; planned load dropped; the extra row stays');
+ assert.equal(s.activeWorkout.exercises[1].exerciseId,'row');
+ d.api.swapExercise(0,'row');assert.equal(s.activeWorkout.exercises[0].exerciseId,'incline','an exercise already in the session is refused');
+ d.api.swapExercise(0,'plank');const timed=s.activeWorkout.exercises[0];
+ assert.equal(JSON.stringify([timed.exerciseId,timed.targetRepsMin,timed.targetRepsMax,timed.targetRir]),JSON.stringify(['plank',30,30,null]),'seconds do not inherit a rep range');
+ timed.sets[0].completed=true;assert.equal(d.api.canSwap(timed),false);
+ d.api.swapExercise(0,'bench');assert.equal(s.activeWorkout.exercises[0].exerciseId,'plank','logged work is never relabelled');
+});
