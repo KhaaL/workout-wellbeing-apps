@@ -83,6 +83,9 @@ jobs:
       - name: Shared mobile navigation and controls suite
         if: ${{ !cancelled() }}
         run: npm run test:app-ui-browser
+      - name: Two-device handoff, comparisons and usability suite
+        if: ${{ !cancelled() }}
+        run: npm run test:features-browser
       - name: Keep screenshots from a failed run
         if: ${{ failure() }}
         uses: actions/upload-artifact@v7
