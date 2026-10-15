@@ -140,10 +140,5 @@ const WorkoutUI = (() => {
     if(!entries.length){const p=document.createElement('p');p.textContent='No recent changes.';details.append(p);}
     for(const entry of entries){const row=document.createElement('div');row.className='recent-change';const text=document.createElement('span');text.textContent=entry.label+' · '+new Date(entry.at).toLocaleString();const button=document.createElement('button');button.type='button';button.className='btn';button.textContent=entry.deleted?'Restore':'Undo';button.setAttribute('aria-label',button.textContent+' '+entry.label);button.addEventListener('click',()=>{try{journal.undo(entry.id);notify('Change restored.');}catch(error){notify(error.message);}renderRecent(container,journal,notify);details.open=true;});row.append(text,button);details.append(row);}
   }
-  function offerUndo(journal,entry,notify){
-    if(!entry)return;
-    let bar=document.getElementById('undo-bar');if(!bar){bar=document.createElement('div');bar.id='undo-bar';bar.className='undo-bar';bar.setAttribute('role','status');(document.querySelector('main')||document.body.lastElementChild).before(bar);}
-    bar.replaceChildren();const text=document.createElement('span');text.textContent=entry.label;const button=document.createElement('button');button.type='button';button.className='btn';button.textContent='Undo';button.addEventListener('click',()=>{try{journal.undo(entry.id);bar.remove();notify('Change restored.');}catch(error){notify(error.message);}});const close=document.createElement('button');close.type='button';close.className='btn';close.textContent='Dismiss';close.addEventListener('click',()=>bar.remove());bar.append(text,button,close);
-  }
-  return {themes,schemes,applyTheme,createShell,attachSteppers,dialog,confirm,renderRecent,offerUndo};
+  return {themes,schemes,applyTheme,createShell,attachSteppers,dialog,confirm,renderRecent};
 })();
