@@ -18,7 +18,7 @@ print(json.dumps({r.findtext(ns + 'AllowedOrigin'): {name: [n.text for n in r.fi
 `],{cwd:root,encoding:'utf8'});
 const corsRules=JSON.parse(generatedCors);
 const cfg={endpoint:'https://storage.test',region:'test',syncMode:'conditional',bucket:'test',pathStyle:true,objectKey:'backups/work & ü.json',accessKeyId:'fake',secretAccessKey:'synthetic-secret'};
-const ride={id:'r',startedAt:1720000000000,endedAt:1720001800000,config:{mode:'zone2',bike:'matrix'},activeMs:1800000,mainMs:1500000,outcome:'complete',effortsCompleted:0,metrics:{notes:'before'}};
+const ride={id:'r',startedAt:1720000000000,endedAt:1720001800000,config:{mode:'zone2',bike:'levels'},activeMs:1800000,mainMs:1500000,outcome:'complete',effortsCompleted:0,metrics:{notes:'before'}};
 const lifting={version:14,settings:{lastModifiedAt:100},exercises:[{id:'e',name:'Squat',unit:'kg'}],routines:[],workouts:[{id:'w',startedAt:1,finishedAt:2,notes:'before',exercises:[{exerciseId:'e',name:'Squat',unit:'kg',sets:[{id:'s',reps:5,weight:20,completed:true}]}]}],activeWorkout:null};
 const xml=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 function verifySignature(url,headers,body,region=cfg.region){

@@ -23,7 +23,6 @@
         "sprintCooldownMinutes": 5,
         "settleMinutes": 2,
         "mode": "sprint",
-        "bike": "matrix",
         "bikeId": "",
         "context": "fresh",
         "cooldown": 3,

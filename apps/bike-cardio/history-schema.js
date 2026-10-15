@@ -1,7 +1,7 @@
 /* History-only categories do not change runnable workout plans. */
 /* exported BikeHistorySchema */
 const BikeHistorySchema=(()=>{
-  const version=3;
+  const version=4;
   const externalFields=[
     {name:'peakWatts',label:'Peak power',unit:'W',min:0,max:10000},
     {name:'maxCadence',label:'Maximum cadence',unit:'rpm',min:0,max:250},
@@ -15,8 +15,10 @@ const BikeHistorySchema=(()=>{
     if(!input||!['zone2','sprint',...(sourceVersion>=3?['external']:[])].includes(input.mode))throw new Error('Invalid workout configuration');
     const result=WorkoutCore.config(input);
     if(sourceVersion>=3){
-      const bike=input.bike??'unknown',context=input.context??'unknown';
-      if(!['matrix','touchscreen','unknown'].includes(bike))throw new Error('Invalid recorded bike');
+      const recorded=input.bike??'unknown',context=input.context??'unknown';
+      // Version 3 stored model codes; version 4 stores the cue style (WorkoutCore.bikeCues).
+      if(typeof recorded!=='string'||!recorded||sourceVersion>=4&&!['levels','feel','unknown'].includes(recorded))throw new Error('Invalid recorded bike');
+      const bike=recorded==='unknown'?'unknown':WorkoutCore.bikeCues(recorded);
       if(!['fresh','post-lifting','unknown'].includes(context))throw new Error('Invalid recorded context');
       result.mode=input.mode;result.bike=bike;result.context=context;
     }
@@ -28,7 +30,7 @@ const BikeHistorySchema=(()=>{
     if(metrics.polarZonesMs!=null){
       const zones=metrics.polarZonesMs;
       if(typeof zones!=='object'||Array.isArray(zones))throw new Error('Invalid polarZonesMs');
-      for(const [name,value] of Object.entries(zones))if(!/^z[1-5]$/.test(name)||value!=null&&(!Number.isFinite(value)||value<0||value>Number.MAX_SAFE_INTEGER))throw new Error('Invalid Polar zone duration');
+      for(const [name,value] of Object.entries(zones))if(!/^z[1-5]$/.test(name)||value!=null&&(!Number.isFinite(value)||value<0||value>Number.MAX_SAFE_INTEGER))throw new Error('Invalid imported zone duration');
     }
   }
   const modeLabel=mode=>({zone2:'Zone 2',sprint:'Sprint intervals',external:'Externally recorded'})[mode]||'Unknown workout';

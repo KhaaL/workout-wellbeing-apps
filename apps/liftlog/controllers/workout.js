@@ -45,17 +45,24 @@ function buildWorkoutExercise(item){
   /* Planned sets are working sets, so they line up with last time's working
      sets: a warm-up ramp must not seed the first working set with its load. */
   const prevWork = prev ? prev.sets.filter(s => !context.isWarmup(s)) : [];
+  /* When last time met this prescription, working sets start at the suggested
+     next load (the same figure the load cue shows) instead of repeating it.
+     Bodyweight work only steps a load that was already added. */
+  const cue = item.weight == null ? context.loadCueFor(item.exerciseId, item) : null;
+  const suggested = cue ? context.suggestedLoad(cue) : null;
   for (let i = 0; i < n; i++){
     const set = newSetFrom(ex, null);
-    /* seed the bar with the plan, else with what was lifted last time */
+    /* seed the bar with the plan, else the suggestion, else what was lifted last time */
     const prevSet = prevWork[i] || prevWork[0];
     if (ex.unit === 'bw'){
       if (item.weight != null){ set.addedWeight = item.weight; set.addedWeightUnit = context.unitLabel(); }
+      else if (suggested && suggested.kind === 'bw' && suggested.last > 0){ set.addedWeight = suggested.next; set.addedWeightUnit = suggested.unit; }
       else if (prevSet && prevSet.addedWeight != null){
         set.addedWeight = context.convertWeight(prevSet.addedWeight, prevSet.addedWeightUnit || context.unitLabel(), context.unitLabel());
         set.addedWeightUnit = context.unitLabel();
       }
     } else if (item.weight != null) set.weight = item.weight;
+    else if (suggested && suggested.kind === 'loaded' && suggested.unit === set.unit) set.weight = suggested.next;
     /* the old set keeps its own unit; the new one is logged in today's */
     else if (prevSet && prevSet.weight != null)
       set.weight = Math.round(context.convertWeight(prevSet.weight, prevSet.unit === 'lb' ? 'lb' : 'kg', set.unit) * 100) / 100;
@@ -267,7 +274,8 @@ function toggleSet(setId){
   if (s.completed){
     context.announce('Set ' + (i+1) + ' of ' + ex.sets.length + ' complete.' + (handOver ? ' Now: ' + handOver.name + '.' : ''));
     if (context.state.settings.autoRest && (!turn || turn.wrapped || holdForWarmup)){
-      context.loadTimer(context.currentRestSeconds());
+      /* rest belongs to what was just performed: this exercise, or the whole round */
+      context.loadTimer(context.currentRestSeconds(turn && turn.wrapped && !holdForWarmup ? supersetRun(w, w.currentExerciseIndex).map(i => w.exercises[i]) : [ex]));
       context.startTimer();
     }
   }
@@ -361,6 +369,90 @@ function openSetEditor(setId){
   dialog.addEventListener('close',()=>{dialog.remove();if(opener?.isConnected)opener.focus();},{once:true});document.body.append(dialog);context.WorkoutUI.attachSteppers(dialog);dialog.showModal();
 }
 
+/* Swap the current exercise for another, for this session only, keeping the
+   prescription: the set count, and the rep range and target RIR when both
+   movements are counted the same way (reps or seconds). A planned load belongs
+   to the old movement, so the new one is seeded from its own history. Pairings
+   carry over. It is offered only before a set is logged, so logged work is
+   never relabelled. */
+function swapCandidates(w, ex){
+  const inSession = new Set(w.exercises.map(x => x.exerciseId));
+  const pool = context.state.exercises.filter(e => !e.archived && !inSession.has(e.id))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { numeric:true, sensitivity:'base' }));
+  return { related:pool.filter(e => e.movementFamily === ex.movementFamily), other:pool.filter(e => e.movementFamily !== ex.movementFamily) };
+}
+function canSwap(ex){ return !!ex && !ex.sets.some(s => s.completed); }
+function swapExercise(idx, newId){
+  if(context.workoutHandoff.held())return;
+  const w = context.state.activeWorkout, ex = w && w.exercises[idx], def = context.exerciseById(newId);
+  if (!ex || !def || def.archived) return;
+  if (!canSwap(ex)){ context.toast('Sets are already logged for ' + ex.name + '. Add the other exercise instead.'); return; }
+  if (w.exercises.some(x => x.exerciseId === newId)){ context.toast(def.name + ' is already in this session'); return; }
+  const sameCount = (ex.unit === 'time') === (def.unit === 'time');
+  const fresh = newRoutineItem(newId);
+  const block = buildWorkoutExercise({ exerciseId:newId, sets:ex.plannedSets || ex.sets.length,
+    repsMin:sameCount ? ex.targetRepsMin : fresh.repsMin, repsMax:sameCount ? ex.targetRepsMax : fresh.repsMax,
+    targetRir:sameCount ? ex.targetRir : null, weight:null,
+    ...(ex.eitherOf ? { eitherOf:ex.eitherOf } : {}), ...(ex.supersetOf ? { supersetOf:ex.supersetOf } : {}) });
+  /* the session's own count of working rows, which may differ from the plan
+     after Add set; warm-up rows ramp to the old movement's load and are dropped */
+  const working = ex.sets.filter(s => !context.isWarmup(s)).length;
+  while (block.sets.length < working) block.sets.push(newSetFrom(block, block.sets[block.sets.length - 1]));
+  block.sets.length = Math.max(1, working);
+  w.exercises[idx] = block;
+  context.save(); context.ui.focus = 'ex-panel-top'; context.render();
+  context.toast('Swapped ' + ex.name + ' for ' + def.name + (sameCount ? '. Sets, reps and RIR kept for this session.' : '. Set count kept for this session.'));
+}
+/* The less frequent actions for the current exercise, one tap behind More…,
+   so the row under the sets holds Add set and the next exercise on one line.
+   Each entry is listed only when it applies. */
+function openExerciseMenu(){
+  if(context.workoutHandoff.held())return;
+  const w = context.state.activeWorkout, ex = currentExercise(); if (!w || !ex) return;
+  const opener = document.querySelector('[data-action="exercise-menu"]');
+  const dialog = document.createElement('dialog'); dialog.className = 'numeric-editor'; dialog.setAttribute('aria-label', 'More for ' + ex.name);
+  const heading = document.createElement('h2'); heading.textContent = ex.name; dialog.append(heading);
+  const actions = document.createElement('div'); actions.className = 'editor-actions'; dialog.append(actions);
+  let next = null;
+  const button = (text, css, action) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + css; b.textContent = text;
+    b.addEventListener('click', () => { next = action; dialog.close(); }); actions.append(b); };
+  const ramp = warmupPlan(ex);
+  if (ramp.length) button('Add ' + context.plural(ramp.length, 'warm-up set'), '', addWarmups);
+  if (canSwap(ex)) button('Swap for another exercise…', '', openSwapDialog);
+  button('Remove exercise…', 'btn-danger', () => confirmExerciseRemoval(w, ex));
+  button('Cancel', '', null);
+  /* the follow-up runs after focus has gone back, so its own dialog or render owns focus */
+  dialog.addEventListener('close', () => { dialog.remove(); if (opener?.isConnected) opener.focus(); if (next) next(); }, { once:true });
+  document.body.append(dialog); dialog.showModal();
+}
+function openSwapDialog(){
+  if(context.workoutHandoff.held())return;
+  const w = context.state.activeWorkout, ex = currentExercise(); if (!w || !ex) return;
+  const idx = w.exercises.indexOf(ex), opener = document.querySelector('[data-action="exercise-menu"]');
+  const { related, other } = swapCandidates(w, ex);
+  const dialog = document.createElement('dialog'); dialog.className = 'numeric-editor'; dialog.setAttribute('aria-label', 'Swap ' + ex.name);
+  const heading = document.createElement('h2'); heading.textContent = 'Swap ' + ex.name; dialog.append(heading);
+  const hint = document.createElement('p'); hint.className = 'hint';
+  hint.textContent = 'For this session only; the routine is unchanged. The new exercise keeps ' + (ex.plannedSets || ex.sets.length) + ' sets' +
+    (ex.targetRepsMin != null ? ' of ' + ex.targetRepsMin + (ex.targetRepsMax !== ex.targetRepsMin ? ' to ' + ex.targetRepsMax : '') + (ex.unit === 'time' ? ' seconds' : ' reps') : '') +
+    (ex.targetRir != null ? ' at RIR ' + ex.targetRir : '') + '.';
+  const label = document.createElement('label'); label.className = 'field'; const cap = document.createElement('span'); cap.className = 'cap'; cap.textContent = 'Swap for';
+  const select = document.createElement('select'); select.id = 'swap-select';
+  for (const [title, list] of [['Same movement family', related], ['Other exercises', other]]){
+    if (!list.length) continue;
+    const group = document.createElement('optgroup'); group.label = title;
+    for (const e of list){ const option = document.createElement('option'); option.value = e.id; option.textContent = e.name; group.append(option); }
+    select.append(group);
+  }
+  label.append(cap, select); dialog.append(hint, label);
+  const actions = document.createElement('div'); actions.className = 'editor-actions'; dialog.append(actions);
+  const button = (text, css, action, disabled) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + css; b.textContent = text; b.disabled = !!disabled; b.addEventListener('click', action); actions.append(b); };
+  button('Swap', 'btn-primary', () => { dialog.close(); swapExercise(idx, select.value); }, !select.options.length);
+  button('Cancel', '', () => dialog.close());
+  if (!select.options.length){ const none = document.createElement('p'); none.className = 'hint'; none.textContent = 'Every library exercise is already in this session.'; label.after(none); }
+  dialog.addEventListener('close', () => { dialog.remove(); if (opener?.isConnected) opener.focus(); }, { once:true });
+  document.body.append(dialog); dialog.showModal();
+}
 function deleteSet(setId){
   if(context.workoutHandoff.held())return;
   const w = context.state.activeWorkout, ex = currentExercise();
@@ -451,6 +543,44 @@ function addSet(){
   context.ui.focus = (ex.unit === 'time' ? 'sr-' : 'sw-') + s.id;
   context.render();
   context.toast('Set ' + ex.sets.length + ' added');
+}
+/* A warm-up ramp before the first working set: 50% for 8, 70% for 5 and 85%
+   for 3 of its load, each rounded to the Settings load step. A step that rounds
+   to nothing, to the working load or to the step before it is dropped, so a
+   light load gets fewer warm-ups. Bodyweight work ramps its added load from
+   none. Timed work, a set with no load, and an exercise that already has
+   warm-ups or logged sets get none. */
+const WARMUP_RAMP = [[0.5, 8], [0.7, 5], [0.85, 3]];
+function warmupPlan(ex){
+  if (!ex || ex.unit === 'time' || ex.sets.some(s => s.completed || context.isWarmup(s))) return [];
+  const first = ex.sets[0], bodyweight = ex.unit === 'bw';
+  const load = first && context.toNum(bodyweight ? first.addedWeight : first.weight);
+  if (load == null || load <= 0) return [];
+  const step = context.toNum(context.state.settings.loadStep) || 2.5, plan = [];
+  for (const [share, reps] of bodyweight ? [[0, 8], [0.5, 5]] : WARMUP_RAMP){
+    const value = Math.round(Math.round(load * share / step) * step * 100) / 100;
+    if ((value <= 0 && !bodyweight) || value >= load || plan.some(p => p.load === value)) continue;
+    plan.push({ load:value, reps });
+  }
+  return plan;
+}
+function addWarmups(){
+  if(context.workoutHandoff.held())return;
+  const ex = currentExercise(), plan = warmupPlan(ex);
+  if (!plan.length){ context.toast('No warm-up sets to add for ' + (ex ? ex.name : 'this exercise')); return; }
+  const first = ex.sets[0], bodyweight = ex.unit === 'bw';
+  const rows = plan.map(({ load, reps }) => {
+    const s = newSetFrom(ex, null);
+    if (bodyweight){ s.addedWeight = load; s.addedWeightUnit = first.addedWeightUnit || context.unitLabel(); }
+    else { s.weight = load; s.unit = first.unit || s.unit; }
+    s.reps = reps; context.setWarmup(s, true);
+    return s;
+  });
+  ex.sets.unshift(...rows);
+  context.save({changed:['activeWorkout']});
+  context.ui.focus = 'sn-' + rows[0].id;
+  context.render();
+  context.toast('Added ' + context.plural(rows.length, 'warm-up set') + '. They count toward neither volume nor records.');
 }
 /* `toOpen` is the move a finished exercise makes: on to the next one with
    work left (nextOpenBlock), rather than the next one in the list. */
@@ -627,6 +757,7 @@ function finishWorkout(){
     /* the finished session opens in its sheet, as the summary of what was
        done; a search left in History would hide its row once it closed */
     context.ui.historyQuery = '';
+    context.ui.historyTab = 'sessions';
     context.ui.focus = 'detail-title';
     context.navigate('history', { kind:'workout', id:w.id });
     window.scrollTo(0,0);
@@ -651,6 +782,6 @@ function discardWorkout(){
       context.render(); context.toast('Workout discarded');
     });
 }
-    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,cascadeReps,openSetEditor,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,discardWorkout};
+    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,cascadeReps,openSetEditor,canSwap,swapExercise,openSwapDialog,openExerciseMenu,warmupPlan,addWarmups,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,discardWorkout};
   }
 };

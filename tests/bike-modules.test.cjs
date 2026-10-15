@@ -1,9 +1,9 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const ctx=vm.createContext({});
-for(const file of ['targets.js','heart-rate.js','bluetooth.js','workout-core.js'])
+for(const file of ['targets.js','trace.js','heart-rate.js','power.js','bluetooth.js','workout-core.js'])
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../apps/bike-cardio',file),'utf8'),ctx);
-const {H,Connection}=vm.runInContext('({H:HeartRateCore,Connection:H10Connection})',ctx);
+const {H,Connection,P,BikeConnection}=vm.runInContext('({H:HeartRateCore,Connection:H10Connection,P:PowerCore,BikeConnection:BikeSensorConnection})',ctx);
 const packet=bytes=>new DataView(Uint8Array.from(bytes).buffer);
 test('extracted HR parsing handles wide values, contact, RR intervals and truncated packets',()=>{
   assert.equal(H.parse(packet([0,115])).bpm,115);
@@ -61,4 +61,44 @@ test('returning to the page retries again after three failed reconnects',async()
 test('manual HR remains available when Bluetooth cannot be used',async()=>{
   const connection=new Connection({secure:false,protocol:'https:'});
   await connection.connect();assert.equal(connection.state,'unavailable');assert.match(connection.error,/HTTPS/);
+});
+test('heart-rate targets come from maximum HR, heart-rate reserve or threshold HR',()=>{
+  const T=vm.runInContext('BikeTargets',ctx),targets=profile=>JSON.stringify(T.fromProfile(profile).targets);
+  assert.equal(JSON.stringify(T.fromProfile({method:'max',maxHR:185}).zones.map(z=>[z.min,z.max])),'[[93,111],[111,130],[130,148],[148,167],[167,185]]');
+  assert.equal(targets({method:'max',maxHR:185}),'{"zoneMin":111,"zoneMax":130,"targetMin":117,"targetMax":128,"adjustBelow":114,"comparisonHR":123}');
+  assert.equal(targets({method:'reserve',maxHR:185,restingHR:55}),'{"zoneMin":133,"zoneMax":146,"targetMin":137,"targetMax":144,"adjustBelow":135,"comparisonHR":141}');
+  assert.equal(targets({method:'threshold',thresholdHR:160}),'{"zoneMin":130,"zoneMax":142,"targetMin":134,"targetMax":141,"adjustBelow":132,"comparisonHR":138}');
+  for(const [profile,pattern] of [[{method:'max',maxHR:300},/Maximum HR/],[{method:'reserve',maxHR:150,restingHR:120},/at least 40/],[{method:'threshold'},/Threshold HR/],[{method:'other'},/Choose/]])
+    assert.throws(()=>T.fromProfile(profile),pattern);
+});
+const bytes=(...words)=>{const out=[];for(const [n,size] of words){for(let i=0;i<size;i++)out.push((n>>(8*i))&255);}return new DataView(Uint8Array.from(out).buffer);};
+test('bike power and cadence parse from Indoor Bike Data and Cycling Power packets',()=>{
+  assert.equal(JSON.stringify(P.parseIndoorBike(bytes([0x44,2],[2500,2],[180,2],[200,2]))),'{"watts":200,"cadence":90,"valid":true}','speed, cadence and power');
+  assert.equal(JSON.stringify(P.parseIndoorBike(bytes([0x74,2],[2500,2],[171,2],[1234,3],[8,2],[-5&0xffff,2]))),'{"watts":null,"cadence":85.5,"valid":true}','distance and resistance skipped; negative power is unknown');
+  assert.equal(P.parseIndoorBike(bytes([0x44,2],[2500,2],[180,2])),null,'truncated');
+  assert.equal(P.parseIndoorBike(bytes([0x01,2])),null,'a More Data packet without power or cadence');
+  const first=P.parseCyclingPower(bytes([0x20,2],[180,2],[100,2],[1000,2]));assert.equal(first.watts,180);assert.equal(first.cadence,null,'one crank event is not a cadence');
+  const second=P.parseCyclingPower(bytes([0x20,2],[185,2],[101,2],[1683,2]),first);assert.equal(Math.round(second.cadence),90);
+  assert.equal(P.parseCyclingPower(bytes([0x20,2],[185,2],[101,2],[1683,2]),second).cadence,second.cadence,'no new crank event keeps the cadence');
+  const wrapped=P.parseCyclingPower(bytes([0x20,2],[190,2],[0,2],[147,2]),{crank:{revs:65535,time:65000},cadence:null});assert.equal(Math.round(wrapped.cadence),90,'counters wrap at 65536');
+  assert.equal(P.parseCyclingPower(bytes([0x25,2],[150,2],[50,1],[10,2],[101,2],[1683,2]),first).watts,150,'balance and torque fields are skipped');
+});
+function sensor(Kind,services){
+  let visible=true;const timers=new Map(),device=new EventTarget(),requests=[];let id=0;
+  const server={getPrimaryService:async uuid=>{if(!services[uuid])throw Object.assign(new Error('missing'),{name:'NotFoundError'});return {getCharacteristic:async name=>{
+    assert.equal(name,services[uuid]);const characteristic=new EventTarget();characteristic.startNotifications=async()=>characteristic;device.characteristic=characteristic;return characteristic;}};}};
+  device.gatt={connected:false,connect:async()=>{device.gatt.connected=true;return server;},disconnect:()=>{device.gatt.connected=false;}};
+  const readings=[],connection=new Kind({bluetooth:{requestDevice:async options=>{requests.push(options);return device;}},secure:true,protocol:'https:',now:()=>1000,visible:()=>visible,
+    onMeasurement:reading=>readings.push(reading),setTimeout:(fn,delay)=>{timers.set(++id,{fn,delay});return id;},clearTimeout:key=>timers.delete(key)});
+  return {connection,device,requests,readings,send:value=>{device.characteristic.value=value;device.characteristic.dispatchEvent(new Event('characteristicvaluechanged'));}};
+}
+test('any heart-rate strap and any standard bike sensor can connect',async()=>{
+  const strap=sensor(Connection,{heart_rate:'heart_rate_measurement'});await strap.connection.connect();
+  assert.equal(JSON.stringify(strap.requests[0].filters),'[{"services":["heart_rate"]}]','no device-name filter');
+  const bikeFtms=sensor(BikeConnection,{[0x1826]:0x2AD2});await bikeFtms.connection.connect();assert.equal(bikeFtms.connection.state,'connected');
+  bikeFtms.send(bytes([0x44,2],[2500,2],[180,2],[200,2]));assert.equal(bikeFtms.connection.reading.watts,200);assert.equal(bikeFtms.connection.reading.cadence,90);
+  const meter=sensor(BikeConnection,{[0x1818]:0x2A63});await meter.connection.connect();assert.equal(meter.connection.state,'connected','falls back to Cycling Power');
+  meter.send(bytes([0x20,2],[180,2],[100,2],[1000,2]));meter.send(bytes([0x20,2],[185,2],[101,2],[1683,2]));assert.equal(Math.round(meter.connection.reading.cadence),90,'cadence uses the previous packet');
+  const none=sensor(BikeConnection,{});await none.connection.connect();assert.equal(none.connection.state,'disconnected');assert.match(none.connection.error,/Could not connect to the bike/);
+  const plain=new BikeConnection({secure:false,protocol:'https:'});await plain.connect();assert.match(plain.error,/HTTPS/);
 });

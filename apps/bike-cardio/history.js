@@ -1,7 +1,9 @@
 /* App-specific history interpretation, independent of storage and the DOM. */
 /* exported BikeHistory */
 const BikeHistory = (() => {
-  const metrics={fixedHRWatts:{label:'Watts at recorded comparison HR',unit:'W'},averageWatts:{label:'Main-block average watts',unit:'W'},mainAverageHR:{label:'Main-block average heart rate',unit:'bpm'},mainMinutes:{label:'Main-block duration',unit:'min'},coverage:{label:'HR measurement coverage',unit:'%'}};
+  const metrics={fixedHRWatts:{label:'Watts at recorded comparison HR',unit:'W'},averageWatts:{label:'Main-block average watts',unit:'W'},mainAverageHR:{label:'Main-block average heart rate',unit:'bpm'},mainMinutes:{label:'Main-block duration',unit:'min'},coverage:{label:'HR measurement coverage',unit:'%'},hrDrift:{label:'Main-block HR drift',unit:'%'},recovery60:{label:'60-second HR recovery',unit:'bpm'},decoupling:{label:'Aerobic decoupling',unit:'%'}};
+  // Mean of the recoveries a ride measured; a ride with none is unknown.
+  const meanRecovery=ride=>{const values=(ride.hr?.recovery60||[]).filter(n=>Number.isFinite(n));return values.length?Math.round(values.reduce((a,b)=>a+b,0)/values.length*10)/10:null;};
   const machineKey=ride=>JSON.stringify([ride.config.bike,ride.config.bikeId||'']);
   function seriesKey(ride){
     const c=BikeHistorySchema.config(ride.config);
@@ -17,7 +19,7 @@ const BikeHistory = (() => {
     return rides.filter(r=>(!query.machine||machineKey(r)===query.machine)&&(!query.context||r.config.context===query.context)&&(!query.mode||r.config.mode===query.mode)&&(!query.outcome||r.outcome===query.outcome)&&(!query.uninterrupted||!r.hadInterruption)&&r.startedAt>=from&&r.startedAt<(until?until.getTime():Infinity)).sort((a,b)=>b.startedAt-a.startedAt||a.id.localeCompare(b.id));
   }
   function value(ride,metric){
-    const raw=metric==='coverage'?ride.hr?.coverage:metric==='mainMinutes'?(ride.config.mode==='zone2'?ride.mainMs/60000:null):ride.metrics?.[metric];
+    const raw=metric==='coverage'?ride.hr?.coverage:metric==='hrDrift'?ride.hr?.main?.driftPct:metric==='recovery60'?meanRecovery(ride):metric==='decoupling'?ride.power?.main?.decouplingPct:metric==='mainMinutes'?(ride.config.mode==='zone2'?ride.mainMs/60000:null):ride.metrics?.[metric];
     if(raw===null||raw===undefined||raw==='')return null;
     const number=Number(raw);return Number.isFinite(number)?number:null;
   }
@@ -40,11 +42,12 @@ const BikeHistory = (() => {
       ['Main-block watts','W',r=>number(r.metrics?.averageWatts)],['Main-block HR','bpm',r=>number(r.metrics?.mainAverageHR)],
       ['Watts at recorded comparison HR','W',r=>number(r.metrics?.fixedHRWatts)],['Measured average HR','bpm',r=>number(r.hr?.averageHR)],
       ['HR coverage','%',r=>number(r.hr?.coverage)],['Active duration','min',r=>r.activeMs/60000],['Main-block duration','min',r=>r.mainMs/60000],
+      ['Main-block HR drift','%',r=>number(r.hr?.main?.driftPct)],['60-second HR recovery','bpm',r=>meanRecovery(r)],['Aerobic decoupling','%',r=>number(r.power?.main?.decouplingPct)],
       ['Perceived effort','1–10',r=>number(r.metrics?.perceivedEffort)]
     ].map(([label,unit,read])=>{const a=read(before),b=read(after);return {label,unit,before:a,after:b,delta:comparable&&a!==null&&b!==null?b-a:null};});
     warnings.push('Review heart rate and measurement coverage alongside watts. A higher output alone does not establish improved fitness.');
     const context=ride=>{if(ride.config.mode==='external')return 'Externally recorded · app plan unknown';const c=WorkoutCore.config(ride.config);return ({fresh:'Fresh legs','post-lifting':'After lifting',unknown:'Unknown context'}[ride.config.context]||'Unknown context')+' · Zone 2 '+c.targets.zoneMin+'–'+c.targets.zoneMax+' bpm · comparison HR '+c.targets.comparisonHR+' bpm';};
     return {before,after,rows,warnings,details:['Earlier: '+context(before),'Later: '+context(after)]};
   }
-  return {metrics,machineKey,seriesKey,filter,value,series,compare};
+  return {metrics,machineKey,seriesKey,filter,value,series,compare,meanRecovery};
 })();

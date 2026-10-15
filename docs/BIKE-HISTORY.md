@@ -10,8 +10,11 @@ a full backup** instead replaces local data after confirmation.
 - [Version 2 sprint test export](../examples/bike-history-sprint-v2.json)
 - [Version 3 external examples](../examples/bike-history-external-v3.json)
 
-Exports now use version **3**. Version 1/2 files remain importable; normalization
+Exports now use version **4**. Version 1 to 3 files remain importable; normalization
 upgrades them without changing their recorded times or inventing a new revision.
+Version 4 changes only `config.bike` (and machine profiles' `bike`): it records how
+resistance cues read instead of a machine model. Older files map `touchscreen` to
+`feel` and any other code to `levels`.
 The active-workout version and browser storage key are separate contracts.
 
 ## Required and optional
@@ -38,16 +41,18 @@ existing data. The same merge also accepts a full backup envelope.
 | Field | Values |
 |---|---|
 | `config.mode` | `zone2`, `sprint`; v3 also `external` (history only) |
-| `config.bike` | `matrix`, `touchscreen`; v3 also `unknown` |
+| `config.bike` | v4: `levels` (cues name console levels), `feel` (cues by feel), `unknown`; v3: any model code or `unknown` |
 | `config.context` | `fresh`, `post-lifting`; v3 also `unknown` |
 | `outcome` | `complete`, `partial` |
 | `phases[].kind` | Native: `warmup`, `main`, `cooldown`, `ready`, `primer`, `settle`, `effort`, `recovery`. Import accepts **any string**, including `external` or `video`. |
 | `phases[].outcome` | `complete`, `skipped`, `ended` |
 
-In v3 omit unknown bike/context or explicitly use `"unknown"`. Do not use `""`.
-In v1/v2 the legacy normalizer defaults unknown/missing bike to `matrix`, context
+In v3 and v4 omit unknown bike/context or explicitly use `"unknown"`. Do not use `""`.
+In v1/v2 the legacy normalizer defaults unknown/missing bike to `levels`, context
 to `fresh`; do not use those defaults to imply knowledge you do not have.
 `bikeId` is an optional free-text machine identifier; empty means unidentified.
+The app names a machine by its `bikeId` (machine profiles store one), so name
+machines there rather than in `config.bike`.
 `external` does not create a runnable video plan. External rides and rides with
 unknown bike/context are shown independently in progress charts; automatic
 comparisons withhold progress differences.
@@ -113,9 +118,41 @@ the history category prevents comparisons based on that default plan.
   fields `zoneMs`, `measuredMs`, `samples`, `coverage` are required. Optional
   `hr.targets` are normalized and must match the ride's configured targets.
 
+- `hr.trace` (optional): `{ "binSeconds": 5, "bpm": "100,101,,118" }`. Each
+  comma-separated entry is the whole-number average bpm (1..300) for 5 seconds of
+  **active riding time**, in order from the start; an empty entry is a bin measured
+  for under half its length. Paused time is not active time and has no bins. The
+  string holds at most 8640 entries (12 hours). One string per ride keeps backups
+  under the object-count limit that an array of numbers would reach.
+- `hr.main` (optional, Zone 2): `{ "averageHR": 118, "coverage": 96, "driftPct": 2.5 }`.
+  The main block's measured average (1..300) and the percentage of it that was
+  measured (0..100). `driftPct` (-100..100 or `null`) compares the second half's
+  average with the first's; native output requires a main block of at least 10
+  minutes with each half at least half measured. When `coverage` is at least 80,
+  native rides also fill `metrics.mainAverageHR` with the same value.
+- `hr.recovery60` (optional): one entry per sprint effort, or one for the Zone 2
+  main block: bpm in the last 5 seconds of the phase minus bpm 55 to 60 seconds
+  after it (-300..300), or `null` when either window was under half measured.
+
+- `power` (optional): readings from a Bluetooth bike sensor.
+  `{ "source": "Bluetooth bike sensor", "measuredMs": 1500000, "coverage": 95,
+  "averageWatts": 140, "peak5sWatts": 180, "trace": { "binSeconds": 5,
+  "watts": "140,,150", "rpm": "90,,88" }, "main": { "averageWatts": 147.5,
+  "cadence": 90, "coverage": 100, "decouplingPct": 3.2, "fixedHRWatts": 150 } }`.
+  `measuredMs` is active time with a power reading; `coverage` is its percentage
+  of active time (0..100). Watts are 0..2500 and cadence 0..250 rpm; the traces
+  use the same 5-second string format as `hr.trace`. `main` (Zone 2) holds the
+  main block's average watts and cadence, the percentage of it with power,
+  `decouplingPct` (-100..100 or `null`: watts per beat in the first half against
+  the second, for main blocks of 10 minutes or more) and `fixedHRWatts` (average
+  watts over 5-second bins within 2 bpm of `comparisonHR`, needing at least 12
+  bins, or `null`). At 80% main-block coverage, native rides copy these into
+  `metrics.averageWatts`, `metrics.cadence` and `metrics.fixedHRWatts`.
+
 There is **no defined `recording` object** in this implementation. It has no
 `nextSeq`/`sampleCount` contract or raw-sample storage. The live accumulator keeps
-weighted totals and the last reading; finished history stores summaries only.
+weighted totals, 5-second bins and the last reading; finished history stores
+summaries and the 5-second trace.
 An unknown `recording` extension is preserved but ignored. Omit it for imports;
 do not fabricate sequence numbers or raw readings.
 

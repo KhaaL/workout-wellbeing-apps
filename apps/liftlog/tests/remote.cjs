@@ -113,7 +113,7 @@ await test('successful cloud backup distinguishes failed local save and keeps wa
  assert.equal(d.api.saveFailed,true);assert.match(d.api.ui.remoteStatusText,/local saving failed/);assert.equal(d.api.readRemoteWork().pending,false);
 });
 await test('existing backups and recovery copy roundtrip; credentials excluded',async()=>{
- const d=setup();for(const version of [8,11,13,14]){const legacy=fixture();legacy.version=version;assert.equal(d.api.prepareBackup(legacy).version,14);}
+ const d=setup();for(const version of [8,11,13,14,15]){const legacy=fixture();legacy.version=version;assert.equal(d.api.prepareBackup(legacy).version,15);}
  const before=d.api.backupDataKey(d.api.state);assert.equal(d.api.commitSnapshot(d.api.prepareBackup(fixture(500,'other'))),true);const rescued=d.api.prepareBackup(JSON.parse(d.api.rescue));assert.equal(d.api.backupDataKey(rescued),before);assert.equal(d.api.commitSnapshot(rescued),true);
  assert.equal(JSON.stringify(d.api.backupPayload()).includes(cfg.secretAccessKey),false);
 });

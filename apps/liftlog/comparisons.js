@@ -11,11 +11,12 @@ const LiftlogComparisons=(()=>{
   /* The rows one exercise contributes. With `headline`, its load row (or
      reps/time when no load is logged) is marked as the figure to show first. */
   function exerciseRows(ex,a,b,valid,options,headline,extra={}){
-    const rows=[],add=(label,unit,x,y,lead)=>rows.push({label,unit,before:x,after:y,delta:valid&&x!=null&&y!=null?y-x:null,...extra,...(headline&&lead?{highlight:true}:{})});
+    // `name` and `measure` let a card head with the exercise and keep the measure short.
+    const rows=[],add=(measure,unit,x,y,lead)=>rows.push({label:ex.name+' · '+measure,name:ex.name,measure,unit,before:x,after:y,delta:valid&&x!=null&&y!=null?y-x:null,...extra,...(headline&&lead?{highlight:true}:{})});
     const loadRow=ex.unit!=='time'&&!(ex.unit==='bw'&&a.load==null&&b.load==null);
-    add(ex.name+' · working sets','sets',a.sets,b.sets,false);
-    add(ex.name+(ex.unit==='time'?' · time':' · reps'),ex.unit==='time'?'s':'reps',a.total,b.total,!loadRow);
-    if(ex.unit!=='time')add(ex.name+(ex.unit==='bw'?' · max added load':' · max logged load'),options.loadLabel?.(ex)||options.unit,a.load,b.load,loadRow);
+    add('working sets','sets',a.sets,b.sets,false);
+    add(ex.unit==='time'?'time':'reps',ex.unit==='time'?'s':'reps',a.total,b.total,!loadRow);
+    if(ex.unit!=='time')add(ex.unit==='bw'?'max added load':'max logged load',options.loadLabel?.(ex)||options.unit,a.load,b.load,loadRow);
     return rows;
   }
   const occurrenceOf=(blocks,index,id,options)=>blocks.slice(0,index).filter(row=>options.canonical(row.exerciseId)===id).length;

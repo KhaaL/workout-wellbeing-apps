@@ -50,7 +50,7 @@ const root=path.resolve(__dirname,'../..');
     assert.equal(await target.evaluate(()=>window.testAPI.state.active.status),'paused');
     await target.evaluate(()=>{const api=window.testAPI,s=WorkoutCore.create({},Date.now()-1000,'earlier');WorkoutCore.end(s,Date.now());const a=WorkoutCore.record(s),b=structuredClone(a);a.startedAt-=86400000;a.endedAt-=86400000;a.metrics={averageWatts:'100'};b.id='later';b.metrics={averageWatts:'115'};api.storage.write('bike-cardio.active.v1',null);api.storage.write('bike-cardio.history.v1',[b,a]);api.records=api.state.history;});
    }
-   await navigate(target,'history');assert(await target.locator('#compareFirst').isVisible());assert.match(await target.locator('.comparison-table').textContent(),/Difference/);
+   await navigate(target,'history');if(app==='liftlog')await target.locator('[data-action="history-tab"][data-tab="compare"]').click();assert(await target.locator('#compareFirst').isVisible());assert.match(await target.locator('.comparison-table').textContent(),/Difference/);
    assert.match(await target.locator('.comparison-table').textContent(),app==='liftlog'?/\+/:/\+15/);
    for(const width of [320,390,1024]){await target.setViewportSize({width,height:844});assert.equal(await target.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,app+' comparison fits '+width);}
    await target.setViewportSize({width:390,height:844});await target.locator('#workout-comparison').scrollIntoViewIfNeeded();await target.locator('#workout-comparison').screenshot({path:'/tmp/wellbeing-'+app+'-comparison.png',animations:'disabled'});

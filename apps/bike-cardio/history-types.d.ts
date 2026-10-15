@@ -1,9 +1,9 @@
 /** Import contract. Runtime authority: storage-adapter.js and history-schema.js.
  * Constraints not expressible by TypeScript are listed in docs/BIKE-HISTORY.md.
  */
-export type HistoryVersion = 1 | 2 | 3;
+export type HistoryVersion = 1 | 2 | 3 | 4;
 export type WorkoutMode = 'zone2' | 'sprint' | 'external'; // external: v3 history only
-export type RecordedBike = 'matrix' | 'touchscreen' | 'unknown'; // unknown: v3
+export type RecordedBike = 'levels' | 'feel' | 'unknown'; // v4; v3 files carry a model code, mapped on import
 export type RecordedContext = 'fresh' | 'post-lifting' | 'unknown'; // unknown: v3
 export type SessionOutcome = 'complete' | 'partial';
 export type BuiltinPhaseKind = 'warmup' | 'main' | 'cooldown' | 'ready' | 'primer' | 'settle' | 'effort' | 'recovery';
@@ -19,7 +19,7 @@ export interface HeartRateTargets {
   adjustBelow: number; comparisonHR: number; // integer bpm, 1..300
 }
 /** Required mode; other inputs are optional and normalized on import.
- * V3 defaults missing bike/context to unknown; v1/v2 default to matrix/fresh.
+ * V3/v4 default missing bike/context to unknown; v1/v2 default to levels/fresh.
  * Explicit "" is rejected for v3 bike/context; use "unknown" or omit.
  */
 export interface HistoryConfigInput {
@@ -43,6 +43,16 @@ export interface HeartRateSummary {
   zoneMs: Milliseconds; measuredMs: Milliseconds;
   samples: number; // count of accepted readings; 0 is accepted for an imported aggregate
   coverage: number; // percentage, 0..100, NOT a fraction
+  trace?: { binSeconds: 5; bpm: string } | null; // comma-separated whole bpm per 5 s of active time; empty entry = unknown
+  main?: { averageHR: number; coverage: number; driftPct?: number | null } | null; // Zone 2 main block
+  recovery60?: Array<number | null> | null; // bpm drop 60 s after each effort, or after the Zone 2 main block
+}
+export interface PowerSummary {
+  source?: string | null; // free text, max 500 characters
+  measuredMs: Milliseconds; coverage: number; // percentage of active time with power, 0..100
+  averageWatts?: number | null; peak5sWatts?: number | null; // W, 0..2500
+  trace?: { binSeconds: 5; watts: string; rpm: string } | null; // same format as HeartRateSummary.trace
+  main?: { averageWatts: number; cadence?: number | null; coverage: number; decouplingPct?: number | null; fixedHRWatts?: number | null } | null;
 }
 export interface PolarZonesMs {
   z1?: Milliseconds | null; z2?: Milliseconds | null; z3?: Milliseconds | null;
@@ -78,6 +88,7 @@ export interface HistoryEntry {
   hadInterruption?: boolean;
   phases?: HistoryPhase[] | null;
   hr?: HeartRateSummary | null;
+  power?: PowerSummary | null;
   editedAt?: EpochMs;
   [extension: string]: unknown; // no defined recording/nextSeq/sampleCount contract
 }
@@ -92,7 +103,7 @@ export interface FullBackup {
   app: 'bike-cardio'; version: HistoryVersion; kind?: 'backup';
   exportedAt?: string; updatedAt: EpochMs;
   settings: Omit<Partial<HistoryConfigInput>, 'mode' | 'bike' | 'context'> & {
-    mode?: 'zone2' | 'sprint'; bike?: 'matrix' | 'touchscreen'; context?: 'fresh' | 'post-lifting';
+    mode?: 'zone2' | 'sprint'; bike?: 'levels' | 'feel'; context?: 'fresh' | 'post-lifting';
   }; // runnable defaults, not an external recording
   history: HistoryEntry[]; active?: unknown | null;
   presets?: unknown[]; machines?: unknown[];

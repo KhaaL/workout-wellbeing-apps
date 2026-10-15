@@ -27,7 +27,7 @@ All scenarios use synthetic records, isolated storage and mocked cloud requests.
 | `shared/browser.cjs` | Bike UI, production CSP, history editing/merging, backup/restore, configuration transfer, persistence, reminders, cloud and mobile layout |
 | `shared/updates-browser.cjs` | Real local service-worker install/update, multiple-tab workout deferral, saved-workout protection, retained data and offline version |
 | `shared/updates.test.cjs` | Startup/foreground/reconnect update checks, throttling, delayed waiting-state notification and active-workout protection |
-| `shared/liftlog-library-browser.cjs` | Planned-workout preview, archive/unarchive, hidden history and picker entries, focus return, reload and retained workout blocks |
+| `shared/liftlog-library-browser.cjs` | Planned-workout preview, archive/unarchive, hidden history and picker entries, focus return, reload, retained workout blocks, session exercise swap and per-exercise rest |
 | `shared/theme-bars-browser.cjs` | Saved theme before main scripts, full-height canvas/body backgrounds, browser hints, every appearance under both OS color schemes, and live theme changes |
 | `shared/app-ui-browser.cjs` | Shared themes, phone/desktop navigation, touch targets, ride defaults versus adjustments, set-editor drafts and preserved active workouts/timers |
 | `shared/remote-tools-browser.cjs` | Both apps with production CSP and generated browser CORS: provider probes, independent SigV4 verification, diagnostics redaction, mode-aware connection tests, global newest-first ordering across provider pages, local pagination/preview/download/restore and mobile layout |
@@ -37,6 +37,8 @@ All scenarios use synthetic records, isolated storage and mocked cloud requests.
 | `../apps/liftlog/tests/security.cjs` | Backup validation, migrations, hostile inputs and unreadable-data recovery |
 | `../apps/liftlog/tests/recovery.cjs` | Paused restore, review, reload and explicit cloud publication |
 
+Browser and Liftlog suites load the built apps in `dist/`; `npm test` and the
+browser npm scripts build first, and a direct `node` run needs `npm run build`.
 Liftlog's harness replaces the single `/* @test-seam */` marker in the served
 test copy with an internal test handle. The shipped app exposes no test handle.
 Browser screenshots go to `/tmp`; the root GitHub workflow retains screenshots
