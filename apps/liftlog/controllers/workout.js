@@ -465,7 +465,6 @@ function deleteSet(setId){
     const remaining=currentExercise()?.sets||[];
     context.ui.focus=remaining.length?'sd-'+remaining[Math.min(i,remaining.length-1)].id:'ex-panel-top';
     context.render();
-    context.toast('Set ' + (i + 1) + ' deleted');
   };
   /* Only a logged set is worth a dialog. An uncompleted row is a plan, and
      "+ Set" puts it back — asking about one would also be misleading, since

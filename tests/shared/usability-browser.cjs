@@ -53,8 +53,13 @@ const {confirmAction}=require('./confirm-dialog.cjs');
     await page.locator('[data-action="routine-start"]').first().click();
     const original=await page.evaluate(()=>window.testAPI.state.activeWorkout.exercises[0].sets[0]);
     await page.locator('[data-action="edit-set"]').first().click();const editor=page.getByRole('dialog',{name:'Edit set 1'});const weight=editor.locator('input').first();await weight.fill('42');await editor.getByRole('button',{name:'Save changes'}).click();
-    await page.locator('#undo-bar').getByRole('button',{name:'Undo',exact:true}).click();assert.equal(await page.evaluate(()=>window.testAPI.state.activeWorkout.exercises[0].sets[0].weight),original.weight);
-    await page.locator('[data-action="edit-set"]').first().click();await page.getByRole('dialog',{name:'Edit set 1'}).getByRole('button',{name:'Delete set 1…',exact:true}).click();
+    // An edit goes to Recent changes without a prompt; a deletion offers Undo in the toast.
+    assert.equal(await page.locator('#undo-bar').count(),0,'an edit opens no undo prompt');assert.equal(await page.locator('#toast-region .toast-action').count(),0);
+    const deleteFirst=async()=>{await page.locator('[data-action="edit-set"]').first().click();await page.getByRole('dialog',{name:'Edit set 1'}).getByRole('button',{name:'Delete set 1…',exact:true}).click();};
+    const setCount=await page.evaluate(()=>window.testAPI.state.activeWorkout.exercises[0].sets.length);await deleteFirst();
+    assert.equal(await page.locator('#toast-region .toast').textContent(),'Deleted setUndo');await page.locator('#toast-region').getByRole('button',{name:'Undo',exact:true}).click();
+    assert.equal(await page.evaluate(()=>window.testAPI.state.activeWorkout.exercises[0].sets.length),setCount);assert.equal(await page.evaluate(()=>window.testAPI.state.activeWorkout.exercises[0].sets[0].id),original.id);
+    await deleteFirst();
     assert.equal(await page.evaluate(()=>window.testAPI.state.activeWorkout.exercises[0].sets.some(s=>s.id===window.testAPI.recentChanges.list()[0].target.id)),false);
     // Changes to another set do not prevent restoring the deleted set.
     await page.evaluate(()=>{const api=window.testAPI;api.state.activeWorkout.exercises[0].sets[0].weight=99;api.save({immediate:true});});

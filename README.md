@@ -10,8 +10,8 @@ Builds produce two standalone app folders:
 
 ## Everyday controls
 
-- **Undo:** set edits/deletions in Liftlog and session edits/deletions in both
-  apps offer Undo. History → **Recent changes & recently deleted** keeps up to
+- **Undo:** a Liftlog deletion shows Undo in the toast for 6 seconds; Liftlog
+  edits show no prompt. Bike session edits and deletions show an Undo bar. History → **Recent changes & recently deleted** keeps up to
   30 changes for 30 days (bounded to roughly 1 MiB), on that device only.
   Recovery checks for newer edits before applying and keeps unrelated records.
   Deleted sets require their parent workout/exercise to remain identifiable.

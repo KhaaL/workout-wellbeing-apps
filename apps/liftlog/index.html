@@ -1059,6 +1059,10 @@ pre.code code{ background:none; border:0; padding:0; font-size:inherit; white-sp
   max-width:calc(100vw - 40px);
 }
 .toast.show{ opacity:1; transform:translateY(0); }
+.toast-action{
+  pointer-events:auto; min-height:44px; margin:-10px calc(-1 * var(--sp-3)) -10px var(--sp-2); padding:0 var(--sp-3);
+  border:0; background:none; color:inherit; font:inherit; text-decoration:underline; cursor:pointer;
+}
 
 .app-footer{ border-top:1px solid var(--border); padding:var(--sp-5) 0 var(--sp-6); color:var(--muted); font-size:var(--fs-xs); }
 .app-footer .wrap{ display:flex; justify-content:flex-end; gap:var(--sp-3); flex-wrap:wrap; align-items:center; }
@@ -2905,7 +2909,8 @@ function liftToasts(){
    backup reminder after it). Showing it again moves it above whichever dialog
    opened since. Without popover support it is an ordinary fixed element. */
 let toastTimer = 0;
-function toast(msg){
+/* An action (Undo) keeps the toast up for 6 s instead of 3 s. */
+function toast(msg, action){
   liftToasts();
   const region = $('#toast-region');
   if (region.showPopover){
@@ -2919,9 +2924,15 @@ function toast(msg){
   const el = document.createElement('div');
   el.className = 'toast';
   el.textContent = msg;
+  if (action){
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'toast-action'; button.textContent = action.label;
+    button.addEventListener('click', () => { clearTimeout(toastTimer); el.remove(); action.run(); });
+    el.append(button);
+  }
   region.appendChild(el);
   requestAnimationFrame(() => el.classList.add('show'));
-  toastTimer = setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 250); }, 3000);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 250); }, action ? 6000 : 3000);
 }
 function announce(msg){
   const el = $('#live');
@@ -3762,7 +3773,9 @@ const recentChanges=WorkoutStorage.createUndo({key:'liftlog.v1.recent-changes',n
     if(!localStore.commit(prepareBackup(candidate)))return false;
     scheduleRemoteBackup();return true;
   },
-  onRecord:entry=>WorkoutUI.offerUndo(recentChanges,entry,toast),
+  /* Edits go to History → Recent changes without interrupting the workout.
+     A deletion offers Undo in the toast for 6 seconds. */
+  onRecord:entry=>{if(entry.deleted)toast(entry.label,{label:'Undo',run:()=>{try{recentChanges.undo(entry.id);toast('Change restored.');}catch(error){toast(error.message);}}});},
   onRestore:()=>{sortWorkouts();render();}
 });
 function setUndoTarget(w,ex,set){return {kind:'set',workout:w.id,exerciseId:ex.exerciseId,id:set.id,position:ex.sets.indexOf(set)};}
@@ -6915,7 +6928,7 @@ const actions = {
   'hset-del'(d){
     const ex = findHEx(d); if (!ex) return;
     const set=ex.sets.find(s=>s.id===d.sid);if(!set)return;
-    if(deleteRecoverableSet(editingWorkout(),ex,set)){render();toast('Set removed');}
+    if(deleteRecoverableSet(editingWorkout(),ex,set))render();
   },
   'hset-add'(d){
     const ex = findHEx(d); if (!ex) return;
