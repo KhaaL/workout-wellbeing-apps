@@ -1,12 +1,53 @@
-# Liftlog and Bike Cardio
+# Workout apps
 
-Two standalone workout apps with one shared browser storage engine.
+Three standalone workout apps with one shared browser storage engine.
 
 See [STORAGE.md](STORAGE.md) for generic S3-compatible backup configuration.
-Builds produce two standalone app folders:
+Builds produce three standalone app folders:
 
 - `dist/liftlog`
 - `dist/bike-cardio`
+- `dist/tabata`
+
+## Tabata timer
+
+Tabata is a separate mobile interval timer. Set work/rest seconds and round count
+with large touch steppers or the numeric keyboard, or choose a quick setup.
+The last setup is remembered. Settings includes an optional get-ready countdown,
+sound cues, screen stay-awake and the same appearance themes as the other apps.
+Work/rest/end cues use a bundled recording of a real boxing bell; Settings →
+**Test bell** previews it without starting a session. Attribution and processing
+notes are in [Tabata audio credits](apps/tabata/AUDIO-CREDITS.md).
+The total includes preparation and rests between rounds, with no final rest.
+
+During a session, large digits show the current interval, round and remaining
+workout time. Pause/Resume and End stay within reach; ending asks for confirmation
+and retains the session in history. Cancelling End leaves the timer paused.
+Setting changes apply to the next session. Timer and Settings are the only tabs.
+
+The timer uses elapsed time, so delayed callbacks catch up. Keep it visible for
+reliable cues: mobile browsers can suspend background pages and audio. Stay-awake
+uses the Screen Wake Lock API on HTTPS (or localhost), shows its current status,
+reacquires on return to the app and offers Retry if the device releases it.
+Unsupported or denied requests show an auto-lock reminder. Stay-awake remains
+active while paused and is released when the session ends or the page is hidden.
+
+The app works offline after its first online load and can be added to the home
+screen. An interrupted/reopened session is recovered **paused** at its latest
+checkpoint (saved at interval changes, every five seconds and when hidden).
+An abrupt termination can lose up to five seconds; resuming is always explicit.
+Completed and ended sessions save immediately. Tabata uses the shared recovery,
+backup and update machinery, while its data, credentials, theme and offline cache
+have separate namespaces. Its optional S3-compatible connection defaults to
+`tabata-backup.json`; enter deployment-specific values in this app's Settings.
+It never reads the other apps' device configuration.
+
+Build just this app with `npm run build:tabata`, then serve `dist/tabata` from
+HTTPS hosting or a local static server. For direct source previews, serve the
+repository root and open `apps/tabata/`: it loads canonical styles and scripts
+without a build. Source previews require the rest of the checkout, and offline
+installation is provided by the built app. `npm run test:tabata-browser` checks mobile
+controls, timing, wake-lock lifecycle, recovery, cloud/file backups and offline use.
 
 ## Everyday controls
 
@@ -66,6 +107,7 @@ Backups at an already uploaded revision create no additional snapshot.
 | `apps/liftlog/controllers/` | Workout, routine/plan and exercise controllers with live context getters |
 | `apps/liftlog/storage-adapter.js` | Liftlog storage policy, revisions and comparable backup identity |
 | `apps/liftlog/screens/settings.js` | Settings templates with explicit state and helper inputs |
+| `apps/tabata/` | Tabata timer composition, timing core, storage adapter and offline shell |
 | `apps/bike-cardio/index.html` | Bike interface and app composition |
 | `apps/bike-cardio/controllers/storage.js` | Backup controls, recovery copies and device-storage diagnostics |
 | `apps/bike-cardio/targets.js`, `workout-core.js` | Target validation, plans, timing and active-session migration |

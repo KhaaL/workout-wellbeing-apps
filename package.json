@@ -5,16 +5,18 @@
     "build": "node scripts/build.mjs",
     "build:liftlog": "node scripts/build.mjs liftlog",
     "build:bike": "node scripts/build.mjs bike-cardio",
-    "test": "npm run build && node tests/workout-core.test.cjs && node tests/bike-modules.test.cjs && node tests/shared/storage.test.cjs && node tests/shared/features.test.cjs && node tests/shared/undo.test.cjs && node tests/shared/updates.test.cjs && node tests/shared/storage-status.test.cjs && node apps/liftlog/tests/clear.cjs && node apps/liftlog/tests/remote.cjs",
+    "test": "npm run build && node tests/workout-core.test.cjs && node tests/bike-modules.test.cjs && node tests/shared/storage.test.cjs && node tests/shared/features.test.cjs && node tests/shared/undo.test.cjs && node tests/shared/updates.test.cjs && node tests/shared/storage-status.test.cjs && node apps/liftlog/tests/clear.cjs && node apps/liftlog/tests/remote.cjs && node tests/tabata.test.cjs",
     "test:liftlog-browser": "npm run build && node apps/liftlog/tests/regression.cjs && node apps/liftlog/tests/security.cjs && node apps/liftlog/tests/recovery.cjs",
     "test:bike-browser": "npm run build && node tests/shared/browser.cjs && node tests/shared/external-history-browser.cjs",
     "test:remote-tools-browser": "npm run build && node tests/shared/remote-tools-browser.cjs",
     "test:updates-browser": "npm run build && node tests/shared/updates-browser.cjs",
     "test:features-browser": "npm run build && node tests/shared/features-browser.cjs && node tests/shared/usability-browser.cjs",
     "test:app-ui-browser": "npm run build && node tests/shared/app-ui-browser.cjs && node tests/shared/storage-status-browser.cjs && node tests/shared/liftlog-library-browser.cjs && node tests/shared/theme-bars-browser.cjs",
-    "test:browser": "npm run test:liftlog-browser && npm run test:bike-browser && npm run test:remote-tools-browser && npm run test:updates-browser && npm run test:app-ui-browser && npm run test:features-browser",
-    "lint": "eslint packages apps/bike-cardio/*.js apps/liftlog/*.js apps/liftlog/screens/*.js apps/*/controllers/*.js scripts/*.mjs eslint.config.mjs --max-warnings 0",
-    "test:s3-cors": "python3 tests/s3-cors.test.py"
+    "test:browser": "npm run test:liftlog-browser && npm run test:bike-browser && npm run test:remote-tools-browser && npm run test:updates-browser && npm run test:app-ui-browser && npm run test:features-browser && npm run test:tabata-browser",
+    "lint": "eslint packages apps/bike-cardio/*.js apps/tabata/*.js apps/liftlog/*.js apps/liftlog/screens/*.js apps/*/controllers/*.js scripts/*.mjs eslint.config.mjs --max-warnings 0",
+    "test:s3-cors": "python3 tests/s3-cors.test.py",
+    "build:tabata": "node scripts/build.mjs tabata",
+    "test:tabata-browser": "npm run build:tabata && node tests/tabata-browser.cjs"
   },
   "devDependencies": {
     "eslint": "10.12.0",

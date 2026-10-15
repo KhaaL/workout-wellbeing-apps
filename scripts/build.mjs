@@ -23,7 +23,8 @@ const appModules={
     ['presets.js','bike-presets'],['targets.js','bike-targets'],['trace.js','bike-trace'],['heart-rate.js','bike-heart-rate'],['power.js','bike-power'],
     ['bluetooth.js','bike-bluetooth'],['workout-core.js','bike-workout-core'],['history.js','bike-history']
   ],
-  liftlog:[['controllers/exercises.js','liftlog-exercises-controller'],['controllers/routines.js','liftlog-routines-controller'],['controllers/workout.js','liftlog-workout-controller'],['storage-adapter.js','liftlog-storage-adapter'],['screens/settings.js','liftlog-settings-screen'],['comparisons.js','liftlog-comparisons']]
+  liftlog:[['controllers/exercises.js','liftlog-exercises-controller'],['controllers/routines.js','liftlog-routines-controller'],['controllers/workout.js','liftlog-workout-controller'],['storage-adapter.js','liftlog-storage-adapter'],['screens/settings.js','liftlog-settings-screen'],['comparisons.js','liftlog-comparisons']],
+  tabata:[['bell-audio.js','tabata-bell-audio'],['timer-core.js','tabata-timer-core'],['storage-adapter.js','tabata-storage-adapter'],['app.js','tabata-app']]
 };
 // Exactly one empty or filled marker pair, in order, or the build stops.
 function fill(text,name,content,label){
@@ -32,18 +33,29 @@ function fill(text,name,content,label){
     throw new Error('Missing, duplicated or reversed markers: '+label+' ('+name+')');
   return text.slice(0,first)+start+'\n'+content+'\n'+end+text.slice(last+end.length);
 }
-for(const app of selected?[selected]:['liftlog','bike-cardio']){
-  if(!['liftlog','bike-cardio'].includes(app))throw new Error('Unknown app: '+app);
+for(const app of selected?[selected]:['liftlog','bike-cardio','tabata']){
+  if(!Object.hasOwn(appModules,app))throw new Error('Unknown app: '+app);
   const source=join(root,'apps',app),output=join(root,'dist',app),workerName=app==='liftlog'?'sw.js':'service-worker.js';
   let html=await readFile(join(source,'index.html'),'utf8');
-  for(const [name,content] of Object.entries(shared))html=fill(html,name,content,app+'/index.html');
+  for(const [name,content] of Object.entries(shared)){
+    // Retain the existing apps' first-paint behavior; Tabata owns its theme key.
+    const injected=app==='tabata'&&name==='theme-bootstrap'?content.replaceAll('bike-cardio.ui.theme','tabata.ui.theme'):content;
+    html=fill(html,name,injected,app+'/index.html');
+  }
   for(const [file,marker] of appModules[app])html=fill(html,marker,await readFile(join(source,file),'utf8'),app+'/'+file);
+  if(app==='tabata'){
+    // Direct source previews reference canonical files; releases embed them once.
+    html=html.replace(' data-source-preview','')
+      .replace(/<link\b[^>]*\bdata-source-only\b[^>]*>\s*/g,'')
+      .replace(/<script\b[^>]*\bdata-source-only\b[^>]*>[\s\S]*?<\/script>\s*/g,'');
+  }
   const worker=fill(await readFile(join(source,workerName),'utf8'),'app-update-worker',updateWorker,app+'/'+workerName);
   const versionMeta='<meta name="app-version" content="development">';
   if(!html.includes(versionMeta))throw new Error(app+'/index.html must contain '+versionMeta);
   // Include every runtime asset in the visible release version.
   const assets=app==='liftlog'
     ? ['index.html','manifest.webmanifest','sw.js','icons']
+    : app==='tabata'?['index.html','manifest.webmanifest','service-worker.js','icon.svg','icon-180.png','icon-192.png','icon-512.png']
     : ['index.html','manifest.webmanifest','service-worker.js','icon-32.png','icon-192.png','icon-512.png','apple-touch-icon-180.png','404.html','_redirects'];
   const releaseHash=createHash('sha256').update(html).update(worker);
   async function hashReleaseAsset(relative){

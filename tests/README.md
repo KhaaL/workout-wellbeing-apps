@@ -11,13 +11,16 @@ npx playwright install --only-shell chromium
 npm run test:browser
 ```
 
-`npm test` rebuilds both apps and runs the workout, shared storage and Liftlog
-remote and safe-clear scenarios. `npm run test:browser` runs all eight browser suites. Set
+`npm test` rebuilds all three apps and runs the workout, shared storage and Liftlog
+remote and safe-clear scenarios, plus Tabata timing/schema checks.
+`npm run test:browser` runs all browser suites. Set
 `BROWSER_PATH` to an existing Chromium executable to use that browser instead.
 All scenarios use synthetic records, isolated storage and mocked cloud requests.
 
 | Location | Coverage |
 |---|---|
+| `tabata.test.cjs` | Tabata phase boundaries, delayed callbacks, zero rest, pause/resume, checkpoints and backup validation |
+| `tabata-browser.cjs` | Mobile layout, quick setups, wake-lock release/reacquisition, recovery, file/cloud backups, data isolation, CSP, safe updates, offline shell and direct HTTP/file source previews |
 | `workout-core.test.cjs` | Phase skipping, HR gates, custom targets/durations and comparable history series |
 | `bike-modules.test.cjs` | Canonical HR parsing, Bluetooth reconnects, stale notifications, visibility and manual fallback |
 | `s3-cors.test.py` | Explicit signed headers, per-origin rules, unrelated-origin preservation, rollback and CLI failure paths |

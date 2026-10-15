@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en" data-source-preview>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="app-version" content="development">
+<meta name="description" content="A quick, touch-friendly Tabata interval timer with offline support.">
+<title>Tabata · Interval timer</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<!-- These links make the source page usable when previewed directly. The build
+     removes source-only assets and embeds the canonical modules below. -->
+<link data-source-only rel="stylesheet" href="../../packages/app-ui/themes.css">
+<link data-source-only rel="stylesheet" href="../../packages/app-ui/components.css">
+<style>
+/* app-ui-styles:start */
+/* app-ui-styles:end */
+*{box-sizing:border-box}body{margin:0}button{touch-action:manipulation;cursor:pointer}button:disabled{opacity:.5;cursor:default}.btn{border:1px solid var(--border-strong);padding:12px 16px;background:var(--surface);color:var(--text);min-height:48px}.btn-primary{background:var(--accent-strong);color:var(--on-accent);border-color:var(--accent-strong)}.btn-danger-solid{background:var(--danger-strong);color:var(--on-accent);border-color:var(--danger-strong)}
+main{max-width:640px;margin:auto;padding:24px 20px 32px}h1{font-size:var(--fs-xl);line-height:1.2;letter-spacing:-.025em;margin:4px 0 8px}h2{font-size:var(--fs-lg);margin:0 0 16px}p{margin:8px 0}.eyebrow{text-transform:uppercase;letter-spacing:.13em;font-size:12px;font-weight:700;color:var(--accent)}.muted,.hint{color:var(--muted);font-size:14px}.intro{margin-bottom:20px}.panel{padding:20px;margin-bottom:16px}.stack{display:grid;gap:12px}.field{display:grid;gap:8px;min-width:0;font-size:14px;font-weight:600}.field input,.field select{width:100%;padding:10px 12px;min-width:0}.check{display:flex;gap:12px;align-items:center;min-height:48px;font-size:15px}.check input{width:22px;height:22px;accent-color:var(--accent-strong);flex:none}summary{cursor:pointer;min-height:48px;display:flex;align-items:center;font-weight:650}summary::before{content:'＋';margin-right:10px;color:var(--muted)}details[open]>summary::before{content:'−'}details>div{margin-top:12px}.setup-fields{display:grid;gap:16px}.setup-fields .setup-field{padding-bottom:16px;border-bottom:1px solid var(--border)}.setup-fields .setup-field:last-child{border:0;padding:0}#setup .setup-fields input{font-size:32px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums;height:64px;background:var(--surface-2)}.setup-fields .numeric-stepper button{height:64px;width:64px;flex-basis:64px;font-size:28px}.presets{display:flex;gap:8px;margin:12px 0 0;flex-wrap:wrap}.presets button{flex:1;min-width:78px;padding:8px;font-size:13px}.presets button[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}.preset-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.preset-settings{border:1px solid var(--border);border-radius:var(--radius);padding:12px;min-width:0}.preset-settings legend{font-size:14px;font-weight:600;padding:0 4px}.plan-summary{display:flex;justify-content:space-between;align-items:baseline;gap:12px}.plan-summary strong{font-size:24px;font-variant-numeric:tabular-nums}.workout-actions button{font-size:18px;min-height:56px}.notice{padding:12px 16px;background:var(--warning-soft);color:var(--text);border:1px solid var(--warning);border-radius:var(--radius);font-size:14px;margin-bottom:16px}.timer-panel{--phase:var(--accent);text-align:center;padding:28px 12px;border:2px solid var(--phase);border-radius:var(--radius-lg);background:var(--surface);margin:16px 0}.timer-panel[data-phase=work]{--phase:var(--success)}.timer-panel[data-phase=rest]{--phase:var(--accent)}.timer-panel[data-phase=prepare]{--phase:var(--warning)}.phase-name{color:var(--phase);font-size:28px;font-weight:750;margin:0}.clock{font-size:clamp(76px,21vw,144px);line-height:1.2;letter-spacing:-.06em;font-weight:750;font-variant-numeric:tabular-nums;margin:12px 0}.round-label{font-size:20px;font-weight:650}.timer-meta{display:flex;justify-content:space-between;gap:12px;font-size:14px;color:var(--muted);margin:20px 4px 0}progress{width:100%;height:12px;margin-top:20px;accent-color:var(--phase)}.wake-row{display:flex;align-items:center;justify-content:space-between;gap:8px}.wake-row p{font-size:13px;color:var(--muted)}.wake-row button{font-size:13px;padding:8px}.form-actions{display:flex;flex-wrap:wrap;gap:12px}.form-actions>*{flex:1}.toast{position:fixed;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);background:var(--text);color:var(--bg);border-radius:var(--radius);padding:12px 16px;z-index:60;box-shadow:var(--shadow-md);font-size:14px}.complete-mark{font-size:56px;color:var(--success);line-height:1;margin:24px 0}.complete-panel{text-align:center;padding:24px 16px}.complete-panel h1{margin:16px 0}.settings-panel{margin-top:16px}.settings-panel details{border-bottom:1px solid var(--border);padding:8px 0}.settings-panel details:last-child{border:0}.settings-panel .btn{font-size:14px}.status-line{font-size:14px;overflow-wrap:anywhere}.recovery{margin-top:16px}.timer-panel[data-paused=true] .phase-name{color:var(--muted)}
+@media(max-width:400px){main{padding:20px 16px}.panel{padding:16px}#setup .setup-fields input{height:56px;font-size:30px}.setup-fields .numeric-stepper button{height:56px;width:56px;flex-basis:56px}.timer-panel{padding:24px 10px}}
+@media(max-height:700px){html.workout-screen main{padding-top:12px}#run .intro{display:none}#run .timer-panel{padding:12px 10px;margin:0 0 8px}#run .phase-name{font-size:24px}#run .clock{font-size:clamp(60px,19vw,96px);margin:4px 0}#run .round-label{font-size:18px}#run progress{margin-top:12px}#run .timer-meta{margin-top:8px}#run .notice{padding:8px;margin:0 0 8px;font-size:12px}}
+@media(max-height:500px) and (min-width:600px){main{max-width:800px;padding-top:12px}#run .timer-panel{display:grid;grid-template-columns:1fr 1fr;align-items:center;padding:12px;margin:4px 0}#run .clock{grid-column:2;grid-row:1/4;font-size:88px;margin:0}#run .phase-name{font-size:22px}#run .round-label{font-size:16px}#run progress{grid-column:1/-1;margin-top:8px}#run .timer-meta{margin-top:4px;font-size:12px}#run .wake-row p{margin:0}#run .intro{display:none}}
+</style>
+<script id="theme-bootstrap" data-app="tabata">
+/* theme-bootstrap:start */
+/* theme-bootstrap:end */
+</script>
+</head>
+<body class="tabata-app">
+<header class="app-header"><div class="header-inner"><nav class="main-nav" aria-label="Main navigation"><ul></ul></nav></div></header>
+<main>
+<p id="storageWarning" class="notice" role="status" hidden></p>
+<section id="setup" aria-label="Timer setup">
+<form id="setupForm">
+<div class="panel setup-fields">
+<div class="setup-field"><label class="field">Work · seconds<input id="work" type="number" min="1" max="3600" step="1" data-stepper data-increment="5" inputmode="numeric" required></label><div id="workPresets" class="presets" role="group" aria-label="Work presets"></div></div>
+<div class="setup-field"><label class="field">Rest · seconds<input id="rest" type="number" min="0" max="3600" step="1" data-stepper data-increment="5" inputmode="numeric" required></label><div id="restPresets" class="presets" role="group" aria-label="Rest presets"></div></div>
+<div class="setup-field"><label class="field">Rounds<input id="rounds" type="number" min="1" max="99" step="1" data-stepper inputmode="numeric" required></label></div>
+</div>
+<div class="panel"><div class="plan-summary"><span>Total time</span><strong id="totalTime">—</strong></div><p id="planHint" class="hint">Rest between rounds. Finish on your last work interval.</p></div>
+<div class="workout-actions"><div class="actions-row"><button id="start" class="btn btn-primary" type="submit">Start timer</button></div></div>
+</form>
+</section>
+<section id="run" aria-label="Active timer" hidden>
+<div class="intro"><p class="eyebrow">Tabata</p><h1>One interval at a time.</h1></div>
+<p id="recovered" class="notice" hidden>Recovered and paused at the last checkpoint. Resume when ready.</p>
+<div id="timerPanel" class="timer-panel" data-phase="prepare">
+<p id="phaseName" class="phase-name" role="status" aria-live="assertive">Get ready</p>
+<div id="clock" class="clock" role="timer" aria-label="Time remaining in interval" aria-live="off">0:05</div>
+<p id="roundLabel" class="round-label">Round 1 of 8</p>
+<progress id="progress" max="1" value="0" aria-label="Workout progress"></progress>
+<div class="timer-meta"><span id="nextPhase"></span><span id="remainingTotal"></span></div>
+</div>
+<div class="wake-row"><p id="wakeStatus" role="status">Screen stay-awake is off.</p><button id="retryWake" class="btn" type="button" hidden>Retry stay-awake</button></div>
+<p id="audioStatus" class="hint" role="status"></p>
+<div class="workout-actions"><div class="actions-row"><button id="end" class="btn" type="button">End…</button><button id="pause" class="btn btn-primary" type="button">Pause</button></div></div>
+</section>
+<section id="complete" hidden aria-labelledby="completeTitle"><div class="panel complete-panel"><div class="complete-mark" aria-hidden="true">✓</div><p class="eyebrow">Session finished</p><h1 id="completeTitle">Nicely done.</h1><p id="completeSummary"></p><p id="completeSaveStatus" class="hint" role="status"></p></div><div class="form-actions"><button id="again" class="btn btn-primary" type="button">Go again</button><button id="editSetup" class="btn" type="button">Change setup</button></div></section>
+<section id="settings" hidden aria-labelledby="settingsTitle"><p class="eyebrow">Tabata</p><h1 id="settingsTitle">Settings</h1>
+<div class="panel settings-panel stack">
+<label class="field">Appearance<select id="themeChoice"></select></label>
+<form id="presetForm" class="stack"><h2>Quick presets</h2><p class="hint">Choose any work and rest preset independently on the timer. Values are in seconds.</p><fieldset class="preset-settings"><legend>Work presets · seconds</legend><div class="preset-grid"><label class="field">Preset 1<input id="workPreset1" aria-label="Work preset 1 · seconds" type="number" min="1" max="3600" step="1" inputmode="numeric" required></label><label class="field">Preset 2<input id="workPreset2" aria-label="Work preset 2 · seconds" type="number" min="1" max="3600" step="1" inputmode="numeric" required></label><label class="field">Preset 3<input id="workPreset3" aria-label="Work preset 3 · seconds" type="number" min="1" max="3600" step="1" inputmode="numeric" required></label></div></fieldset><fieldset class="preset-settings"><legend>Rest presets · seconds</legend><div class="preset-grid"><label class="field">Preset 1<input id="restPreset1" aria-label="Rest preset 1 · seconds" type="number" min="0" max="3600" step="1" inputmode="numeric" required></label><label class="field">Preset 2<input id="restPreset2" aria-label="Rest preset 2 · seconds" type="number" min="0" max="3600" step="1" inputmode="numeric" required></label><label class="field">Preset 3<input id="restPreset3" aria-label="Rest preset 3 · seconds" type="number" min="0" max="3600" step="1" inputmode="numeric" required></label></div></fieldset><div class="form-actions"><button class="btn" type="submit">Save presets</button><button id="resetPresets" class="btn" type="button">Reset presets</button></div><p id="presetStatus" class="hint" role="status"></p></form>
+<label class="field">Get ready · seconds<input id="prepare" type="number" min="0" max="60" step="1" inputmode="numeric" data-stepper required></label>
+<label class="check"><input id="sound" type="checkbox">Sound cues</label><p class="hint">Boxing bell: one strike starts work, two signal a rest break, and three end the session. Short ticks mark the last 3 seconds. Keep the app visible for reliable sound.</p>
+<button id="testBell" class="btn" type="button">Test bell</button><p id="bellTestStatus" class="hint" role="status"></p><p class="hint">Bell recording: <a href="https://freesound.org/people/Benboncan/sounds/66952/" target="_blank" rel="noreferrer">“Boxing Bell 1.wav” by Benboncan</a>, trimmed and faded, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>.</p>
+<label class="check"><input id="keepAwake" type="checkbox">Keep screen awake during a session</label><p class="hint">Requires a supported browser and HTTPS. Your device may release stay-awake in power-saving mode. Check its status during your timer.</p>
+<p id="settingsNote" class="hint">Changes apply to the next timer.</p>
+<details><summary>Backups &amp; cloud storage</summary><div class="stack">
+<p class="hint">Uses the shared workout storage engine. Tabata has its own connection and backup path. Enter your S3-compatible storage details to enable cloud backups.</p>
+<button id="exportBackup" class="btn" type="button">Download full backup</button>
+<label class="field">Restore Tabata backup<input id="importBackup" type="file" accept=".json,application/json"></label>
+<div id="recoveryCopies" class="stack recovery"></div>
+<form id="cloudForm" class="stack">
+<label class="field">Endpoint<input id="cloudEndpoint" type="url" placeholder="https://storage.example.com" required autocapitalize="none" spellcheck="false"></label>
+<label class="field">Region<input id="cloudRegion" required autocapitalize="none" spellcheck="false"></label>
+<label class="field">Bucket<input id="cloudBucket" required autocapitalize="none" spellcheck="false"></label>
+<label class="field">Backup path<input id="cloudObject" value="tabata-backup.json" required autocapitalize="none" spellcheck="false"></label>
+<label class="field">Access key ID<input id="cloudAccess" required autocomplete="off" autocapitalize="none" spellcheck="false"></label>
+<label class="field">Secret access key<input id="cloudSecret" type="password" autocomplete="off" placeholder="Leave blank to keep saved secret"></label>
+<label class="field">Backup mode<select id="cloudMode"><option value="immutable">Separate backup files</option><option value="conditional">Conditional sync</option></select></label>
+<label class="check"><input id="cloudPathStyle" type="checkbox" checked>Path-style addressing</label>
+<button id="saveCloud" class="btn" type="submit">Check &amp; save connection</button>
+</form>
+<p id="cloudStatus" class="status-line" role="status">Cloud storage is not configured.</p>
+<div id="cloudActions" class="stack" hidden><button id="cloudBackup" class="btn" type="button">Back up now</button><button id="cloudPause" class="btn" type="button">Pause cloud sync</button><button id="cloudResume" class="btn" type="button">Resume cloud sync…</button><button id="cloudKeepLocal" class="btn" type="button">Keep this device’s copy…</button><button id="cloudUseRemote" class="btn" type="button">Use cloud copy…</button><button id="cloudForget" class="btn btn-danger" type="button">Forget connection…</button></div>
+<div id="remoteTools"></div>
+</div></details>
+<details><summary>Offline app &amp; updates</summary><div id="updatesPanel"></div><p id="updatesHint" class="hint">Add this app to your home screen for a standalone timer. After its first online load, it works offline. Updates wait until your session has ended.</p></details>
+</div></section>
+</main>
+<div id="toast" class="toast" role="status" hidden></div>
+<script>
+/* app-foundation:start */
+/* app-foundation:end */
+/* storage-engine:start */
+/* storage-engine:end */
+/* storage-ui:start */
+/* storage-ui:end */
+/* app-updates:start */
+/* app-updates:end */
+/* tabata-bell-audio:start */
+/* tabata-bell-audio:end */
+/* tabata-timer-core:start */
+/* tabata-timer-core:end */
+/* tabata-storage-adapter:start */
+/* tabata-storage-adapter:end */
+/* tabata-app:start */
+/* tabata-app:end */
+</script>
+<script data-source-only src="../../packages/app-ui/foundation.js"></script>
+<script data-source-only src="../../packages/storage-engine/local.js"></script>
+<script data-source-only src="../../packages/storage-engine/remote.js"></script>
+<script data-source-only src="../../packages/storage-engine/handoff.js"></script>
+<script data-source-only src="../../packages/storage-engine/undo.js"></script>
+<script data-source-only src="../../packages/storage-ui/remote-tools.js"></script>
+<script data-source-only src="../../packages/storage-ui/handoff.js"></script>
+<script data-source-only src="../../packages/storage-ui/status.js"></script>
+<script data-source-only src="../../packages/app-ui/updates.js"></script>
+<script data-source-only src="bell-audio.js"></script>
+<script data-source-only src="timer-core.js"></script>
+<script data-source-only src="storage-adapter.js"></script>
+<script data-source-only src="app.js"></script>
+</body>
+</html>

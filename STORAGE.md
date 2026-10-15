@@ -11,11 +11,12 @@ Configure each app in Settings → cloud storage using values from your provider
 | Bucket | A private bucket you have permission to access |
 | Object path: Liftlog | `liftlog-backup.json` |
 | Object path: Bike Cardio | `bike-cardio-backup.json` |
+| Object path: Tabata | `tabata-backup.json` |
 | Access key ID / secret | A matching pair authorized for the bucket |
 | Addressing | Path-style or virtual-hosted style, as required by the provider |
 | Backup mode | Automatic uses separate files; conditional sync is an explicit choice |
 
-Both apps may share a bucket using distinct object paths. The key must allow
+All three apps may share a bucket using distinct object paths. The key must allow
 object read/write and bucket listing for snapshot browsing. Provider-check probe
 cleanup additionally needs object deletion. Manage permissions using the
 provider's administration tools; use a management credential for CORS updates.
@@ -43,7 +44,8 @@ task_cors_dir=$(mktemp -d /tmp/s3-cors.XXXXXX)
 uvx s3cmd@2.4.0 -c "$task_profile" info "s3://$task_bucket" > "$task_cors_dir/info.txt"
 python3 scripts/s3-cors.py "$task_cors_dir/info.txt" "$task_cors_dir/cors.xml" \
   --origin https://liftlog.example.org \
-  --origin https://bike.example.org
+  --origin https://bike.example.org \
+  --origin https://tabata.example.org
 cat "$task_cors_dir/cors.xml"
 ```
 
@@ -66,7 +68,7 @@ curl --silent --show-error --include --request OPTIONS \
 ```
 
 This example uses path-style addressing. Adapt the URL for virtual-hosted
-addressing. Repeat with the second app's origin/path. Expect a successful
+addressing. Repeat with each app's origin/path. Expect a successful
 preflight, the requesting origin, allowed headers/methods and exposed `ETag`.
 
 Rollback:
