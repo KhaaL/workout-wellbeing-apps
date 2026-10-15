@@ -41,11 +41,14 @@ const {confirmAction}=require('./confirm-dialog.cjs');
     // Measured power and the HR trace's readings appear in the ride summary.
     assert.match(await page.locator('#powerTiles').innerText(),/Main-block power\s+147\.5 W\s+90 rpm · 100% measured\s+Watts at 115 bpm\s+150 W\s+within 2 bpm\s+Aerobic decoupling\s+3\.2%/);
     assert.match(await page.locator('#sensorAnalysis').innerText(),/Main-block HR\s*118 bpm\s*96% measured\s*HR drift\s*\+2\.5%[\s\S]*60-second HR recovery\s*25 · — bpm/);assert.equal(await page.locator('#finished-comparison details').getAttribute('open'),null);
-    await page.fill('#averageWatts','135');await page.locator('#undo-bar').getByRole('button',{name:'Undo',exact:true}).click();assert.equal(await page.inputValue('#averageWatts'),'120');
-    await page.fill('#averageWatts','140');await page.locator('#undo-bar').getByRole('button',{name:'Dismiss'}).click();
+    // An edit goes to Recent changes without a prompt; a deletion offers Undo in the toast.
+    await page.fill('#averageWatts','135');await page.locator('#averageWatts').press('Tab');assert.equal(await page.locator('#undo-bar').count(),0,'an edit opens no undo prompt');assert.equal(await page.locator('#toast .toast-action').count(),0);
     await page.evaluate(()=>{window.originalSetItem=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(key==='bike-cardio.v1.recent-changes')throw Error('quota');return window.originalSetItem.call(this,key,value);};});
     await confirmAction(page,()=>page.click('#deleteSession'));assert.equal(await page.evaluate(()=>window.testAPI.state.history.length),3,'failed recovery write cancels deletion');
     await page.evaluate(()=>{Storage.prototype.setItem=window.originalSetItem;});
+    await confirmAction(page,()=>page.click('#deleteSession'));assert.equal(await page.evaluate(()=>window.testAPI.state.history.length),2);
+    assert.equal(await page.locator('#toast').textContent(),'Deleted sessionUndo');await page.locator('#toast').getByRole('button',{name:'Undo',exact:true}).click();assert.equal(await page.evaluate(()=>window.testAPI.state.history.length),3);
+    await page.evaluate(()=>{const api=window.testAPI;api.records=api.state.history;api.showSummary(api.state.history[0]);});
     await confirmAction(page,()=>page.click('#deleteSession'));assert.equal(await page.evaluate(()=>window.testAPI.state.history.length),2);
     await page.reload();await navigate(page,'history');await page.locator('#recent-changes summary').click();await page.getByRole('button',{name:'Restore Deleted session',exact:true}).click();assert.equal(await page.evaluate(()=>window.testAPI.state.history.length),3);
     assert.equal(await page.evaluate(()=>window.testAPI.storage.backup().presets.length),1);
