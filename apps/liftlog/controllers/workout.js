@@ -394,9 +394,11 @@ function swapExercise(idx, newId){
     repsMin:sameCount ? ex.targetRepsMin : fresh.repsMin, repsMax:sameCount ? ex.targetRepsMax : fresh.repsMax,
     targetRir:sameCount ? ex.targetRir : null, weight:null,
     ...(ex.eitherOf ? { eitherOf:ex.eitherOf } : {}), ...(ex.supersetOf ? { supersetOf:ex.supersetOf } : {}) });
-  /* the session's own row count, which may differ from the plan after Add set */
-  while (block.sets.length < ex.sets.length) block.sets.push(newSetFrom(block, block.sets[block.sets.length - 1]));
-  block.sets.length = Math.max(1, ex.sets.length);
+  /* the session's own count of working rows, which may differ from the plan
+     after Add set; warm-up rows ramp to the old movement's load and are dropped */
+  const working = ex.sets.filter(s => !context.isWarmup(s)).length;
+  while (block.sets.length < working) block.sets.push(newSetFrom(block, block.sets[block.sets.length - 1]));
+  block.sets.length = Math.max(1, working);
   w.exercises[idx] = block;
   context.save(); context.ui.focus = 'ex-panel-top'; context.render();
   context.toast('Swapped ' + ex.name + ' for ' + def.name + (sameCount ? '. Sets, reps and RIR kept for this session.' : '. Set count kept for this session.'));
@@ -519,6 +521,44 @@ function addSet(){
   context.ui.focus = (ex.unit === 'time' ? 'sr-' : 'sw-') + s.id;
   context.render();
   context.toast('Set ' + ex.sets.length + ' added');
+}
+/* A warm-up ramp before the first working set: 50% for 8, 70% for 5 and 85%
+   for 3 of its load, each rounded to the Settings load step. A step that rounds
+   to nothing, to the working load or to the step before it is dropped, so a
+   light load gets fewer warm-ups. Bodyweight work ramps its added load from
+   none. Timed work, a set with no load, and an exercise that already has
+   warm-ups or logged sets get none. */
+const WARMUP_RAMP = [[0.5, 8], [0.7, 5], [0.85, 3]];
+function warmupPlan(ex){
+  if (!ex || ex.unit === 'time' || ex.sets.some(s => s.completed || context.isWarmup(s))) return [];
+  const first = ex.sets[0], bodyweight = ex.unit === 'bw';
+  const load = first && context.toNum(bodyweight ? first.addedWeight : first.weight);
+  if (load == null || load <= 0) return [];
+  const step = context.toNum(context.state.settings.loadStep) || 2.5, plan = [];
+  for (const [share, reps] of bodyweight ? [[0, 8], [0.5, 5]] : WARMUP_RAMP){
+    const value = Math.round(Math.round(load * share / step) * step * 100) / 100;
+    if ((value <= 0 && !bodyweight) || value >= load || plan.some(p => p.load === value)) continue;
+    plan.push({ load:value, reps });
+  }
+  return plan;
+}
+function addWarmups(){
+  if(context.workoutHandoff.held())return;
+  const ex = currentExercise(), plan = warmupPlan(ex);
+  if (!plan.length){ context.toast('No warm-up sets to add for ' + (ex ? ex.name : 'this exercise')); return; }
+  const first = ex.sets[0], bodyweight = ex.unit === 'bw';
+  const rows = plan.map(({ load, reps }) => {
+    const s = newSetFrom(ex, null);
+    if (bodyweight){ s.addedWeight = load; s.addedWeightUnit = first.addedWeightUnit || context.unitLabel(); }
+    else { s.weight = load; s.unit = first.unit || s.unit; }
+    s.reps = reps; context.setWarmup(s, true);
+    return s;
+  });
+  ex.sets.unshift(...rows);
+  context.save({changed:['activeWorkout']});
+  context.ui.focus = 'sn-' + rows[0].id;
+  context.render();
+  context.toast('Added ' + context.plural(rows.length, 'warm-up set') + '. They count toward neither volume nor records.');
 }
 /* `toOpen` is the move a finished exercise makes: on to the next one with
    work left (nextOpenBlock), rather than the next one in the list. */
@@ -719,6 +759,6 @@ function discardWorkout(){
       context.render(); context.toast('Workout discarded');
     });
 }
-    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,cascadeReps,openSetEditor,canSwap,swapExercise,openSwapDialog,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,discardWorkout};
+    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,cascadeReps,openSetEditor,canSwap,swapExercise,openSwapDialog,warmupPlan,addWarmups,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,discardWorkout};
   }
 };

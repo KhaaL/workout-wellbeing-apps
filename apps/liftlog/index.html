@@ -3397,6 +3397,8 @@ function addSet(...args){return workoutController().addSet(...args);}
 function canSwap(...args){return workoutController().canSwap(...args);}
 function swapExercise(...args){return workoutController().swapExercise(...args);}
 function openSwapDialog(...args){return workoutController().openSwapDialog(...args);}
+function warmupPlan(...args){return workoutController().warmupPlan(...args);}
+function addWarmups(...args){return workoutController().addWarmups(...args);}
 function advanceExercise(...args){return workoutController().advanceExercise(...args);}
 function goToPreviousExercise(...args){return workoutController().goToPreviousExercise(...args);}
 function reopenExercise(...args){return workoutController().reopenExercise(...args);}
@@ -5178,7 +5180,7 @@ function htmlCurrentExercise(w, ex){
   return '<div class="pad divider-top" id="ex-panel-top" tabindex="-1">' +
     '<div class="ex-head">' +
       '<span class="ex-tags">' +
-        '<span class="tag">target ' + ex.sets.length + ' × ' + esc(targetRangeLabel(ex)) +
+        '<span class="tag">target ' + ex.sets.filter(s => !isWarmup(s)).length + ' × ' + esc(targetRangeLabel(ex)) +
           (ex.targetWeight != null ? ' @ ' + (bodyweight ? '+' : '') + fmtNum(ex.targetWeight) + ' ' + exerciseLoadLabel(ex) : '') +
           (ex.targetRir != null ? ' · RIR ' + fmtNum(ex.targetRir) : '') + '</span>' +
         '<span class="tag">' + icon('timer','ic-inline') + ' rest ' + fmtClock(currentRestSeconds()) +
@@ -5196,6 +5198,7 @@ function htmlCurrentExercise(w, ex){
     '<div class="mt-4 ' + cols + '" role="group" aria-label="Sets for ' + esc(ex.name) + '">' + setsHTML + '</div>' +
     '<div class="sets-foot">' +
       '<button type="button" class="btn" data-action="add-set">' + IC.plus + '<span>Add set</span></button>' +
+      (warmupPlan(ex).length ? '<button type="button" class="btn" data-action="add-warmups" aria-label="Add warm-up sets for ' + esc(ex.name) + '">Add warm-ups</button>' : '') +
       (canSwap(ex) ? '<button type="button" class="btn" data-action="swap-exercise" aria-label="Swap ' + esc(ex.name) + ' for another exercise">Swap…</button>' : '') +
       (next ? '<span class="next-up muted small">Next: ' + esc(next.name) + '</span>' : '') +
     '</div>' +
@@ -6727,6 +6730,7 @@ const actions = {
   'toggle-warmup'(d, el){ toggleWarmup(d.id, el && el.id); },
   'add-set'(){ addSet(); },
   'swap-exercise'(){ openSwapDialog(); },
+  'add-warmups'(){ addWarmups(); },
   'delete-set'(d){ deleteSet(d.id); },
   'edit-set'(d){ openSetEditor(d.id); },
   'next-exercise'(){ advanceExercise(false); },
@@ -7261,7 +7265,7 @@ document.addEventListener('click', e => {
   if (gSwallow){ gSwallow = false; return; }
   const el = e.target.closest('[data-action]');
   if (!el) return;
-  if(workoutHandoff.held()&&['toggle-set','edit-set','finish-workout','discard-workout','timer-toggle','timer-reset','timer-add30','add-set','delete-set','remove-workout-exercise','toggle-warmup','add-workout-exercise','swap-exercise'].includes(el.dataset.action)){toast('Workout held for handoff');return;}
+  if(workoutHandoff.held()&&['toggle-set','edit-set','finish-workout','discard-workout','timer-toggle','timer-reset','timer-add30','add-set','delete-set','remove-workout-exercise','toggle-warmup','add-workout-exercise','swap-exercise','add-warmups'].includes(el.dataset.action)){toast('Workout held for handoff');return;}
   const fn = actions[el.dataset.action];
   if (fn) fn(el.dataset, el, e);
 });

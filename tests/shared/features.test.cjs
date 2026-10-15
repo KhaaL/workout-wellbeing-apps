@@ -212,3 +212,20 @@ test('Bike backups accept measured power and reject malformed power',()=>{
   const bad=JSON.parse(JSON.stringify(backup));change(bad.history[0]);assert.throws(()=>d.api.prepare(bad),pattern);
  }
 });
+test('Liftlog adds a warm-up ramp before the first working set',()=>{
+ const d=lift(),s=d.api.state;s.settings.unit='kg';s.settings.loadStep=2.5;
+ const row=(weight,extra={})=>({id:Math.random().toString(36).slice(2),weight,reps:null,durationSeconds:null,completed:false,unit:'kg',...extra});
+ const start=(block)=>{s.activeWorkout={id:'now',routineId:'',routineName:'Free',startedAt:Date.now(),finishedAt:null,notes:'',currentExerciseIndex:0,timer:null,exercises:[block]};};
+ const block=(sets,extra={})=>({exerciseId:'bench',name:'Bench',unit:'kg',loadMode:'total',equipmentKey:'',movementFamily:'horizontal_push',plannedSets:3,targetRepsMin:5,targetRepsMax:8,targetRir:null,skipped:false,notes:'',sets,...extra});
+ start(block([row(100),row(100),row(100)]));d.api.addWarmups();
+ const sets=s.activeWorkout.exercises[0].sets;
+ assert.equal(JSON.stringify(sets.map(x=>[x.weight,x.reps,x.countForVolume===false&&x.countForPR===false])),
+  JSON.stringify([[50,8,true],[70,5,true],[85,3,true],[100,null,false],[100,null,false],[100,null,false]]));
+ assert.equal(d.api.warmupPlan(s.activeWorkout.exercises[0]).length,0,'a second ramp is not offered');
+ start(block([row(5),row(5)]));assert.equal(JSON.stringify(d.api.warmupPlan(s.activeWorkout.exercises[0])),'[{"load":2.5,"reps":8}]','a light load gets fewer warm-ups');
+ start(block([row(100,{completed:true,reps:5}),row(100)]));assert.equal(d.api.warmupPlan(s.activeWorkout.exercises[0]).length,0,'not after a logged set');
+ start(block([row(null)]));assert.equal(d.api.warmupPlan(s.activeWorkout.exercises[0]).length,0,'no load, no ramp');
+ start(block([{...row(null),unit:'bw',addedWeight:20,addedWeightUnit:'kg'}],{unit:'bw',loadMode:'bodyweight_added'}));
+ assert.equal(JSON.stringify(d.api.warmupPlan(s.activeWorkout.exercises[0])),'[{"load":0,"reps":8},{"load":10,"reps":5}]','bodyweight ramps its added load');
+ start(block([{...row(null),unit:'time',durationSeconds:60}],{unit:'time'}));assert.equal(d.api.warmupPlan(s.activeWorkout.exercises[0]).length,0,'timed work has none');
+});

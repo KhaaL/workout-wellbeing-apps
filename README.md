@@ -275,6 +275,13 @@ replaces the current exercise for that session only. The new one keeps the set
 count, and the rep range and target RIR when both are counted the same way;
 pairings carry over and the routine is unchanged.
 
+**Add warm-ups** puts a ramp before the first working set when nothing is
+logged yet: 50% of its load for 8, 70% for 5 and 85% for 3, rounded to the load
+step. Steps that round to nothing, to the working load or to the previous step
+are dropped, so light loads get fewer. Bodyweight work ramps its added load
+from none; timed work gets none. Warm-ups count toward neither volume nor
+records, and a swap drops them with the old movement's load.
+
 ## Updates and Bike progress
 
 Both apps check for new app files on startup, return to the foreground and
