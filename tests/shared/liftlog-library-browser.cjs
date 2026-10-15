@@ -48,7 +48,7 @@ const fixture={version:14,settings:{lastModifiedAt:1},exercises:[
   assert.equal(await sheet.isVisible(),false,'starting closes the preview and exposes workout controls');
   assert.equal(await page.evaluate(()=>document.activeElement.id),'workout-title');
   // A warm-up ramp goes before the first working set; a swap drops it with the old movement's load.
-  await page.locator('[data-action="exercise-menu"]').click();await page.getByRole('dialog',{name:'More for Visible Press'}).getByRole('button',{name:'Add 3 warm-up sets',exact:true}).click();assert.equal(await page.locator('.set-row.is-warmup').count(),3);
+  await page.locator('[data-action="exercise-menu"]').click();await page.getByRole('dialog',{name:'More for Visible Press'}).getByRole('button',{name:'Add 3 warm-up sets',exact:true}).click();await page.locator('.set-row.is-warmup').nth(2).waitFor();assert.equal(await page.locator('.set-row.is-warmup').count(),3);
   assert.equal(await page.evaluate(()=>testAPI.state.activeWorkout.exercises[0].sets.map(s=>s.weight).join()),'10,15,17.5,20,20,20');
   await page.locator('[data-action="exercise-menu"]').click();const menu=page.getByRole('dialog',{name:'More for Visible Press'});assert.equal(await menu.getByRole('button',{name:/warm-up/}).count(),0,'one ramp per exercise');
   // Swap keeps the prescription for this session; the swapped-in exercise brings its own rest.
