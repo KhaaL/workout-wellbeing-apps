@@ -13,7 +13,7 @@ globalThis.BikeStorage = (() => {
     const timestamp=(value,label)=>{number(value,label);if(!Number.isFinite(new Date(value).getTime()))fail(label+' must be a valid date');};
     function prepare(raw){
       WorkoutStorage.enforceLimits(raw,{history:10000});
-      if(!raw||raw.app!=='bike-cardio'||![1,2,3].includes(raw.version)||raw.kind&&raw.kind!=='backup')fail('Expected a Bike Cardio version 1, 2 or 3 backup');
+      if(!raw||raw.app!=='bike-cardio'||![1,2,3,4].includes(raw.version)||raw.kind&&raw.kind!=='backup')fail('Expected a Bike Cardio version 1 to 4 backup');
       if(!Array.isArray(raw.history)||!raw.settings||typeof raw.settings!=='object')fail('Missing session history or settings');
       number(raw.updatedAt,'Backup revision');
       const s=copy(raw),ids=new Set();s.version=BikeHistorySchema.version;s.settings=C.config(s.settings);
@@ -23,8 +23,8 @@ globalThis.BikeStorage = (() => {
           if(!row||typeof row.id!=='string'||!row.id.trim()||seen.has(row.id)||typeof row.name!=='string'||!row.name.trim()||row.name.length>80)fail('Invalid saved '+kind);
           seen.add(row.id);
           if(kind==='presets'){if(!row.config||typeof row.config!=='object')fail('Invalid preset configuration');return {id:row.id,name:row.name.trim(),config:C.config(row.config)};}
-          if(!['matrix','touchscreen'].includes(row.bike)||typeof row.bikeId!=='string'||!row.bikeId.trim()||row.bikeId.length>80)fail('Invalid machine profile');
-          return {id:row.id,name:row.name.trim(),bike:row.bike,bikeId:row.bikeId.trim()};
+          if(typeof row.bike!=='string'||raw.version>=4&&!['levels','feel'].includes(row.bike)||typeof row.bikeId!=='string'||!row.bikeId.trim()||row.bikeId.length>80)fail('Invalid machine profile');
+          return {id:row.id,name:row.name.trim(),bike:C.bikeCues(row.bike),bikeId:row.bikeId.trim()};
         });
       }
       for(const r of s.history){
@@ -74,7 +74,8 @@ globalThis.BikeStorage = (() => {
     }
     const seed=()=>({app:'bike-cardio',version:BikeHistorySchema.version,updatedAt:0,settings:C.config(),history:[],active:null,presets:[],machines:[]});
     function legacy(){
-      const s=seed();let found=false;
+      // Separate keys predate version 4: read them as version 3, so their model codes map to cue styles.
+      const s={...seed(),version:3};let found=false;
       for(const [old,name]of Object.entries(fields)){
         const raw=localStorage.getItem(old);if(raw!=null){found=true;s[name]=JSON.parse(raw);}
       }
@@ -162,7 +163,7 @@ globalThis.BikeStorage = (() => {
     const historyPayload=()=>({app:'bike-cardio',kind:'history',version:BikeHistorySchema.version,exportedAt:new Date().toISOString(),history:copy(state.history)});
     async function mergeHistory(raw){
       WorkoutStorage.enforceLimits(raw,{history:10000});
-      if(!raw||raw.app!=='bike-cardio'||![1,2,3].includes(raw.version)||!['history','backup'].includes(raw.kind)||!Array.isArray(raw.history))fail('Expected Bike Cardio history or a full backup.');
+      if(!raw||raw.app!=='bike-cardio'||![1,2,3,4].includes(raw.version)||!['history','backup'].includes(raw.kind)||!Array.isArray(raw.history))fail('Expected Bike Cardio history or a full backup.');
       const expected=JSON.stringify(state),history=copy(state.history),existing=new Map(history.map(ride=>[ride.id,ride]));
       const summary={added:0,already:0,invalid:0,conflicts:0};
       for(const item of raw.history){

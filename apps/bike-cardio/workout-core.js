@@ -1,28 +1,32 @@
 /* exported WorkoutCore */
 const WorkoutCore = (() => {
   const VERSION = 3, CHECK_MS = 150000, SETTLE_MS = 60000, GAP_MS = 15000;
+  /* How resistance cues read: 'levels' names console levels, 'feel' asks for a
+     feel. Before history version 4 these were model codes; the one for a bike
+     without numbered levels was 'touchscreen', and every other code meant levels. */
+  const bikeCues = bike => bike === 'feel' || bike === 'touchscreen' ? 'feel' : 'levels';
   function config(input = {}) {
     const duration=(name,fallback,min,max)=>{const value=input[name]??fallback;if(!Number.isInteger(value)||value<min||value>max)throw new Error(name+' is outside its allowed range.');return value;};
-    return {targets:BikeTargets.normalize(input.targets),warmupMinutes:duration('warmupMinutes',5,1,30),mainMinutes:duration('mainMinutes',25,1,180),recoverySeconds:duration('recoverySeconds',60,15,600),sprintCooldownMinutes:duration('sprintCooldownMinutes',5,1,30),settleMinutes:duration('settleMinutes',2,1,15),mode:input.mode === 'sprint' ? 'sprint' : 'zone2',bike:input.bike === 'touchscreen' ? 'touchscreen' : 'matrix',bikeId:String(input.bikeId || '').slice(0,80),context:input.context === 'post-lifting' ? 'post-lifting' : 'fresh',cooldown:duration('cooldown',3,1,30),n:duration('n',5,1,20),eff:duration('eff',30,10,120),voice:input.voice !== false,beeps:input.beeps !== false};
+    return {targets:BikeTargets.normalize(input.targets),warmupMinutes:duration('warmupMinutes',5,1,30),mainMinutes:duration('mainMinutes',25,1,180),recoverySeconds:duration('recoverySeconds',60,15,600),sprintCooldownMinutes:duration('sprintCooldownMinutes',5,1,30),settleMinutes:duration('settleMinutes',2,1,15),mode:input.mode === 'sprint' ? 'sprint' : 'zone2',bike:bikeCues(input.bike),bikeId:String(input.bikeId || '').slice(0,80),context:input.context === 'post-lifting' ? 'post-lifting' : 'fresh',cooldown:duration('cooldown',3,1,30),n:duration('n',5,1,20),eff:duration('eff',30,10,120),voice:input.voice !== false,beeps:input.beeps !== false};
   }
   function build(input) {
-    const c = config(input),t=c.targets, matrix = c.bike === 'matrix', p = [];
+    const c = config(input),t=c.targets, levels = c.bike === 'levels', p = [];
     const add = (kind,title,duration,hr,rpm,res,cue,extras = {}) => p.push({id:p.length,kind,title,duration,hr,rpm,res,cue,...extras});
     if(c.mode === 'zone2') {
-      add('warmup','Warm-up',c.warmupMinutes*60000,`Under ~${t.comparisonHR}`,'80–90',matrix ? 'Easy · 5–7' : 'Easy · low','Start easy and build gradually. Keep breathing comfortable.');
-      add('main','Zone 2',c.mainMinutes*60000,`${t.targetMin}–${t.targetMax}`,'80–90',matrix ? 'Start around 8' : 'Start around 6–8',`Zone ${t.zoneMin}–${t.zoneMax} bpm. Ceiling ${t.zoneMax}. Keep cadence steady; adjust resistance only.`);
-      add('cooldown','Cool-down',null,`Below ${t.zoneMin}`,'Easy',matrix ? 'Easy · 3–5' : 'Easy · low',`Spin until HR is below ${t.zoneMin}, then stop the Polar recording.`,{target:c.cooldown*60000,min:c.cooldown*60000,gate:'cool'});
+      add('warmup','Warm-up',c.warmupMinutes*60000,`Under ~${t.comparisonHR}`,'80–90',levels ? 'Easy · 5–7' : 'Easy · low','Start easy and build gradually. Keep breathing comfortable.');
+      add('main','Zone 2',c.mainMinutes*60000,`${t.targetMin}–${t.targetMax}`,'80–90',levels ? 'Start around 8' : 'Start around 6–8',`Zone ${t.zoneMin}–${t.zoneMax} bpm. Ceiling ${t.zoneMax}. Keep cadence steady; adjust resistance only.`);
+      add('cooldown','Cool-down',null,`Below ${t.zoneMin}`,'Easy',levels ? 'Easy · 3–5' : 'Easy · low',`Spin until HR is below ${t.zoneMin}, then stop the Polar recording.`,{target:c.cooldown*60000,min:c.cooldown*60000,gate:'cool'});
     } else {
-      add('warmup','Warm-up',c.warmupMinutes*60000,`Under ${t.targetMax}`,'80–90',matrix ? 'Easy · 5–7' : 'Easy · low','Build gradually. Sit upright with a loose grip.');
+      add('warmup','Warm-up',c.warmupMinutes*60000,`Under ${t.targetMax}`,'80–90',levels ? 'Easy · 5–7' : 'Easy · low','Build gradually. Sit upright with a loose grip.');
       add('ready','Primer in',5000,'No target','Pick it up','Add resistance','A short primer is coming.');
-      add('primer','Primer',10000,'No target','95–105',matrix ? 'Medium-hard · 12–15' : 'Medium-hard · by feel','About 80 percent for ten seconds.');
-      add('settle','Settle',c.settleMinutes*60000,`Under ${t.targetMax}`,'80–90',matrix ? 'Easy · 5–7' : 'Easy · low','Spin easily before the first effort.');
+      add('primer','Primer',10000,'No target','95–105',levels ? 'Medium-hard · 12–15' : 'Medium-hard · by feel','About 80 percent for ten seconds.');
+      add('settle','Settle',c.settleMinutes*60000,`Under ${t.targetMax}`,'80–90',levels ? 'Easy · 5–7' : 'Easy · low','Spin easily before the first effort.');
       for(let i=1;i<=c.n;i++) {
-        add('ready',`Effort ${i} in`,5000,'No target','Pick it up',matrix ? 'High · 18–23' : 'High · by feel','Resistance up. Stay seated.');
-        add('effort',`Effort ${i} of ${c.n}`,c.eff*1000,'Judge by feel','100–115',matrix ? 'High · 18–23' : 'High · by feel','Maximal effort. HR is delayed during short sprints.');
-        if(i<c.n) add('recovery',`Recover after effort ${i}`,null,`${t.zoneMax} or below`,'65–80',matrix ? 'Low · 3–5' : 'Low · easy',`Spin easily. Confirm HR is ${t.zoneMax} or below before the next effort.`,{target:c.recoverySeconds*1000,min:c.recoverySeconds*1000,gate:'recovery'});
+        add('ready',`Effort ${i} in`,5000,'No target','Pick it up',levels ? 'High · 18–23' : 'High · by feel','Resistance up. Stay seated.');
+        add('effort',`Effort ${i} of ${c.n}`,c.eff*1000,'Judge by feel','100–115',levels ? 'High · 18–23' : 'High · by feel','Maximal effort. HR is delayed during short sprints.');
+        if(i<c.n) add('recovery',`Recover after effort ${i}`,null,`${t.zoneMax} or below`,'65–80',levels ? 'Low · 3–5' : 'Low · easy',`Spin easily. Confirm HR is ${t.zoneMax} or below before the next effort.`,{target:c.recoverySeconds*1000,min:c.recoverySeconds*1000,gate:'recovery'});
       }
-      add('cooldown','Cool-down',c.sprintCooldownMinutes*60000,'Let it fall','Easy',matrix ? 'Easy · 3–5' : 'Easy · low',`${c.sprintCooldownMinutes} minutes easy. Stop the Polar recording when you finish.`);
+      add('cooldown','Cool-down',c.sprintCooldownMinutes*60000,'Let it fall','Easy',levels ? 'Easy · 3–5' : 'Easy · low',`${c.sprintCooldownMinutes} minutes easy. Stop the Polar recording when you finish.`);
     }
     return p;
   }
@@ -94,5 +98,5 @@ const WorkoutCore = (() => {
     if(main?.coverage>=80){metrics.averageWatts=String(main.averageWatts);if(main.cadence!==null)metrics.cadence=String(main.cadence);if(main.fixedHRWatts!==null)metrics.fixedHRWatts=String(main.fixedHRWatts);}
     return {id:s.id,startedAt:s.startedAt,endedAt:s.endedAt,config:s.config,activeMs:s.activeMs,mainMs:s.mainMs,outcome:complete?'complete':'partial',hadInterruption:s.hadInterruption,effortsCompleted:s.finishedPhases.filter(p=>p.kind==='effort'&&p.outcome==='complete').length,phases:s.finishedPhases,hr:{...HeartRateCore.summary(s.hr,s.activeMs),...analysis},...(power?{power}:{}),metrics};
   }
-  return {config,build,phase,create,advance,pause,resume,gate,skip,end,steer,restore,record};
+  return {bikeCues,config,build,phase,create,advance,pause,resume,gate,skip,end,steer,restore,record};
 })();

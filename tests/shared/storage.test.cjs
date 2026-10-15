@@ -17,7 +17,7 @@ function setup(map=new Map(),confirm=async()=>true){
   vm.runInContext(`globalThis.bike=BikeStorage.create({core:WorkoutCore,heart:HeartRateCore,onLocalStatus:s=>statuses.push(s),onRemoteStatus:(s,t)=>messages.push(t),toast:t=>messages.push(t),confirm:(...args)=>confirmBike(...args),onRestore:()=>{}});`,Object.assign(ctx,{messages,statuses}));
   return {ctx,bike:ctx.bike,map,timers,messages,statuses};
 }
-function legacyRecord(){return {id:'old',startedAt:1720000000123,endedAt:1720001980123,config:{mode:'zone2',bike:'touchscreen',context:'fresh'},activeMs:1980000,mainMs:1500000,outcome:'complete',effortsCompleted:0,metrics:{averageHR:'128',mainAverageHR:'115.5',averageWatts:'140',notes:'original'}};}
+function legacyRecord(){return {id:'old',startedAt:1720000000123,endedAt:1720001980123,config:{mode:'zone2',bike:'feel',context:'fresh'},activeMs:1980000,mainMs:1500000,outcome:'complete',effortsCompleted:0,metrics:{averageHR:'128',mainAverageHR:'115.5',averageWatts:'140',notes:'original'}};}
 const cfg={endpoint:'https://storage.test',region:'test',syncMode:'conditional',bucket:'test',pathStyle:true,accessKeyId:'fake',secretAccessKey:'synthetic'};
 test('automatic and omitted backup modes use separate files independently of provider region',()=>{
   const d=setup();
@@ -316,10 +316,10 @@ test('immutable retries never overwrite an earlier upload and failed read-back d
 
 test('version 1 Bike backups migrate without reinterpreting old rides; version 2 preserves custom targets',()=>{
   const d=setup(),old={app:'bike-cardio',version:1,updatedAt:1,settings:{},history:[legacyRecord()],active:null};
-  const candidate=d.bike.prepare(old);assert.equal(candidate.version,3);assert.equal(candidate.updatedAt,old.updatedAt);assert.equal(candidate.history[0].config.targets.zoneMin,105);assert.equal(candidate.history[0].config.mainMinutes,25);
+  const candidate=d.bike.prepare(old);assert.equal(candidate.version,4);assert.equal(candidate.updatedAt,old.updatedAt);assert.equal(candidate.history[0].config.targets.zoneMin,105);assert.equal(candidate.history[0].config.mainMinutes,25);
   const newer=structuredClone(candidate);newer.history[0].config.targets={zoneMin:120,adjustBelow:123,targetMin:125,comparisonHR:130,targetMax:135,zoneMax:140};newer.history[0].config.mainMinutes=40;
   const prepared=d.bike.prepare(newer);assert.equal(prepared.history[0].config.targets.comparisonHR,130);assert.equal(prepared.history[0].config.mainMinutes,40);
-  assert.equal(d.bike.backup().version,3);assert.equal(d.bike.historyPayload().version,3);assert.throws(()=>d.bike.prepare({...newer,version:4}),/version 1, 2 or 3/);
+  assert.equal(d.bike.backup().version,4);assert.equal(d.bike.historyPayload().version,4);assert.throws(()=>d.bike.prepare({...newer,version:5}),/version 1 to 4/);
 });
 test('switching an existing connection to automatic mode creates a separate backup even at the former sync baseline',async()=>{
   const d=setup(),store=probeStore(d,{ignoreConditions:true});d.bike.write('bike-cardio.history.v1',[legacyRecord()]);
@@ -329,7 +329,7 @@ test('switching an existing connection to automatic mode creates a separate back
 });
 
 test('Bike presets and machine profiles roundtrip backups without changing older rides',()=>{
- const d=setup(),backup=d.bike.backup();backup.history=[legacyRecord()];backup.presets=[{id:'p',name:'Steady ride',config:{mode:'zone2',mainMinutes:40,bikeId:'bike-a',voice:false}}];backup.machines=[{id:'m',name:'Bike A',bike:'matrix',bikeId:'bike-a'}];
+ const d=setup(),backup=d.bike.backup();backup.history=[legacyRecord()];backup.presets=[{id:'p',name:'Steady ride',config:{mode:'zone2',mainMinutes:40,bikeId:'bike-a',voice:false}}];backup.machines=[{id:'m',name:'Bike A',bike:'levels',bikeId:'bike-a'}];
  const normalized=d.bike.prepare(backup);assert.equal(normalized.presets[0].config.mainMinutes,40);assert.equal(normalized.history[0].config.mainMinutes,25);assert.equal(normalized.machines[0].bikeId,'bike-a');
  assert.deepEqual(d.bike.prepare(normalized),normalized);
  backup.presets.push(backup.presets[0]);assert.throws(()=>d.bike.prepare(backup),/Invalid saved presets/);backup.presets=[];backup.machines[0].bikeId='';assert.throws(()=>d.bike.prepare(backup),/machine profile/);
@@ -345,8 +345,8 @@ test('documented sprint v2 and external v3 files merge losslessly, preserve loca
   }
   assert.equal(d.bike.state.history.length,4);assert.equal(d.bike.state.history.find(r=>r.id==='old').metrics.notes,'original');
   const video=d.bike.state.history.find(r=>r.id==='example-follow-along-video');assert.equal(video.config.mode,'external');assert.equal(video.config.bike,'unknown');assert.equal(video.config.context,'unknown');
-  const backup=d.bike.prepare(d.bike.backup());assert.equal(backup.version,3);assert.deepEqual(JSON.parse(JSON.stringify(backup.history.find(r=>r.id===video.id).metrics)),JSON.parse(JSON.stringify(video.metrics)));
-  const reload=setup(d.map);assert.equal(reload.bike.state.history.length,4);assert.equal(reload.bike.historyPayload().version,3);
+  const backup=d.bike.prepare(d.bike.backup());assert.equal(backup.version,4);assert.deepEqual(JSON.parse(JSON.stringify(backup.history.find(r=>r.id===video.id).metrics)),JSON.parse(JSON.stringify(video.metrics)));
+  const reload=setup(d.map);assert.equal(reload.bike.state.history.length,4);assert.equal(reload.bike.historyPayload().version,4);
 });
 test('external aggregates allow zero sample count and free source text without claiming a raw recording',()=>{
   const d=setup(),ride=legacyRecord();ride.config={mode:'sprint'};ride.mainMs=0;ride.phases=[{title:'Whole session',kind:'external',outcome:'complete',ms:ride.activeMs}];
@@ -366,4 +366,15 @@ test('external or unclassified rides never imply a shared workout progression se
   assert.notEqual(history.seriesKey(external),history.seriesKey(other));assert(history.compare(external,other).rows.every(row=>row.delta===null));
   const partial=d.bike.prepare({...d.bike.backup(),history:[{...legacyRecord(),config:{mode:'zone2',bike:'unknown',context:'fresh'}}]}).history[0];
   assert.notEqual(history.seriesKey(partial),history.seriesKey({...partial,id:'other'}));
+});
+
+test('version 4 records resistance cues in place of machine model codes',()=>{
+  const d=setup(),ride=(id,bike)=>({...legacyRecord(),id,config:{...legacyRecord().config,bike}});
+  const v3={...d.bike.backup(),version:3,history:[ride('a','touchscreen'),ride('b','console-model'),ride('c','unknown')],machines:[{id:'m',name:'Bike A',bike:'console-model',bikeId:'bike-a'}]};
+  const migrated=d.bike.prepare(v3);
+  assert.equal(migrated.history.map(r=>r.config.bike).join(),'feel,levels,unknown','the bike without numbered levels becomes feel; every other model code becomes levels');
+  assert.equal(migrated.machines[0].bike,'levels');assert.equal(migrated.version,4);
+  for(const bike of ['touchscreen','console-model',''])assert.throws(()=>d.bike.prepare({...migrated,history:[ride('x',bike)]}),/Invalid recorded bike/,'version 4 accepts only cue styles');
+  assert.throws(()=>d.bike.prepare({...migrated,machines:[{id:'m',name:'Bike A',bike:'console-model',bikeId:'bike-a'}]}),/machine profile/);
+  assert.equal(vm.runInContext("WorkoutCore.config({bike:'touchscreen'}).bike",d.ctx),'feel','a saved ride or preset from before maps the same way');
 });

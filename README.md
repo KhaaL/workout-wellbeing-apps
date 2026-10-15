@@ -298,7 +298,9 @@ Bike’s **Targets & durations** controls cover HR boundaries, working targets,
 comparison HR, warm-up, main block, cooldowns, primer settling, recoveries and
 sprint efforts. Every ride keeps its original targets and planned durations;
 old rides retain the original 105–122 bpm zone and 115 bpm comparison target.
-Bike migrates version 1/2 backups to version 3 and active sessions to version 3.
+Bike migrates version 1 to 3 backups to version 4 and active sessions to version 3.
+Version 4 records how resistance cues read (numbered console levels or by feel)
+in place of a machine model; machines are named by their identifier or profile.
 The history/backup and active-workout version numbers are independent.
 
 Settings → Default targets & durations → **Calculate heart-rate targets** fills

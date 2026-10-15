@@ -8,7 +8,7 @@ const BikePresets = {
       for(const kind of ['presets','machines']){
         const machine=kind==='machines',section=document.createElement('details');section.className='card';
         const summary=document.createElement('summary');summary.textContent=machine?'Machine profiles':'Saved workout presets';section.append(summary);
-        const help=document.createElement('p');help.className='hint';help.textContent=machine?'Reuse the same bike and identifier for consistent comparisons.':'Save a named copy of the current setup, including targets, durations and sound preferences. Presets travel with full backups.';section.append(help);
+        const help=document.createElement('p');help.className='hint';help.textContent=machine?'Reuse the same identifier and resistance cues for consistent comparisons.':'Save a named copy of the current setup, including targets, durations and sound preferences. Presets travel with full backups.';section.append(help);
         const label=document.createElement('label');label.className='field';label.textContent=machine?'Saved machine':'Saved preset';
         const select=document.createElement('select');select.id=kind+'-select';select.add(new Option('Choose…',''));
         for(const row of options.get(kind))select.add(new Option(row.name,row.id));select.value=selections[kind];label.append(select);section.append(label);

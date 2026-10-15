@@ -1,9 +1,9 @@
 /** Import contract. Runtime authority: storage-adapter.js and history-schema.js.
  * Constraints not expressible by TypeScript are listed in docs/BIKE-HISTORY.md.
  */
-export type HistoryVersion = 1 | 2 | 3;
+export type HistoryVersion = 1 | 2 | 3 | 4;
 export type WorkoutMode = 'zone2' | 'sprint' | 'external'; // external: v3 history only
-export type RecordedBike = 'matrix' | 'touchscreen' | 'unknown'; // unknown: v3
+export type RecordedBike = 'levels' | 'feel' | 'unknown'; // v4; v3 files carry a model code, mapped on import
 export type RecordedContext = 'fresh' | 'post-lifting' | 'unknown'; // unknown: v3
 export type SessionOutcome = 'complete' | 'partial';
 export type BuiltinPhaseKind = 'warmup' | 'main' | 'cooldown' | 'ready' | 'primer' | 'settle' | 'effort' | 'recovery';
@@ -19,7 +19,7 @@ export interface HeartRateTargets {
   adjustBelow: number; comparisonHR: number; // integer bpm, 1..300
 }
 /** Required mode; other inputs are optional and normalized on import.
- * V3 defaults missing bike/context to unknown; v1/v2 default to matrix/fresh.
+ * V3/v4 default missing bike/context to unknown; v1/v2 default to levels/fresh.
  * Explicit "" is rejected for v3 bike/context; use "unknown" or omit.
  */
 export interface HistoryConfigInput {
@@ -103,7 +103,7 @@ export interface FullBackup {
   app: 'bike-cardio'; version: HistoryVersion; kind?: 'backup';
   exportedAt?: string; updatedAt: EpochMs;
   settings: Omit<Partial<HistoryConfigInput>, 'mode' | 'bike' | 'context'> & {
-    mode?: 'zone2' | 'sprint'; bike?: 'matrix' | 'touchscreen'; context?: 'fresh' | 'post-lifting';
+    mode?: 'zone2' | 'sprint'; bike?: 'levels' | 'feel'; context?: 'fresh' | 'post-lifting';
   }; // runnable defaults, not an external recording
   history: HistoryEntry[]; active?: unknown | null;
   presets?: unknown[]; machines?: unknown[];

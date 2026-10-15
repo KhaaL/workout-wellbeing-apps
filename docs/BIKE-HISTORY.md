@@ -10,8 +10,11 @@ a full backup** instead replaces local data after confirmation.
 - [Version 2 sprint test export](../examples/bike-history-sprint-v2.json)
 - [Version 3 external examples](../examples/bike-history-external-v3.json)
 
-Exports now use version **3**. Version 1/2 files remain importable; normalization
+Exports now use version **4**. Version 1 to 3 files remain importable; normalization
 upgrades them without changing their recorded times or inventing a new revision.
+Version 4 changes only `config.bike` (and machine profiles' `bike`): it records how
+resistance cues read instead of a machine model. Older files map `touchscreen` to
+`feel` and any other code to `levels`.
 The active-workout version and browser storage key are separate contracts.
 
 ## Required and optional
@@ -38,16 +41,18 @@ existing data. The same merge also accepts a full backup envelope.
 | Field | Values |
 |---|---|
 | `config.mode` | `zone2`, `sprint`; v3 also `external` (history only) |
-| `config.bike` | `matrix`, `touchscreen`; v3 also `unknown` |
+| `config.bike` | v4: `levels` (cues name console levels), `feel` (cues by feel), `unknown`; v3: any model code or `unknown` |
 | `config.context` | `fresh`, `post-lifting`; v3 also `unknown` |
 | `outcome` | `complete`, `partial` |
 | `phases[].kind` | Native: `warmup`, `main`, `cooldown`, `ready`, `primer`, `settle`, `effort`, `recovery`. Import accepts **any string**, including `external` or `video`. |
 | `phases[].outcome` | `complete`, `skipped`, `ended` |
 
-In v3 omit unknown bike/context or explicitly use `"unknown"`. Do not use `""`.
-In v1/v2 the legacy normalizer defaults unknown/missing bike to `matrix`, context
+In v3 and v4 omit unknown bike/context or explicitly use `"unknown"`. Do not use `""`.
+In v1/v2 the legacy normalizer defaults unknown/missing bike to `levels`, context
 to `fresh`; do not use those defaults to imply knowledge you do not have.
 `bikeId` is an optional free-text machine identifier; empty means unidentified.
+The app names a machine by its `bikeId` (machine profiles store one), so name
+machines there rather than in `config.bike`.
 `external` does not create a runnable video plan. External rides and rides with
 unknown bike/context are shown independently in progress charts; automatic
 comparisons withhold progress differences.
