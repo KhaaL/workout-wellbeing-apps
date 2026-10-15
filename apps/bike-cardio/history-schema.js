@@ -30,7 +30,7 @@ const BikeHistorySchema=(()=>{
     if(metrics.polarZonesMs!=null){
       const zones=metrics.polarZonesMs;
       if(typeof zones!=='object'||Array.isArray(zones))throw new Error('Invalid polarZonesMs');
-      for(const [name,value] of Object.entries(zones))if(!/^z[1-5]$/.test(name)||value!=null&&(!Number.isFinite(value)||value<0||value>Number.MAX_SAFE_INTEGER))throw new Error('Invalid Polar zone duration');
+      for(const [name,value] of Object.entries(zones))if(!/^z[1-5]$/.test(name)||value!=null&&(!Number.isFinite(value)||value<0||value>Number.MAX_SAFE_INTEGER))throw new Error('Invalid imported zone duration');
     }
   }
   const modeLabel=mode=>({zone2:'Zone 2',sprint:'Sprint intervals',external:'Externally recorded'})[mode]||'Unknown workout';

@@ -18,9 +18,10 @@ Builds produce two standalone app folders:
   Recovery is not part of exported or cloud backups; bulk clearing/restoring
   still uses the existing full recovery copy. Restoring an individual record
   follows the current cloud backup settings.
-- **Bike presets:** Workout → **Saved workout presets** saves the current
-  machine, context, targets, durations and sound preferences. **Machine profiles**
-  reuse bike identifiers. Save, update or delete named entries; applying them
+- **Bike presets:** Workout → **Saved setups** holds two kinds of entry in one
+  picker. **Save as preset** stores the current machine, context, targets,
+  durations and sound preferences. **Save as machine** stores only the
+  resistance cues and bike identifier. Update or delete either; applying one
   affects the next ride only. Both collections are included in full backups;
   older backups start with empty collections.
 - **Comparisons:** Bike session summaries select an earlier matching ride and
@@ -321,7 +322,8 @@ HR drift between the halves of a main block of 10 minutes or more, and the
 60-second HR recovery after each sprint effort or the Zone 2 main block.
 
 Any strap with the standard Bluetooth Heart Rate service connects. Workout →
-**Bike power & cadence** optionally connects a smart bike, trainer or power meter
+**Sensors** lists the strap and **Bike power & cadence**; without Bluetooth it
+shows one notice and no Connect buttons. Bike power & cadence optionally connects a smart bike, trainer or power meter
 that uses the standard Fitness Machine (Indoor Bike Data) or Cycling Power
 service; cadence from a power meter comes from its crank revolution counts.
 Its readings fill 5-second bins like heart rate. A finished ride stores the
@@ -330,6 +332,9 @@ main-block watts and cadence, watts within 2 bpm of the comparison HR (at least
 a minute of it) and aerobic decoupling (watts per beat in the first half of a
 main block of 10 minutes or more, against the second). At 80% main-block
 coverage these fill the main-block watts, cadence and comparison readings.
+During a ride with a live reading, a bar under Live HR shows the recorded zone,
+the working target inside it and a marker for the current HR. The ride summary
+shows these readings as tiles.
 
 For external recordings, use History → Merge history. See the
 [history contract](docs/BIKE-HISTORY.md), [TypeScript types](apps/bike-cardio/history-types.d.ts),

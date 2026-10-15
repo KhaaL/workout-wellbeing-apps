@@ -15,7 +15,7 @@ const WorkoutCore = (() => {
     if(c.mode === 'zone2') {
       add('warmup','Warm-up',c.warmupMinutes*60000,`Under ~${t.comparisonHR}`,'80–90',levels ? 'Easy · 5–7' : 'Easy · low','Start easy and build gradually. Keep breathing comfortable.');
       add('main','Zone 2',c.mainMinutes*60000,`${t.targetMin}–${t.targetMax}`,'80–90',levels ? 'Start around 8' : 'Start around 6–8',`Zone ${t.zoneMin}–${t.zoneMax} bpm. Ceiling ${t.zoneMax}. Keep cadence steady; adjust resistance only.`);
-      add('cooldown','Cool-down',null,`Below ${t.zoneMin}`,'Easy',levels ? 'Easy · 3–5' : 'Easy · low',`Spin until HR is below ${t.zoneMin}, then stop the Polar recording.`,{target:c.cooldown*60000,min:c.cooldown*60000,gate:'cool'});
+      add('cooldown','Cool-down',null,`Below ${t.zoneMin}`,'Easy',levels ? 'Easy · 3–5' : 'Easy · low',`Spin until HR is below ${t.zoneMin}, then stop any watch recording.`,{target:c.cooldown*60000,min:c.cooldown*60000,gate:'cool'});
     } else {
       add('warmup','Warm-up',c.warmupMinutes*60000,`Under ${t.targetMax}`,'80–90',levels ? 'Easy · 5–7' : 'Easy · low','Build gradually. Sit upright with a loose grip.');
       add('ready','Primer in',5000,'No target','Pick it up','Add resistance','A short primer is coming.');
@@ -26,7 +26,7 @@ const WorkoutCore = (() => {
         add('effort',`Effort ${i} of ${c.n}`,c.eff*1000,'Judge by feel','100–115',levels ? 'High · 18–23' : 'High · by feel','Maximal effort. HR is delayed during short sprints.');
         if(i<c.n) add('recovery',`Recover after effort ${i}`,null,`${t.zoneMax} or below`,'65–80',levels ? 'Low · 3–5' : 'Low · easy',`Spin easily. Confirm HR is ${t.zoneMax} or below before the next effort.`,{target:c.recoverySeconds*1000,min:c.recoverySeconds*1000,gate:'recovery'});
       }
-      add('cooldown','Cool-down',c.sprintCooldownMinutes*60000,'Let it fall','Easy',levels ? 'Easy · 3–5' : 'Easy · low',`${c.sprintCooldownMinutes} minutes easy. Stop the Polar recording when you finish.`);
+      add('cooldown','Cool-down',c.sprintCooldownMinutes*60000,'Let it fall','Easy',levels ? 'Easy · 3–5' : 'Easy · low',`${c.sprintCooldownMinutes} minutes easy. Stop any watch recording when you finish.`);
     }
     return p;
   }
@@ -65,7 +65,7 @@ const WorkoutCore = (() => {
     }
     return events;
   }
-  function pause(s,now,reason='Timer paused. Keep Polar’s recording in mind if you stop riding.') {const events=advance(s,now);if(s.status==='running'){s.status='paused';s.pauseReason=reason;}return events;}
+  function pause(s,now,reason='Timer paused. If a watch is also recording, pause or stop it too.') {const events=advance(s,now);if(s.status==='running'){s.status='paused';s.pauseReason=reason;}return events;}
   function resume(s,now) {if(s.status!=='paused')return [];s.status='running';s.lastAt=now;s.pauseReason='';return s.pending ? [next(s)] : [];}
   function gate(s,now,confirmed) {const events=advance(s,now),p=phase(s);if(s.status!=='running'||!p?.gate||!confirmed||s.phaseMs<p.min)return events;s.lastAt=now;events.push(next(s));if(s.status==='finished')s.endedAt=now;return events;}
   function skip(s,now) {const index=s.index,events=advance(s,now);if(s.status==='running' && s.index===index){events.push(next(s,'skipped'));if(s.status==='finished')s.endedAt=now;}return events;}
@@ -87,7 +87,7 @@ const WorkoutCore = (() => {
     s.version=VERSION;s.config=config(s.config);if(s.hr?.targets&&JSON.stringify(BikeTargets.normalize(s.hr.targets))!==JSON.stringify(s.config.targets))return null;s.hr=HeartRateCore.restoreStats(s.hr,s.config.targets);s.power=PowerCore.restoreStats(s.power);
     for(const key of ['startedAt','lastAt','index','phaseMs','activeMs','mainMs','nextCheckMs','settleEndMs'])if(!Number.isFinite(s[key])||s[key]<0)return null;
     if(!Number.isInteger(s.index)||!phase(s)||s.finishedPhases.length!==s.index)return null;
-    if(s.status==='running'){advance(s,now,{visible:false});if(s.status==='running'){s.status='paused';s.pauseReason='Session restored. Elapsed time was recovered using the saved clock. Check your current phase and Polar recording before resuming.';}s.hadInterruption=true;}
+    if(s.status==='running'){advance(s,now,{visible:false});if(s.status==='running'){s.status='paused';s.pauseReason='Session restored. Elapsed time was recovered using the saved clock. Check your current phase and any watch recording before resuming.';}s.hadInterruption=true;}
     return s;
   }
   function record(s) {
