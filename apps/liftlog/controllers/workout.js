@@ -403,10 +403,32 @@ function swapExercise(idx, newId){
   context.save(); context.ui.focus = 'ex-panel-top'; context.render();
   context.toast('Swapped ' + ex.name + ' for ' + def.name + (sameCount ? '. Sets, reps and RIR kept for this session.' : '. Set count kept for this session.'));
 }
+/* The less frequent actions for the current exercise, one tap behind More…,
+   so the row under the sets holds Add set and the next exercise on one line.
+   Each entry is listed only when it applies. */
+function openExerciseMenu(){
+  if(context.workoutHandoff.held())return;
+  const w = context.state.activeWorkout, ex = currentExercise(); if (!w || !ex) return;
+  const opener = document.querySelector('[data-action="exercise-menu"]');
+  const dialog = document.createElement('dialog'); dialog.className = 'numeric-editor'; dialog.setAttribute('aria-label', 'More for ' + ex.name);
+  const heading = document.createElement('h2'); heading.textContent = ex.name; dialog.append(heading);
+  const actions = document.createElement('div'); actions.className = 'editor-actions'; dialog.append(actions);
+  let next = null;
+  const button = (text, css, action) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + css; b.textContent = text;
+    b.addEventListener('click', () => { next = action; dialog.close(); }); actions.append(b); };
+  const ramp = warmupPlan(ex);
+  if (ramp.length) button('Add ' + context.plural(ramp.length, 'warm-up set'), '', addWarmups);
+  if (canSwap(ex)) button('Swap for another exercise…', '', openSwapDialog);
+  button('Remove exercise…', 'btn-danger', () => confirmExerciseRemoval(w, ex));
+  button('Cancel', '', null);
+  /* the follow-up runs after focus has gone back, so its own dialog or render owns focus */
+  dialog.addEventListener('close', () => { dialog.remove(); if (opener?.isConnected) opener.focus(); if (next) next(); }, { once:true });
+  document.body.append(dialog); dialog.showModal();
+}
 function openSwapDialog(){
   if(context.workoutHandoff.held())return;
   const w = context.state.activeWorkout, ex = currentExercise(); if (!w || !ex) return;
-  const idx = w.exercises.indexOf(ex), opener = document.querySelector('[data-action="swap-exercise"]');
+  const idx = w.exercises.indexOf(ex), opener = document.querySelector('[data-action="exercise-menu"]');
   const { related, other } = swapCandidates(w, ex);
   const dialog = document.createElement('dialog'); dialog.className = 'numeric-editor'; dialog.setAttribute('aria-label', 'Swap ' + ex.name);
   const heading = document.createElement('h2'); heading.textContent = 'Swap ' + ex.name; dialog.append(heading);
@@ -735,6 +757,7 @@ function finishWorkout(){
     /* the finished session opens in its sheet, as the summary of what was
        done; a search left in History would hide its row once it closed */
     context.ui.historyQuery = '';
+    context.ui.historyTab = 'sessions';
     context.ui.focus = 'detail-title';
     context.navigate('history', { kind:'workout', id:w.id });
     window.scrollTo(0,0);
@@ -759,6 +782,6 @@ function discardWorkout(){
       context.render(); context.toast('Workout discarded');
     });
 }
-    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,cascadeReps,openSetEditor,canSwap,swapExercise,openSwapDialog,warmupPlan,addWarmups,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,discardWorkout};
+    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,cascadeReps,openSetEditor,canSwap,swapExercise,openSwapDialog,openExerciseMenu,warmupPlan,addWarmups,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,discardWorkout};
   }
 };

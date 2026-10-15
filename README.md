@@ -270,17 +270,21 @@ was already added. The exercise's load cue says when sets start at the suggestio
 Rest comes from Settings unless a library exercise sets its own (Exercises →
 Edit → Rest after a set). The override belongs to the movement, so it rests the
 same in every routine; the rest tag marks it "(this exercise)", and a superset
-round rests as long as its longest member. Before any set is logged, **Swap…**
+round rests as long as its longest member. Before any set is logged, **More… → Swap**
 replaces the current exercise for that session only. The new one keeps the set
 count, and the rep range and target RIR when both are counted the same way;
 pairings carry over and the routine is unchanged.
 
-**Add warm-ups** puts a ramp before the first working set when nothing is
+**More… → Add warm-up sets** puts a ramp before the first working set when nothing is
 logged yet: 50% of its load for 8, 70% for 5 and 85% for 3, rounded to the load
 step. Steps that round to nothing, to the working load or to the previous step
 are dropped, so light loads get fewer. Bodyweight work ramps its added load
 from none; timed work gets none. Warm-ups count toward neither volume nor
 records, and a swap drops them with the old movement's load.
+
+History opens on **Sessions** (stats and the session list). **Progress** holds
+progression flags, load results and the weekly chart; **Compare** holds the
+two-workout comparison.
 
 ## Updates and Bike progress
 

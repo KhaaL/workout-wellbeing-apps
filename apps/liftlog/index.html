@@ -717,6 +717,9 @@ kbd{
 }
 .progress-modes button:first-child{ border-left:0; }
 .progress-modes button[aria-pressed="true"]{ background:var(--accent-soft); color:var(--text); }
+/* History's view switch spans the width, so each tab is a full-size target */
+.history-tabs{ display:flex; width:100%; }
+.history-tabs button{ flex:1; min-height:44px; font-size:var(--fs-sm); }
 .mg-list{ list-style:none; margin:var(--sp-3) 0 0; padding:0; }
 .mg-list li{
   display:flex; gap:var(--sp-2) var(--sp-4); align-items:baseline; flex-wrap:wrap;
@@ -2901,6 +2904,7 @@ function liftToasts(){
    half the actions that toast (archive, duplicate, a finished workout and the
    backup reminder after it). Showing it again moves it above whichever dialog
    opened since. Without popover support it is an ordinary fixed element. */
+let toastTimer = 0;
 function toast(msg){
   liftToasts();
   const region = $('#toast-region');
@@ -2908,12 +2912,16 @@ function toast(msg){
     if (region.matches(':popover-open') && $('dialog[open]')) region.hidePopover();
     if (!region.matches(':popover-open')) region.showPopover();
   }
+  /* One message at a time: a newer one replaces the last, so a burst (start a
+     workout, save, a backup reminder) never stacks a column over the set rows. */
+  region.querySelectorAll('.toast').forEach(old => old.remove());
+  clearTimeout(toastTimer);
   const el = document.createElement('div');
   el.className = 'toast';
   el.textContent = msg;
   region.appendChild(el);
   requestAnimationFrame(() => el.classList.add('show'));
-  setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 250); }, 2400);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 250); }, 3000);
 }
 function announce(msg){
   const el = $('#live');
@@ -3397,6 +3405,7 @@ function addSet(...args){return workoutController().addSet(...args);}
 function canSwap(...args){return workoutController().canSwap(...args);}
 function swapExercise(...args){return workoutController().swapExercise(...args);}
 function openSwapDialog(...args){return workoutController().openSwapDialog(...args);}
+function openExerciseMenu(...args){return workoutController().openExerciseMenu(...args);}
 function warmupPlan(...args){return workoutController().warmupPlan(...args);}
 function addWarmups(...args){return workoutController().addWarmups(...args);}
 function advanceExercise(...args){return workoutController().advanceExercise(...args);}
@@ -5064,6 +5073,18 @@ function htmlSessionNote(w){
 
 /* The bests worth quoting for one movement, as [label, value] pairs: here
    beside the sets being logged, and in the exercise's detail sheet. */
+/* The last session's working sets in the strip above the rows. Weighted sets
+   that share a load label name it once at the end ("40 × 10, 40 × 10,
+   35 × 9 kg stack") so the whole session fits a phone's line; anything else
+   uses the full set summary. Warm-ups are left out when working sets exist. */
+function lastSessionSummary(sets, ex){
+  const working = sets.filter(s => !isWarmup(s)), shown = (working.length ? working : sets).slice(0, 4);
+  const weighted = shown.every(s => s.unit !== 'bw' && s.unit !== 'time' && setDuration(s) == null && toNum(s.weight) != null);
+  const labels = new Set(shown.map(s => exerciseLoadLabel(ex, s.unit || 'kg')));
+  if (!shown.length || !weighted || labels.size !== 1)
+    return shown.map(s => setSummary(s, ex)).join(', ');
+  return shown.map(s => fmtNum(s.weight) + ' × ' + (s.reps != null ? s.reps : '–')).join(', ') + ' ' + esc([...labels][0]);
+}
 function bestBits(stats, ex){
   const out = [], bodyweight = ex.unit === 'bw';
   if (stats.e1rm > 0) out.push([bodyweight ? 'Best total e1RM' : 'Best e1RM', fmtNum(roundHalf(stats.e1rm)) + ' ' + unitLabel()]);
@@ -5086,7 +5107,7 @@ function htmlCurrentExercise(w, ex){
   let prevHTML = '';
   const bits = [];
   const bit = (k, v) => bits.push('<span class="pp-item"><span class="pp-k">' + k + '</span><strong>' + v + '</strong></span>');
-  if (prev) bit(fmtMonthDay(prev.date), prev.sets.slice(0,4).map(s => setSummary(s, ex)).join(', '));
+  if (prev) bit(fmtMonthDay(prev.date), lastSessionSummary(prev.sets, ex));
   bestBits(stats, ex).forEach(([k, v]) => bit(k, v));
   if (bits.length) prevHTML = '<div class="prev-perf">' + bits.join('') + '</div>';
 
@@ -5198,8 +5219,7 @@ function htmlCurrentExercise(w, ex){
     '<div class="mt-4 ' + cols + '" role="group" aria-label="Sets for ' + esc(ex.name) + '">' + setsHTML + '</div>' +
     '<div class="sets-foot">' +
       '<button type="button" class="btn" data-action="add-set">' + IC.plus + '<span>Add set</span></button>' +
-      (warmupPlan(ex).length ? '<button type="button" class="btn" data-action="add-warmups" aria-label="Add warm-up sets for ' + esc(ex.name) + '">Add warm-ups</button>' : '') +
-      (canSwap(ex) ? '<button type="button" class="btn" data-action="swap-exercise" aria-label="Swap ' + esc(ex.name) + ' for another exercise">Swap…</button>' : '') +
+      '<button type="button" class="btn" data-action="exercise-menu" aria-haspopup="dialog" aria-label="More actions for ' + esc(ex.name) + '">More…</button>' +
       (next ? '<span class="next-up muted small">Next: ' + esc(next.name) + '</span>' : '') +
     '</div>' +
   '</div>';
@@ -5769,14 +5789,25 @@ function openHistoryLinks(){
   ui.importSummary = null; ui.focus = 'history-links'; render();
 }
 
-function viewHistory(){return '<div id="recent-changes"></div>'+viewHistoryContent();}
+function viewHistory(){return viewHistoryContent();}
+/* History is three views of one log: Sessions (the list, its search and the
+   recent-changes recovery), Progress (charts, stall flags, load results) and
+   Compare. Sessions comes first because finding a session is the common task;
+   the other panels stay in the page, hidden, so their state survives a switch. */
+const HISTORY_TABS = [['sessions','Sessions'], ['progress','Progress'], ['compare','Compare']];
+function historyTab(){ return HISTORY_TABS.some(([id]) => id === ui.historyTab) ? ui.historyTab : 'sessions'; }
+function historyTabsHTML(){
+  return '<div class="progress-modes history-tabs mb-4" role="group" aria-label="History view">' +
+    HISTORY_TABS.map(([id, label]) => '<button type="button" data-action="history-tab" data-tab="' + id + '" aria-pressed="' + (historyTab() === id) + '">' + label + '</button>').join('') + '</div>';
+}
+const historyPanel = (id, body) => '<div class="history-panel" data-history-panel="' + id + '"' + (historyTab() === id ? '' : ' hidden') + '>' + body + '</div>';
 function viewHistoryContent(){
   const head = '<div class="view-head"><div><h1>History</h1>' +
     '<p class="view-sub">' + plural(state.workouts.length, 'logged workout') + '</p></div></div>';
   const ws = sortedWorkouts().map(visibleHistoryWorkout);
   if (!ws.length){
     const manager = htmlLoadCueManager();
-    return head + historyImportSummaryHTML() + '<div class="empty"><h3>No workouts logged yet</h3><p>Finish a session and it will show up here with volume, duration and trends.</p>' +
+    return head + historyImportSummaryHTML() + '<div id="recent-changes"></div><div class="empty"><h3>No workouts logged yet</h3><p>Finish a session and it will show up here with volume, duration and trends.</p>' +
       '<div class="form-actions"><button type="button" class="btn btn-primary" data-action="nav" data-view="today">Go to Today</button></div></div>' +
       (manager ? '<details class="panel progression-analysis mt-4" data-progression-analysis' +
         (ui.progressionAnalysisOpen ? ' open' : '') + '><summary>Historical load results &amp; settings</summary>' + manager + '</details>' : '');
@@ -5788,8 +5819,8 @@ function viewHistoryContent(){
   const last30 = ws.filter(w => now - w.startedAt < 30*86400000);
   const vol30  = last30.reduce((a,w) => a + workoutVolume(w), 0);
   const time30 = last30.reduce((a,w) => { const d = workoutDuration(w); return a + (isFinite(d) ? d : 0); }, 0);
-  let html = historyImportSummaryHTML() + historyLinksBannerHTML() + (ui.historyLinksOpen ? historyLinksPanel() : '') + '<div class="stats' +
-    ((ui.importSummary || unresolvedHistoryExercises().length || ui.historyLinksOpen) ? ' mt-4' : '') + '">' +
+  const notices = historyImportSummaryHTML() + historyLinksBannerHTML() + (ui.historyLinksOpen ? historyLinksPanel() : '');
+  let html = '<div class="stats">' +
     '<div class="stat"><div class="v">' + last7.length + '</div><div class="k">Sessions · 7 days</div></div>' +
     '<div class="stat"><div class="v">' + last30.length + '</div><div class="k">Sessions · 30 days</div></div>' +
     '<div class="stat"><div class="v">' + fmtNum(Math.round(vol30)) + '</div><div class="k">Volume · 30 days (' + unitLabel() + ')</div></div>' +
@@ -5798,25 +5829,21 @@ function viewHistoryContent(){
 
   /* Stall warnings stay ahead of charts; the longer historical load-result
      list is on demand instead of opening History with many notifications. */
-  html += progressionFlagsPanel();
+  let progress = progressionFlagsPanel();
   const loadManager = htmlLoadCueManager();
-  if (loadManager) html += '<details class="panel progression-analysis mt-4" aria-label="Progression analysis" data-progression-analysis' +
+  if (loadManager) progress += '<details class="panel progression-analysis mt-4" aria-label="Progression analysis" data-progression-analysis' +
     (ui.progressionAnalysisOpen ? ' open' : '') + '>' +
     '<summary>Historical load results &amp; settings</summary>' + loadManager + '</details>';
-
-  html += '<div id="workout-comparison"></div>';
-  /* weekly volume chart (inline SVG, last 8 weeks) */
-  html += weeklyChart(ws);
-
-  /* per-exercise trend */
-  html += progressPanel();
+  /* weekly volume chart (inline SVG, last 8 weeks), then the per-exercise trend */
+  progress += weeklyChart(ws) + progressPanel();
+  html += '<div id="recent-changes" class="mt-4"></div>';
 
   /* workout list */
   const query = normalizedExerciseName(ui.historyQuery);
   const visible = query ? ws.filter(w => normalizedExerciseName(w.routineName).includes(query) ||
     w.exercises.some(ex => normalizedExerciseName(ex.name).includes(query) ||
       normalizedExerciseName((historyExerciseById(canonicalExerciseId(ex.exerciseId)) || {}).name).includes(query))) : ws;
-  html += '<div class="section-title"><h2>Workouts</h2><span class="rule"></span></div>' +
+  html += '<div class="section-title mt-4"><h2>Workouts</h2><span class="rule"></span></div>' +
     '<label class="field mt-2 mb-2"><span class="cap">Find an exercise or session</span>' +
     '<input type="search" id="history-search" data-bind="history-search" value="' + esc(ui.historyQuery) + '" ' +
     'placeholder="Search workout exercises…" autocomplete="off"></label>' +
@@ -5849,7 +5876,8 @@ function viewHistoryContent(){
   });
   html += '</div>';
   if (!visible.length) html += '<p class="hint mt-3">No workouts match that search.</p>';
-  return head + html;
+  return head + notices + historyTabsHTML() + historyPanel('sessions', html) + historyPanel('progress', progress) +
+    historyPanel('compare', '<div id="workout-comparison"></div>');
 }
 function historyExerciseDomId(workoutId, index){ return 'hist-ex-' + encodeURIComponent(workoutId) + '-' + index; }
 function viewHistoryExercise(workoutId, index){
@@ -6730,6 +6758,7 @@ const actions = {
   'toggle-warmup'(d, el){ toggleWarmup(d.id, el && el.id); },
   'add-set'(){ addSet(); },
   'swap-exercise'(){ openSwapDialog(); },
+  'exercise-menu'(){ openExerciseMenu(); },
   'add-warmups'(){ addWarmups(); },
   'delete-set'(d){ deleteSet(d.id); },
   'edit-set'(d){ openSetEditor(d.id); },
@@ -6751,6 +6780,7 @@ const actions = {
                                                () => toast('Could not copy'));
     else toast('Clipboard unavailable here');
   },
+  'history-tab'(d){ ui.historyTab = HISTORY_TABS.some(([id]) => id === d.tab) ? d.tab : 'sessions'; ui.focus = null; render(); },
   'trend-mode'(d){ ui.trendMode = d.mode === 'muscle' ? 'muscle' : 'exercise'; render(); },
   'weekly-metric'(d){ ui.weeklyMetric = d.metric === 'sets' ? 'sets' : 'volume'; render(); },
   'progression-select'(d){
@@ -7265,7 +7295,7 @@ document.addEventListener('click', e => {
   if (gSwallow){ gSwallow = false; return; }
   const el = e.target.closest('[data-action]');
   if (!el) return;
-  if(workoutHandoff.held()&&['toggle-set','edit-set','finish-workout','discard-workout','timer-toggle','timer-reset','timer-add30','add-set','delete-set','remove-workout-exercise','toggle-warmup','add-workout-exercise','swap-exercise','add-warmups'].includes(el.dataset.action)){toast('Workout held for handoff');return;}
+  if(workoutHandoff.held()&&['toggle-set','edit-set','finish-workout','discard-workout','timer-toggle','timer-reset','timer-add30','add-set','delete-set','remove-workout-exercise','toggle-warmup','add-workout-exercise','swap-exercise','add-warmups','exercise-menu'].includes(el.dataset.action)){toast('Workout held for handoff');return;}
   const fn = actions[el.dataset.action];
   if (fn) fn(el.dataset, el, e);
 });

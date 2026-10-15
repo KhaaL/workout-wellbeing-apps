@@ -457,6 +457,8 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       'flat strength trend is neutral rather than a green gain');
     assert.match(await page.locator('[aria-label="Exercise trend"] .records').innerText(), /No new best since the first session/,
       'a flat series reports no record after its baseline');
+    // charts and load results live in History's Progress tab
+    await page.locator('[data-action="history-tab"][data-tab="progress"]').click();
     await page.getByRole('button', {name:'Working sets'}).click();
     assert.equal(await page.locator('[aria-label="Weekly working sets, last 8 weeks"] [aria-pressed="true"]').innerText(), 'Working sets',
       'the weekly chart switches to working sets');
@@ -591,12 +593,14 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       'historical series can enable suggestions again');
     const squatRow=page.locator('.cue-manager-list li').filter({hasText:'Back Squat'});
     await squatRow.getByRole('button', {name:'Turn on load suggestions'}).click();
+    await page.locator('[data-action="history-tab"][data-tab="sessions"]').click();
     await page.getByLabel('Find an exercise or session').fill('Historic only');
     assert.equal(await page.locator('.hist-row').count(), 2,
       'History exercise search finds sessions by exercise snapshot');
     await page.getByLabel('Find an exercise or session').fill('no matching exercise');
     assert.equal(await page.locator('.hist-row').count(), 0,
       'History search filters unmatched workouts');
+    await page.locator('[data-action="history-tab"][data-tab="progress"]').click();
     await page.locator('.cue-manager-list li').filter({hasText:'Back Squat'})
       .getByRole('button', {name:'View last session'}).click();
     assert.equal(await page.locator('.hist-ex.is-highlighted').count(), 1,

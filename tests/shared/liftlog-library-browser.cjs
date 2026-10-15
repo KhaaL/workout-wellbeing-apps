@@ -29,6 +29,10 @@ const fixture={version:14,settings:{lastModifiedAt:1},exercises:[
   assert.equal(await page.locator('#open-exercise-row').count(),0);assert.equal(await page.locator('#ex-archived-toggle').evaluate(node=>node===document.activeElement),true);
   await page.setViewportSize({width:320,height:740});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'/tmp/liftlog-exercise-archive.png',animations:'disabled'});await page.setViewportSize({width:390,height:844});
   await navigate(page,'history');assert.equal(await page.locator('#progress-exercise-select option').filter({hasText:'Archive Row'}).count(),0);
+  // History opens on Sessions; Progress and Compare are one tap away.
+  assert.equal(await page.locator('[data-history-panel="sessions"]').isVisible(),true);assert.equal(await page.locator('[data-history-panel="progress"]').isVisible(),false);
+  await page.locator('[data-action="history-tab"][data-tab="progress"]').click();assert.equal(await page.locator('#progress-exercise-select').isVisible(),true);
+  await page.locator('[data-action="history-tab"][data-tab="sessions"]').click();
   await page.fill('#history-search','Archive Row');assert.equal(await page.locator('.hist-row').count(),0);
   await page.fill('#history-search','');await page.locator('.hist-row').click();assert.doesNotMatch(await page.locator('#detail-body').textContent(),/Archive Row/);assert.match(await page.locator('#detail-body').textContent(),/Visible Press/);
   await page.locator('#detail-close').click();
@@ -44,11 +48,11 @@ const fixture={version:14,settings:{lastModifiedAt:1},exercises:[
   assert.equal(await sheet.isVisible(),false,'starting closes the preview and exposes workout controls');
   assert.equal(await page.evaluate(()=>document.activeElement.id),'workout-title');
   // A warm-up ramp goes before the first working set; a swap drops it with the old movement's load.
-  await page.locator('[data-action="add-warmups"]').click();assert.equal(await page.locator('.set-row.is-warmup').count(),3);
+  await page.locator('[data-action="exercise-menu"]').click();await page.getByRole('dialog',{name:'More for Visible Press'}).getByRole('button',{name:'Add 3 warm-up sets',exact:true}).click();assert.equal(await page.locator('.set-row.is-warmup').count(),3);
   assert.equal(await page.evaluate(()=>testAPI.state.activeWorkout.exercises[0].sets.map(s=>s.weight).join()),'10,15,17.5,20,20,20');
-  assert.equal(await page.locator('[data-action="add-warmups"]').count(),0,'one ramp per exercise');
+  await page.locator('[data-action="exercise-menu"]').click();const menu=page.getByRole('dialog',{name:'More for Visible Press'});assert.equal(await menu.getByRole('button',{name:/warm-up/}).count(),0,'one ramp per exercise');
   // Swap keeps the prescription for this session; the swapped-in exercise brings its own rest.
-  await page.locator('[data-action="swap-exercise"]').click();const swap=page.getByRole('dialog',{name:'Swap Visible Press'});
+  await menu.getByRole('button',{name:'Swap for another exercise…',exact:true}).click();const swap=page.getByRole('dialog',{name:'Swap Visible Press'});
   assert.match(await swap.textContent(),/keeps 3 sets of 8 to 10 reps/);assert.equal(await swap.locator('optgroup[label="Same movement family"] option').count(),1);
   await swap.getByRole('button',{name:'Swap',exact:true}).click();
   const swapped=await page.evaluate(()=>testAPI.state.activeWorkout.exercises[0]);assert.equal(swapped.exerciseId,'incline');assert.equal(swapped.sets.length,3);assert.equal(await page.locator('.set-row.is-warmup').count(),0);assert.equal(swapped.targetRepsMax,10);assert.equal(swapped.targetWeight,null);

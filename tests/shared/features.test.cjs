@@ -229,3 +229,8 @@ test('Liftlog adds a warm-up ramp before the first working set',()=>{
  assert.equal(JSON.stringify(d.api.warmupPlan(s.activeWorkout.exercises[0])),'[{"load":0,"reps":8},{"load":10,"reps":5}]','bodyweight ramps its added load');
  start(block([{...row(null),unit:'time',durationSeconds:60}],{unit:'time'}));assert.equal(d.api.warmupPlan(s.activeWorkout.exercises[0]).length,0,'timed work has none');
 });
+test('Liftlog shows the last session compactly, naming a shared load label once',()=>{
+ const d=lift(),ex={unit:'kg',loadMode:'machine_stack'},set=(weight,reps,extra={})=>({completed:true,weight,reps,unit:'kg',...extra});
+ assert.equal(d.api.lastSessionSummary([set(20,10,{countForVolume:false,countForPR:false}),set(40,10),set(40,10),set(35,9)],ex),'40 × 10, 40 × 10, 35 × 9 kg stack','warm-ups left out, label once');
+ assert.match(d.api.lastSessionSummary([{completed:true,reps:10,unit:'bw',addedWeight:null}],{unit:'bw',loadMode:'bodyweight_added'}),/10 reps BW/,'bodyweight keeps the full summary');
+});
