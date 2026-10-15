@@ -1,7 +1,7 @@
 import globals from 'globals';
 
-// Lint canonical JavaScript, not the generated copies embedded in each HTML
-// file. Remaining inline controllers stay covered by the browser suites.
+// Lint canonical JavaScript. The build copies it into dist/ only; code still
+// written inline in each app's HTML stays covered by the browser suites.
 const rules={
   'no-undef':'error',
   'no-unused-vars':['error',{args:'none',caughtErrors:'none'}],

@@ -7,7 +7,9 @@ const path = require('node:path');
    runs inside the app's closure, which is what lets `window.testAPI` reach the
    internals by name; the served copy is the only one that carries it. */
 const SEAM = '/* @test-seam */';
-const APP = path.join(__dirname, '..', 'index.html');
+/* The built app: source HTML holds empty module markers that only the build
+   fills, so suites run `npm run build` (or `npm test`) first. */
+const APP = path.join(__dirname, '..', '..', '..', 'dist', 'liftlog', 'index.html');
 
 /* index.html with `window.testAPI = <api>` in place of the seam. `api` is the
    source of an object literal, e.g. '{ save, get state(){ return state } }'.
@@ -17,8 +19,8 @@ function appWithTestAPI(api){
   const html = fs.readFileSync(APP, 'utf8');
   const found = html.split(SEAM).length - 1;
   if (found !== 1)
-    throw new Error('index.html must contain the test seam ' + SEAM + ' exactly once; found ' + found +
-      '. Restore it on the line before init(); at the end of the script.');
+    throw new Error('dist/liftlog/index.html must contain the test seam ' + SEAM + ' exactly once; found ' + found +
+      '. Run npm run build, or restore the seam on the line before init(); at the end of apps/liftlog/index.html.');
   return html.replace(SEAM, () => 'window.testAPI = ' + api + ';');
 }
 

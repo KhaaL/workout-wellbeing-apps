@@ -18,7 +18,7 @@ deployment are separate operational steps documented in `STORAGE.md`.
   lifecycle now have canonical source modules.
 - Liftlog's storage policy adapter and Settings templates now have separate
   modules. Settings receives fresh state and explicit helpers on every render.
-- The build embeds modules into the existing standalone outputs and checks
+- The build embeds modules into the standalone outputs in `dist/` only and checks
   marker integrity. CSP generation and offline versioning still cover all code.
 - Lint covers extracted code; migration, storage, recovery and mobile checks
   retain their existing coverage. Old migrations and recovery paths remain.

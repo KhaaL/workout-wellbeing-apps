@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { webcrypto } = require('node:crypto');
-const source = [...fs.readFileSync(require('node:path').join(__dirname,'../index.html'),'utf8').matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(match=>match[1]).join('\n');
+const source = [...fs.readFileSync(require('node:path').join(__dirname,'../../../dist/liftlog/index.html'),'utf8').matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(match=>match[1]).join('\n');
 // Run the shipped closure, with only presentation replaced. State, validation,
 // migrations, signer, stream bounds, coordinator and persistence remain real.
 function device(storage = new Map()) {

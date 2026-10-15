@@ -37,6 +37,8 @@ All scenarios use synthetic records, isolated storage and mocked cloud requests.
 | `../apps/liftlog/tests/security.cjs` | Backup validation, migrations, hostile inputs and unreadable-data recovery |
 | `../apps/liftlog/tests/recovery.cjs` | Paused restore, review, reload and explicit cloud publication |
 
+Browser and Liftlog suites load the built apps in `dist/`; `npm test` and the
+browser npm scripts build first, and a direct `node` run needs `npm run build`.
 Liftlog's harness replaces the single `/* @test-seam */` marker in the served
 test copy with an internal test handle. The shipped app exposes no test handle.
 Browser screenshots go to `/tmp`; the root GitHub workflow retains screenshots
