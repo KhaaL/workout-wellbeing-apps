@@ -38,17 +38,26 @@ const BikeHistory = (() => {
     const [before,after]=[first,second].sort((a,b)=>a.startedAt-b.startedAt||a.id.localeCompare(b.id));
     const comparable=before.id!==after.id&&seriesKey(before)===seriesKey(after),warnings=[];
     if(!comparable)warnings.push('Different or unknown machines, contexts, targets or plans: values are shown side by side, but progress differences are withheld.');
+    /* Conditions recorded on both rides: a different time of day, food state or
+       more than 12 hours' difference since lifting is named, not hidden. */
+    const a=before.conditions||{},b=after.conditions||{},differ=[];
+    if(a.timeOfDay&&b.timeOfDay&&a.timeOfDay!==b.timeOfDay)differ.push(`time of day (${a.timeOfDay}, then ${b.timeOfDay})`);
+    if(a.fed&&b.fed&&a.fed!==b.fed)differ.push(`food (${a.fed}, then ${b.fed})`);
+    if(a.hoursSinceLifting!=null&&b.hoursSinceLifting!=null&&Math.abs(a.hoursSinceLifting-b.hoursSinceLifting)>12)differ.push(`hours since lifting (${a.hoursSinceLifting}, then ${b.hoursSinceLifting})`);
+    if(differ.length)warnings.push('Conditions differ: '+differ.join(', ')+'.');
     if(before.hadInterruption||after.hadInterruption||before.outcome!=='complete'||after.outcome!=='complete')warnings.push('An interrupted or incomplete ride is included. Review timing before interpreting differences.');
+    const mean=(efforts,key)=>{const values=(efforts||[]).map(e=>e[key]).filter(Number.isFinite);return values.length?Math.round(values.reduce((x,y)=>x+y,0)/values.length*10)/10:null;};
     const number=raw=>raw==null||raw===''||!Number.isFinite(Number(raw))?null:Number(raw);
     const rows=[
       ['Main-block watts','W',r=>number(r.metrics?.averageWatts)],['Main-block HR','bpm',r=>number(r.metrics?.mainAverageHR)],
       ['Watts at recorded comparison HR','W',r=>number(r.metrics?.fixedHRWatts)],['Measured average HR','bpm',r=>number(r.hr?.averageHR)],
       ['HR coverage','%',r=>number(r.hr?.coverage)],['Active duration','min',r=>r.activeMs/60000],['Main-block duration','min',r=>r.mainMs/60000],
       ['Main-block HR drift','%',r=>number(r.hr?.main?.driftPct)],['60-second HR recovery','bpm',r=>meanRecovery(r)],['Aerobic decoupling','%',r=>number(r.power?.main?.decouplingPct)],
+      ['Effort watts about 5 s in (mean)','W',r=>mean(r.efforts,'watts5s')],['Effort resistance (mean)','level',r=>mean(r.efforts,'resistance')],['Peak effort cadence (mean)','rpm',r=>mean(r.efforts,'peakCadence')],
       ['Perceived effort','1–10',r=>number(r.metrics?.perceivedEffort)]
     ].map(([label,unit,read])=>{const a=read(before),b=read(after);return {label,unit,before:a,after:b,delta:comparable&&a!==null&&b!==null?b-a:null};});
     warnings.push('Review heart rate and measurement coverage alongside watts. A higher output alone does not establish improved fitness.');
-    const context=ride=>{if(ride.config.mode==='external')return 'Externally recorded · app plan unknown';const c=WorkoutCore.config(ride.config);return ({fresh:'Fresh legs','post-lifting':'After lifting',unknown:'Unknown context'}[ride.config.context]||'Unknown context')+' · Zone 2 '+c.targets.zoneMin+'–'+c.targets.zoneMax+' bpm · comparison HR '+c.targets.comparisonHR+' bpm';};
+    const context=ride=>{if(ride.config.mode==='external')return 'Externally recorded · app plan unknown';const c=WorkoutCore.config(ride.config);return (c.plan?'Plan '+c.plan.name+(ride.baseline?' (baseline)':'')+' · ':'')+({fresh:'Fresh legs','post-lifting':'After lifting',unknown:'Unknown context'}[ride.config.context]||'Unknown context')+' · Zone 2 '+c.targets.zoneMin+'–'+c.targets.zoneMax+' bpm · comparison HR '+c.targets.comparisonHR+' bpm';};
     return {before,after,rows,warnings,details:['Earlier: '+context(before),'Later: '+context(after)]};
   }
   return {metrics,machineKey,seriesKey,filter,value,series,compare,meanRecovery};

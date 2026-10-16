@@ -217,3 +217,15 @@ test('a planned ride records each effort with logged resistance and sensor readi
   assert.equal(json(r.efforts),json([{effort:1,outcome:'complete',resistance:16,cadenceFlag:'high',watts5s:600,peakWatts:600,peakCadence:115,wattsSource:'sensor'}]));
   assert.equal(r.config.plan.name,'Sprint baseline');assert.equal(json(Object.keys(r.conditions)),json(['timeOfDay','hoursSinceLifting','fed','note','confirmed']));
 });
+test('comparisons name differing conditions and average the efforts',()=>{
+  const B=vm.runInContext('BikeHistory',context),[plan]=P.parse(planExample,()=>'plan-e');
+  const ride=(id,startedAt,conditions,efforts)=>({id,startedAt,config:C.config({plan}),metrics:{},activeMs:1500000,mainMs:0,outcome:'complete',hadInterruption:false,conditions,efforts});
+  const effort=(n,resistance,watts5s,peakCadence)=>({effort:n,outcome:'complete',resistance,cadenceFlag:'ok',watts5s,peakWatts:watts5s,peakCadence,wattsSource:'sensor'});
+  const base=ride('base',1000,{timeOfDay:'morning',hoursSinceLifting:44,fed:'fed',note:'',confirmed:[]},[effort(1,16,600,112),effort(2,18,620,108)]);
+  const later=ride('later',2000,{timeOfDay:'evening',hoursSinceLifting:20,fed:'fed',note:'',confirmed:[]},[effort(1,18,640,110),effort(2,18,650,104)]);
+  const result=B.compare(base,later),row=label=>result.rows.find(r=>r.label===label);
+  assert.equal(json([row('Effort watts about 5 s in (mean)').before,row('Effort watts about 5 s in (mean)').delta]),json([610,35]));
+  assert.equal(row('Effort resistance (mean)').after,18);
+  assert.match(result.warnings.join(' '),/Conditions differ: time of day \(morning, then evening\), hours since lifting \(44, then 20\)\./);
+  assert.doesNotMatch(result.warnings.join(' '),/food/);assert.match(result.details[0],/^Earlier: Plan Sprint baseline · Fresh legs/);
+});
