@@ -21,9 +21,11 @@ button{border:1px solid var(--line);background:var(--panel);color:var(--ink);pad
 #run{padding-top:calc(env(safe-area-inset-top) + 14px)}.phase-title{font-size:clamp(23px,6.6vw,34px);line-height:1.1;margin:5px 0}.controls{display:flex;gap:6px;flex-shrink:0}.icon{width:48px;padding:0;display:grid;place-items:center}.icon svg{width:22px;height:22px;fill:currentColor}.clock{text-align:center;padding:24px 0 18px}#timer{font-size:clamp(76px,26vw,144px);font-weight:750;line-height:1;letter-spacing:-.055em;font-variant-numeric:tabular-nums}#timerNote{margin-top:8px;color:var(--muted)}.progress{width:100%;height:7px;background:var(--line);border-radius:10px;overflow:hidden}.progress span{display:block;height:100%;background:var(--phase,var(--accent));width:0}.targets{margin:18px 0;display:grid;grid-template-columns:1fr 1fr;gap:16px}.targets div:last-child{grid-column:1/-1}.targets dt{font-size:13px;color:var(--muted)}.targets dd{margin:3px 0 0;font-size:clamp(24px,7vw,32px);line-height:1.15;font-weight:700}.targets dd small{font-size:15px;font-weight:400;color:var(--muted)}#cue{font-size:16px}#coaching{border-color:var(--accent);margin:16px 0}#checkStatus{font-size:18px;font-weight:700;margin:0 0 8px}.steering{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.steering button{padding:12px 5px;font-size:13px}.steering strong{display:block;font-size:18px;margin-top:3px}.steering .high{color:var(--red)}#gateArea .check{align-items:flex-start}#gateArea{margin:18px 0}.run-foot{margin-top:20px;padding-top:14px;border-top:1px solid var(--line);font-size:14px;color:var(--muted)}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}.stats dt{font-size:12px;color:var(--muted)}.stats dd{font-size:27px;font-weight:700;margin:3px 0}.history-item{display:block;width:100%;text-align:left;margin:12px 0}.history-item strong{display:block;font-size:17px}.history-item span{display:block;font-size:14px;color:var(--muted);margin-top:5px}dialog{position:fixed;width:min(92vw,460px);padding:26px}dialog h2{font-size:30px}dialog button{margin-top:12px}.dialog-actions{display:grid;gap:8px}.save-status{color:var(--accent);font-size:14px;min-height:21px}details summary{cursor:pointer;min-height:48px;padding-top:12px;color:var(--muted)}body[data-kind=main]{--phase:var(--success)}body[data-kind=warmup]{--phase:var(--accent)}body[data-kind=cooldown]{--phase:var(--either)}body[data-kind=effort]{--phase:var(--danger)}body[data-kind=ready],body[data-kind=primer]{--phase:var(--warning)}
 .sensor-actions{display:flex;align-items:center;gap:8px}.sensor-actions button:first-child{flex:1}.sensor-number{font-size:34px;font-weight:750;line-height:1.2;font-variant-numeric:tabular-nums;white-space:nowrap}.sensor-number small{font-size:14px;color:var(--muted);font-weight:400}.live-heart{display:flex;gap:14px;align-items:center;border-bottom:1px solid var(--line);padding:12px 0;margin-top:6px}.live-heart .sensor-number{font-size:42px}.heart-detail{flex:1;text-align:right;min-width:0}.heart-detail p{margin:3px 0}.heart-detail .small{font-size:12px}.heart-detail button{min-height:38px;padding:6px;font-size:13px}.steering button.recommended{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}.steering #lowHR{background:var(--success-soft);color:var(--success);border-color:var(--success)}.steering #highHR{background:var(--danger-soft);color:var(--danger);border-color:var(--danger)}.steering #lowHR.recommended,.steering #highHR.recommended{outline:2px solid var(--ink);outline-offset:2px}.live-heart[data-alert=high] #liveAdvice{color:var(--red)}.live-heart[data-alert=low] #liveAdvice{color:var(--warm)}
 #sensors h2{margin-bottom:4px}.sensor-row{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}.sensor-row h3{margin:0;font-size:17px}.sensor-row .small{margin:2px 0 0}.sensor-row .sensor-number{font-size:28px}.sensor-row .sensor-actions{grid-column:1/-1}.sensor-actions[hidden]{display:none}
-fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compact span{padding:11px 6px}
+fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compact span{padding:11px 6px}.effort-log-title{font-weight:700;margin:0 0 8px}#effortTable h3{margin:4px 0 8px}#logForm>*{min-width:0}#effortTable input{width:4.5em;padding:8px}.conditions{margin:4px 0 8px}#effortLog{border-color:var(--accent);margin:12px 0}#effortLog .segments label[hidden]{display:none}
 .live-heart{flex-wrap:wrap}.hr-bar{position:relative;flex-basis:100%;height:14px;margin:4px 0 16px;border-radius:7px;background:var(--line)}.hr-zone,.hr-target{position:absolute;top:0;bottom:0;border-radius:7px}.hr-zone{background:var(--success-soft)}.hr-target{background:var(--success);opacity:.6}.hr-marker{position:absolute;top:-4px;bottom:-4px;width:4px;margin-left:-2px;border-radius:2px;background:var(--ink)}.hr-bar[data-alert=high] .hr-marker{background:var(--danger)}.hr-bar[data-alert=low] .hr-marker{background:var(--warning)}.hr-tick{position:absolute;top:16px;font-size:11px;line-height:1;color:var(--muted);transform:translateX(-50%)}
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px}.tiles>div{min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:12px}.tiles dt{font-size:13px;color:var(--muted)}.tiles dd{margin:2px 0 0}.tiles .sensor-number{font-size:26px}.tiles dd.small{font-size:12px}
+.plan-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}.plan-item{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line);padding-top:8px}.plan-item.is-selected .plan-info strong{color:var(--accent)}.plan-info{flex:1;min-width:0;text-align:left;background:none;border:0;padding:6px 0}.plan-info strong,.plan-info span{display:block}.plan-info strong{font-size:17px}.plan-info span{margin-top:3px}
+.plan-dialog{width:min(96vw,640px);max-height:90dvh}.plan-dialog h2{font-size:24px}.plan-dialog textarea{font-family:ui-monospace,monospace;font-size:13px}.plan-preview{border-top:1px solid var(--line);margin-top:12px;padding-top:8px}.plan-preview h3{margin:8px 0 4px}.plan-table{overflow-x:auto}.plan-table table{width:100%;border-collapse:collapse;font-size:13px}.plan-table th,.plan-table td{text-align:left;vertical-align:top;padding:6px 6px 6px 0;border-bottom:1px solid var(--line)}.plan-format{white-space:pre-wrap;font-size:12px;overflow-wrap:anywhere}
 /* Workout layout only; shared controls own color, typography and touch size. */
 @media(max-width:360px){main{padding-left:14px;padding-right:14px}.grid{grid-template-columns:1fr}}
 @media(orientation:portrait){
@@ -76,8 +78,9 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
 <section id="setup">
   <div class="view-head"><h1>Workout</h1><button id="openHistory" class="text-button" hidden>History</button></div>
   <div id="restoreCard" class="card" hidden><h2>Session saved</h2><p id="restoreText"></p><div class="stack"><button id="restoreSession" class="primary">Review &amp; resume</button><button id="endSaved" class="secondary">End saved session</button></div></div>
+  <div id="planned-sessions"></div>
   <div id="saved-setups"></div>
-  <fieldset class="card"><legend>Workout</legend><div class="segments"><label><input type="radio" name="mode" value="zone2" checked><span>Zone 2</span></label><label><input type="radio" name="mode" value="sprint"><span>Sprint intervals</span></label></div></fieldset>
+  <fieldset id="modeChoice" class="card"><legend>Workout</legend><div class="segments"><label><input type="radio" name="mode" value="zone2" checked><span>Zone 2</span></label><label><input type="radio" name="mode" value="sprint"><span>Sprint intervals</span></label></div></fieldset>
   <div id="sensors" class="card"><h2>Sensors</h2><p id="sensorNotice" class="notice" role="status" hidden></p>
     <div id="sensorSetup" class="sensor-row"><div><h3>Heart-rate strap</h3><p id="sensorStatus" class="small" role="status" aria-live="polite"></p></div><span id="setupHR" class="sensor-number">— <small>bpm</small></span><div class="sensor-actions"><button id="connectH10">Connect strap</button><button id="disconnectH10" class="text-button" hidden>Disconnect</button></div></div>
     <div id="powerSetup" class="sensor-row"><div><h3>Bike power &amp; cadence</h3><p id="powerStatus" class="small" role="status" aria-live="polite"></p></div><span id="setupPower" class="sensor-number">— <small>W</small></span><div class="sensor-actions"><button id="connectPower">Connect bike</button><button id="disconnectPower" class="text-button" hidden>Disconnect</button></div></div>
@@ -89,7 +92,7 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
     <div id="zoneOptions"><label class="field">Minimum cool-down · minutes<input id="cooldown" type="number" data-stepper inputmode="numeric" min="1" max="30" step="1" value="3" required></label></div>
     <div id="sprintOptions" class="grid" hidden><label class="field">Number of efforts<input id="efforts" type="number" data-stepper inputmode="numeric" min="1" max="20" step="1" value="5" required></label><label class="field">Effort length<input id="effortLength" type="number" data-stepper inputmode="numeric" min="10" max="120" step="1" value="30" required></label></div>
   </div>
-  <div class="card"><h2 id="planTitle">30-minute easy block</h2><ol id="plan" class="plan"></ol><p id="planTotal" class="small"></p><p id="sprintWarning" class="notice" hidden>This is a maximal sprint workout. Choose Zone 2 for your easy session.</p></div>
+  <div class="card"><div class="row"><h2 id="planTitle">30-minute easy block</h2><button id="clearPlan" class="text-button" hidden>Stop using plan</button></div><p id="planNotes" class="small" hidden></p><ol id="plan" class="plan"></ol><p id="planTotal" class="small"></p><p id="sprintWarning" class="notice" hidden>This is a maximal sprint workout. Choose Zone 2 for your easy session.</p></div>
   <details id="rideAdjustments" class="card"><summary>Adjust this ride</summary><p class="small">Defaults come from Settings. Changes here apply to the next ride.</p>  <div id="targetSettings"><p class="small">Set your supplied targets here. Each ride keeps its original targets and planned durations when these settings change.</p><div class="grid">
     <label class="field">Zone minimum · bpm<input id="zoneMin" type="number" data-stepper inputmode="numeric" min="1" max="300" step="1" value="105" required></label><label class="field">Zone maximum · bpm<input id="zoneMax" type="number" data-stepper inputmode="numeric" min="1" max="300" step="1" value="122" required></label>
     <label class="field">Working minimum · bpm<input id="targetMin" type="number" data-stepper inputmode="numeric" min="1" max="300" step="1" value="110" required></label><label class="field">Working maximum · bpm<input id="targetMax" type="number" data-stepper inputmode="numeric" min="1" max="300" step="1" value="120" required></label>
@@ -155,6 +158,7 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
   <dl class="targets"><div><dt>HR target · bpm</dt><dd id="targetHR"></dd></div><div><dt>Cadence · rpm</dt><dd id="targetRPM"></dd></div><div><dt>Resistance</dt><dd id="targetResistance"></dd></div></dl>
   <p id="cue"></p>
   <div id="coaching" class="card" hidden><p id="checkStatus" role="status" aria-live="polite"></p><div class="steering"><button id="lowHR">Below 108<strong>+1 level</strong></button><button id="holdHR">108–122<strong>Hold</strong></button><button id="highHR" class="high">Above 122<strong>−1 level</strong></button></div><p id="steeringNote" class="small">Read HR on your watch or HR app. Keep cadence steady.</p><p class="small">Talk test: full sentences. If you cannot, ease off.</p></div>
+  <div id="effortLog" class="card" hidden><p id="effortLogTitle" class="effort-log-title"></p><label class="field">Resistance used<input id="effortResistance" type="number" inputmode="decimal" min="0" max="100" step="1" data-stepper></label><fieldset id="cadenceFlags" class="field" hidden><legend id="cadenceLegend">Cadence</legend><div class="segments compact"><label id="flagHighOption"><input type="radio" name="cadenceFlag" value="high"><span id="flagHigh">Above</span></label><label><input type="radio" name="cadenceFlag" value="ok"><span>Steady</span></label><label id="flagLowOption"><input type="radio" name="cadenceFlag" value="low"><span id="flagLow">Below early</span></label></div></fieldset><p id="sensorFlagNote" class="small"></p><p id="nextEffort" class="small" role="status"></p></div>
   <div id="gateArea" hidden><label class="check"><input id="gateConfirm" type="checkbox"><span id="gateLabel"></span></label><p id="gateNote" class="small"></p></div>
   <footer class="run-foot"><div class="row"><span id="elapsed"></span><span id="mainElapsed"></span></div><p id="next"></p><button id="runDisconnectH10" class="text-button" hidden>Disconnect strap</button></footer>
 <div id="runActions" class="workout-actions"><button id="gate" class="primary" disabled></button><div class="actions-row"><button id="mute" class="icon" aria-label="Mute sound" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zm12 3a4 4 0 0 0-2-3.5v7a4 4 0 0 0 2-3.5zM14 3v2a7 7 0 0 1 0 14v2a9 9 0 0 0 0-18z"/></svg></button><button id="pause" class="btn primary" aria-label="Pause session">Pause</button><button id="skip" class="icon" aria-label="Skip current phase"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l9 7-9 7V5zm10 0h3v14h-3z"/></svg></button></div></div>
@@ -171,6 +175,13 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
   <p id="summaryCaution" class="notice" hidden></p><p class="notice">If a watch or another app recorded this ride, stop its recording when you finish spinning.</p>
   <form id="logForm" class="card stack">
     <h2>Add or edit readings</h2><p class="small">Optional readings from a watch or HR app stay separate from the strap measurements above. Check that its zone boundaries match this ride’s recorded targets. Add resistance, cadence and watts from the bike; a connected bike fills main-block watts and cadence.</p>
+    <div id="plannedReadings"><div id="effortTable" hidden></div>
+    <details id="conditionsBox" class="conditions"><summary>Conditions</summary><p id="conditionsConfirmed" class="small" hidden></p><div class="grid">
+      <label class="field">Time of day<select id="condTime"><option value="">Unknown</option><option value="morning">Morning</option><option value="midday">Midday</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option><option value="night">Night</option></select></label>
+      <label class="field">Hours since lifting<input id="condHours" type="number" inputmode="decimal" min="0" max="2000" step="0.5"></label>
+      <label class="field">Food<select id="condFed"><option value="">Unknown</option><option value="fed">Fed</option><option value="fasted">Fasted</option></select></label>
+      <label class="field">Note<input id="condNote" maxlength="500" placeholder="e.g. after lifting day B"></label></div>
+      <label class="check" id="baselineField"><input type="checkbox" id="condBaseline">Baseline for this plan</label></details></div>
     <div class="grid">
       <label class="field">Watch whole-session average HR · bpm<input id="averageHR" type="number" inputmode="decimal" min="1" max="300" step="0.1" placeholder="From your watch"></label>
       <label class="field"><span id="polarZoneLabel">Watch time in recorded zone · minutes</span><input id="zoneMinutes" type="number" inputmode="decimal" min="0" step="0.1" placeholder="From your watch"></label>
@@ -228,6 +239,8 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
 'use strict';
 /* bike-presets:start */
 /* bike-presets:end */
+/* bike-plan-ui:start */
+/* bike-plan-ui:end */
 /* bike-targets:start */
 /* bike-targets:end */
 /* bike-trace:start */
@@ -276,7 +289,7 @@ let storageControllerInstance;
     toast,confirm:WorkoutUI.confirm,onRefresh:renderBackupControls,
     pauseForHandoff:()=>{let paused=session?session:C.restore(read(KEYS.active,null),Date.now());if(!paused)throw new Error('No recoverable workout.');C.pause(paused,Date.now(),'Paused for handoff. Review on the receiving device.');if(paused.status!=='paused')throw new Error('Workout has ended; save it before transferring.');H.breakSeries(paused.hr);write(KEYS.active,paused,{remote:false});if(session)session=paused;release();cancelVoice();},
     onHandoffChange:()=>{renderHandoff();updateRestore();},onHandoffReceived:()=>h10.disconnect(),
-    onRestore:()=>{records=storage.state.history;selected=null;session=null;phaseKey='';applySavedSettings();presetUI.render();show(currentView==='settings'?'settings':'setup');updateRestore();buildDefaultFields();renderBackupControls();}
+    onRestore:()=>{records=storage.state.history;selected=null;session=null;phaseKey='';applySavedSettings();presetUI.render();planUI?.render();show(currentView==='settings'?'settings':'setup');updateRestore();buildDefaultFields();renderBackupControls();}
   });
   const journal=WorkoutStorage.createUndo({key:'bike-cardio.v1.recent-changes',notify:toast,
     blocked:()=>!!storage.handoff.held()||storage.local.failed,
@@ -286,6 +299,13 @@ let storageControllerInstance;
     onRecord:entry=>{if(entry.deleted)toast(entry.label,{label:'Undo',run:()=>{try{journal.undo(entry.id);toast('Change restored.');}catch(error){toast(error.message);}}});},
     onRestore:()=>{records=storage.state.history;if(selected){selected=records.find(r=>r.id===selected.id)||null;if(selected&&currentView==='summary')showSummary(selected);else if(currentView==='summary')showHistory();}if(currentView==='history')showHistory();}
   });
+  let selectedPlan=null;
+  const planUI=BikePlanUI.mount($('planned-sessions'),{get:()=>storage.state.plans||[],
+    save:rows=>{const checked=storage.prepare({...storage.backup(),plans:rows});return write('bike-cardio.plans.v1',checked.plans,{atomic:true});},
+    selected:()=>selectedPlan,select:usePlan,confirm:WorkoutUI.confirm,notify:toast,
+    lastRidden:id=>Math.max(0,...records.filter(r=>r.config.plan?.id===id).map(r=>r.startedAt))||null});
+  /* A chosen plan sets up the next ride; its numbers assume its cue style. */
+  function usePlan(plan){selectedPlan=plan||null;if(plan)setBikeCue(plan.resistanceCues);planUI.render();renderPlan();if(plan)$('planTitle').scrollIntoView({block:'nearest'});}
   const presetUI=BikePresets.mount($('saved-setups'),{get:kind=>storage.state[kind]||[],
     save:(kind,rows)=>{const checked=storage.prepare({...storage.backup(),[kind]:rows});return write('bike-cardio.'+kind+'.v1',checked[kind],{atomic:true});},
     current:()=>{if(!targetsValid)throw Error('Correct the workout setup before saving a preset.');return settings();},apply:applySavedSettings,
@@ -354,7 +374,7 @@ function maybeRemindBackup(...args){return storageController().maybeRemindBackup
 function loadCloudFields(...args){return storageController().loadCloudFields(...args);}
 
   function setBikeCue(value){document.querySelector(`input[name=bike][value=${value==='feel'?'feel':'levels'}]`).checked=true;}
-  function applySavedSettings(config){const c=C.config(config||read(KEYS.settings,{}));document.querySelector(`input[name=mode][value=${c.mode}]`).checked=true;setBikeCue(c.bike);$('bikeId').value=c.bikeId;$('context').value=c.context;$('cooldown').value=c.cooldown;$('efforts').value=c.n;$('effortLength').value=c.eff;$('voice').checked=c.voice;$('beeps').checked=c.beeps;for(const name of targetFields)$(name).value=c.targets[name];for(const name of durationFields)$(name).value=c[name];renderPlan();}
+  function applySavedSettings(config){const c=C.config(config||read(KEYS.settings,{}));if(config){selectedPlan=c.plan||null;planUI?.render();}document.querySelector(`input[name=mode][value=${c.mode}]`).checked=true;setBikeCue(c.bike);$('bikeId').value=c.bikeId;$('context').value=c.context;$('cooldown').value=c.cooldown;$('efforts').value=c.n;$('effortLength').value=c.eff;$('voice').checked=c.voice;$('beeps').checked=c.beeps;for(const name of targetFields)$(name).value=c.targets[name];for(const name of durationFields)$(name).value=c[name];renderPlan();}
   function updateShell(){
     const active=!!(session||read(KEYS.active,null));shell?.update(currentView==='run'?'setup':currentView,active,currentView==='run');
     document.documentElement.classList.toggle('setup-screen',currentView==='setup');
@@ -407,21 +427,29 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     select.addEventListener('change',()=>{WorkoutUI.applyTheme(select.value);try{localStorage.setItem('bike-cardio.ui.theme',select.value);}catch{toast('Theme changed for this visit; device preferences could not be saved.');}});
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>WorkoutUI.applyTheme(select.value));
   }
-  function settings(){return C.config({targets:Object.fromEntries(targetFields.map(name=>[name,Number($(name).value)])),...Object.fromEntries(durationFields.map(name=>[name,Number($(name).value)])),mode:document.querySelector('input[name=mode]:checked').value,bike:document.querySelector('input[name=bike]:checked').value,bikeId:$('bikeId').value.trim(),context:$('context').value,cooldown:Number($('cooldown').value),n:Number($('efforts').value),eff:Number($('effortLength').value),voice:$('voice').checked,beeps:$('beeps').checked});}
+  function settings(){return C.config({targets:Object.fromEntries(targetFields.map(name=>[name,Number($(name).value)])),...Object.fromEntries(durationFields.map(name=>[name,Number($(name).value)])),mode:document.querySelector('input[name=mode]:checked').value,bike:document.querySelector('input[name=bike]:checked').value,bikeId:$('bikeId').value.trim(),context:$('context').value,cooldown:Number($('cooldown').value),n:Number($('efforts').value),eff:Number($('effortLength').value),voice:$('voice').checked,beeps:$('beeps').checked,...(selectedPlan?{plan:selectedPlan}:{})});}
   function renderPlan(){
     let c;try{
       for(const name of [...targetFields,...durationFields,'cooldown','efforts','effortLength'])if(!$(name).checkValidity())throw new Error('Check the target or duration outside its allowed range.');
       c=settings();targetsValid=true;$('targetError').hidden=true;
     }catch(error){targetsValid=false;$('targetError').textContent=error.message;$('targetError').hidden=false;$('start').disabled=true;return;}
     $('start').disabled=!!read(KEYS.active,null);
-    const zone=c.mode==='zone2',t=c.targets;$('zoneOptions').hidden=!zone;$('sprintOptions').hidden=zone;$('sprintWarning').hidden=zone;
+    const t=c.targets;$('modeChoice').hidden=!!c.plan;$('clearPlan').hidden=!c.plan;$('planNotes').hidden=!c.plan?.notes;$('planNotes').textContent=c.plan?.notes||'';
+    if(c.plan){
+      const phases=C.build(c);for(const id of ['zoneOptions','sprintOptions','sprintWarning'])$(id).hidden=true;
+      $('planTitle').textContent=c.plan.name;$('start').textContent=`Start ${c.plan.name}`;
+      $('plan').replaceChildren(...phases.filter(p=>p.kind!=='ready').map(p=>{const li=document.createElement('li'),b=document.createElement('b'),value=document.createElement('time');b.textContent=p.title;value.textContent=(p.duration!=null?fmt(p.duration):`HR ${p.gate==='cool'?'below':'≤'} ${p.gateBpm}`)+(p.res!=='—'?' · '+p.res:'');li.append(b,value);return li;}));
+      $('planTotal').textContent=`${fmt(BikePlans.minimumMs(phases))} minimum pedalling. HR-gated phases continue until HR is low enough.`+(c.plan.conditions.length?' Conditions: '+c.plan.conditions.map(x=>x.value?`${x.label} ${x.value}`:x.label).join(', ')+'.':'');
+    }else{
+    const zone=c.mode==='zone2';$('zoneOptions').hidden=!zone;$('sprintOptions').hidden=zone;$('sprintWarning').hidden=zone;
     $('planTitle').textContent=zone?`${c.warmupMinutes+c.mainMinutes}-minute easy block`:'Maximal sprint session';$('start').textContent=zone?'Start Zone 2 session':'Start sprint session';$('plan').replaceChildren();
     const rows=zone?[['Warm-up',`${c.warmupMinutes} min`],['Steady Zone 2',`${c.mainMinutes} min`],['Cool-down',`${c.cooldown} min + HR check`]]:[['Warm-up',`${c.warmupMinutes} min`],['Primer + settle',`${c.settleMinutes} min + 15 s`],[`${c.n} maximal efforts`,`${c.eff} s each`],['Recoveries',`≥${c.recoverySeconds} s + HR check`],['Cool-down',`${c.sprintCooldownMinutes} min`]];
     for(const [title,time]of rows){const li=document.createElement('li'),b=document.createElement('b'),value=document.createElement('time');b.textContent=title;value.textContent=time;li.append(b,value);$('plan').append(li);}
     $('planTotal').textContent=zone?`${c.warmupMinutes+c.mainMinutes+c.cooldown} minutes minimum pedalling. Cool-down can extend until HR is below ${t.zoneMin}. A connected strap measures time in your recorded band when connected.`:`Recovery length depends on HR. Minimum ${c.recoverySeconds} seconds, then confirm HR is ${t.zoneMax} or below. Keep this app visible for short sprint cues.`;
+    }
     $('targetDescription').textContent=`Zone ${t.zoneMin}–${t.zoneMax} bpm. Working target ${t.targetMin}–${t.targetMax}. Comparison HR ${t.comparisonHR}.`;
     const previous=C.config(read(KEYS.settings,{}));
-    write(KEYS.settings,{...previous,mode:c.mode,bike:c.bike,bikeId:c.bikeId,context:c.context,voice:c.voice,beeps:c.beeps});
+    write(KEYS.settings,{...previous,mode:document.querySelector('input[name=mode]:checked').value,bike:c.bike,bikeId:c.bikeId,context:c.context,voice:c.voice,beeps:c.beeps});
   }
   const currentTargets=()=>session?.config.targets||C.config(read(KEYS.settings,{})).targets;
   function sensorMessage(){
@@ -448,7 +476,7 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     const live=H.fresh(h10.reading,Date.now()),advice=H.advice(h10.reading,Date.now(),currentTargets()),busy=h10.busy,message=sensorMessage();
     for(const id of ['setupHR','liveHR']){const el=$(id),value=live?String(h10.reading.bpm):'—';if(el.dataset.reading===value)continue;el.dataset.reading=value;el.replaceChildren(document.createTextNode(live?String(h10.reading.bpm)+' ':'— '));const unit=document.createElement('small');unit.textContent='bpm';el.append(unit);}
     if($('sensorStatus').textContent!==message)$('sensorStatus').textContent=message;$('runSensorStatus').textContent=H.fresh(h10.reading,Date.now())?'Connected':!h10.supported?'Manual HR':h10.state==='connected'?(h10.error||'No fresh HR · check strap'):message;
-    $('liveAdvice').textContent=advice?(session&&C.phase(session)?.kind==='effort'?'HR lags short sprints · judge effort by feel':session&&C.phase(session)?.kind==='main'?advice.text:session&&C.phase(session)?.gate==='cool'?(h10.reading.bpm<currentTargets().zoneMin?`Below ${currentTargets().zoneMin} · finish after cool-down`:'Keep spinning easily'):h10.reading.bpm<=currentTargets().comparisonHR?'Build gradually · easy spinning':'Spin easily · let HR settle'):'Read HR on your watch';
+    $('liveAdvice').textContent=advice?(session&&C.phase(session)?.kind==='effort'?'HR lags short sprints · judge effort by feel':session&&C.phase(session)?.kind==='main'?advice.text:session&&C.phase(session)?.gate==='cool'?(h10.reading.bpm<C.phase(session).gateBpm?`Below ${C.phase(session).gateBpm} · finish after cool-down`:'Keep spinning easily'):h10.reading.bpm<=currentTargets().comparisonHR?'Build gradually · easy spinning':'Spin easily · let HR settle'):'Read HR on your watch';
     const notice=sensorNotice();if($('sensorNotice').textContent!==notice)$('sensorNotice').textContent=notice;$('sensorNotice').hidden=!notice;
     $('sensorSetup').querySelector('.sensor-actions').hidden=!h10.supported;$('setupHR').hidden=!h10.supported;renderHRBar(live);
     document.querySelector('.live-heart').dataset.alert=session&&C.phase(session)?.kind==='main'?advice?.action||'':'';
@@ -500,7 +528,33 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     try{const requested=await navigator.wakeLock.request('screen');if(!session||session.status!=='running'||document.hidden){await requested.release();return;}wake=requested;$('screenStatus').textContent='Screen stay-awake: on';requested.addEventListener('release',()=>{if(wake!==requested)return;wake=null;$('screenStatus').textContent='Screen stay-awake: off · check auto-lock';});}catch(e){$('screenStatus').textContent='Stay-awake unavailable · check phone auto-lock';}
   }
   function release(){if(wake){const old=wake;wake=null;$('screenStatus').textContent='Screen stay-awake: off · check auto-lock';old.release().catch(()=>{});}}
-  function phaseAnnounce(){const p=C.phase(session);beep(p.kind==='effort'?990:560);say(`${p.title}. ${p.cue}`);}
+  // An effort under a plan rule shows the resistance the rule set; other phases show the plan's text.
+  function resistanceFor(p){const target=p.effort&&session?C.effortTarget(session,p.effort):null;return target!=null?String(target):p.res;}
+  function phaseAnnounce(){const p=C.phase(session);beep(p.kind==='effort'?990:560);const target=p.kind==='ready'&&p.effort?C.effortTarget(session,p.effort):null;say(`${p.title}. ${target!=null?`Resistance ${target}. `:''}${p.cue}`);}
+  /* After an effort, until the next one starts: the resistance used and, under
+     a plan rule, how cadence went. The bike sensor sets the cadence flag when it
+     measured the effort; the plan's target fills the resistance until changed. */
+  let effortLogK=null;
+  function renderEffortLog(){
+    const phases=session?C.build(session.config):[],last=session?.finishedPhases.at(-1),done=last&&phases[last.id],current=session&&C.phase(session);
+    const k=done?.kind==='effort'&&current&&!['ready','effort'].includes(current.kind)?done.effort:null;
+    $('effortLog').hidden=!k;if(!k){effortLogK=null;return;}
+    const rule=done.adjust;
+    if(effortLogK!==k){
+      effortLogK=k;let note='';
+      if(rule&&!session.efforts[k-1]?.cadenceFlag){const span=C.effortSpans(session,phases).find(x=>x.effort===k),m=span&&PowerCore.effortReadings(session.power,span.from,span.to,rule);if(m?.flag){C.logEffort(session,k,{cadenceFlag:m.flag});note=`Bike sensor: peak ${m.peakCadence} rpm.`;}}
+      const target=C.effortTarget(session,k,phases);if(session.efforts[k-1]?.resistance==null&&target!=null)C.logEffort(session,k,{resistance:target});
+      $('effortLogTitle').textContent=`Effort ${k} done. Log it while you recover.`;$('effortResistance').value=session.efforts[k-1]?.resistance??'';
+      $('cadenceFlags').hidden=!rule;$('sensorFlagNote').textContent=note;
+      if(rule){$('flagHighOption').hidden=rule.cadenceAbove==null;$('flagLowOption').hidden=rule.cadenceBelow==null;$('flagHigh').textContent=`Above ${rule.cadenceAbove}`;$('flagLow').textContent=`Below ${rule.cadenceBelow} early`;
+        $('cadenceLegend').textContent=[`Cadence in effort ${k}`,rule.cadenceAbove!=null&&`above ${rule.cadenceAbove} rpm`,rule.cadenceBelow!=null&&`below ${rule.cadenceBelow} rpm before ${rule.beforeSeconds} s`].filter(Boolean).join(': ').replace(/rpm: below/,'rpm, or below');}
+      for(const input of document.querySelectorAll('input[name=cadenceFlag]'))input.checked=input.value===session.efforts[k-1]?.cadenceFlag;
+      save(true);
+    }
+    const next=phases.find(x=>x.kind==='effort'&&x.effort===k+1),target=next?C.effortTarget(session,k+1,phases):null;
+    $('nextEffort').textContent=!next?'That was the last effort.':target!=null?`Next effort: resistance ${target}.`:'';
+  }
+  function logEffortInput(entry){if(!session||!effortLogK||storage.handoff.held())return;C.logEffort(session,effortLogK,entry);save(true);renderEffortLog();}
   function handle(events){if(!session)return;if(session.status==='finished'){finish();return;}if(session.status==='paused'){H.breakSeries(session.hr);save(true);render();openPause();return;}
     const newPhase=events.some(e=>e.type==='phase');if(newPhase){$('gateConfirm').checked=false;phaseAnnounce();}
     for(const e of events){
@@ -515,7 +569,7 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     render();save(newPhase||events.length>0);
   }
   function render(){renderSensors();if(!session)return;const p=C.phase(session);if(!p)return;document.body.dataset.kind=p.kind;const key=session.id+':'+session.index;
-    if(phaseKey!==key){phaseKey=key;$('gateConfirm').checked=false;$('phaseTitle').textContent=p.title;$('targetHR').textContent=p.hr;$('targetRPM').textContent=p.rpm;$('targetResistance').textContent=p.res;$('cue').textContent=p.cue;$('workoutLabel').textContent=session.config.mode==='zone2'?'Zone 2':'Sprint intervals';}
+    if(phaseKey!==key){phaseKey=key;$('gateConfirm').checked=false;$('phaseTitle').textContent=p.title;$('targetHR').textContent=p.hr;$('targetRPM').textContent=p.rpm;$('targetResistance').textContent=resistanceFor(p);$('cue').textContent=p.cue;$('workoutLabel').textContent=session.config.mode==='zone2'?'Zone 2':'Sprint intervals';}
     const target=p.duration??p.target;$('timer').textContent=fmt(Math.max(0,target-session.phaseMs));$('timerNote').textContent=session.phaseMs<target?(p.gate?'minimum / preparation time left':'left in this phase'):`${fmt(session.phaseMs)} in this phase · waiting for confirmation`;
     if(p.gate&&session.phaseMs>=target)$('timer').textContent=fmt(session.phaseMs);
     const percentage=Math.min(100,session.phaseMs/target*100);$('progressFill').style.width=percentage+'%';document.querySelector('.progress').setAttribute('aria-valuenow',String(Math.round(percentage)));
@@ -530,17 +584,17 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     if(p.gate){
       const ready=session.phaseMs>=p.min,live=H.fresh(h10.reading,Date.now()),mode=live?'sensor':'manual';
       if(gateMode!==mode){$('gateConfirm').checked=false;gateMode=mode;}
-      const passed=live?(p.gate==='cool'?h10.reading.bpm<session.config.targets.zoneMin:h10.reading.bpm<=session.config.targets.zoneMax):$('gateConfirm').checked;
+      const passed=live?(p.gate==='cool'?h10.reading.bpm<p.gateBpm:h10.reading.bpm<=p.gateBpm):$('gateConfirm').checked;
       $('gateConfirm').parentElement.hidden=live;$('gateConfirm').disabled=!ready||session.status!=='running';
-      $('gateLabel').textContent=p.gate==='cool'?`My current HR is below ${session.config.targets.zoneMin} bpm.`:`My current HR is ${session.config.targets.zoneMax} bpm or below.`;
-      $('gate').textContent=p.gate==='cool'?'Finish & save session':'Start next effort';$('gate').disabled=!ready||!passed||session.status!=='running';
+      $('gateLabel').textContent=p.gate==='cool'?`My current HR is below ${p.gateBpm} bpm.`:`My current HR is ${p.gateBpm} bpm or below.`;
+      const after=C.build(session.config)[session.index+1];$('gate').textContent=!after?'Finish & save session':['ready','effort'].includes(after.kind)?'Start next effort':'Continue';$('gate').disabled=!ready||!passed||session.status!=='running';
       $('gateNote').textContent=!ready?`Available after ${fmt(p.min-session.phaseMs)}. Keep spinning easily.`:live?(passed?'The strap confirms the HR target. Continue when ready.':'HR is still above the target. Keep spinning easily.'):'No fresh strap reading. Check HR on your watch and confirm it to continue.';
     }
-    $('elapsed').textContent=`Active ${fmt(session.activeMs)}`;$('mainElapsed').textContent=session.config.mode==='zone2'?`Main ${fmt(session.mainMs)} / ${fmt(session.config.mainMinutes*60000)}`:'';const next=C.build(session.config)[session.index+1];$('next').textContent=next?`Next: ${next.title.toLowerCase()}`:'Next: save your session readings';
+    renderEffortLog();$('elapsed').textContent=`Active ${fmt(session.activeMs)}`;$('mainElapsed').textContent=session.config.mode==='zone2'?`Main ${fmt(session.mainMs)} / ${fmt(session.config.mainMinutes*60000)}`:'';const next=C.build(session.config)[session.index+1];$('next').textContent=next?`Next: ${next.title.toLowerCase()}`:'Next: save your session readings';
   }
   function tick(){if(storage.handoff.held())return;if(session?.status==='running')handle(C.advance(session,Date.now(),{visible:!document.hidden}));else renderSensors();}
   function openPause(){if(!session||session.status!=='paused')return;release();cancelVoice();$('pauseTitle').textContent=session.hadInterruption&&session.pauseReason.startsWith('A phase')?'Review next phase':'Paused';$('pauseMessage').textContent=session.pauseReason;$('resume').textContent=session.pending?`Continue to ${C.build(session.config)[session.index+1]?.title.toLowerCase()||'summary'}`:'Resume';if(!$('pauseDialog').open)$('pauseDialog').showModal();}
-  function finish(){if(!session||session.status!=='finished')return;clearInterval(interval);interval=null;release();cancelVoice();$('pauseDialog').close();$('skipDialog').close();const r=C.record(session);const existing=records.find(x=>x.id===r.id);if(!existing)records.unshift(r);const stored=write(KEYS.history,records);if(stored)remove(KEYS.active);selected=existing||r;session=null;phaseKey='';beep();say('Session finished. Stop any watch recording when you finish spinning.');showSummary(selected);updateRestore();renderBackupControls();maybeRemindBackup();}
+  function finish(){if(!session||session.status!=='finished')return;clearInterval(interval);interval=null;release();cancelVoice();$('pauseDialog').close();$('skipDialog').close();const r=C.record(session);const existing=records.find(x=>x.id===r.id);if(!existing)records.unshift(r);const stored=write(KEYS.history,records);if(stored)remove(KEYS.active);selected=existing||r;session=null;phaseKey='';beep();say('Session finished. Stop any watch recording when you finish spinning.');showSummary(selected);updateRestore();renderBackupControls();maybeRemindBackup();planUI.render();}
   function showSummary(r){selected=r;show('summary');const t=C.config(r.config).targets;$('sensorZoneLabel').textContent=`Time at ${t.zoneMin}–${t.zoneMax}`;$('polarZoneLabel').textContent=`Watch time at ${t.zoneMin}–${t.zoneMax} · minutes`;$('comparisonLabel').textContent=`Watts near ${t.comparisonHR} bpm`;$('comparisonNote').textContent=r.config.mode==='external'?'Externally recorded workout. App plan targets are placeholders; progress differences are withheld. Imported readings keep their original source.':`Compare the same machine, context and targets. This ride used ${t.zoneMin}–${t.zoneMax} bpm and a comparison HR of ${t.comparisonHR}. Missing readings remain unknown.`;$('summaryTitle').textContent=r.outcome==='complete'?'Session finished':'Session ended early';$('summaryContext').textContent=`${dateLabel(r.startedAt)} · ${BikeHistorySchema.modeLabel(r.config.mode)} · ${bikeName(r.config)} · ${contextName(r.config)}`;$('summaryTime').textContent=fmt(r.activeMs);$('summaryWorkLabel').textContent=r.config.mode==='sprint'?'Full efforts':'Main block';$('summaryWork').textContent=r.config.mode!=='sprint'?(r.config.mode==='external'&&r.mainMs===0?'Not recorded':fmt(r.mainMs)):`${r.effortsCompleted} / ${r.config.n}`;$('summaryOutcome').textContent=r.outcome==='complete'?'Complete':'Partial';$('summaryCaution').hidden=!r.hadInterruption;$('summaryCaution').textContent='This session was interrupted. Review timing against your watch before comparing it with other sessions. Unconfirmed time beyond a phase boundary was not counted.';$('sensorSummary').hidden=!(r.hr&&(r.hr.samples||r.hr.measuredMs||r.hr.averageHR!=null));
     renderExternalReadings(r);$('sensorSummaryTitle').textContent=r.hr?.source?'Measured heart rate · '+r.hr.source:'Measured heart rate';
     if(r.hr&&(r.hr.samples||r.hr.measuredMs||r.hr.averageHR!=null)){$('sensorAverage').textContent=r.hr.averageHR===null?'—':`${r.hr.averageHR} bpm`;$('sensorZone').textContent=r.hr.measuredMs?fmt(r.hr.zoneMs):'—';$('sensorCoverage').textContent=`${fmt(r.hr.measuredMs)} measured · ${r.hr.coverage}% of active riding covered. ${r.hr.measuredMs?'HR averages use measured time only.':'Not enough consecutive readings to calculate an average.'}`;}
@@ -554,7 +608,7 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
       if(p.main?.decouplingPct!=null)tiles.push(['Aerobic decoupling',`${p.main.decouplingPct}%`,'watts per beat, first half against second']);
       if(p.averageWatts!=null)tiles.push(['Whole ride',`${p.averageWatts} W`,`${p.coverage}% measured`]);if(p.peak5sWatts!=null)tiles.push(['Peak 5 seconds',`${p.peak5sWatts} W`,'']);
       renderTiles($('powerTiles'),tiles);}
-    renderSummaryComparison();for(const key of fields)$(key).value=r.metrics?.[key]??'';$('logStatus').textContent=storageOK?'Session saved. Readings save as you enter them.':'Session is in memory only. Export before closing.';}
+    renderSummaryComparison();for(const key of fields)$(key).value=r.metrics?.[key]??'';renderPlannedReadings(r);$('logStatus').textContent=storageOK?'Session saved. Readings save as you enter them.':'Session is in memory only. Export before closing.';}
   function renderTiles(list,rows){list.replaceChildren(...rows.map(([label,value,note])=>{const tile=document.createElement('div'),term=document.createElement('dt'),detail=document.createElement('dd');term.textContent=label;detail.className='sensor-number';detail.textContent=value;tile.append(term,detail);if(note){const extra=document.createElement('dd');extra.className='small';extra.textContent=note;tile.append(extra);}return tile;}));}
   function renderExternalReadings(ride){
     const container=$('externalReadings'),metrics=ride.metrics||{};container.replaceChildren();
@@ -566,11 +620,44 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     const list=document.createElement('dl');list.className='stats';
     for(const [label,value]of rows){const row=document.createElement('div'),term=document.createElement('dt'),detail=document.createElement('dd');term.textContent=label;detail.textContent=value;detail.style.fontSize='var(--fs-md)';detail.style.overflowWrap='anywhere';row.append(term,detail);list.append(row);}container.append(list);
   }
+  const FLAG_LABELS={high:'cadence high',ok:'cadence steady',low:'cadence low'};
+  /* Each effort's resistance and watts, editable; peak cadence and the 60-second HR drop as measured. */
+  function renderPlannedReadings(r){
+    const efforts=r.efforts||[],box=$('effortTable');box.hidden=!efforts.length;box.replaceChildren();
+    if(efforts.length){
+      // hr.recovery60 follows the effort and main-block phases in ride order.
+      const order=(r.phases||[]).filter(p=>p.kind==='effort'||p.kind==='main').map(p=>p.kind),slots=order.flatMap((kind,i)=>kind==='effort'?[i]:[]),drops=r.hr?.recovery60||[];
+      const cell=(content,tag='td')=>{const c=document.createElement(tag);if(tag==='th')c.scope='col';c.append(content);return c;};
+      const number=(id,value,label,max)=>{const input=document.createElement('input');Object.assign(input,{id,type:'number',inputMode:'decimal',min:0,max,step:'any',value:value??''});input.setAttribute('aria-label',label);return input;};
+      const head=document.createElement('tr');head.append(...['Effort','Resist.','Watts ~5 s','Peak rpm','HR drop 60 s'].map(text=>cell(text,'th')));
+      const rows=efforts.map((e,i)=>{const row=document.createElement('tr'),drop=drops[slots[i]];
+        row.append(cell(`${e.effort}${e.outcome==='complete'?'':' (skipped)'}`),cell(number('effortRes-'+i,e.resistance,`Effort ${e.effort} resistance`,100)),cell(number('effortWatts-'+i,e.watts5s,`Effort ${e.effort} watts about 5 seconds in`,2500)),
+          cell([e.peakCadence,e.cadenceFlag&&FLAG_LABELS[e.cadenceFlag]].filter(x=>x!=null&&x!=='').join(' · ')||'—'),cell(drop!=null?`${drop} bpm`:'—'));return row;});
+      const table=document.createElement('table'),thead=document.createElement('thead'),tbody=document.createElement('tbody');thead.append(head);tbody.append(...rows);table.append(thead,tbody);
+      const heading=document.createElement('h3'),note=document.createElement('p'),wrap=document.createElement('div');heading.textContent='Efforts';note.className='small';wrap.className='plan-table';wrap.append(table);
+      note.textContent='Watts come from the bike sensor when it measured the effort. Otherwise type the console reading.';box.append(heading,wrap,note);
+    }
+    const c=r.conditions||{};$('condTime').value=c.timeOfDay||'';$('condHours').value=c.hoursSinceLifting??'';$('condFed').value=c.fed||'';$('condNote').value=c.note||'';
+    $('conditionsConfirmed').hidden=!c.confirmed?.length;$('conditionsConfirmed').textContent=c.confirmed?.length?'Confirmed at the start: '+c.confirmed.join(', ')+'.':'';
+    $('baselineField').hidden=!r.config.plan;$('condBaseline').checked=!!r.baseline;$('conditionsBox').hidden=r.config.mode==='external';$('conditionsBox').open=!!r.config.plan;
+  }
+  function plannedValues(r){
+    const read=id=>{const value=$(id)?.value.trim();return value==null||value===''?null:Number(value);};
+    const efforts=r.efforts?.map((e,i)=>{const watts=read('effortWatts-'+i);return {...e,resistance:read('effortRes-'+i),watts5s:watts,wattsSource:watts==null?null:watts===e.watts5s&&e.wattsSource?e.wattsSource:'manual'};});
+    const conditions={timeOfDay:$('condTime').value||null,hoursSinceLifting:read('condHours'),fed:$('condFed').value||null,note:$('condNote').value.trim(),confirmed:r.conditions?.confirmed||[]};
+    const keep=r.conditions||conditions.timeOfDay||conditions.hoursSinceLifting!=null||conditions.fed||conditions.note;
+    return {...(efforts?{efforts}:{}),...(keep?{conditions}:{}),baseline:!!r.config.plan&&$('condBaseline').checked};
+  }
+  const withoutBaseline=({baseline,...rest})=>rest;
   function saveMetrics(report=false){
     if(!selected)return;const form=$('logForm');if(!form.checkValidity()){$('logStatus').textContent='Check the value outside its allowed range before saving.';if(report)form.reportValidity();return false;}
     const before=WorkoutStorage.copy(selected),metrics={...selected.metrics};for(const key of fields){const value=$(key).value.trim();if(value!==String(metrics[key]??'')){if(value==='')delete metrics[key];else metrics[key]=value;}}
-    if(JSON.stringify(metrics)===JSON.stringify(selected.metrics))return !storage.local.failed;
-    const updated={...selected,metrics,editedAt:Date.now()},next=records.map(r=>r.id===selected.id?updated:r),ok=write(KEYS.history,next,{atomic:true});
+    const extra=plannedValues(selected),pick=r=>JSON.stringify([r.metrics,r.efforts??null,r.conditions??null,!!r.baseline]);
+    let updated={...withoutBaseline(selected),metrics,...extra};if(!updated.baseline)updated=withoutBaseline(updated);
+    if(pick(updated)===pick(selected))return !storage.local.failed;
+    updated.editedAt=Date.now();
+    // One baseline per plan: marking this ride clears it from the others.
+    const hash=updated.config.plan?.hash,next=records.map(r=>r.id===selected.id?updated:updated.baseline&&r.baseline&&r.config.plan?.hash===hash?withoutBaseline(r):r),ok=write(KEYS.history,next,{atomic:true});
     if(ok){records=next;selected=updated;recordEdit(before,updated,'Edited session readings',false,true);if(read(KEYS.active,null)?.id===selected.id)remove(KEYS.active);renderSummaryComparison();}
     $('logStatus').textContent=ok?'Saved on this device.':'Saving failed. Keep this page open and download a backup.';return ok;
   }
@@ -631,12 +718,15 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   }
   function updateRestore(){const saved=read(KEYS.active,null);$('restoreCard').hidden=!saved||!['running','paused'].includes(saved.status);$('start').disabled=!targetsValid||!$('restoreCard').hidden;$('start').hidden=!$('restoreCard').hidden;$('resumeSaved').hidden=$('restoreCard').hidden;updateShell();if(!$('restoreCard').hidden){const restored=C.restore(saved,Date.now());if(restored)$('restoreText').textContent=`${restored.config.mode==='zone2'?'Zone 2':'Sprint intervals'} · ${C.phase(restored).title} · ${fmt(restored.activeMs)} active time. Review the saved session before starting another.`;else{$('restoreText').textContent='Saved session could not be recovered. End it to start a new one.';}}
   }
-  $('start').addEventListener('click',async()=>{if(session||!targetsValid||appUpdates&&!appUpdates.canStart())return;const c=settings();await unlockAudio();if(session||read(KEYS.active,null)||appUpdates&&!appUpdates.canStart())return;requestPersistence();session=C.create(c,Date.now(),window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`);highSince=null;lastHighAt=null;lastHighWarning=-60000;muted=false;$('mute').setAttribute('aria-pressed','false');$('mute').setAttribute('aria-label','Mute sound');phaseKey='';show('run');render();save(true);appUpdates?.refresh();phaseAnnounce();lock();clearInterval(interval);interval=setInterval(tick,250);});
+  $('start').addEventListener('click',async()=>{if(session||!targetsValid||appUpdates&&!appUpdates.canStart())return;const c=settings(),conditions=(c.plan?.conditions||[]).map(x=>x.value?`${x.label}: ${x.value}`:x.label);if(conditions.length&&!await WorkoutUI.confirm('Before you start',conditions.join('. ')+'.','Start ride'))return;await unlockAudio();if(session||read(KEYS.active,null)||appUpdates&&!appUpdates.canStart())return;requestPersistence();session=C.create(c,Date.now(),window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`);session.confirmed=conditions;highSince=null;lastHighAt=null;lastHighWarning=-60000;muted=false;$('mute').setAttribute('aria-pressed','false');$('mute').setAttribute('aria-label','Mute sound');phaseKey='';show('run');render();save(true);appUpdates?.refresh();phaseAnnounce();lock();clearInterval(interval);interval=setInterval(tick,250);});
+  $('clearPlan').addEventListener('click',()=>usePlan(null));
+  $('effortResistance').addEventListener('input',()=>{const value=$('effortResistance').value;logEffortInput({resistance:value===''?null:Number(value)});});
+  for(const input of document.querySelectorAll('input[name=cadenceFlag]'))input.addEventListener('change',()=>logEffortInput({cadenceFlag:input.value}));
   $('pause').addEventListener('click',()=>{if(!session||storage.handoff.held())return;const events=C.pause(session,Date.now());handle(events);});
   $('resume').addEventListener('click',async()=>{if(storage.handoff.held())return;await unlockAudio();$('pauseDialog').close();$('gateConfirm').checked=false;H.breakSeries(session?.hr);const events=C.resume(session,Date.now());handle(events);if(session){lock();if(!events.length)say(`Resume ${C.phase(session).title}.`);save(true);}});
   $('pauseDialog').addEventListener('cancel',e=>{e.preventDefault();});
   $('end').addEventListener('click',()=>{if(session&&!storage.handoff.held()){C.end(session,Date.now());finish();}});
-  $('gateConfirm').addEventListener('change',render);$('gate').addEventListener('click',()=>{if(!session||storage.handoff.held())return;const now=Date.now(),p=C.phase(session),live=H.fresh(h10.reading,now),confirmed=live?(p.gate==='cool'?h10.reading.bpm<session.config.targets.zoneMin:h10.reading.bpm<=session.config.targets.zoneMax):$('gateConfirm').checked;handle(C.gate(session,now,confirmed));});
+  $('gateConfirm').addEventListener('change',render);$('gate').addEventListener('click',()=>{if(!session||storage.handoff.held())return;const now=Date.now(),p=C.phase(session),live=H.fresh(h10.reading,now),confirmed=live?(p.gate==='cool'?h10.reading.bpm<p.gateBpm:h10.reading.bpm<=p.gateBpm):$('gateConfirm').checked;handle(C.gate(session,now,confirmed));});
   $('skip').addEventListener('click',()=>{if(!session||storage.handoff.held()||session.status!=='running')return;handle(C.pause(session,Date.now(),'Choose whether to skip this phase.'));if(!session||session.status!=='paused'||session.pending)return;$('pauseDialog').close();$('skipTitle').textContent=`Skip ${C.phase(session).title.toLowerCase()}?`;$('skipDialog').showModal();});
   function cancelSkip(){if(!session||storage.handoff.held())return;$('skipDialog').close();handle(C.resume(session,Date.now()));lock();save(true);}
   $('cancelSkip').addEventListener('click',cancelSkip);$('skipDialog').addEventListener('cancel',e=>{e.preventDefault();cancelSkip();});
@@ -648,7 +738,7 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   $('resumeSaved').addEventListener('click',()=>$('restoreSession').click());
   $('restoreSession').addEventListener('click',()=>{if(storage.handoff.held())return;session=C.restore(read(KEYS.active,null),Date.now());if(!session){toast('This saved session could not be recovered.');return;}phaseKey='';show('run');render();save(true);clearInterval(interval);interval=setInterval(tick,250);openPause();});
   $('endSaved').addEventListener('click',()=>{if(storage.handoff.held())return;const saved=C.restore(read(KEYS.active,null),Date.now());if(!saved){remove(KEYS.active);updateRestore();return;}session=saved;C.end(session,Date.now());finish();});
-  $('logForm').addEventListener('submit',e=>e.preventDefault());for(const id of fields)$(id).addEventListener('input',()=>saveMetrics());
+  $('logForm').addEventListener('submit',e=>e.preventDefault());for(const type of ['input','change'])$('plannedReadings').addEventListener(type,()=>saveMetrics());for(const id of fields)$(id).addEventListener('input',()=>saveMetrics());
   $('editSession').addEventListener('click',openEdit);$('editForm').addEventListener('submit',saveDetails);$('cancelEdit').addEventListener('click',()=>$('editDialog').close());
   $('editForm').addEventListener('input',()=>{for(const id of ['editDate','editActive','editMain','editEfforts'])$(id).setCustomValidity('');});
   for(const id of ['historyMachine','historyContext','historyMode','historyOutcome','historyFrom','historyTo','historyUninterrupted','historyMetric'])$(id).addEventListener('change',showHistory);
@@ -707,9 +797,9 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   document.addEventListener('visibilitychange',()=>{h10.visibilityChanged();H.breakSeries(session?.hr);power.visibilityChanged();PowerCore.breakSeries(session?.power);highSince=null;lastHighAt=null;if(!session||storage.handoff.held())return;if(document.hidden){handle(C.advance(session,Date.now(),{visible:false}));if(session&&session.config.mode==='sprint'&&session.status==='running'){C.pause(session,Date.now(),'Sprint cues need this app visible. Timing paused when you switched away.');save(true);}cancelVoice();release();}else{cancelVoice();tick();if(session?.status==='paused')openPause();else if(session){audio?.resume().catch(()=>{});lock();render();}}});
   window.addEventListener('pagehide',()=>{h10.disconnect();H.breakSeries(session?.hr);if(session){handle(C.advance(session,Date.now(),{visible:false}));save(true);}if(selected&&!$('summary').hidden)saveMetrics();});
   shell=WorkoutUI.createShell({name:'Bike Cardio',items:[{id:'setup',label:'Workout',icon:'workout'},{id:'history',label:'History',icon:'history'},{id:'settings',label:'Settings',icon:'settings'}],onNavigate:navigate});
-  configureAppearance();WorkoutUI.attachSteppers($('setup'));buildDefaultFields();
+  configureAppearance();WorkoutUI.attachSteppers($('setup'));WorkoutUI.attachSteppers($('effortLog'));buildDefaultFields();
   window.addEventListener('pagehide',()=>{save(true);storage.local.flush();});
-  records=read(KEYS.history,[]);applySavedSettings();storage.local.save({touch:false,remote:false,immediate:true});updateRestore();renderHandoff();renderSensors();loadCloudFields();renderBackupControls();refreshStorageDiagnostics();if(storage.local.warning)storageWarning(storage.local.warning);storage.remote.remoteStartupSync();setInterval(()=>{if(!session)renderSensors();},1000);
+  records=read(KEYS.history,[]);applySavedSettings();planUI.render();storage.local.save({touch:false,remote:false,immediate:true});updateRestore();renderHandoff();renderSensors();loadCloudFields();renderBackupControls();refreshStorageDiagnostics();if(storage.local.warning)storageWarning(storage.local.warning);storage.remote.remoteStartupSync();setInterval(()=>{if(!session)renderSensors();},1000);
   appUpdates=WorkoutUpdates.create({workerUrl:'./service-worker.js',isActive:()=>!!(session||read(KEYS.active,null)),flush:()=>{if(selected&&!$('summary').hidden&&saveMetrics()===false)return false;return storage.local.flush();},onChange:state=>{if(appUpdates)WorkoutUpdates.render($('appUpdateControls'),appUpdates,state,'bike');},onReady:()=>{$('offlineStatus').textContent='Offline app files are ready. Saved rides stay on this browser/device.';}});
   appUpdates.refresh();updateShell();
 
