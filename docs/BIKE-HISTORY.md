@@ -10,8 +10,11 @@ a full backup** instead replaces local data after confirmation.
 - [Version 2 sprint test export](../examples/bike-history-sprint-v2.json)
 - [Version 3 external examples](../examples/bike-history-external-v3.json)
 
-Exports now use version **4**. Version 1 to 3 files remain importable; normalization
+Exports now use version **5**. Version 1 to 4 files remain importable; normalization
 upgrades them without changing their recorded times or inventing a new revision.
+Version 5 adds planned sessions ([plan contract](BIKE-PLAN.md)): a `plans` list in
+full backups, `config.plan` on rides of a plan, and optional `efforts`,
+`conditions` and `baseline` on any ride.
 Version 4 changes only `config.bike` (and machine profiles' `bike`): it records how
 resistance cues read instead of a machine model. Older files map `touchscreen` to
 `feel` and any other code to `levels`.
@@ -56,6 +59,19 @@ machines there rather than in `config.bike`.
 `external` does not create a runnable video plan. External rides and rides with
 unknown bike/context are shown independently in progress charts; automatic
 comparisons withhold progress differences.
+
+## Version 5 ride fields
+
+| Field | Values |
+|---|---|
+| `config.plan` | The plan ridden, as in [BIKE-PLAN.md](BIKE-PLAN.md). It sets `config.mode` (`sprint` when it has efforts) and `config.n` (its effort count). |
+| `efforts[]` | One per effort ridden: `effort` 1..20, `outcome`, `resistance` 0..100, `cadenceFlag` `high`/`ok`/`low`, `watts5s` and `peakWatts` 0..2500 W, `peakCadence` 0..250 rpm, `wattsSource` `sensor`/`manual`. Unknown values are `null`. |
+| `conditions` | `timeOfDay` `morning`/`midday`/`afternoon`/`evening`/`night`, `hoursSinceLifting` 0..2000, `fed` `fed`/`fasted`, `note` up to 500 characters, `confirmed` up to 10 texts. |
+| `baseline` | `true` on at most one ride per plan in the app; imports do not enforce it. |
+
+Rides of a plan form one progress series per plan hash, machine, context and
+targets. The ride summary compares with the plan's baseline when an earlier one is
+marked, and names differences in time of day, food, or more than 12 hours since lifting.
 
 ## Configuration defaults and limits
 

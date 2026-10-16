@@ -316,10 +316,10 @@ test('immutable retries never overwrite an earlier upload and failed read-back d
 
 test('version 1 Bike backups migrate without reinterpreting old rides; version 2 preserves custom targets',()=>{
   const d=setup(),old={app:'bike-cardio',version:1,updatedAt:1,settings:{},history:[legacyRecord()],active:null};
-  const candidate=d.bike.prepare(old);assert.equal(candidate.version,4);assert.equal(candidate.updatedAt,old.updatedAt);assert.equal(candidate.history[0].config.targets.zoneMin,105);assert.equal(candidate.history[0].config.mainMinutes,25);
+  const candidate=d.bike.prepare(old);assert.equal(candidate.version,5);assert.equal(candidate.updatedAt,old.updatedAt);assert.equal(candidate.history[0].config.targets.zoneMin,105);assert.equal(candidate.history[0].config.mainMinutes,25);
   const newer=structuredClone(candidate);newer.history[0].config.targets={zoneMin:120,adjustBelow:123,targetMin:125,comparisonHR:130,targetMax:135,zoneMax:140};newer.history[0].config.mainMinutes=40;
   const prepared=d.bike.prepare(newer);assert.equal(prepared.history[0].config.targets.comparisonHR,130);assert.equal(prepared.history[0].config.mainMinutes,40);
-  assert.equal(d.bike.backup().version,4);assert.equal(d.bike.historyPayload().version,4);assert.throws(()=>d.bike.prepare({...newer,version:5}),/version 1 to 4/);
+  assert.equal(d.bike.backup().version,5);assert.equal(d.bike.historyPayload().version,5);assert.throws(()=>d.bike.prepare({...newer,version:6}),/version 1 to 5/);
 });
 test('switching an existing connection to automatic mode creates a separate backup even at the former sync baseline',async()=>{
   const d=setup(),store=probeStore(d,{ignoreConditions:true});d.bike.write('bike-cardio.history.v1',[legacyRecord()]);
@@ -345,8 +345,8 @@ test('documented sprint v2 and external v3 files merge losslessly, preserve loca
   }
   assert.equal(d.bike.state.history.length,4);assert.equal(d.bike.state.history.find(r=>r.id==='old').metrics.notes,'original');
   const video=d.bike.state.history.find(r=>r.id==='example-follow-along-video');assert.equal(video.config.mode,'external');assert.equal(video.config.bike,'unknown');assert.equal(video.config.context,'unknown');
-  const backup=d.bike.prepare(d.bike.backup());assert.equal(backup.version,4);assert.deepEqual(JSON.parse(JSON.stringify(backup.history.find(r=>r.id===video.id).metrics)),JSON.parse(JSON.stringify(video.metrics)));
-  const reload=setup(d.map);assert.equal(reload.bike.state.history.length,4);assert.equal(reload.bike.historyPayload().version,4);
+  const backup=d.bike.prepare(d.bike.backup());assert.equal(backup.version,5);assert.deepEqual(JSON.parse(JSON.stringify(backup.history.find(r=>r.id===video.id).metrics)),JSON.parse(JSON.stringify(video.metrics)));
+  const reload=setup(d.map);assert.equal(reload.bike.state.history.length,4);assert.equal(reload.bike.historyPayload().version,5);
 });
 test('external aggregates allow zero sample count and free source text without claiming a raw recording',()=>{
   const d=setup(),ride=legacyRecord();ride.config={mode:'sprint'};ride.mainMs=0;ride.phases=[{title:'Whole session',kind:'external',outcome:'complete',ms:ride.activeMs}];
@@ -373,8 +373,22 @@ test('version 4 records resistance cues in place of machine model codes',()=>{
   const v3={...d.bike.backup(),version:3,history:[ride('a','touchscreen'),ride('b','console-model'),ride('c','unknown')],machines:[{id:'m',name:'Bike A',bike:'console-model',bikeId:'bike-a'}]};
   const migrated=d.bike.prepare(v3);
   assert.equal(migrated.history.map(r=>r.config.bike).join(),'feel,levels,unknown','the bike without numbered levels becomes feel; every other model code becomes levels');
-  assert.equal(migrated.machines[0].bike,'levels');assert.equal(migrated.version,4);
+  assert.equal(migrated.machines[0].bike,'levels');assert.equal(migrated.version,5);
   for(const bike of ['touchscreen','console-model',''])assert.throws(()=>d.bike.prepare({...migrated,history:[ride('x',bike)]}),/Invalid recorded bike/,'version 4 accepts only cue styles');
   assert.throws(()=>d.bike.prepare({...migrated,machines:[{id:'m',name:'Bike A',bike:'console-model',bikeId:'bike-a'}]}),/machine profile/);
   assert.equal(vm.runInContext("WorkoutCore.config({bike:'touchscreen'}).bike",d.ctx),'feel','a saved ride or preset from before maps the same way');
+});
+test('version 5 backups keep planned sessions and planned rides; invalid plans are rejected',()=>{
+  const d=setup(),plan=JSON.parse(fs.readFileSync(path.join(root,'examples','bike-plan-sprint.json'),'utf8'));plan.id='plan-1';
+  const s=vm.runInContext(`(()=>{const s=WorkoutCore.create({plan:${JSON.stringify(plan)}},Date.now()-600000,'planned');while(WorkoutCore.phase(s).kind!=='effort')WorkoutCore.skip(s,s.lastAt);WorkoutCore.logEffort(s,1,{resistance:16,cadenceFlag:'ok'});WorkoutCore.end(s,s.lastAt+30000);return WorkoutCore.record(s);})()`,d.ctx);
+  const ride={...JSON.parse(JSON.stringify(s)),baseline:true,conditions:{...s.conditions,hoursSinceLifting:44,fed:'fed',note:'after lifting day B'}};
+  const backup=d.bike.prepare({...d.bike.backup(),plans:[plan],history:[ride]});
+  assert.equal(backup.plans[0].name,'Sprint baseline');assert.equal(backup.plans[0].hash,backup.history[0].config.plan.hash);
+  assert.equal(backup.history[0].efforts[0].resistance,16);assert.equal(backup.history[0].conditions.hoursSinceLifting,44);assert.equal(backup.history[0].baseline,true);
+  assert.equal(backup.history[0].config.mode,'sprint');assert.equal(backup.history[0].config.n,4);
+  assert.throws(()=>d.bike.prepare({...d.bike.backup(),plans:[{...plan,steps:[]}]}),/Invalid planned session: steps must list/);
+  assert.throws(()=>d.bike.prepare({...d.bike.backup(),plans:[plan,plan]}),/unique/);
+  assert.throws(()=>d.bike.prepare({...d.bike.backup(),history:[{...ride,efforts:[{effort:1,outcome:'complete',cadenceFlag:'fast'}]}]}),/cadence flag/);
+  assert.throws(()=>d.bike.prepare({...d.bike.backup(),history:[{...ride,conditions:{fed:'snack'}}]}),/fed state/);
+  assert.equal(d.bike.prepare({...d.bike.backup(),version:4}).plans.length,0,'version 4 backups start with no plans');
 });

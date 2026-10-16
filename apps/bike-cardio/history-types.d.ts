@@ -1,7 +1,7 @@
 /** Import contract. Runtime authority: storage-adapter.js and history-schema.js.
  * Constraints not expressible by TypeScript are listed in docs/BIKE-HISTORY.md.
  */
-export type HistoryVersion = 1 | 2 | 3 | 4;
+export type HistoryVersion = 1 | 2 | 3 | 4 | 5;
 export type WorkoutMode = 'zone2' | 'sprint' | 'external'; // external: v3 history only
 export type RecordedBike = 'levels' | 'feel' | 'unknown'; // v4; v3 files carry a model code, mapped on import
 export type RecordedContext = 'fresh' | 'post-lifting' | 'unknown'; // unknown: v3
@@ -31,6 +31,41 @@ export interface HistoryConfigInput {
   n?: number; // planned effort count, 1..20
   eff?: number; // effort seconds, 10..120
   voice?: boolean; beeps?: boolean;
+  plan?: Plan; // v5: the planned session ridden; it decides mode and n. See docs/BIKE-PLAN.md
+}
+/** Planned session (v5). Runtime authority: plans.js. Contract: docs/BIKE-PLAN.md. */
+export type PlanStepKind = 'warmup' | 'primer' | 'settle' | 'main' | 'effort' | 'recovery' | 'cooldown';
+export type Target = number | [number, number] | string; // number, [low, high] or a label of at most 40 characters
+export interface PlanStep {
+  kind: PlanStepKind; title?: string; // max 60 characters; {i} and {n} number repeats
+  seconds?: number; // 1..10800; exactly one of seconds, untilHrAtMost, untilHrBelow
+  untilHrAtMost?: number; untilHrBelow?: number; // bpm 40..230; not for primer or effort
+  minSeconds?: number; // 1..3600, default 60, for HR-gated steps
+  resistance?: Target; rpm?: Target; hr?: string; hrBelow?: number; cue?: string; // cue max 200 characters
+  adjust?: { cadenceAbove?: number; add?: number; cadenceBelow?: number; beforeSeconds?: number; subtract?: number }; // effort with numeric resistance only
+}
+export interface PlanRepeat { repeat: number; step: PlanStep; between?: PlanStep } // repeat 2..20
+export interface Plan {
+  id: string; name: string; // max 80 characters each
+  order?: number; scheduledFor?: string; // YYYY-MM-DD
+  resistanceCues?: 'levels' | 'feel';
+  conditions?: Array<{ label: string; value?: string }>; // up to 10
+  record?: Array<'effortResistance' | 'effortWatts5s' | 'recovery60' | 'timeOfDay' | 'hoursSinceLifting' | 'fed' | 'note'>;
+  notes?: string; // max 1000 characters
+  steps: Array<PlanStep | PlanRepeat>; // 1..40; expands to at most 200 phases and 20 efforts
+  hash?: string; // computed on import from resistanceCues and steps; supplied values are replaced
+}
+export interface EffortRecord {
+  effort: number; outcome: PhaseOutcome; // effort number 1..20 in ride order
+  resistance?: number | null; cadenceFlag?: 'high' | 'ok' | 'low' | null;
+  watts5s?: number | null; peakWatts?: number | null; // W, 0..2500
+  peakCadence?: number | null; wattsSource?: 'sensor' | 'manual' | null;
+}
+export interface RideConditions {
+  timeOfDay?: 'morning' | 'midday' | 'afternoon' | 'evening' | 'night' | null;
+  hoursSinceLifting?: number | null; // 0..2000
+  fed?: 'fed' | 'fasted' | null; note?: string; // max 500 characters
+  confirmed?: string[]; // plan conditions confirmed at the start, up to 10
 }
 export interface HistoryPhase {
   id?: unknown; // native phases use their numeric plan index; import does not depend on it
@@ -89,6 +124,7 @@ export interface HistoryEntry {
   phases?: HistoryPhase[] | null;
   hr?: HeartRateSummary | null;
   power?: PowerSummary | null;
+  efforts?: EffortRecord[] | null; conditions?: RideConditions | null; baseline?: boolean; // v5
   editedAt?: EpochMs;
   [extension: string]: unknown; // no defined recording/nextSeq/sampleCount contract
 }
@@ -106,5 +142,5 @@ export interface FullBackup {
     mode?: 'zone2' | 'sprint'; bike?: 'levels' | 'feel'; context?: 'fresh' | 'post-lifting';
   }; // runnable defaults, not an external recording
   history: HistoryEntry[]; active?: unknown | null;
-  presets?: unknown[]; machines?: unknown[];
+  presets?: unknown[]; machines?: unknown[]; plans?: Plan[]; // plans: v5, up to 50
 }

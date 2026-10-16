@@ -65,6 +65,12 @@ controls, timing, wake-lock lifecycle, recovery, cloud/file backups and offline 
   resistance cues and bike identifier. Update or delete either; applying one
   affects the next ride only. Both collections are included in full backups;
   older backups start with empty collections.
+- **Bike planned sessions:** Workout → **Planned sessions → Add** takes a plan
+  pasted from a coaching chat (JSON; **Copy plan format** gives the chat the
+  format). **Use** sets up the next ride from it; the ride logs each effort's
+  resistance, a cadence rule sets the next effort, and the summary records watts
+  about 5 s into each effort, conditions and a baseline. See the
+  [plan contract](docs/BIKE-PLAN.md).
 - **Comparisons:** Bike session summaries select an earlier matching ride and
   show three key readings first. Liftlog session summaries compare each
   exercise with its own most recent earlier session that used the same load
