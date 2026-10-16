@@ -100,5 +100,28 @@ const PowerCore = (() => {
     if (near.length >= 12) result.main.fixedHRWatts = round(near.reduce((sum, n) => sum + n, 0) / near.length);
     return result;
   }
-  return {FITNESS_MACHINE, INDOOR_BIKE_DATA, CYCLING_POWER, CYCLING_POWER_MEASUREMENT, FRESH_MS, parseIndoorBike, parseCyclingPower, fresh, createStats, breakSeries, sample, restoreStats, analyze};
+  /* One effort's readings over active time [from, to): watts over the 5 seconds
+     centred 5 s in, the best 5-second watts and cadence, and the cadence flag
+     for a plan's adjust rule. "low" means cadence fell below the rule's floor
+     between 5 s and its cut-off; "high" means it rose above the ceiling. Bins
+     spread readings evenly, so a value can sit up to 5 seconds off. */
+  function effortReadings(raw, from, to, rule) {
+    if (!(to > from)) return null;
+    const s = restoreStats(raw), mean = (trace, a, b) => { const r = BikeTrace.range(trace, a, b); return r.coverage >= 0.5 ? r.average : null; };
+    const windows = (trace, start, end) => {
+      let best = null, low = null;
+      for (let at = start; at + BikeTrace.BIN_MS <= end; at += 1000) { const v = mean(trace, at, at + BikeTrace.BIN_MS); if (v === null) continue; best = best === null ? v : Math.max(best, v); low = low === null ? v : Math.min(low, v); }
+      return {best, low};
+    };
+    const centre = mean(s.watts, from + 2500, Math.min(to, from + 7500)), w = windows(s.watts, from, to), c = windows(s.rpm, from, to);
+    if (centre === null && w.best === null && c.best === null) return null;
+    let flag = null;
+    if (rule && c.best !== null) {
+      const early = rule.cadenceBelow != null ? windows(s.rpm, from + 5000, Math.min(to, from + rule.beforeSeconds * 1000)).low : null;
+      flag = early !== null && early < rule.cadenceBelow ? 'low' : rule.cadenceAbove != null && c.best > rule.cadenceAbove ? 'high' : 'ok';
+    }
+    const round = n => n === null ? null : Math.round(n);
+    return {watts5s:round(centre), peakWatts:round(w.best), peakCadence:round(c.best), flag};
+  }
+  return {FITNESS_MACHINE, INDOOR_BIKE_DATA, CYCLING_POWER, CYCLING_POWER_MEASUREMENT, FRESH_MS, parseIndoorBike, parseCyclingPower, fresh, createStats, breakSeries, sample, restoreStats, analyze, effortReadings};
 })();

@@ -156,3 +156,64 @@ test('a Zone 2 ride with a bike sensor fills main-block watts, cadence, watts at
   const restored=C.restore(JSON.parse(JSON.stringify(C.create({},t0,'old'))),t0);assert.equal(restored.power.watts.ms.length,0);
   const legacy=JSON.parse(JSON.stringify(C.create({},t0,'legacy')));delete legacy.power;assert.equal(C.restore(legacy,t0).power.samples,0,'a saved ride from before keeps working');
 });
+const planExample=JSON.parse(fs.readFileSync(path.join(__dirname,'..','examples','bike-plan-sprint.json'),'utf8'));
+const P=vm.runInContext('BikePlans',context);
+const json=value=>JSON.stringify(value);
+test('a planned sprint expands like the sprint template with the same durations',()=>{
+  const [plan]=P.parse(JSON.stringify(planExample),()=>'plan-a'),phases=P.expand(plan.steps);
+  const template=C.build({mode:'sprint',warmupMinutes:8,n:4,eff:30,settleMinutes:2,recoverySeconds:60,sprintCooldownMinutes:5});
+  assert.equal(json(phases.map(p=>[p.kind,p.duration,p.min??null])),json(template.map(p=>[p.kind,p.duration,p.min??null])));
+  assert.equal(phases.filter(p=>p.kind==='recovery').length,3,'recovery runs between efforts only');
+  assert.equal(json(phases.filter(p=>p.kind!=='ready').map(p=>p.title)),json(['Easy warm-up','Primer','Easy','Effort 1 of 4','Recovery 1','Effort 2 of 4','Recovery 2','Effort 3 of 4','Recovery 3','Effort 4 of 4','Cool-down']));
+  const warmup=phases[0],recovery=phases.find(p=>p.kind==='recovery'),effort=phases.find(p=>p.kind==='effort');
+  assert.equal(json([warmup.res,warmup.rpm,warmup.hr]),json(['6–8','80–90','Under 120']));
+  assert.equal(json([recovery.gate,recovery.gateBpm,recovery.hr,recovery.min]),json(['recovery',122,'122 or below',60000]));
+  assert.equal(json([effort.effort,effort.base,effort.res,phases[effort.id-1].res]),json([1,16,'16','16']),'the countdown shows the effort resistance');
+  assert.equal(P.minimumMs(phases),1235000,'20 min 35 s before HR-gated recoveries run longer');
+  const c=C.config({plan});assert.equal(c.mode,'sprint');assert.equal(c.n,4);assert.equal(c.plan.hash,plan.hash);
+});
+test('the adjust rule moves each effort from the last one by its cadence flag',()=>{
+  const [plan]=P.parse(planExample,()=>'plan-b'),s=C.create({plan},1000,'adjust');
+  assert.equal(C.effortTarget(s,1),16);assert.equal(C.effortTarget(s,2),16,'no flag keeps the resistance');
+  C.logEffort(s,1,{resistance:16,cadenceFlag:'high'});assert.equal(C.effortTarget(s,2),18);
+  C.logEffort(s,2,{resistance:19,cadenceFlag:'low'});assert.equal(C.effortTarget(s,3),17,'starts from the resistance logged, not the target');
+  C.logEffort(s,3,{cadenceFlag:'ok'});assert.equal(C.effortTarget(s,4),17);
+  C.logEffort(s,1,{resistance:500});assert.equal(s.efforts[0].resistance,null,'out-of-range resistance is unknown');
+  const restored=C.restore({...JSON.parse(JSON.stringify(s)),status:'paused',efforts:[{resistance:'x',cadenceFlag:'sideways'},null]},1000);
+  assert.equal(json(restored.efforts),json([{resistance:null,cadenceFlag:null},{resistance:null,cadenceFlag:null}]));
+});
+test('a plan hash follows its steps and ignores name, date, order and notes',()=>{
+  const [plan]=P.parse(planExample,()=>'plan-c'),again=P.normalize(plan);
+  assert.equal(again.hash,plan.hash);assert.equal(json(again),json(plan),'normalizing twice changes nothing');
+  assert.equal(P.normalize({...plan,name:'Renamed',scheduledFor:'2026-11-01',order:7,notes:'x'}).hash,plan.hash);
+  const longer=structuredClone(planExample);longer.id='x';longer.steps[0].seconds=600;assert.notEqual(P.normalize(longer).hash,plan.hash);
+  const B=vm.runInContext('BikeHistory',context),key=p=>B.seriesKey({id:'r',config:C.config({plan:p})});
+  assert.equal(key({...plan,name:'Other name'}),key(plan));assert.notEqual(key(P.normalize(longer)),key(plan));
+});
+test('invalid plans fail with the step that is wrong',()=>{
+  const bad=(change,pattern)=>{const raw=structuredClone(planExample);raw.id='bad';change(raw);assert.throws(()=>P.normalize(raw),pattern);};
+  bad(raw=>{raw.steps=[];},/steps must list/);
+  bad(raw=>{raw.steps[0].kind='tempo';},/Step 1: kind must be/);
+  bad(raw=>{raw.steps[0].untilHrBelow=110;},/Step 1 needs exactly one/);
+  bad(raw=>{raw.steps[1]={kind:'primer',untilHrAtMost:120};},/a primer needs seconds/);
+  bad(raw=>{raw.steps[2].adjust={cadenceAbove:110};},/adjust needs an effort/);
+  bad(raw=>{raw.steps[3].repeat=21;},/repeat must be a whole number from 2 to 20/);
+  bad(raw=>{raw.steps[0].resistance=[8,6];},/resistance must be/);
+  bad(raw=>{raw.scheduledFor='17/10/2026';},/scheduledFor/);
+  bad(raw=>{raw.record=['everything'];},/record may list only/);
+  assert.throws(()=>P.parse('{"name": "x",'),/not valid JSON/);
+  const fenced=P.parse('```json\n'+JSON.stringify({plans:[planExample,{...planExample,name:'Second'}]})+'\n```',(()=>{let n=0;return ()=>'id-'+(++n);})());
+  assert.equal(json(fenced.map(p=>[p.id,p.name])),json([['id-1','Sprint baseline'],['id-2','Second']]),'code fences and a plans list are accepted');
+});
+test('a planned ride records each effort with logged resistance and sensor readings',()=>{
+  const T=vm.runInContext('BikeTrace',context),[plan]=P.parse(planExample,()=>'plan-d'),s=C.create({plan},1000,'efforts');
+  while(C.phase(s).kind!=='effort')C.skip(s,s.lastAt);
+  for(let i=0;i<3;i++)C.advance(s,s.lastAt+10000);
+  assert.equal(C.phase(s).kind,'recovery');
+  const [span]=C.effortSpans(s);assert.equal(span.to-span.from,30000);
+  T.add(s.power.watts,span.from,span.to,600);T.add(s.power.rpm,span.from,span.to,115);s.power.measuredMs=30000;
+  C.logEffort(s,1,{resistance:16});C.end(s,s.lastAt);
+  const r=C.record(s);
+  assert.equal(json(r.efforts),json([{effort:1,outcome:'complete',resistance:16,cadenceFlag:'high',watts5s:600,peakWatts:600,peakCadence:115,wattsSource:'sensor'}]));
+  assert.equal(r.config.plan.name,'Sprint baseline');assert.equal(json(Object.keys(r.conditions)),json(['timeOfDay','hoursSinceLifting','fed','note','confirmed']));
+});

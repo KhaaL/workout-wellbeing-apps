@@ -1,0 +1,18 @@
+{
+  "name": "Sprint baseline",
+  "scheduledFor": "2026-10-17",
+  "order": 2,
+  "resistanceCues": "levels",
+  "conditions": [{"label": "Incline", "value": "0%"}],
+  "notes": "First sprint baseline. Later rides compare cleanly only under similar conditions.",
+  "steps": [
+    {"kind": "warmup", "title": "Easy warm-up", "seconds": 480, "resistance": [6, 8], "rpm": [80, 90], "hrBelow": 120, "cue": "Longer in the morning"},
+    {"kind": "primer", "title": "Primer", "seconds": 10, "resistance": [12, 14], "cue": "About 80% effort"},
+    {"kind": "settle", "title": "Easy", "seconds": 120, "resistance": [4, 6]},
+    {"repeat": 4,
+     "step": {"kind": "effort", "title": "Effort", "seconds": 30, "resistance": 16, "cue": "Seated and upright, grip loose, shoulders down",
+              "adjust": {"cadenceAbove": 110, "add": 2, "cadenceBelow": 70, "beforeSeconds": 20, "subtract": 2}},
+     "between": {"kind": "recovery", "title": "Recovery", "untilHrAtMost": 122, "minSeconds": 60, "resistance": [4, 6], "cue": "Then start the next effort"}},
+    {"kind": "cooldown", "title": "Cool-down", "seconds": 300, "resistance": "easy"}
+  ]
+}

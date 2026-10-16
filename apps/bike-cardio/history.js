@@ -8,6 +8,8 @@ const BikeHistory = (() => {
   function seriesKey(ride){
     const c=BikeHistorySchema.config(ride.config);
     if(c.mode==='external'||c.bike==='unknown'||c.context==='unknown')return JSON.stringify(['unclassified',ride.id]);
+    // A planned session's steps, through their hash, stand in for the durations below.
+    if(c.plan)return JSON.stringify([machineKey(ride),c.context,'plan',c.plan.hash,c.targets]);
     /* Only the durations the ride's own plan uses (WorkoutCore.build): a sprint
        setting must not split Zone 2 history, nor the reverse. */
     const plan=c.mode==='sprint'?[c.warmupMinutes,c.settleMinutes,c.n,c.eff,c.recoverySeconds,c.sprintCooldownMinutes]:[c.warmupMinutes,c.mainMinutes,c.cooldown];

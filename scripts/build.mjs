@@ -21,7 +21,7 @@ const updateWorker=await read('packages/app-ui','update-worker.js');
 const appModules={
   'bike-cardio':[['history-schema.js','bike-history-schema'],['storage-adapter.js','bike-storage-adapter'],['controllers/storage.js','bike-cardio-storage-controller'],
     ['presets.js','bike-presets'],['targets.js','bike-targets'],['trace.js','bike-trace'],['heart-rate.js','bike-heart-rate'],['power.js','bike-power'],
-    ['bluetooth.js','bike-bluetooth'],['workout-core.js','bike-workout-core'],['history.js','bike-history']
+    ['bluetooth.js','bike-bluetooth'],['plans.js','bike-plans'],['workout-core.js','bike-workout-core'],['history.js','bike-history']
   ],
   liftlog:[['controllers/exercises.js','liftlog-exercises-controller'],['controllers/routines.js','liftlog-routines-controller'],['controllers/workout.js','liftlog-workout-controller'],['storage-adapter.js','liftlog-storage-adapter'],['screens/settings.js','liftlog-settings-screen'],['comparisons.js','liftlog-comparisons']],
   tabata:[['bell-audio.js','tabata-bell-audio'],['timer-core.js','tabata-timer-core'],['storage-adapter.js','tabata-storage-adapter'],['app.js','tabata-app']]
