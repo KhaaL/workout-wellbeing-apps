@@ -8,7 +8,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     const page = await browser.newPage({ viewport:{ width:390, height:844 } });
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
-    const html = appWithTestAPI(`{ sampleRoutinesFile, sampleHistoryFile, routinesPayload, historyPayload, backupPayload, applyFullBackup, prepareBackup, validateBackup, importRoutines, planRoutineImport, applyRoutineImport, exerciseNameKey, exerciseNameSimilarity, sameLoadNumbers, distinctExerciseName, linksBrokenBy, sortedPlans, planDay, defaultRoutineId, newPlanDraft, localDay, importHistory, normalizeImportedSet, normalizeImportedWorkout, migrateState, normalizeState, defaultSettings, normalizeRoutineItem, cleanRoutinePairs, keepRoutinePairsAdjacent, routineGroups, routineSummary, workoutSets, workoutPlannedSets, workoutVolume, progressionStatus, loadCueFor, pairRoutineItems, unpairRoutineItems, duplicateRoutine, removeRoutineItem, saveRoutineDraft, saveExerciseDraft, startRoutine, toggleSet, toggleWarmup, cascadeWeight, cascadeReps, parseRepRange, repRangeState, setUnit, htmlRoutineEditor, trendCandidates, exSessions, canonicalExerciseId, unresolvedHistoryExercises, compatibleHistoryLink, setExerciseLink, keepHistoricalExerciseSeparate, addHistoricalExerciseToLibrary, setExerciseArchived, mergeExercises, sameProgressionContract, exerciseLoadLabel, setSummary, remoteStartupSync, autoRemoteBackup, flushSave, save, render, supersetRun, currentMemberIndex, isSettledRow, switchSupersetMember, moveSessionExercise, nextOpenBlock, pairSessionExercises, unpairSessionExercises, reopenExercise, navigate, currentExercise, settleSupersets, pauseTimer, finishWorkout, sampleExercises, sampleRoutines, get timer(){return timer}, get state(){return state}, get ui(){return ui} }`);
+    const html = appWithTestAPI(`{ sampleRoutinesFile, sampleHistoryFile, routinesPayload, historyPayload, backupPayload, applyFullBackup, prepareBackup, validateBackup, importRoutines, planRoutineImport, applyRoutineImport, exerciseNameKey, exerciseNameSimilarity, sameLoadNumbers, distinctExerciseName, linksBrokenBy, sortedPlans, planDay, defaultRoutineId, newPlanDraft, localDay, importHistory, normalizeImportedSet, normalizeImportedWorkout, migrateState, normalizeState, defaultSettings, normalizeRoutineItem, cleanRoutinePairs, keepRoutinePairsAdjacent, routineGroups, routineSummary, workoutSets, workoutPlannedSets, workoutVolume, progressionStatus, loadCueFor, pairRoutineItems, unpairRoutineItems, duplicateRoutine, removeRoutineItem, saveRoutineDraft, saveExerciseDraft, startRoutine, toggleSet, toggleWarmup, cascadeWeight, setReps, addSet, targetRangeLabel, parseRepRange, repRangeState, setUnit, htmlRoutineEditor, trendCandidates, exSessions, canonicalExerciseId, unresolvedHistoryExercises, compatibleHistoryLink, setExerciseLink, keepHistoricalExerciseSeparate, addHistoricalExerciseToLibrary, setExerciseArchived, mergeExercises, sameProgressionContract, exerciseLoadLabel, setSummary, remoteStartupSync, autoRemoteBackup, flushSave, save, render, supersetRun, currentMemberIndex, isSettledRow, switchSupersetMember, moveSessionExercise, nextOpenBlock, pairSessionExercises, unpairSessionExercises, reopenExercise, navigate, currentExercise, settleSupersets, pauseTimer, finishWorkout, sampleExercises, sampleRoutines, get timer(){return timer}, get state(){return state}, get ui(){return ui} }`);
     await page.route('https://liftlog.test/**', route => route.fulfill({ contentType:'text/html', body:html }));
     await page.goto('https://liftlog.test/');
     const result = await page.evaluate(async () => {
@@ -796,6 +796,26 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
         'finished workouts do not keep superset data');
       t.state.activeWorkout = null;
       t.startRoutine('rt-ss');
+      const w3 = t.state.activeWorkout, barLabel = () => document.getElementById('timer-label').textContent;
+      log(); log();
+      check(t.timer.running && t.timer.key.startsWith('superset:') && barLabel() === 'Rest · Bench + Row',
+        'a superset round rests on its own clock, named for both members');
+      w3.currentExerciseIndex = 2; w3.supersetSide = 0; t.render();
+      check(t.timer.running && t.timer.key.startsWith('superset:') && barLabel() === 'Rest · Bench + Row',
+        'an untouched exercise leaves the running rest on the bar, still named for its exercise');
+      log();
+      const others = () => document.getElementById('timer-others').textContent;
+      check(t.currentExercise().name === 'Bench' && t.timer.key.startsWith('superset:') && barLabel() === 'Rest · Bench + Row' &&
+        others().includes('Plank'),
+        'a set on another exercise starts its own rest; going back shows the earlier one, the new one counts beside it');
+      check(w3.restTimers.length === 1 && w3.restTimers[0].running && w3.restTimers[0].label === 'Plank',
+        'every running rest is saved with the workout');
+      w3.currentExerciseIndex = 2; t.render();
+      check(t.timer.running && barLabel() === 'Rest · Plank' && others().includes('Bench + Row'),
+        'each exercise brings back its own rest');
+      t.validateBackup(t.backupPayload());
+      t.state.activeWorkout = null;
+      t.startRoutine('rt-ss');
       const bench = t.currentExercise();
       t.toggleWarmup(bench.sets[0].id);
       t.toggleSet(bench.sets[0].id);
@@ -809,8 +829,14 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       fresh.sets[2].weight = null; fresh.sets[1].reps = 7;
       t.cascadeWeight(fresh.sets[0].id, 40);
       check(fresh.sets.map(s => s.weight).join() === '40,60,40', 'a weight cascades only into blank later rows');
-      t.cascadeReps(fresh.sets[0].id, 5);
-      check(fresh.sets.map(s => s.reps).join() === '5,7,5', 'reps cascade only into blank later rows');
+      t.setReps(fresh.sets[0].id, 5);
+      check(fresh.sets.map(s => s.reps).join() === '5,7,', 'reps stay on the row they were typed into');
+      t.addSet();
+      check(fresh.sets.at(-1).reps == null && fresh.sets.at(-1).rir == null && fresh.sets.at(-1).weight === 40,
+        'an added set copies the load but leaves count and RIR blank');
+      fresh.sets.pop();
+      check(document.getElementById('sr-' + fresh.sets[2].id).placeholder === t.targetRangeLabel(fresh),
+        'a blank count shows the target range as its placeholder');
       fresh.sets[2].reps = null;
       t.toggleSet(fresh.sets[2].id);
       check(fresh.sets[2].reps === 8, 'logging an untouched set records the lower target');
