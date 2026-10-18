@@ -34,7 +34,7 @@ const LiftlogStorage = (() => {
   function createHandoff(options){
     return WorkoutStorage.createHandoff({namespace:'liftlog.v1',app:'liftlog',activeKey:'activeWorkout',getState:options.getState,
       remote:options.remote,local:options.local,backup:options.backup,prepare:options.prepare,
-      pause:options.pause,isPaused:workout=>!workout.timer?.running,
+      pause:options.pause,isPaused:workout=>!workout.timer?.running&&!(workout.restTimers||[]).some(timer=>timer?.running),
       makeCandidate:incoming=>{
         const current=options.getState(),workout=incoming.activeWorkout;
         if(current.workouts.some(row=>row.id===workout.id))throw new Error('This workout is already in the receiving history.');

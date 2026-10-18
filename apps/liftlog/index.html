@@ -193,6 +193,9 @@ textarea{ resize:vertical; min-height:64px; }
 input:focus,select:focus,textarea:focus{ outline:2px solid var(--focus); outline-offset:1px; border-color:var(--focus); }
 input[type="number"]{ font-variant-numeric:tabular-nums; }
 input::placeholder,textarea::placeholder{ color:var(--muted); opacity:.7; }
+/* a set's target range and RIR sit in its empty fields as faint hints; the
+   smaller size keeps "10–15" whole in a phone-width reps field */
+.set-row input::placeholder{ font-size:.85em; opacity:.6; }
 select{ appearance:none; padding-right:30px; background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%); background-position:calc(100% - 16px) 55%,calc(100% - 11px) 55%; background-size:5px 5px; background-repeat:no-repeat; }
 
 .form-row{ display:flex; gap:var(--sp-3); flex-wrap:wrap; align-items:flex-end; }
@@ -472,6 +475,15 @@ kbd{
 .actionbar.is-done .ab-drain > i{ background:var(--success); }
 
 .ab-rows{ display:flex; flex-direction:column; gap:var(--sp-2); }
+/* whose rest the clock is, and the other exercises' rests still counting */
+.ab-meta{ font-size:var(--fs-xs); color:var(--muted); margin-bottom:calc(-1 * var(--sp-1)); }
+.ab-for{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:650; }
+.ab-others{ display:flex; gap:var(--sp-1); flex:0 1 auto; min-width:0; overflow:hidden; }
+.ab-other{ display:inline-flex; gap:4px; align-items:baseline; white-space:nowrap; min-width:0;
+  padding:1px 8px; border-radius:999px; background:var(--surface-2); }
+.ab-other-name{ max-width:9em; overflow:hidden; text-overflow:ellipsis; }
+.ab-other-time{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+.ab-other.is-running .ab-other-time{ color:var(--accent); font-weight:650; }
 .ab-row{ display:flex; align-items:center; gap:var(--sp-2); min-width:0; }
 .ab-time{
   font-family:var(--font-mono); font-size:26px; font-weight:600; line-height:1;
@@ -2115,10 +2127,16 @@ function validateBackup(s){
       fail(path + '.currentExerciseIndex', 'an exercise index from 0 to ' + w.exercises.length);
     if (w.supersetSide != null && (!Number.isInteger(w.supersetSide) || w.supersetSide < 0))
       fail(path + '.supersetSide', 'a nonnegative integer');
-    if (w.timer != null){
-      object(w.timer, path + '.timer');
-      fields(w.timer, path + '.timer', ['seconds', 'total', 'remaining', 'endsAt'], number);
-      fields(w.timer, path + '.timer', ['running', 'done'], bool);
+    const restTimer = (t, at) => {
+      object(t, at);
+      fields(t, at, ['key', 'label'], text);
+      fields(t, at, ['seconds', 'total', 'remaining', 'endsAt'], number);
+      fields(t, at, ['running', 'done'], bool);
+    };
+    if (w.timer != null) restTimer(w.timer, path + '.timer');
+    if (w.restTimers != null){
+      array(w.restTimers, path + '.restTimers');
+      w.restTimers.forEach((t, i) => restTimer(t, path + '.restTimers[' + i + ']'));
     }
     const sets = new Set();
     w.exercises.forEach((ex, i) => {
@@ -2948,16 +2966,26 @@ function confirmDlg(title, body, confirmLabel, danger){return WorkoutUI.confirm(
 /* `seconds` is the rest length in force (the exercise's own, else the default
    from Settings); `total` is the denominator the drain bar divides by. They are
    separate because +0:30 must extend the countdown without changing the length
-   the next rest starts from. */
-const timer = { seconds:90, total:90, remaining:90, running:false, endsAt:0, done:false, beepScheduled:false };
+   the next rest starts from.
 
+   Each exercise rests on its own clock. `timer` is the one for the exercise on
+   screen, which the action bar shows and controls; `key` says whose it is (an
+   exercise, or a superset's whole round) and `label` names it in the bar.
+   Moving to another exercise sets that clock aside in `restTimers`, still
+   counting, and brings the new exercise's own back (syncRestTimer). A clock
+   that was never touched is not kept: it is rebuilt at the rest length. */
+const timer = { key:'', label:'', seconds:90, total:90, remaining:90, running:false, endsAt:0, done:false, beepScheduled:false };
+const restTimers = new Map();
+
+function timerRecord(t){
+  return { key:t.key, label:t.label, seconds:t.seconds, total:t.total, remaining:Math.round(t.remaining),
+    running:t.running, endsAt:t.endsAt, done:t.done };
+}
 function persistTimer(){
   if(workoutHandoff.held())return;
   if (state.activeWorkout){
-    state.activeWorkout.timer = {
-      seconds:timer.seconds, total:timer.total, remaining:Math.round(timer.remaining),
-      running:timer.running, endsAt:timer.endsAt, done:timer.done
-    };
+    state.activeWorkout.timer = timerRecord(timer);
+    state.activeWorkout.restTimers = [...restTimers.values()].map(timerRecord);
     save({changed:['activeWorkout']});
   }
 }
@@ -2967,24 +2995,95 @@ function persistTimer(){
 function timerNum(v, fallback){
   return (v != null && isFinite(v)) ? Number(v) : fallback;
 }
-function restoreTimer(){
-  const t = state.activeWorkout && state.activeWorkout.timer;
-  timer.running = false;
-  timer.seconds = timerNum(t && t.seconds, state.settings.defaultRest);
-  timer.remaining = timerNum(t && t.remaining, timer.seconds);
-  timer.total = timerNum(t && t.total, timer.seconds);
-  timer.done = !!(t && t.done);
+function readTimer(t, into){
+  into.key = t && typeof t.key === 'string' ? t.key : '';
+  into.label = t && typeof t.label === 'string' ? t.label : '';
+  into.running = false; into.endsAt = 0;
+  into.seconds = timerNum(t && t.seconds, state.settings.defaultRest);
+  into.remaining = timerNum(t && t.remaining, into.seconds);
+  into.total = timerNum(t && t.total, into.seconds);
+  into.done = !!(t && t.done);
   if (t && t.running && t.endsAt){
     const rem = (t.endsAt - Date.now()) / 1000;
-    if (rem > 0){ timer.remaining = rem; timer.endsAt = t.endsAt; timer.running = true; timer.done = false; }
-    else { timer.remaining = 0; timer.done = true; }
+    if (rem > 0){ into.remaining = rem; into.endsAt = t.endsAt; into.running = true; into.done = false; }
+    else { into.remaining = 0; into.done = true; }
   }
-  timer.total = Math.max(timer.total, timer.remaining);
-  timer.beepScheduled = timer.running ? scheduleRestBeep(timer.remaining) : false;
+  into.total = Math.max(into.total, into.remaining);
+  into.beepScheduled = into.running ? scheduleRestBeep(into.remaining, into.key) : false;
+  return into;
 }
-function loadTimer(sec){
-  if(workoutHandoff.held())return;
+function restoreTimer(){
   cancelRestBeep();
+  restTimers.clear();
+  const w = state.activeWorkout;
+  readTimer(w && w.timer, timer);
+  ((w && Array.isArray(w.restTimers)) ? w.restTimers : []).forEach(t => {
+    if (!t || typeof t.key !== 'string' || !t.key || t.key === timer.key || restTimers.has(t.key)) return;
+    restTimers.set(t.key, readTimer(t, {}));
+  });
+}
+/* Rest belongs to what was performed: a lone exercise, or a superset's round. */
+function restKey(w, idx){
+  const ex = w && w.exercises[idx];
+  if (!ex) return '';
+  return ex.supersetOf ? 'superset:' + ex.supersetOf : 'exercise:' + ex.exerciseId;
+}
+function restLabel(w, idx){
+  return supersetRun(w, idx).map(i => w.exercises[i].name).join(' + ');
+}
+function pristineTimer(t){ return !t.running && !t.done && t.remaining >= t.total; }
+function currentRestKey(){
+  const w = state.activeWorkout;
+  return w && w.exercises[w.currentExerciseIndex] ? restKey(w, w.currentExerciseIndex) : '';
+}
+/* Chooses the clock the bar shows: the exercise on screen's own, unless that
+   one is untouched while another exercise's rest is still running. Then the
+   running rest stays up, under its own exercise's name, until a set here starts
+   this exercise's rest. `own` forces the on-screen exercise's clock, for the
+   moments a rest is started or reloaded for it. Clocks for exercises no longer
+   in the session are dropped once stopped. Returns whether the bar switched. */
+function syncRestTimer(own){
+  const w = state.activeWorkout;
+  if (!w || workoutHandoff.held()) return false;
+  const cur = currentRestKey();
+  const label = cur ? restLabel(w, w.currentExerciseIndex) : '';
+  const keys = new Set(w.exercises.map((ex, i) => restKey(w, i)));
+  restTimers.forEach((t, k) => { if (!keys.has(k) && !t.running){ cancelRestBeep(k); restTimers.delete(k); } });
+  /* a clock saved before rest was per exercise has no owner: it is this one */
+  if (!timer.key && cur){
+    if (scheduledBlips.has('')){ scheduledBlips.set(cur, scheduledBlips.get('')); scheduledBlips.delete(''); }
+    timer.key = cur; timer.label = label;
+    persistTimer();
+  }
+  let key = cur;
+  if (!own){
+    const mine = cur === timer.key ? timer : restTimers.get(cur);
+    if (!mine || pristineTimer(mine)){
+      const ongoing = [timer, ...restTimers.values()].filter(t => t.key && t.running).sort((a, b) => a.endsAt - b.endsAt)[0];
+      if (ongoing) key = ongoing.key;
+    }
+  }
+  if (key === timer.key){ if (key === cur && label) timer.label = label; return false; }
+  if (!pristineTimer(timer)) restTimers.set(timer.key, Object.assign({}, timer));
+  else cancelRestBeep(timer.key);
+  const kept = restTimers.get(key);
+  restTimers.delete(key);
+  if (kept) Object.assign(timer, kept);
+  else {
+    timer.seconds = timer.total = timer.remaining = currentRestSeconds();
+    timer.running = false; timer.done = false; timer.endsAt = 0; timer.beepScheduled = false;
+  }
+  timer.key = key;
+  if (key === cur) timer.label = label;
+  persistTimer();
+  return true;
+}
+/* Reloads a full, stopped rest — for the exercise on screen, unless `keep`
+   says to reload whichever clock the bar is showing. */
+function loadTimer(sec, keep){
+  if(workoutHandoff.held())return;
+  if (!state.activeWorkout){ cancelRestBeep(); restTimers.clear(); timer.key = timer.label = ''; }
+  else { if (!keep) syncRestTimer(true); cancelRestBeep(timer.key); }
   timer.seconds = sec || state.settings.defaultRest;
   timer.total = timer.seconds;
   timer.remaining = timer.seconds;
@@ -3002,8 +3101,18 @@ function startTimer(){
 function pauseTimer(){
   if (timer.running){ timer.remaining = Math.max(0, (timer.endsAt - Date.now())/1000); }
   timer.running = false;
-  cancelRestBeep(); timer.beepScheduled = false;
+  cancelRestBeep(timer.key); timer.beepScheduled = false;
   persistTimer(); drawTimer();
+}
+/* A handoff stops every clock, not just the one on screen. */
+function pauseAllTimers(){
+  restTimers.forEach(t => {
+    if (!t.running) return;
+    t.remaining = Math.max(0, (t.endsAt - Date.now())/1000);
+    t.running = false; t.beepScheduled = false;
+    cancelRestBeep(t.key);
+  });
+  pauseTimer();
 }
 /* Extends the countdown only. `total` grows with it so the drain bar stays a
    fraction of a whole; `seconds` is left alone so the next rest still starts
@@ -3033,7 +3142,8 @@ function toggleTimer(){
 function resetTimer(){
   if(workoutHandoff.held())return;
   if (!state.activeWorkout) return;
-  loadTimer(currentRestSeconds());
+  const own = timer.key === currentRestKey();
+  loadTimer(own ? currentRestSeconds() : timer.seconds, !own);
   announce('Rest timer reset');
 }
 /* There is nothing to reset on a full, untouched timer, and nothing to reset
@@ -3065,8 +3175,13 @@ function currentRestSeconds(blocks){
   const own = blocks.map(restOverride).filter(n => n != null);
   return own.length ? Math.max(...own) : state.settings.defaultRest;
 }
-function timerRemaining(){
-  return timer.running ? Math.max(0, (timer.endsAt - Date.now())/1000) : timer.remaining;
+function timerLeft(t){
+  return t.running ? Math.max(0, (t.endsAt - Date.now())/1000) : t.remaining;
+}
+function timerRemaining(){ return timerLeft(timer); }
+/* The other exercises' clocks that are still under way, for the bar's side list. */
+function otherRests(){
+  return [...restTimers.values()].filter(t => t.running || (!t.done && t.remaining < t.total));
 }
 /* Under this many seconds the bar turns amber — a peripheral "nearly up"
    signal, so the digits don't have to be read. */
@@ -3082,6 +3197,10 @@ function paintTimerTime(){
   if (fill) fill.style.width = (timer.total > 0 ? clamp(rem/timer.total*100, 0, 100) : 0) + '%';
   const bar = $('#timer-panel');
   if (bar) bar.classList.toggle('is-soon', timer.running && rem <= REST_SOON);
+  $$('#timer-others [data-key]').forEach(el => {
+    const t = restTimers.get(el.dataset.key), time = el.querySelector('.ab-other-time');
+    if (t && time) time.textContent = fmtClock(timerLeft(t));
+  });
 }
 /* Full repaint, runs on state transitions and after every render. */
 function drawTimer(){
@@ -3091,6 +3210,19 @@ function drawTimer(){
   const rem = timerRemaining();
   const bar = $('#timer-panel');
   const toggle = $('#timer-toggle');
+  /* the clock names whose rest it is, so a countdown never reads as the wrong exercise's */
+  const label = $('#timer-label');
+  if (label) label.textContent = timer.label ? 'Rest · ' + timer.label : 'Rest';
+  timeEl.setAttribute('aria-label', 'Rest time remaining' + (timer.label ? ' for ' + timer.label : ''));
+  const others = $('#timer-others');
+  if (others){
+    others.innerHTML = otherRests().map(t =>
+      '<span class="ab-other' + (t.running ? ' is-running' : '') + '" data-key="' + esc(t.key) + '">' +
+        '<span class="ab-other-name">' + esc(t.label) + '</span> ' +
+        '<span class="ab-other-time">' + fmtClock(timerLeft(t)) + '</span>' +
+        (t.running ? '' : '<span class="sr-only"> paused</span>') + '</span>').join('');
+    others.hidden = !others.children.length;
+  }
   if (bar){
     bar.classList.toggle('is-running', timer.running);
     bar.classList.toggle('is-done', timer.done);
@@ -3124,6 +3256,19 @@ function completeRest(){
   buzz();
   drawTimer();
 }
+/* The other exercises' clocks finish the same way the bar's does, named. */
+function completeOtherRests(){
+  let finished = false;
+  restTimers.forEach(t => {
+    if (!t.running || t.endsAt > Date.now()) return;
+    t.running = false; t.remaining = 0; t.done = true; finished = true;
+    announce('Rest complete: ' + t.label + '.');
+    if (!t.beepScheduled) beep();
+    t.beepScheduled = false; scheduledBlips.delete(t.key);
+    buzz();
+  });
+  if (finished){ persistTimer(); drawTimer(); }
+}
 function tickTimer(){
   if(workoutHandoff.held())return;
   if (!state.activeWorkout && !timer.running) return;
@@ -3131,9 +3276,12 @@ function tickTimer(){
     if ((timer.endsAt - Date.now())/1000 <= 0) completeRest();
     else paintTimerTime();
   }
+  completeOtherRests();
 }
 let audioCtx = null;
-let scheduledBlips = [];
+/* Queued alarm oscillators, per clock key: one exercise's rest can be paused or
+   reset without silencing another's. */
+const scheduledBlips = new Map();
 function ensureAudio(){
   if (audioCtx) return audioCtx;
   const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -3169,21 +3317,25 @@ function alarmAt(ctx, t0){
    scheduling is sample-accurate and unaffected by timer throttling, so the
    beep lands on time even with the tab in the background. Returns whether the
    beep is now queued, so completeRest() knows not to sound a second one. */
-function scheduleRestBeep(delaySec){
-  cancelRestBeep();
+function scheduleRestBeep(delaySec, key = timer.key){
+  cancelRestBeep(key);
   if (!state.settings.sound) return false;
   const ctx = ensureAudio();
   if (!ctx) return false;
   try{
     if (ctx.state === 'suspended') ctx.resume();
     const t = ctx.currentTime + Math.max(0, delaySec);
-    scheduledBlips = alarmAt(ctx, t);
+    scheduledBlips.set(key, alarmAt(ctx, t));
     return true;
   }catch(e){ return false; }
 }
-function cancelRestBeep(){
-  scheduledBlips.forEach(o => { try{ o.stop(); }catch(e){ /* already stopped */ } });
-  scheduledBlips = [];
+/* One clock's alarm, or with no key every queued one. */
+function cancelRestBeep(key){
+  const keys = key === undefined ? [...scheduledBlips.keys()] : [key];
+  keys.forEach(k => {
+    (scheduledBlips.get(k) || []).forEach(o => { try{ o.stop(); }catch(e){ /* already stopped */ } });
+    scheduledBlips.delete(k);
+  });
 }
 /* Immediate fallback for when the beep could not be scheduled ahead of time.
    Same pattern, so the alarm sounds the same whichever path plays it. */
@@ -3371,6 +3523,7 @@ function workoutController(){
     get setWarmup(){return setWarmup;},
     get sortWorkouts(){return sortWorkouts;},
     get startTimer(){return startTimer;},
+    get syncRestTimer(){return syncRestTimer;},
     get suggestedLoad(){return suggestedLoad;},
     get state(){return state;},
     get toNum(){return toNum;},
@@ -3408,7 +3561,7 @@ function toggleSet(...args){return workoutController().toggleSet(...args);}
 function switchSupersetMember(...args){return workoutController().switchSupersetMember(...args);}
 function cascadeSetField(...args){return workoutController().cascadeSetField(...args);}
 function cascadeWeight(...args){return workoutController().cascadeWeight(...args);}
-function cascadeReps(...args){return workoutController().cascadeReps(...args);}
+function setReps(...args){return workoutController().setReps(...args);}
 function openSetEditor(...args){return workoutController().openSetEditor(...args);}
 function deleteSet(...args){return workoutController().deleteSet(...args);}
 function confirmExerciseRemoval(...args){return workoutController().confirmExerciseRemoval(...args);}
@@ -3744,7 +3897,7 @@ const remoteEngine = LiftlogStorage.createRemote({
 
 const workoutHandoff=LiftlogStorage.createHandoff({getState:()=>state,remote:remoteEngine,local:localStore,backup:()=>backupPayload(),prepare:(...args)=>prepareBackup(...args),
   nameKey:normalizedExerciseName,sameContract:sameProgressionContract,
-  pause:()=>{pauseTimer();if(!flushSave())throw new Error('Workout could not be saved.');},
+  pause:()=>{pauseAllTimers();if(!flushSave())throw new Error('Workout could not be saved.');},
   confirm:(...args)=>confirmDlg(...args),onChange:()=>render(),notify:text=>toast(text)});
 /* Record recovery is device-local and never replaces unrelated workout data. */
 function undoWorkout(root,id){return root.activeWorkout?.id===id?root.activeWorkout:root.workouts.find(w=>w.id===id);}
@@ -4671,8 +4824,9 @@ function render(){
   if (switched){ window.scrollTo(0,0); if(!ui.focus) main.focus({preventScroll:true}); }
   /* An untouched timer shows the rest the current exercise will use, so the
      clock and the rest tag agree when an exercise sets its own length. */
+  syncRestTimer();
   if (state.activeWorkout && !timer.running && !timer.done && timer.remaining >= timer.total &&
-      timer.seconds !== currentRestSeconds()) loadTimer(currentRestSeconds());
+      timer.key === currentRestKey() && timer.seconds !== currentRestSeconds()) loadTimer(currentRestSeconds());
   drawTimer();
   liftToasts();      /* the bar's height changes with the sheet and the set row */
   syncWakeLock();
@@ -5365,6 +5519,10 @@ function htmlActionBar(){
   return '<div class="actionbar" id="timer-panel" aria-label="Rest timer">' +
     '<div class="ab-drain" aria-hidden="true"><i id="timer-fill"></i></div>' +
     '<div class="ab-rows">' +
+      '<div class="ab-row ab-meta">' +
+        '<span id="timer-label" class="ab-for">Rest</span>' +
+        '<span id="timer-others" class="ab-others" aria-label="Other rests" hidden></span>' +
+      '</div>' +
       '<div class="ab-row ab-timer">' +
         '<output id="timer-time" class="ab-time" aria-label="Rest time remaining">' + fmtClock(timer.remaining) + '</output>' +
         '<button type="button" class="btn" id="timer-toggle" data-action="timer-toggle">' + IC.play + '<span>Start</span></button>' +
@@ -5977,11 +6135,14 @@ function htmlWorkoutEditor(w){
         timed ? { cap:'Sec', key:'durationSeconds' } : { cap:'Reps', key:'reps' },
         { cap:effortKey.toUpperCase(), key:effortKey }
       ];
+      /* the session's targets as faint hints in the empty count and RIR fields */
+      const hint = key => (key === 'reps' || key === 'durationSeconds') && ex.targetRepsMin != null ? targetRangeLabel(ex) :
+        key === 'rir' && ex.targetRir != null ? ex.targetRir : '–';
       const attrs = key => key === 'rpe' ? 'min="1" max="10" step="0.5"' : key === 'rir' ? 'min="0" max="10" step="1"' :
         key === 'reps' || key === 'durationSeconds' ? 'min="0" step="1"' : 'min="0" step="0.5"';
       const f = (d, id) => '<label class="field"><span class="cap">' + d.cap + '</span>' +
         '<input type="number" ' + attrs(d.key) + (id ? ' id="' + esc(id) + '"' : '') + ' inputmode="decimal" data-bind="hset" data-idx="' + xi + '" data-sid="' + esc(s.id) + '" data-field="' + d.key + '" ' +
-        'value="' + esc(s[d.key] != null ? s[d.key] : '') + '" placeholder="–"></label>';
+        'value="' + esc(s[d.key] != null ? s[d.key] : '') + '" placeholder="' + esc(hint(d.key)) + '"></label>';
       html += '<div class="hset-row' + (s.completed ? ' done' : '') + '">' +
         '<span class="hset-num muted xs mono">' + (si+1) + '</span>' +
         f(flds[0], 'hw-' + s.id) + f(flds[1]) + f(flds[2]) +
@@ -6937,10 +7098,8 @@ const actions = {
       weight: last && last.weight != null ? last.weight : null,
       addedWeight: last && last.addedWeight != null ? last.addedWeight : null,
       addedWeightUnit: last && last.addedWeightUnit ? last.addedWeightUnit : (ex.unit === 'bw' ? unitLabel() : undefined),
-      reps:   last && last.reps != null ? last.reps : null,
-      durationSeconds: last && last.durationSeconds != null ? last.durationSeconds : null,
-      rpe:    last && last.rpe != null ? last.rpe : null,
-      rir:    last && last.rir != null ? last.rir : null,
+      /* the load carries over; the count and effort are each set's own */
+      reps:null, durationSeconds:null, rpe:null, rir:null,
       completed:false, completedAt:0, unit: ex.unit || 'kg' };
     ex.sets.push(ns); save();
     ui.focus = 'hw-' + ns.id; render();
@@ -7448,7 +7607,7 @@ const changeHandlers = {
   'set-weight'(t){ cascadeWeight(t.dataset.id, normalizeSetNumber(t.dataset.field, t.value)); },
   'set-reps'(t){
     const ex = currentExercise();
-    cascadeReps(t.dataset.id, normalizeSetNumber(ex && ex.unit === 'time' ? 'durationSeconds' : 'reps', t.value));
+    setReps(t.dataset.id, normalizeSetNumber(ex && ex.unit === 'time' ? 'durationSeconds' : 'reps', t.value));
     if (ex) paintRepRange(ex);
   },
   'import-all'(t){ withPickedFile(t, importData); },
@@ -7661,6 +7820,7 @@ function init(){
     syncWakeLock();
     if (timer.running && (timer.endsAt - Date.now()) / 1000 <= 0) completeRest();
     else drawTimer();
+    if (!workoutHandoff.held()) completeOtherRests();
   });
   window.addEventListener('pagehide', () => { flushSave(); if (readRemoteWork()) autoRemoteBackup(); });
   window.addEventListener('online', ()=>{renderStorageStatus();remoteStartupSync();});

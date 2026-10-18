@@ -2,10 +2,11 @@
 /* exported LiftlogWorkoutController */
 const LiftlogWorkoutController = {
   create(context){
-/* A planned set leaves its count blank: the input shows the target range as
-   its placeholder, and logging an untouched set records the lower bound
-   (fillSetDefaults). Pre-filling the lower bound hid the range and made every
-   row look already decided, which also stopped a typed count cascading. */
+/* A planned set leaves its count and effort blank: the inputs show the target
+   range and target RIR as faint placeholders, and logging an untouched set
+   records the lower bound (fillSetDefaults). A new set copies the load from
+   the set it follows, never the count or the effort: those are what each set
+   is for, and a copied figure hides the target it should be measured against. */
 function newSetFrom(ex, copyFrom){
   const timed = ex.unit === 'time';
   const bodyweight = ex.unit === 'bw';
@@ -17,8 +18,7 @@ function newSetFrom(ex, copyFrom){
       addedWeightUnit:copyFrom ? (copyFrom.addedWeightUnit || context.unitLabel()) : context.unitLabel()
     } : {}),
     /* reps stays a pure count; timed work lives in durationSeconds */
-    reps:   copyFrom && !timed ? copyFrom.reps : null,
-    durationSeconds: copyFrom && timed ? copyFrom.durationSeconds : null,
+    reps:null, durationSeconds:null,
     rpe:null, rir:null, completed:false, completedAt:null,
     unit: ex.unit === 'bw' ? 'bw' : (timed ? 'time' : context.state.settings.unit)
   };
@@ -297,9 +297,11 @@ function switchSupersetMember(idx){
   context.render();
   context.announce('Now: ' + w.exercises[idx].name + '.');
 }
-/* Setting a weight or a rep/duration target is nearly always a decision about
-   the rest of the exercise rather than about one row, so it flows down to
-   later sets — but only into rows that are still blank. A row that already
+/* Setting a weight is nearly always a decision about the rest of the exercise
+   rather than about one row, so it flows down to later sets — but only into
+   rows that are still blank. Reps, seconds and RIR never flow: each set's
+   count is what that set is logged for, and the target stays visible as the
+   field's placeholder until something is typed. A row that already
    holds a number (typed, pre-filled from the plan or last session, or a
    deliberately different warm-up or back-off load) is a decision of its own
    and is never overwritten. Completed sets are left alone too — they record
@@ -337,10 +339,14 @@ function cascadeWeight(setId, value){
   if (ex.unit === 'bw') ex.sets.forEach(s => { s.addedWeightUnit = context.unitLabel(); });
   cascadeSetField(setId, field, value, 'sw-', context.unitLabel());
 }
-function cascadeReps(setId, value){
+/* The count belongs to its own row only; see cascadeSetField. */
+function setReps(setId, value){
+  if(context.workoutHandoff.held())return;
   const ex = currentExercise(); if (!ex) return;
+  const s = ex.sets.find(x => x.id === setId); if (!s) return;
   const field = ex.unit === 'time' ? 'durationSeconds' : 'reps';
-  cascadeSetField(setId, field, value, 'sr-', ex.unit === 'time' ? 'sec' : '');
+  s[field] = context.normalizeSetNumber(field, value);
+  context.save({changed:['activeWorkout']});
 }
 
 /* Numeric edits stay in the dialog draft until Save. Less frequent warm-up
@@ -781,6 +787,6 @@ function discardWorkout(){
       context.render(); context.toast('Workout discarded');
     });
 }
-    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,cascadeReps,openSetEditor,canSwap,swapExercise,openSwapDialog,openExerciseMenu,warmupPlan,addWarmups,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,discardWorkout};
+    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,setReps,openSetEditor,canSwap,swapExercise,openSwapDialog,openExerciseMenu,warmupPlan,addWarmups,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,discardWorkout};
   }
 };
