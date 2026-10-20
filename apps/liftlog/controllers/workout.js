@@ -197,16 +197,15 @@ function settleSupersets(w){
   return ended;
 }
 /* Whose turn it is after a set in the current superset: the next member, in
-   order, that still has work. `wrapped` means the round is over — the one
-   point at which a superset rests. Null outside a superset or once every
-   member is finished. */
+   order, that still has work. Null outside a superset or once every member is
+   finished. */
 function supersetTurn(w){
   const run = supersetRun(w, w.currentExerciseIndex);
   if (run.length < 2) return null;
   const side = run.indexOf(currentMemberIndex(w));
   for (let k = 1; k <= run.length; k++){
     const j = (side + k) % run.length, ex = w.exercises[run[j]];
-    if (!ex.skipped && !allSetsDone(ex)) return { index:run[j], wrapped:j <= side };
+    if (!ex.skipped && !allSetsDone(ex)) return { index:run[j] };
   }
   return null;
 }
@@ -260,10 +259,9 @@ function toggleSet(setId){
   else s.completedAt = null;
   let finished = s.completed && allSetsDone(ex);
   const removed = finished ? settleEitherOf(w, ex) : null;
-  /* In a superset a logged set hands over to the partner, and rest waits for
-     the end of the round. The superset is finished only when every member is.
-     A warm-up is not part of the round: it stays on this exercise and rests
-     as a straight set would — unless it was this member's last open set. */
+  /* In a superset a logged set hands over to the partner. The superset is
+     finished only when every member is. A warm-up stays on this exercise,
+     unless it was this member's last open set. */
   const inSuperset = s.completed && supersetRun(w, w.currentExerciseIndex).length > 1;
   const turn = inSuperset ? supersetTurn(w) : null;
   if (inSuperset) finished = !turn;
@@ -273,9 +271,11 @@ function toggleSet(setId){
   if (removed) context.toast('Either of: removed ' + removed.name + ' from this workout');
   if (s.completed){
     context.announce('Set ' + (i+1) + ' of ' + ex.sets.length + ' complete.' + (handOver ? ' Now: ' + handOver.name + '.' : ''));
-    if (context.state.settings.autoRest && (!turn || turn.wrapped || holdForWarmup)){
-      /* rest belongs to what was just performed: this exercise, or the whole round */
-      context.loadTimer(context.currentRestSeconds(turn && turn.wrapped && !holdForWarmup ? supersetRun(w, w.currentExerciseIndex).map(i => w.exercises[i]) : [ex]));
+    /* Rest belongs to the exercise just performed, superset member or not.
+       Superset partners work different muscles, so each rests on its own
+       clock: this one counts down while the partner is worked. */
+    if (context.state.settings.autoRest){
+      context.loadTimer(context.currentRestSeconds(ex));
       context.startTimer();
     }
   }

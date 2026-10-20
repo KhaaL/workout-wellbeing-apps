@@ -150,7 +150,7 @@ const PAIR_KINDS = {
     desc:'Choose two exercises already in this routine. Completing either one removes the other from that workout only.',
     current:'Current pairs', join:' or ', unpair:'Unpair', empty:'Add two unpaired exercises to create another pair.' },
   supersetOf:{ title:'Superset', second:'Alternate with', add:'Create superset',
-    desc:'Choose two exercises already in this routine. In a workout you alternate between them set by set, resting after each round.',
+    desc:'Choose two exercises already in this routine. In a workout you alternate between them set by set, and each exercise rests on its own timer.',
     current:'Current supersets', join:' + ', unpair:'Split', empty:'Add two unpaired exercises to create a superset.' }
 };
 /* …and both places that pair: the routine being edited, and the workout in
@@ -173,7 +173,7 @@ const PAIR_SCOPES = {
     pair:(a, b) => context.pairSessionExercises(a, b),
     unpair:key => context.unpairSessionExercises(key),
     opener:() => 'session-superset-open',
-    copy:{ desc:'Choose two exercises with sets still to do. You alternate between them set by set, resting after each round. ' +
+    copy:{ desc:'Choose two exercises with sets still to do. You alternate between them set by set, and each exercise rests on its own timer. ' +
       'This workout only: the routine keeps its plan.', empty:'A superset needs two unpaired exercises with sets still to do.' }
   }
 };

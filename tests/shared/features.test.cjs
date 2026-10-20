@@ -164,9 +164,13 @@ test('Liftlog rest comes from the exercise when it sets one, else from Settings'
  const d=lift(),s=d.api.state;s.settings.defaultRest=90;
  const def=(id,extra={})=>({id,name:id,category:'Legs',unit:'kg',loadMode:'total',equipmentKey:'',movementFamily:'squat',archived:false,notes:'',url:'',...extra});
  s.exercises.push(def('squat',{restSeconds:180}),def('curl'),def('dips',{restSeconds:120}));
- assert.equal(d.api.currentRestSeconds([{exerciseId:'squat'}]),180);
- assert.equal(d.api.currentRestSeconds([{exerciseId:'curl'}]),90);
- assert.equal(d.api.currentRestSeconds([{exerciseId:'curl'},{exerciseId:'dips'}]),120,'a superset round rests as long as its longest member');
+ assert.equal(d.api.currentRestSeconds({exerciseId:'squat'}),180);
+ assert.equal(d.api.currentRestSeconds({exerciseId:'curl'}),90);
+ s.activeWorkout={id:'now',routineId:'r',routineName:'R',startedAt:Date.now(),finishedAt:null,notes:'',currentExerciseIndex:0,supersetSide:0,timer:null,
+  exercises:[{exerciseId:'curl',name:'curl',supersetOf:'k',sets:[]},{exerciseId:'dips',name:'dips',supersetOf:'k',sets:[]}]};
+ assert.equal(d.api.currentRestSeconds(),90,'a superset member rests for its own length');
+ s.activeWorkout.supersetSide=1;assert.equal(d.api.currentRestSeconds(),120,'so does its partner');
+ s.activeWorkout=null;
  const backup=JSON.parse(JSON.stringify(s));backup.exercises.find(e=>e.id==='curl').restSeconds=5;backup.exercises.find(e=>e.id==='dips').restSeconds=0;
  const prepared=d.api.prepareBackup(backup);
  assert.equal(prepared.version,15);
