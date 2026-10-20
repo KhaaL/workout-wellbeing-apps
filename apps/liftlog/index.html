@@ -2968,9 +2968,9 @@ function confirmDlg(title, body, confirmLabel, danger){return WorkoutUI.confirm(
    separate because +0:30 must extend the countdown without changing the length
    the next rest starts from.
 
-   Each exercise rests on its own clock. `timer` is the one for the exercise on
-   screen, which the action bar shows and controls; `key` says whose it is (an
-   exercise, or a superset's whole round) and `label` names it in the bar.
+   Each exercise rests on its own clock, superset members included. `timer` is
+   the one for the exercise on screen, which the action bar shows and controls;
+   `key` says which exercise it belongs to and `label` names it in the bar.
    Moving to another exercise sets that clock aside in `restTimers`, still
    counting, and brings the new exercise's own back (syncRestTimer). A clock
    that was never touched is not kept: it is rebuilt at the rest length. */
@@ -3022,31 +3022,36 @@ function restoreTimer(){
     restTimers.set(t.key, readTimer(t, {}));
   });
 }
-/* Rest belongs to what was performed: a lone exercise, or a superset's round. */
+/* Rest belongs to the exercise that was performed. Superset partners train
+   different muscles, so each member keeps its own clock: one can be ready
+   while the other is still recovering. A clock saved under an older
+   'superset:' key finishes under its old label and is then dropped. */
 function restKey(w, idx){
   const ex = w && w.exercises[idx];
-  if (!ex) return '';
-  return ex.supersetOf ? 'superset:' + ex.supersetOf : 'exercise:' + ex.exerciseId;
+  return ex ? 'exercise:' + ex.exerciseId : '';
 }
 function restLabel(w, idx){
-  return supersetRun(w, idx).map(i => w.exercises[i].name).join(' + ');
+  const ex = w && w.exercises[idx];
+  return ex ? ex.name : '';
 }
 function pristineTimer(t){ return !t.running && !t.done && t.remaining >= t.total; }
 function currentRestKey(){
   const w = state.activeWorkout;
-  return w && w.exercises[w.currentExerciseIndex] ? restKey(w, w.currentExerciseIndex) : '';
+  return w ? restKey(w, currentMemberIndex(w)) : '';
 }
 /* Chooses the clock the bar shows: the exercise on screen's own, unless that
    one is untouched while another exercise's rest is still running. Then the
    running rest stays up, under its own exercise's name, until a set here starts
-   this exercise's rest. `own` forces the on-screen exercise's clock, for the
+   this exercise's rest. The bar keeps its own clock while that one runs (the
+   rest just started, say for a superset's last set), else it shows the running
+   clock that ends first. `own` forces the on-screen exercise's clock, for the
    moments a rest is started or reloaded for it. Clocks for exercises no longer
    in the session are dropped once stopped. Returns whether the bar switched. */
 function syncRestTimer(own){
   const w = state.activeWorkout;
   if (!w || workoutHandoff.held()) return false;
   const cur = currentRestKey();
-  const label = cur ? restLabel(w, w.currentExerciseIndex) : '';
+  const label = cur ? restLabel(w, currentMemberIndex(w)) : '';
   const keys = new Set(w.exercises.map((ex, i) => restKey(w, i)));
   restTimers.forEach((t, k) => { if (!keys.has(k) && !t.running){ cancelRestBeep(k); restTimers.delete(k); } });
   /* a clock saved before rest was per exercise has no owner: it is this one */
@@ -3059,7 +3064,8 @@ function syncRestTimer(own){
   if (!own){
     const mine = cur === timer.key ? timer : restTimers.get(cur);
     if (!mine || pristineTimer(mine)){
-      const ongoing = [timer, ...restTimers.values()].filter(t => t.key && t.running).sort((a, b) => a.endsAt - b.endsAt)[0];
+      const ongoing = timer.key && timer.running ? timer :
+        [...restTimers.values()].filter(t => t.key && t.running).sort((a, b) => a.endsAt - b.endsAt)[0];
       if (ongoing) key = ongoing.key;
     }
   }
@@ -3157,8 +3163,8 @@ function canResetTimer(){
    hand-tuned, which meant the same movement could rest for 45s in one routine
    and 90s in another and nothing on screen said why (v6 removed it). The
    override lives on the library entry, so a movement rests the same in every
-   routine, and the rest tag says when the length is the exercise's own. A
-   superset round rests as long as its longest member. */
+   routine, and the rest tag says when the length is the exercise's own.
+   Superset members rest for their own lengths, on their own clocks. */
 function normalizeRestSeconds(value){
   const n = toNum(value);
   return n == null || n <= 0 ? null : clamp(Math.round(n), REST_MIN, REST_MAX);
@@ -3167,13 +3173,12 @@ function restOverride(block){
   const def = block && exerciseById(canonicalExerciseId(block.exerciseId));
   return def ? normalizeRestSeconds(def.restSeconds) : null;
 }
-/* blocks: the exercises just performed; by default the current one and its
-   superset partners. */
-function currentRestSeconds(blocks){
+/* The rest after a set of `ex`; by default the exercise on screen. */
+function currentRestSeconds(ex){
   const w = state.activeWorkout;
-  if (!blocks) blocks = w && w.exercises[w.currentExerciseIndex] ? supersetRun(w, w.currentExerciseIndex).map(i => w.exercises[i]) : [];
-  const own = blocks.map(restOverride).filter(n => n != null);
-  return own.length ? Math.max(...own) : state.settings.defaultRest;
+  if (ex === undefined) ex = w ? w.exercises[currentMemberIndex(w)] : null;
+  const own = restOverride(ex);
+  return own != null ? own : state.settings.defaultRest;
 }
 function timerLeft(t){
   return t.running ? Math.max(0, (t.endsAt - Date.now())/1000) : t.remaining;
@@ -3269,14 +3274,14 @@ function completeOtherRests(){
   });
   if (finished){ persistTimer(); drawTimer(); }
 }
+/* Every running clock repaints, the bar's and the ones beside it alike: a
+   paused or finished bar clock must not freeze another exercise's countdown. */
 function tickTimer(){
   if(workoutHandoff.held())return;
   if (!state.activeWorkout && !timer.running) return;
-  if (timer.running){
-    if ((timer.endsAt - Date.now())/1000 <= 0) completeRest();
-    else paintTimerTime();
-  }
+  if (timer.running && (timer.endsAt - Date.now())/1000 <= 0) completeRest();
   completeOtherRests();
+  if (timer.running || [...restTimers.values()].some(t => t.running)) paintTimerTime();
 }
 let audioCtx = null;
 /* Queued alarm oscillators, per clock key: one exercise's rest can be paused or
@@ -4495,7 +4500,7 @@ function schemaHelpHTML(){
       ['items[].repsMax', 'integer', 'Upper rep target, clamped to the same range. Values below <code>repsMin</code> are reordered.'],
       ['items[].targetRir', 'integer | null', 'Optional target reps in reserve, clamped to 0\u201310. When set, RIR is shown while logging this exercise.'],
       ['items[].eitherOf', 'optional string', 'Exactly two different exercises in a routine share a key to form an either-of pair. They are placed together; completing one removes the other from that workout only. Invalid or incomplete pairs become independent exercises.'],
-      ['items[].supersetOf', 'optional string', 'Exactly two different exercises in a routine share a key to form a superset. They are placed together; a workout alternates between them set by set and rests after each round. An item cannot be in an either-of pair and a superset at once. Invalid or incomplete supersets become independent exercises. Finished workouts do not record supersets.'],
+      ['items[].supersetOf', 'optional string', 'Exactly two different exercises in a routine share a key to form a superset. They are placed together; a workout alternates between them set by set, and each exercise rests on its own timer after its sets. An item cannot be in an either-of pair and a superset at once. Invalid or incomplete supersets become independent exercises. Finished workouts do not record supersets.'],
       ['items[].weight', 'number | null', 'Planned load, or added load for a bodyweight exercise. <code>null</code> uses last time\u2019s figure.'],
       ['exercises[]', 'optional', 'Definitions for the ids above, including broad <code>category</code>, <code>movementFamily</code>, <code>loadMode</code>, optional <code>equipmentKey</code>, <code>archived</code>, notes and URL.'],
       ['exercises[].unit', 'enum', 'One of ' + units + '. <code>kg</code> and <code>lb</code> both mean weighted; a created Library exercise follows this browser’s global weight unit.'],
@@ -5406,7 +5411,7 @@ function htmlSupersetNote(w, ex, run){
         'aria-label="Switch to ' + esc(o.name) + ', ' + done + ' of ' + o.sets.length + ' sets done">' +
         esc(o.name) + ' <span class="muted xs">' + done + '/' + o.sets.length + '</span></button>';
     }).join('') +
-    '<span class="muted xs">Rest after each round</span></div>';
+    '<span class="muted xs">Each rests on its own timer</span></div>';
 }
 
 /* What is inside the session-overview sheet: every exercise in the workout, in

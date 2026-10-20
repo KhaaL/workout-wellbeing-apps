@@ -318,8 +318,10 @@ was already added. The exercise's load cue says when sets start at the suggestio
 
 Rest comes from Settings unless a library exercise sets its own (Exercises →
 Edit → Rest after a set). The override belongs to the movement, so it rests the
-same in every routine; the rest tag marks it "(this exercise)", and a superset
-round rests as long as its longest member. Before any set is logged, **More… → Swap**
+same in every routine; the rest tag marks it "(this exercise)". Superset members
+rest on separate timers, each for its own length: a logged set starts that
+exercise's rest and hands over to the partner, and the action bar lists the
+other rest still counting. Before any set is logged, **More… → Swap**
 replaces the current exercise for that session only. The new one keeps the set
 count, and the rep range and target RIR when both are counted the same way;
 pairings carry over and the routine is unchanged.
