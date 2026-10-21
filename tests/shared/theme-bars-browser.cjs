@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require('playwright');
 const root=path.resolve(__dirname,'../..');
+const themes=['system','light','dark','contrast','lamplight','forest','blossom','ink','dracula','gruvbox','nord','solarized','monokai'],adaptive=['system','contrast','lamplight','forest','blossom','ink'];
 (async()=>{
  const browser=await chromium.launch({headless:true,...process.env.BROWSER_PATH?{executablePath:process.env.BROWSER_PATH}:{}});
  try{
@@ -20,7 +21,7 @@ const root=path.resolve(__dirname,'../..');
       canvas:css.backgroundColor,page:body.backgroundColor,surface:css.getPropertyValue('--surface').trim(),
       hint:document.querySelector('meta[name="theme-color"]').content,fullHeight:document.body.getBoundingClientRect().height>=innerHeight};
     });
-    const scheme=theme==='system'?os:theme==='light'?'light':'dark';
+    const scheme=adaptive.includes(theme)?os:theme==='light'?'light':'dark';
     assert.equal(actual.theme,theme);assert.equal(actual.scheme,scheme,app+' '+phase+' root scheme');assert.equal(actual.bodyScheme,scheme);
     assert.equal(actual.canvas,actual.page,app+' '+phase+' canvas and page match');assert.equal(actual.hint,actual.surface);
     assert.equal(actual.fullHeight,true,app+' paints the full viewport');
@@ -28,17 +29,23 @@ const root=path.resolve(__dirname,'../..');
    };
    for(const os of ['light','dark']){
     await page.emulateMedia({colorScheme:os});
-    for(const theme of ['system','light','dark','dracula','gruvbox','nord','solarized','monokai']){
+    for(const theme of themes){
      await page.evaluate(({app,theme})=>localStorage.setItem(app==='liftlog'?'liftlog.v1':'bike-cardio.ui.theme',app==='liftlog'?JSON.stringify({version:14,settings:{theme},exercises:[],routines:[],workouts:[],activeWorkout:null}):theme),{app,theme});
      cold=true;await page.reload();await check(theme,os,'before app startup');
     }
    }
    cold=false;await page.reload();await page.locator('.nav-btn[data-view="settings"]').click();
-   for(const theme of ['light','dark','dracula','gruvbox','nord','solarized','monokai','system']){
+   for(const theme of [...themes.slice(1),'system']){
     if(app==='liftlog')await page.locator('label:has(input[name=theme][value='+theme+'])').click();else await page.selectOption('#themeChoice',theme);
     await check(theme,'dark','theme change');
    }
    await page.emulateMedia({colorScheme:'light'});await page.waitForFunction(()=>getComputedStyle(document.documentElement).colorScheme==='light');await check('system','light','OS change');
+   // An adaptive theme swaps to its own light palette when the device changes.
+   const pick=theme=>app==='liftlog'?page.locator('label:has(input[name=theme][value='+theme+'])').click():page.selectOption('#themeChoice',theme);
+   const bg=()=>page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
+   await pick('forest');await check('forest','light','adaptive theme');assert.equal(await bg(),'#f2f4ef');
+   await page.emulateMedia({colorScheme:'dark'});await page.waitForFunction(()=>getComputedStyle(document.documentElement).colorScheme==='dark');
+   await check('forest','dark','adaptive OS change');assert.equal(await bg(),'#121a16');
    assert.deepEqual(errors,[]);await context.close();console.log('PASS '+app+': saved theme before startup, matching canvas/body/browser hints, full viewport and theme/OS changes');
   }
  }finally{await browser.close();}
