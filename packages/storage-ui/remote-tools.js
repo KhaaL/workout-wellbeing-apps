@@ -22,7 +22,7 @@ WorkoutStorage.renderRemoteTools = function(container, remote, download, layout=
   if(state.diagnostic){const error=paragraph('Last connection error: '+state.diagnostic.message);error.setAttribute('role','status');}
   if(state.report){
     const report=state.report;
-    paragraph('Checked '+new Date(report.at).toLocaleString()+'. '+(report.compatible?'Checks passed for the selected backup mode.':'Some checks failed or could not be verified. Cloud sync stays paused.'));
+    paragraph('Checked '+new Date(report.at).toLocaleString()+'. '+(report.compatible?'Checks passed for the selected backup mode.':'Some checks failed or could not be verified. '+(immutable?'Cloud backups stay':'Cloud sync stays')+' paused.'));
     const names={browserAccess:'Browser access to read responses',read:'Read-back',write:'Write',etag:'ETag exposure',ifNoneMatch:'Create-only protection',ifMatch:'Stale-version protection',matchedWrite:'Current-version update',cleanup:'Probe cleanup'};
     const list=element('ul');list.id='providerResults';
     for(const [name,label]of Object.entries(names))element('li',label+': '+({passed:'passed',failed:'failed',unknown:'not verified','not-needed':'not needed'}[report[name]]||'not verified'),list);
@@ -33,7 +33,7 @@ WorkoutStorage.renderRemoteTools = function(container, remote, download, layout=
     for(const key of report.remainingProbeKeys||[])paragraph('Remaining probe: '+key).style.overflowWrap='anywhere';
   }
   element('h3','Cloud snapshots');
-  paragraph('Browse earlier backups for this app only. Newest backups appear first, with 20 entries per page. Preview loads record counts; restoring changes this device and leaves cloud sync paused.');
+  paragraph('Browse earlier backups for this app only. Newest backups appear first, with 20 entries per page. Preview loads record counts; restoring changes this device and leaves '+(immutable?'cloud backups':'cloud sync')+' paused.');
   controls=actions(container);
   button('Browse cloud snapshots','browseSnapshots',()=>remote.remoteListSnapshots(),controls,!remote.remoteCryptoAvailable());
   if(immutable)button('Restore legacy backup locally…','restoreLegacyBackup',()=>remote.remoteRestoreLegacy(),controls,state.active);

@@ -24,14 +24,34 @@ function remoteSyncPaused(){
   try { return localStorage.getItem(REMOTE_PAUSE_KEY) != null; }
   catch(e){ return true; } // unavailable storage fails closed
 }
-function pauseRemoteSync(reason){
+/* `code` names the cause for the storage summary. A review or check started
+   while already paused passes `keep`, so the summary still names the cause
+   the person saw before opening it. */
+function pauseRemoteSync(reason, options = {}){
   invalidateRemote();
-  try { localStorage.setItem(REMOTE_PAUSE_KEY, JSON.stringify({reason:reason || 'Paused by you',at:Date.now()})); }
-  catch(e){ remotePauseBlocked = true; setRemoteStatus('error','Cloud sync paused in this page; pause could not be saved. Local restore blocked.'); throw new Error('Could not persist cloud sync pause — local restore blocked'); }
+  let existing = null;
+  if (options.keep && !remotePauseBlocked){ try { existing = localStorage.getItem(REMOTE_PAUSE_KEY); } catch(e){} }
+  if (existing == null){
+    try { localStorage.setItem(REMOTE_PAUSE_KEY, JSON.stringify({reason:reason || 'Paused by you',code:options.code || null,at:Date.now()})); }
+    catch(e){ remotePauseBlocked = true; setRemoteStatus('error','Cloud sync paused in this page; pause could not be saved. Local restore blocked.'); throw new Error('Could not persist cloud sync pause — local restore blocked'); }
+  }
   setRemoteStatus('paused', reason || 'Cloud sync paused');
 }
+/* null when not paused. Code 'storage' means the pause record cannot be read
+   or written, which keeps sync paused for safety. */
+function remotePauseInfo(){
+  if (remotePauseBlocked) return {code:'storage',at:null};
+  let raw;
+  try { raw = localStorage.getItem(REMOTE_PAUSE_KEY); }
+  catch(e){ return {code:'storage',at:null}; }
+  if (raw == null) return null;
+  let record = null;
+  try { record = JSON.parse(raw); } catch(e){}
+  return {code:typeof record?.code === 'string' ? record.code : null, at:Number.isFinite(record?.at) ? record.at : null};
+}
 function pauseRemoteSyncAction(){
-  try { pauseRemoteSync('Cloud sync paused'); toast('Cloud sync paused — credentials retained'); }
+  const term = syncMode(loadRemoteConfig()) === 'immutable' ? 'Cloud backups' : 'Cloud sync';
+  try { pauseRemoteSync(term + ' paused', {code:'manual'}); toast(term + ' paused. Credentials are kept.'); }
   catch(e){ toast(e.message); }
   app.onRefresh?.();
 }
@@ -93,6 +113,11 @@ function diagnosticsPayload(){
 }
 function remoteTools(){return {busy:toolsBusy,active:app.isActive(),mode:syncMode(loadRemoteConfig()),report:providerReport(),diagnostic:diagnosticsPayload().lastError,snapshots:snapshotPage&&snapshotPage.scope===scopeKey(loadRemoteConfig()||{})?deepCopy(snapshotPage):null};}
 function enforceBackupLimits(obj){ WorkoutStorage.enforceLimits(obj,app.limits); }
+/* Where backups land. Credentials are excluded, because a new key for the
+   same bucket leaves the backups already verified there in place. */
+function remoteDestination(cfg){
+  return JSON.stringify([String(cfg.endpoint || '').replace(/\/+$/, ''),cfg.region,cfg.bucket,cfg.objectKey || REMOTE_OBJECT_KEY_DEFAULT,!!cfg.pathStyle,syncMode(cfg)]);
+}
 function remoteIdentity(cfg){
   return JSON.stringify([cfg.endpoint,cfg.region,cfg.bucket,cfg.objectKey || REMOTE_OBJECT_KEY_DEFAULT,!!cfg.pathStyle,cfg.accessKeyId,cfg.secretAccessKey,...(syncMode(cfg)==='immutable'?['immutable']:[])]);
 }
@@ -377,10 +402,10 @@ async function appendRemoteBackup(cfg,ctx){
   }finally{archiveKeys.delete(key);}
 }
 function resumeImmutableBackups(cfg){
-  try{pauseRemoteSync('Separate backups paused for review');}catch(error){toast(error.message);return;}
+  try{pauseRemoteSync('Separate backups paused for review',{code:'review',keep:true});}catch(error){toast(error.message);return;}
   return remoteRunAction(()=>coordinateRemote(async ctx=>{
     const expected=localRevisionKey();
-    if(!await confirmDlg('Resume separate cloud backups?','A new backup file will be saved from this device, then changes will create separate files automatically. Existing cloud files are kept. To bring data from another device, browse cloud backups and restore or download a chosen copy first.','Back up local copy & resume'))return;
+    if(!await confirmDlg('Resume separate cloud backups?','A new backup file will be saved from this device, then changes will create separate files automatically. Existing cloud files are kept. To bring data from another device, browse cloud backups and restore or download a chosen copy first.','Back up & resume'))return;
     assertRemote(ctx);
     if(expected!==localRevisionKey())throw new Error('Local data changed during review — choose again; backups remain paused');
     await appendRemoteBackup(cfg,ctx);
@@ -456,7 +481,7 @@ function remoteReviewChoice(mode){
   const cfg = loadRemoteConfig(); if (!cfg) return;
   if(syncMode(cfg)==='immutable')return mode==='cloud'?remoteRunAction(()=>remoteRestoreLegacy()):resumeImmutableBackups(cfg);
   if(unsafeProvider()){toast('The provider failed overwrite protection. Recheck compatibility before resuming sync; local and snapshot recovery remain available.');return;}
-  try { pauseRemoteSync('Cloud sync paused for review'); }
+  try { pauseRemoteSync('Cloud sync paused for review',{code:'review',keep:true}); }
   catch(e){ toast(e.message); return; }
   return remoteRunAction(() => coordinateRemote(async ctx => {
     try {
@@ -576,7 +601,7 @@ function configured(){const cfg=loadRemoteConfig();if(!cfg)throw new Error('Conf
 async function remoteCheckProvider(){
   const cfg=configured(),wasPaused=remoteSyncPaused(),previouslyUnsafe=unsafeProvider();
   if(toolsBusy)throw new Error('A storage check is already running.');
-  pauseRemoteSync('Cloud sync paused while checking provider compatibility');
+  pauseRemoteSync('Cloud sync paused while checking provider compatibility',{code:'provider',keep:true});
   return toolsAction(cfg,async ctx=>{
     const key=(cfg.objectKey||REMOTE_OBJECT_KEY_DEFAULT)+'.checks/'+uid()+'.json',probe={...cfg,objectKey:key};
     validateRemoteConfig(probe);probeKeys.add(key);
@@ -750,7 +775,7 @@ async function remoteRestoreSnapshot(key,legacy=false){
   else snapshotConfig(cfg,key);
   if(toolsBusy)throw new Error('A storage check is already running.');
   if(app.isActive())throw new Error('Finish or end the saved workout before restoring a snapshot.');
-  pauseRemoteSync('Cloud sync paused for snapshot recovery');
+  pauseRemoteSync('Cloud sync paused for snapshot recovery',{code:'snapshot'});
   return toolsAction(cfg,async ctx=>{
     const expected=localRevisionKey(),target=legacy?cfg:snapshotConfig(cfg,key),saved=await readRemoteBackup(target,ctx);
     if(!saved)throw diagnosticError('missing-object',legacy?'No legacy backup exists at this path. Browse separate cloud backups instead.':'Snapshot no longer exists. Reload the list.',cfg,'restore snapshot');
@@ -767,5 +792,5 @@ async function remoteRestoreSnapshot(key,legacy=false){
     scheduleRemoteBackup();setRemoteStatus('paused','Snapshot restored locally — cloud sync stays paused');toolsChanged();return true;
   });
 }
-return {remoteUploadHandoff,remoteReadHandoff,syncMode,remoteRestoreLegacy,appendRemoteBackup,remoteCheckProvider,remoteListSnapshots,remotePreviewSnapshot,remoteDownloadSnapshot,remoteRestoreSnapshot,remoteTools,diagnosticsPayload,remoteSyncPaused,pauseRemoteSync,pauseRemoteSyncAction,resumeReviewedSync,enforceBackupLimits,remoteIdentity,invalidateRemote,assertRemote,coordinateRemote,readRemoteWork,writeRemoteWork,validateRemoteConfig,loadRemoteConfig,saveRemoteConfig,clearRemoteConfig,remoteCryptoAvailable,toHex,sha256Hex,hmacRaw,signingKey,amzNow,uriEncode,remoteUrl,s3Request,remoteRunAction,scheduleRemoteBackup,armRemoteRetry,retryRemoteError,readRemoteBackup,preserveBeforeRemoteRestore,commitSnapshot,installRemoteSnapshot,markRemoteSuccess,reconcileRemote,putRemoteBackup,autoRemoteBackup,remoteBackup,reviewedRemoteDirection,remoteReviewChoice,remoteRestore,remotePublishLocal,remoteResumeSync,preserveRemoteSnapshot,remoteStartupSync,remoteTestConnection,get generation(){return remoteGeneration;},get queue(){return remoteQueue;},get controllers(){return remoteControllers;},flushScheduled(){if(remoteBackupTimer){clearTimeout(remoteBackupTimer);remoteBackupTimer=0;return autoRemoteBackup();}}};
+return {remoteUploadHandoff,remoteReadHandoff,syncMode,remoteRestoreLegacy,appendRemoteBackup,remoteCheckProvider,remoteListSnapshots,remotePreviewSnapshot,remoteDownloadSnapshot,remoteRestoreSnapshot,remoteTools,diagnosticsPayload,remoteSyncPaused,remotePauseInfo,pauseRemoteSync,pauseRemoteSyncAction,resumeReviewedSync,enforceBackupLimits,remoteDestination,remoteIdentity,invalidateRemote,assertRemote,coordinateRemote,readRemoteWork,writeRemoteWork,validateRemoteConfig,loadRemoteConfig,saveRemoteConfig,clearRemoteConfig,remoteCryptoAvailable,toHex,sha256Hex,hmacRaw,signingKey,amzNow,uriEncode,remoteUrl,s3Request,remoteRunAction,scheduleRemoteBackup,armRemoteRetry,retryRemoteError,readRemoteBackup,preserveBeforeRemoteRestore,commitSnapshot,installRemoteSnapshot,markRemoteSuccess,reconcileRemote,putRemoteBackup,autoRemoteBackup,remoteBackup,reviewedRemoteDirection,remoteReviewChoice,remoteRestore,remotePublishLocal,remoteResumeSync,preserveRemoteSnapshot,remoteStartupSync,remoteTestConnection,get generation(){return remoteGeneration;},get queue(){return remoteQueue;},get controllers(){return remoteControllers;},flushScheduled(){if(remoteBackupTimer){clearTimeout(remoteBackupTimer);remoteBackupTimer=0;return autoRemoteBackup();}}};
 };

@@ -6,9 +6,9 @@ const LiftlogSettings = (() => {
       state,ui,IC,THEMES,REST_MIN,
       REST_MAX,LOAD_STEP_BOUNDS,REMOTE_OBJECT_KEY_DEFAULT,storageState,storageIsBrave,
       storageEstimate,esc,installedAsApp,fmtBytes,storageSize,
-      rescuedDataRaw,remoteRestoreRescueRaw,unitLabel,fmtNum,fmtDate,
+      rescuedDataRaw,remoteRestoreRescueInfo,unitLabel,fmtNum,fmtDate,
       convertWeight,toLocalInput,loadRemoteConfig,remoteCryptoAvailable,remoteSyncPaused,
-      readRemoteWork,remoteEngine,remoteDraftFromConfig,lastBackupInfo,backupIsStale,
+      remoteStatusDetail,remoteEngine,remoteDraftFromConfig,lastBackupInfo,backupIsStale,
       sinceLabel,systemBarDiagnostics,historyExerciseIdentities,exerciseById,unresolvedHistoryExercises,
       historyImportSummaryHTML,shortcutTable
     }=context;
@@ -64,11 +64,14 @@ const LiftlogSettings = (() => {
     }
 
     function remoteRestoreRescueHTML(){
-      const raw = remoteRestoreRescueRaw();
-      if (raw == null) return '';
+      const copy = remoteRestoreRescueInfo();
+      if (!copy) return '';
+      const held = copy.workouts == null ? '' : ' It holds ' + copy.workouts + ' finished workout' + (copy.workouts === 1 ? '' : 's') + '.';
       return '<div class="setting-block" role="status">' +
-        '<h3>Before the last replacement</h3>' +
-        '<p class="desc">The local state saved before the most recent restore or workout clear. Download it before another replacement updates this recovery copy.</p>' +
+        '<h3>Previous local copy</h3>' +
+        '<p class="desc">Saved automatically' + (copy.at ? ' on ' + esc(new Date(copy.at).toLocaleString()) : '') +
+          ', just before a restore, workout clear or received handoff replaced this device’s data.' + held +
+          ' The next replacement overwrites this copy.</p>' +
         '<div class="form-actions">' +
           '<button type="button" class="btn" data-action="remote-rescue-download">' + IC.down + '<span>Download</span></button>' +
           '<button type="button" class="btn" data-action="remote-rescue-restore">Restore this copy…</button>' +
@@ -109,22 +112,21 @@ const LiftlogSettings = (() => {
         return html;
       }
       const paused = remoteSyncPaused();
-      const live = (paused ? ' · Cloud sync paused' : '') + (ui.remoteStatusText ? ' · ' + esc(ui.remoteStatusText) : '');
-      html += '<p id="remote-status" class="desc" role="status">Status: ' + (cfg
-          ? 'Configured — <strong>' + esc(cfg.bucket) + '</strong>' + live + (cfg.lastBackupAt ? ' · last backup ' + esc(new Date(cfg.lastBackupAt).toLocaleString()) : ' · never backed up yet')
-          : 'Not configured' + (paused ? ' · Cloud sync paused' : '')) + (cfg ? ' · backed-up data revision: ' + esc(cfg.lastUploadedModifiedAt || 'none') + (readRemoteWork() && readRemoteWork().pending ? ' · pending work' : '') : '') + '</p>';
+      html += '<p id="remote-status" class="desc" role="status">Status: ' + (cfg ? 'Configured — <strong>' + esc(cfg.bucket) + '</strong>' : 'Not configured') +
+        esc(remoteStatusDetail(cfg)) + '</p>';
       if (cfg){
         html += '<div class="form-actions">' +
           '<button type="button" class="btn" data-action="remote-test"' + (ui.remoteBusy ? ' disabled' : '') + '>Test connection</button>' +
+          /* In separate mode both resume paths upload a new file, so one button. */
           (paused
-            ? '<button type="button" class="btn btn-primary" data-action="remote-publish-local"' + (ui.remoteBusy ? ' disabled' : '') + '>' + (separate ? 'Back up local copy & resume…' : 'Keep local copy & update cloud…') + '</button>' +
-              '<button type="button" class="btn" data-action="remote-resume"' + (ui.remoteBusy ? ' disabled' : '') + '>' + (separate ? 'Resume automatic backups…' : 'Resume automatic sync…') + '</button>'
+            ? '<button type="button" class="btn btn-primary" data-action="remote-publish-local"' + (ui.remoteBusy ? ' disabled' : '') + '>' + (separate ? 'Back up & resume…' : 'Keep local copy & update cloud…') + '</button>' +
+              (separate ? '' : '<button type="button" class="btn" data-action="remote-resume"' + (ui.remoteBusy ? ' disabled' : '') + '>Resume automatic sync…</button>')
             : '<button type="button" class="btn btn-primary" data-action="remote-backup"' + (ui.remoteBusy ? ' disabled' : '') + '>' + IC.up + '<span>' + (separate ? 'Back up now' : 'Sync now') + '</span></button>' +
               '<button type="button" class="btn" data-action="remote-pause">' + (separate ? 'Pause cloud backups' : 'Pause cloud sync') + '</button>') +
           '<button type="button" class="btn" data-action="remote-restore"' + (ui.remoteBusy ? ' disabled' : '') + '>' + IC.down + '<span>'+(remoteEngine.syncMode(cfg)==='immutable'?'Restore legacy backup locally…':'Use cloud copy…')+'</span></button>' +
           '<button type="button" class="btn" data-action="remote-form-toggle">' + (ui.remoteFormOpen ? 'Hide configuration' : 'Edit configuration') + '</button>' +
           '<button type="button" class="btn btn-danger" data-action="remote-forget">Forget configuration</button>' +
-        '</div>' + (separate ? '<p class="hint">Each upload saves a separate backup file. Other devices keep their local data until you restore a chosen backup. ' + (paused ? 'Uploads stay paused until you back up the local copy and resume.' : 'Browse cloud snapshots to restore an earlier backup.') + '</p>' : paused ? '<p class="hint">Local edits stay on this device. Choose which copy to keep before resuming. Pause survives reloads and configuration changes.</p>' : '<p class="hint">Sync now reconciles both copies; a newer cloud copy can replace local data. Pause cloud sync before recovery.</p>');
+        '</div>' + (separate ? '<p class="hint">Each upload saves a separate backup file. Other devices keep their local data until you restore a chosen backup. ' + (paused ? 'Nothing uploads until you choose Back up & resume.' : 'Browse cloud snapshots to restore an earlier backup.') + '</p>' : paused ? '<p class="hint">Local edits stay on this device. Choose which copy to keep before resuming. Pause survives reloads and configuration changes.</p>' : '<p class="hint">Sync now reconciles both copies; a newer cloud copy can replace local data. Pause cloud sync before recovery.</p>');
       }
       if (!cfg || ui.remoteFormOpen){
         /* Populated once from the saved config (or blank); after that every

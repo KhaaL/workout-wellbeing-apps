@@ -24,8 +24,24 @@ test('local saving failures override cloud success; holds, conflicts and pauses 
   for(const flag of ['failed','blocked'])assert.equal(summary({...verified,[flag]:true}).action,'download');
   assert.equal(summary({...verified,localPending:true}).id,'saving');
   assert.equal(summary({...verified,held:true}).action,'handoff');
-  for(const input of [{paused:true},{status:'conflict'}])assert.equal(summary({...verified,...input}).action,'review');
+  for(const input of [{paused:true,mode:'conditional'},{status:'conflict'}])assert.equal(summary({...verified,...input}).action,'review');
+  // Separate backups resume through one confirmed upload; the button opens that confirmation.
+  assert.equal(summary({...verified,paused:true}).action,'resume');
   assert.equal(summary({...verified,paused:true,online:false}).id,'paused');
+});
+test('pause summary names the recorded cause and uses the mode’s own term',()=>{
+  const separate=summary({...verified,paused:true,pause:{code:'import',at:500}});
+  assert.equal(separate.title,'Cloud backups paused');assert.equal(separate.actionLabel,'Back up & resume…');assert.equal(separate.pausedAt,500);
+  assert.match(separate.detail,/^Paused when you chose a backup file to restore\. Your data stays on this device\. Nothing uploads/);
+  const sync=summary({...verified,mode:'conditional',paused:true,pause:{code:'manual',at:500}});
+  assert.equal(sync.title,'Cloud sync paused');assert.equal(sync.actionLabel,'Choose a copy');
+  assert.match(sync.detail,/^You paused cloud sync\. .*choose which copy to keep/);
+  for(const code of Object.keys(context.WorkoutStorage.pauseReasons))assert.match(summary({...verified,paused:true,pause:{code}}).detail,/^\S.+\. Your data stays on this device/);
+  for(const pause of [undefined,null,{code:null},{code:'toString'},{code:'unknown',at:'later'}]){
+    const model=summary({...verified,paused:true,pause});assert.match(model.detail,/^Your data stays on this device/);assert.equal(model.pausedAt,null);
+  }
+  assert.equal(summary({...verified,held:true}).title,'Cloud backups paused');
+  assert.equal(summary({...verified,held:true,mode:'conditional'}).title,'Cloud sync paused');
 });
 test('offline, retry and configuration errors offer distinct actions without exposing server details',()=>{
   assert.equal(summary({...verified,online:false}).id,'offline');

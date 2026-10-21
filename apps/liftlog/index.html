@@ -3846,7 +3846,7 @@ function importData(file){
 }
 /* Shared by file import and remote restore: validate a full-backup object,
    confirm, then replace the in-memory state with it. */
-function applyFullBackup(obj){
+function applyFullBackup(obj, pauseCode = 'import'){
   /* A routines file also carries `version` and an `exercises` array, so the
      shape check alone would accept one here and then "restore" a state with no
      history and default settings. Anything that names itself as another kind is
@@ -3859,7 +3859,7 @@ function applyFullBackup(obj){
   try{ candidate = prepareBackup(obj); }
   catch(e){ toast('Invalid backup — ' + e.message); return; }
   // Freeze reconciliation before the confirmation opens, including old GETs.
-  try { pauseRemoteSync('Local restore in progress'); }
+  try { pauseRemoteSync('Local restore in progress', {code:pauseCode}); }
   catch(e){ toast(e.message); return false; }
   return coordinateRemote(async ctx => {
     const ok = await confirmDlg('Import data?', 'This replaces local exercises, routines, history and settings. Cloud sync is paused and will stay paused until you choose which copy to keep.', 'Import & replace', true);
@@ -3981,20 +3981,22 @@ function openStorageOptions(target){
   const section=$('[data-settings-section="storage"]');if(!section)return;section.open=true;
   const node=target==='configure'?section.querySelector('[data-field="endpoint"]'):
     target==='review'?section.querySelector('[data-action="remote-resume"],[data-action="remote-publish-local"]'):section.querySelector('summary');
-  const focus=node||section.querySelector('summary');focus?.scrollIntoView({block:'nearest'});focus?.focus();
+  // Centered, so the choice buttons sit mid-screen and the recovery copy
+  // above them does not fill the view.
+  const focus=node||section.querySelector('summary');focus?.scrollIntoView({block:target==='review'?'center':'nearest'});focus?.focus();
 }
 function renderStorageStatus(){
   const container=$('#storage-summary');if(!container)return;
   const cfg=loadRemoteConfig();
   WorkoutStorage.renderStorageSummary(container,{
     failed:localStore.failed,blocked:localStore.blocked,localPending:localStore.pending,
-    configured:!!cfg,paused:remoteSyncPaused(),held:!!workoutHandoff.held(),online:navigator.onLine,
+    configured:!!cfg,paused:remoteSyncPaused(),pause:remoteEngine.remotePauseInfo(),held:!!workoutHandoff.held(),online:navigator.onLine,
     status:ui.remoteStatus,errorCategory:remoteEngine.diagnosticsPayload().lastError?.category,busy:ui.remoteBusy,
     pending:!!readRemoteWork()?.pending,revision:remoteSnapshotTime(state),
     cloudAt:cfg?.lastBackupAt,cloudRevision:cfg?.lastUploadedModifiedAt,fileAt:state.settings.lastFileBackupAt,
     active:!!state.activeWorkout,mode:remoteEngine.syncMode(cfg)
   },{download:exportData,details:()=>openStorageOptions(),configure:()=>openStorageOptions('configure'),
-    backup:remoteBackup,retry:remoteBackup,review:()=>openStorageOptions('review'),
+    backup:remoteBackup,retry:remoteBackup,review:()=>openStorageOptions('review'),resume:remotePublishLocal,
     handoff:()=>{$('#handoff-tools')?.scrollIntoView({block:'nearest'});$('#handoff-tools button')?.focus();},error:error=>toast(error.message)});
 }
 function setRemoteStatus(status, text){
@@ -4002,13 +4004,22 @@ function setRemoteStatus(status, text){
   renderStorageStatus();
   const el = $('#remote-status');
   if (el){
-    const cfg = loadRemoteConfig(), work = readRemoteWork();
-    const paused = remoteSyncPaused() ? ' · cloud sync paused' : '';
-    el.textContent = cfg ? 'Status: Configured — ' + cfg.bucket + paused + (text ? ' · ' + text : '') +
-      (cfg.lastBackupAt ? ' · last backup ' + new Date(cfg.lastBackupAt).toLocaleString() : ' · never backed up yet') +
-      ' · backed-up data revision: ' + (cfg.lastUploadedModifiedAt || 'none') + (work && work.pending ? ' · pending work' : '')
-      : 'Status: Not configured' + paused;
+    const cfg = loadRemoteConfig();
+    el.textContent = 'Status: ' + (cfg ? 'Configured — ' + cfg.bucket : 'Not configured') + remoteStatusDetail(cfg);
   }
+}
+/* The settings render and setRemoteStatus share this text, so the line reads
+   the same before and after an in-place refresh. */
+function remoteStatusDetail(cfg){
+  const parts = [];
+  if (remoteSyncPaused()) parts.push((remoteEngine.syncMode(cfg) === 'immutable' ? 'Cloud backups' : 'Cloud sync') + ' paused');
+  if (cfg){
+    // A 'paused' status text repeats the line above; errors and results still show.
+    if (ui.remoteStatusText && !(ui.remoteStatus === 'paused' && remoteSyncPaused())) parts.push(ui.remoteStatusText);
+    parts.push(cfg.lastBackupAt ? 'last verified backup ' + new Date(cfg.lastBackupAt).toLocaleString() : 'no verified backup yet');
+    if (readRemoteWork()?.pending) parts.push('changes waiting to upload');
+  }
+  return parts.map(part => ' · ' + part).join('');
 }
 function remoteSnapshotTime(obj){return LiftlogStorage.revision(obj);}
 function backupDataKey(obj){return LiftlogStorage.dataKey(obj,prepareBackup);}
@@ -4094,7 +4105,14 @@ async function testAndSaveRemoteConfig(candidate){
     validateRemoteConfig(candidate);
     await coordinateRemote(async ctx => {
       await readRemoteBackup(candidate,ctx); assertRemote(ctx);
-      candidate.lastBackupAt = null; candidate.lastUploadedModifiedAt = null;
+      // Backup history belongs to the destination. New credentials or an
+      // unchanged re-save keep it; a different bucket, key or mode starts over.
+      const previous = loadRemoteConfig();
+      const same = previous && remoteEngine.remoteDestination(previous) === remoteEngine.remoteDestination(candidate);
+      candidate.lastBackupAt = same ? previous.lastBackupAt ?? null : null;
+      candidate.lastUploadedModifiedAt = same ? previous.lastUploadedModifiedAt ?? null : null;
+      if (same && previous.lastBackupMode) candidate.lastBackupMode = previous.lastBackupMode;
+      else delete candidate.lastBackupMode;
       saveRemoteConfig(candidate,ctx);
       ui.remoteFormOpen = false; ui.remoteDraft = null;
       toast('Read check passed — configuration saved; write permission unverified');
@@ -4749,7 +4767,7 @@ async function clearWorkoutData(){
   if(!ok)return false;
   try{
     if(state.activeWorkout||expected!==localRevisionKey())throw new Error('Local data changed during confirmation — clear cancelled');
-    pauseRemoteSync('Workout data cleared locally — review before updating cloud');
+    pauseRemoteSync('Workout data cleared locally — review before updating cloud',{code:'clear'});
     return await coordinateRemote(async ctx=>{
       assertRemote(ctx);
       if(state.activeWorkout||expected!==localRevisionKey())throw new Error('Local data changed during confirmation — clear cancelled');
@@ -6867,9 +6885,9 @@ function settingsContext(){
     state,ui,IC,THEMES,REST_MIN,
     REST_MAX,LOAD_STEP_BOUNDS,REMOTE_OBJECT_KEY_DEFAULT,storageState,storageIsBrave,
     storageEstimate,esc,installedAsApp,fmtBytes,storageSize,
-    rescuedDataRaw,remoteRestoreRescueRaw,unitLabel,fmtNum,fmtDate,
+    rescuedDataRaw,remoteRestoreRescueInfo,unitLabel,fmtNum,fmtDate,
     convertWeight,toLocalInput,loadRemoteConfig,remoteCryptoAvailable,remoteSyncPaused,
-    readRemoteWork,remoteEngine,remoteDraftFromConfig,lastBackupInfo,backupIsStale,
+    remoteStatusDetail,remoteEngine,remoteDraftFromConfig,lastBackupInfo,backupIsStale,
     sinceLabel,systemBarDiagnostics,historyExerciseIdentities,exerciseById,unresolvedHistoryExercises,
     historyImportSummaryHTML,shortcutTable
   };
@@ -6906,6 +6924,20 @@ function rescuedDataRaw(){
 function remoteRestoreRescueRaw(){
   try{ return localStorage.getItem(LS_REMOTE_RESTORE_KEY); }
   catch(e){ return null; }
+}
+/* Parsed once per stored copy: settings re-render often and the copy holds
+   the whole history. */
+let remoteRestoreRescueCache = {raw:null, info:null};
+function remoteRestoreRescueInfo(){
+  const raw = remoteRestoreRescueRaw();
+  if (raw == null) return null;
+  if (remoteRestoreRescueCache.raw !== raw){
+    let obj = null;
+    try{ obj = JSON.parse(raw); }catch(e){}
+    const at = Date.parse(obj?.exportedAt);
+    remoteRestoreRescueCache = {raw, info:{at:Number.isFinite(at) ? at : null, workouts:Array.isArray(obj?.workouts) ? obj.workouts.length : null}};
+  }
+  return remoteRestoreRescueCache.info;
 }
 function addBodyweightEntry(form){
   const date = form.elements.namedItem('bodyweight-date');
@@ -7145,7 +7177,7 @@ const actions = {
     let obj;
     try{ obj = JSON.parse(raw); }
     catch(e){ toast('Previous local copy is not valid JSON'); return; }
-    applyFullBackup(obj);
+    applyFullBackup(obj, 'recovery');
   },
   'remote-rescue-discard'(){
     confirmDlg('Discard previous local copy?', 'This removes the state preserved before the most recent restore or workout clear. Download it first if you may need it.', 'Discard', true)

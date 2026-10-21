@@ -18,7 +18,7 @@ WorkoutStorage.createHandoff = function(options){
     return run(async()=>{
       loaded=false;const existing=held();if(existing){if(existing.invalid)throw new Error('Handoff state could not be read. Export a backup and reset the hold before continuing.');return existing.payload;}
       if(!active())throw new Error('Start or restore a workout before preparing a handoff.');
-      options.remote.pauseRemoteSync('Workout handoff in progress');
+      options.remote.pauseRemoteSync('Workout handoff in progress',{code:'handoff'});
       await options.pause();
       if(!active()||!options.isPaused(active()))throw new Error('Workout could not be paused for transfer.');
       const expected=JSON.stringify(options.getState());
@@ -50,7 +50,7 @@ WorkoutStorage.createHandoff = function(options){
       const expected=JSON.stringify(options.getState()),candidate=options.makeCandidate(incoming);
       if(!await options.confirm('Receive paused workout?',`Handoff created ${new Date(raw.createdAt).toLocaleString()}. ${options.describe(incoming[options.activeKey])} Local finished history is kept and a recovery copy is saved. Keep the source device paused. Timing and sensors will need explicit review before resuming.`, 'Receive workout'))return false;
       if(active()||expected!==JSON.stringify(options.getState()))throw new Error('Data changed during review. Handoff cancelled.');
-      options.remote.pauseRemoteSync('Received workout — review before resuming backups');
+      options.remote.pauseRemoteSync('Received workout — review before resuming backups',{code:'handoff-received'});
       options.setRevision(candidate);
       if(!options.remote.commitSnapshot(candidate))throw new Error('Handoff could not be saved. Previous data retained.');
       options.onReceived?.();
@@ -63,7 +63,7 @@ WorkoutStorage.createHandoff = function(options){
     const expected=localStorage.getItem(key),workoutId=active()?.id;
     if(!await options.confirm('Cancel handoff on this device?',(record.invalid?'Handoff state could not be read. Export a full backup first. ':'')+'Only cancel if no other device is continuing this workout. Previously shared files and codes still exist. The workout and cloud uploads remain paused.','Cancel handoff'))return;
     if(localStorage.getItem(key)!==expected||active()?.id!==workoutId)throw new Error('Handoff changed during review.');
-    options.remote.pauseRemoteSync('Handoff cancelled — review before resuming backups');
+    options.remote.pauseRemoteSync('Handoff cancelled — review before resuming backups',{code:'handoff-cancelled'});
     localStorage.removeItem(key);loaded=false;await options.pause();changed();
   });}
   return {offer,receive,validate,cancel,held,get hasActive(){return !!active();},get configured(){return !!options.remote.loadRemoteConfig();},get busy(){return busy;},upload:payload=>options.remote.remoteUploadHandoff(payload),receiveCode:async code=>receive(await options.remote.remoteReadHandoff(code))};
