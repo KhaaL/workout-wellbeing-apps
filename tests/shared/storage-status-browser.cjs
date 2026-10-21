@@ -37,9 +37,13 @@ const config={endpoint:'https://storage.test',region:'test',bucket:'test',object
       await page.evaluate(cfg=>{testAPI.remote.saveRemoteConfig(cfg);testAPI.refresh();},config);await expectState('pending');
       await status.getByRole('button',{name:'Back up now',exact:true}).click();await expectState('backed-up');
       assert.match(await status.textContent(),/Last verified cloud backup:/);assert(calls>=2,'backup is uploaded and read back');
-      await page.evaluate(()=>{testAPI.remote.pauseRemoteSync('review');testAPI.refresh();});await expectState('paused');
-      const before=calls;await status.getByRole('button',{name:'Review & resume',exact:true}).click();
-      assert.equal(calls,before,'opening review does not upload or replace data');assert.equal(await page.evaluate(()=>testAPI.remote.remoteSyncPaused()),true);
+      await page.evaluate(()=>{testAPI.remote.pauseRemoteSync('review',{code:'import'});testAPI.refresh();});await expectState('paused');
+      assert.match(await status.textContent(),/Cloud backups paused.*Paused when you chose a backup file to restore\..*Paused \d/);
+      const before=calls;await status.getByRole('button',{name:'Back up & resume…',exact:true}).click();
+      await page.getByRole('button',{name:'Back up & resume',exact:true}).waitFor();await page.getByRole('button',{name:'Cancel',exact:true}).click();
+      await page.waitForFunction(()=>!document.querySelector('dialog[open]'));
+      assert.equal(calls,before,'cancelling the resume confirmation does not upload or replace data');assert.equal(await page.evaluate(()=>testAPI.remote.remoteSyncPaused()),true);
+      assert.equal(await page.evaluate(()=>testAPI.remote.remotePauseInfo().code),'import','the confirmation keeps the cause shown before it opened');
       await page.evaluate(key=>{localStorage.removeItem(key);window.dispatchEvent(new Event('storage'));},lift?'liftlog.v1.remote-paused':'bike-cardio.v1.remote-paused');
       await context.setOffline(true);await expectState('offline');
       await context.setOffline(false);await expectState('backed-up');

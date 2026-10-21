@@ -338,13 +338,13 @@ let storageControllerInstance;
     const remote=storage.remote,cfg=remote.loadRemoteConfig();
     WorkoutStorage.renderStorageSummary($('storage-summary'),{
       failed:storage.local.failed,blocked:storage.local.blocked,localPending:storage.local.pending,
-      configured:!!cfg,paused:remote.remoteSyncPaused(),held:!!storage.handoff.held(),online:navigator.onLine,
+      configured:!!cfg,paused:remote.remoteSyncPaused(),pause:remote.remotePauseInfo(),held:!!storage.handoff.held(),online:navigator.onLine,
       status:$('cloudStatus').dataset.status,errorCategory:remote.diagnosticsPayload().lastError?.category,
       busy:cloudBusy||configBusy,pending:!!remote.readRemoteWork()?.pending,revision:storage.state.updatedAt,
       cloudAt:cfg?.lastBackupAt,cloudRevision:cfg?.lastUploadedModifiedAt,fileAt:storage.fileBackupAt(),
       active:!!storage.state.active,mode:remote.syncMode(cfg)
     },{download:exportFullBackup,details:()=>openStorageOptions(),configure:()=>openStorageOptions('cloudEndpoint'),
-      backup:()=>remote.remoteBackup(),retry:()=>remote.remoteBackup(),review:()=>openStorageOptions(remote.remoteSyncPaused()?'cloudResume':'cloudKeepLocal'),
+      backup:()=>remote.remoteBackup(),retry:()=>remote.remoteBackup(),review:()=>openStorageOptions(remote.remoteSyncPaused()?'cloudResume':'cloudKeepLocal'),resume:async()=>{await remote.remotePublishLocal();renderBackupControls();},
       handoff:()=>{$('handoffTools').scrollIntoView({block:'nearest'});$('handoffTools').querySelector('button')?.focus();},error:error=>toast(error.message)});
   }
   function exportFullBackup(){if(selected&&!$('summary').hidden&&saveMetrics(true)===false&&!$('logForm').checkValidity())return;storage.local.flush();downloadJSON(storage.backup(),`bike-cardio-backup-${new Date().toISOString().slice(0,10)}.json`);if(!storage.recordFileBackup())toast('Backup downloaded; its date could not be saved.');renderBackupControls();}

@@ -1,14 +1,36 @@
 /* Presentation state only: never performs a save, upload or reconciliation. */
+/* One sentence per pause cause recorded by the storage engine. */
+WorkoutStorage.pauseReasons = {
+  manual:term=>'You paused '+term.toLowerCase()+'.',
+  import:()=>'Paused when you chose a backup file to restore.',
+  recovery:()=>'Paused when you restored the previous local copy.',
+  clear:()=>'Paused when you cleared workout data on this device.',
+  'history-import':()=>'Paused when you imported workout history from a file.',
+  review:()=>'Paused when a choice between the local and cloud copies did not finish.',
+  snapshot:()=>'Paused when you chose a cloud backup to restore.',
+  provider:()=>'Paused by the storage provider check. Its results are in Storage options.',
+  handoff:()=>'Paused when you prepared a workout handoff to another device.',
+  'handoff-received':()=>'Paused when this device received a workout from another device.',
+  'handoff-cancelled':()=>'Paused when you cancelled a workout handoff.',
+  storage:()=>'Paused because this browser could not read or save the pause setting.'
+};
 WorkoutStorage.storageSummary = function(input){
   const cloudAt=Number(input.cloudAt)||null,fileAt=Number(input.fileAt)||null;
-  const base={cloudAt,fileAt,action:'download',actionLabel:'Download backup',tone:'neutral',detail:'Your data is saved on this device.'};
+  const conditional=input.mode==='conditional',term=conditional?'Cloud sync':'Cloud backups';
+  const base={cloudAt,fileAt,pausedAt:null,action:'download',actionLabel:'Download backup',tone:'neutral',detail:'Your data is saved on this device.'};
   const state=(id,title,detail,action=base.action,actionLabel=base.actionLabel,tone=base.tone)=>({...base,id,title,detail,action,actionLabel,tone});
   if(input.failed||input.blocked)return state('attention','Needs attention','Changes may only be in memory. Keep this page open and download a backup.','download','Download backup','danger');
   if(input.localPending)return state('saving','Saving on this device…','Keep this page open until saving finishes.',null,null);
-  if(input.held)return state('paused','Uploads paused','A workout is held for transfer. Finish or cancel the handoff before resuming uploads.','handoff','Review handoff','warning');
+  if(input.held)return state('paused',term+' paused','A workout is held for transfer. Finish or cancel the handoff before resuming '+term.toLowerCase()+'.','handoff','Review handoff','warning');
   if(!input.configured)return state('local','Saved on this device','Cloud backup is not configured. Download a backup or connect cloud storage.','configure','Set up cloud backup');
   if(input.status==='conflict')return state('attention','Needs attention','Local and cloud copies differ. Review them before choosing which copy to keep.','review','Review copies','warning');
-  if(input.paused)return state('paused','Uploads paused','Local changes are kept on this device. Review your copies before resuming.','review','Review & resume','warning');
+  if(input.paused){
+    // Separate backups never replace local data, so resuming is one upload the
+    // person confirms. Conditional sync needs a choice between two copies.
+    const code=input.pause?.code,reason=Object.prototype.hasOwnProperty.call(WorkoutStorage.pauseReasons,code)?WorkoutStorage.pauseReasons[code](term):null,pausedAt=Number(input.pause?.at)||null;
+    const detail=(reason?reason+' ':'')+(conditional?'Your data stays on this device. Nothing syncs until you choose which copy to keep.':'Your data stays on this device. Nothing uploads until you choose Back up & resume.');
+    return {...state('paused',term+' paused',detail,conditional?'review':'resume',conditional?'Choose a copy':'Back up & resume…','warning'),pausedAt};
+  }
   if(input.online===false)return state('offline','Offline',input.pending?'Your changes are saved here. Uploads will retry when a connection is available.':'Your local data is available. Cloud storage cannot be checked while offline.','download','Download backup','warning');
   if(input.busy||input.status==='checking')return state('checking','Checking cloud storage…','Your data remains on this device while the storage request completes.',null,null);
   if(input.status==='error'||input.status==='warning'){
@@ -19,7 +41,6 @@ WorkoutStorage.storageSummary = function(input){
   }
   const backed=cloudAt&&input.cloudRevision!=null&&input.revision!=null&&Number(input.cloudRevision)===Number(input.revision)&&!input.pending;
   if(backed)return state('backed-up','Backed up','The current saved data has a verified cloud backup.','download','Download backup','success');
-  const conditional=input.mode==='conditional';
   return state('pending','Upload pending',conditional?(input.active?'Your workout is saved here. A cloud comparison may wait until the workout finishes.':'Your data is saved here. Sync compares both copies; a newer cloud copy may replace local data.'):'Your data is saved here. Changes are waiting for a verified cloud backup.','backup',conditional?'Sync now':'Back up now');
 };
 WorkoutStorage.renderStorageSummary = function(container,input,actions){
@@ -32,8 +53,8 @@ WorkoutStorage.renderStorageSummary = function(container,input,actions){
   const live=container.querySelector('.storage-summary-live');live.replaceChildren();
   const title=document.createElement('strong');title.className='storage-summary-title';title.dataset.tone=model.tone;title.textContent=model.title;
   const detail=document.createElement('p');detail.textContent=model.detail;
-  const date=value=>new Date(value).toLocaleString();const backup=document.createElement('p');backup.className='hint';backup.textContent=model.cloudAt?'Last verified cloud backup: '+date(model.cloudAt):'No verified cloud backup yet.';
-  if(model.fileAt){const file=document.createElement('span');file.textContent=' Last file export: '+date(model.fileAt)+'.';backup.append(file);}
+  const date=value=>new Date(value).toLocaleString();const backup=document.createElement('p');backup.className='hint';backup.textContent=(model.pausedAt?'Paused '+date(model.pausedAt)+'. ':'')+(model.cloudAt?'Last verified cloud backup: '+date(model.cloudAt)+'.':'No verified cloud backup yet.');
+  if(model.fileAt){const file=document.createElement('span');file.textContent=' Last backup download: '+date(model.fileAt)+'.';backup.append(file);}
   live.append(title,detail,backup);
   const buttons=container.querySelector('.shared-actions'),focused=document.activeElement?.closest('.storage-summary')===container?document.activeElement.dataset.storageAction:null;buttons.replaceChildren();
   function button(id,label,primary){const b=document.createElement('button');b.type='button';b.className='btn'+(primary?' btn-primary':'');b.dataset.storageAction=id;b.textContent=label;b.addEventListener('click',()=>Promise.resolve().then(()=>actions[id]?.()).catch(error=>actions.error?.(error)));buttons.append(b);}

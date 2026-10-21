@@ -133,14 +133,18 @@ globalThis.BikeStorage = (() => {
       remote.invalidateRemote();remote.validateRemoteConfig(candidate);
       await remote.coordinateRemote(async ctx=>{
         await remote.readRemoteBackup(candidate,ctx);remote.assertRemote(ctx);
-        candidate.lastBackupAt=null;candidate.lastUploadedModifiedAt=null;remote.saveRemoteConfig(candidate,ctx);
+        // Backup history belongs to the destination; new credentials keep it.
+        const previous=remote.loadRemoteConfig(),same=previous&&remote.remoteDestination(previous)===remote.remoteDestination(candidate);
+        candidate.lastBackupAt=same?previous.lastBackupAt??null:null;candidate.lastUploadedModifiedAt=same?previous.lastUploadedModifiedAt??null:null;
+        if(same&&previous.lastBackupMode)candidate.lastBackupMode=previous.lastBackupMode;else delete candidate.lastBackupMode;
+        remote.saveRemoteConfig(candidate,ctx);
       },candidate,true);
       options.toast('Read check passed. Backup will verify write permission.');remote.remoteStartupSync();
     }
     async function restore(raw){
       if(isActive())throw new Error('Finish or end the saved session before restoring a backup.');
       const expected=JSON.stringify(state),candidate=prepare(raw);
-      remote.pauseRemoteSync('Local restore in progress');
+      remote.pauseRemoteSync('Local restore in progress',{code:'import'});
       if(!await options.confirm('Restore backup?','This replaces the local session log. A recovery copy will be kept. Cloud sync stays paused until you choose which copy to keep.','Restore backup',true))return false;
       if(expected!==JSON.stringify(state))throw new Error('Local data changed during review. Restore cancelled.');
       if(isActive())throw new Error('A session started during review. Restore cancelled.');
@@ -203,7 +207,7 @@ globalThis.BikeStorage = (() => {
       const candidate=prepare({...copy(state),history,updatedAt:Math.max(Date.now(),state.updatedAt+1)});
       if(!await options.confirm('Merge ride history?',`${summary.added} new rides will be added. Existing rides, settings and any saved ride are kept. ${summary.conflicts} conflicts will keep the local copy. Cloud sync will be paused for review.`,'Merge history'))return null;
       if(expected!==JSON.stringify(state))fail('Local data changed during review. Import cancelled.');
-      remote.pauseRemoteSync('History import needs cloud review');
+      remote.pauseRemoteSync('History import needs cloud review',{code:'history-import'});
       if(!local.commit(candidate,{key:namespace+'.before-remote-restore',payload:backup()}))fail('History import could not be saved. Previous data retained.');
       remote.scheduleRemoteBackup();return summary;
     }
@@ -213,7 +217,7 @@ globalThis.BikeStorage = (() => {
       const expected=JSON.stringify(state);
       if(!await options.confirm('Clear ride history?','All finished rides will be removed from this device. Settings and cloud credentials are kept. A recovery copy is saved and cloud sync stays paused for review.','Clear history',true))return false;
       if(expected!==JSON.stringify(state)||isActive())fail('Local data changed during review. Clear cancelled.');
-      remote.pauseRemoteSync('History cleared locally — review before updating cloud');
+      remote.pauseRemoteSync('History cleared locally — review before updating cloud',{code:'clear'});
       if(!remote.commitSnapshot({...copy(state),history:[],updatedAt:Math.max(Date.now(),state.updatedAt+1)}))fail('History could not be cleared. Previous data retained.');
       remote.scheduleRemoteBackup();return true;
     }

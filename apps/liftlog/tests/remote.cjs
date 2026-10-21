@@ -238,5 +238,32 @@ await test('edits during explicit PUT stay pending after successful reviewed res
  await until(()=>s.calls.some(x=>x.method==='PUT'&&!x.url.includes('.snapshots/')));const published=d.api.state.settings.lastModifiedAt;d.api.state.workouts[0].notes='new edit';d.api.save();g.resolve();await p;
  assert.equal(d.api.remoteSyncPaused(),false);assert.equal(d.api.readRemoteWork().pending,true);assert.equal(d.api.ui.remoteStatus,'pending');assert.equal(s.obj.workouts[0].notes,'local');assert.equal(JSON.parse(d.storage.get('liftlog.v1.remote')).lastUploadedModifiedAt,published);
 });
+await test('pause records its cause; a review or check opened while paused keeps it',async()=>{
+ const d=setup(),s=new S3(fixture(100,'base'));s.attach(d);const info=()=>d.api.remoteEngine.remotePauseInfo();
+ assert.equal(info(),null);
+ await d.api.applyFullBackup(fixture(50,'file'));assert.equal(info().code,'import');assert.ok(Number.isFinite(info().at));
+ const at=info().at;d.api.confirm=async()=>false;
+ await d.api.remotePublishLocal();assert.equal(info().code,'import');assert.equal(info().at,at);
+ await d.api.remoteResumeSync();assert.equal(info().code,'import');
+ d.api.remoteEngine.pauseRemoteSyncAction();assert.equal(info().code,'manual');assert.match(d.messages.at(-1),/^Cloud sync paused\./);
+ const fresh=setup(),t=new S3(fixture(100,'base'));t.attach(fresh);fresh.api.confirm=async()=>false;
+ await fresh.api.remoteRestore();assert.equal(fresh.api.remoteEngine.remotePauseInfo().code,'review');
+ fresh.storage.set('liftlog.v1.remote-paused','not json');assert.deepEqual({...fresh.api.remoteEngine.remotePauseInfo()},{code:null,at:null});
+ const blocked=setup();blocked.ctx.localStorage.getItem=()=>{throw Error('denied');};assert.equal(blocked.api.remoteEngine.remotePauseInfo().code,'storage');
+});
+await test('re-saving the same destination keeps verified backup history; another destination clears it',async()=>{
+ const d=setup(100,'base'),s=new S3();s.attach(d);await d.api.remoteBackup();
+ const saved=()=>JSON.parse(d.storage.get('liftlog.v1.remote')),before=saved();
+ assert.ok(before.lastBackupAt);assert.equal(before.lastUploadedModifiedAt,100);
+ // Hold the startup sync that follows each save, so only the save itself is measured.
+ let gets=0;s.afterGet=()=>++gets>1?new Promise(()=>{}):undefined;
+ await d.api.testAndSaveRemoteConfig({...cfg,accessKeyId:'rotated',secretAccessKey:'rotated-secret'});
+ assert.equal(saved().accessKeyId,'rotated');assert.equal(saved().lastBackupAt,before.lastBackupAt);assert.equal(saved().lastUploadedModifiedAt,100);assert.equal(saved().lastBackupMode,before.lastBackupMode);
+ const other=setup(100,'base'),t=new S3();t.attach(other);await other.api.remoteBackup();
+ gets=0;t.afterGet=()=>++gets>1?new Promise(()=>{}):undefined;
+ await other.api.testAndSaveRemoteConfig({...cfg,bucket:'other'});
+ const moved=JSON.parse(other.storage.get('liftlog.v1.remote'));
+ assert.equal(moved.bucket,'other');assert.equal(moved.lastBackupAt,null);assert.equal(moved.lastUploadedModifiedAt,null);assert.equal(moved.lastBackupMode,undefined);
+});
 console.log(`${passed} remote data-management tests passed`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

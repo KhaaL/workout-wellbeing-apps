@@ -126,7 +126,7 @@ function verifySignature(url,headers,body,region=cfg.region){
       await openTools();
       const testConnection=async()=>{const before=calls.length;await page.locator(app==='bike-cardio'?'#cloudTest':'[data-action="remote-test"]').click();await page.waitForFunction(app=>!document.querySelector(app==='bike-cardio'?'#cloudTest':'[data-action="remote-test"]').disabled,app);assert.equal(calls.length,before+1);assert.equal(calls.at(-1).method,'GET');assert.ok(new URL(calls.at(-1).url).searchParams.has('list-type'));};
       await testConnection();assert.match(await page.locator(app==='bike-cardio'?'#toast':'#toast-region').textContent(),/Backup listing readable — write permission unverified/);
-      if(app==='liftlog'){assert.equal(await page.getByRole('button',{name:'Back up local copy & resume…',exact:true}).count(),1);assert.doesNotMatch(await page.locator('[data-settings-section="storage"]').textContent(),/Sync now reconciles/);}
+      if(app==='liftlog'){assert.equal(await page.locator('[data-settings-section="storage"]').getByRole('button',{name:'Back up & resume…',exact:true}).count(),1);assert.equal(await page.locator('#storage-summary').getByRole('button',{name:'Back up & resume…',exact:true}).count(),1);assert.equal(await page.locator('[data-action="remote-resume"]').count(),0,'separate backups show one resume button');assert.doesNotMatch(await page.locator('[data-settings-section="storage"]').textContent(),/Sync now reconciles/);}
       listingOverride={status:200,body:'<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>'};
       await testConnection();assert.match(await page.locator(app==='bike-cardio'?'#toast':'#toast-region').textContent(),/no separate backups yet/);
       listingOverride={status:200,body:'<not-a-list />'};
@@ -138,7 +138,7 @@ function verifySignature(url,headers,body,region=cfg.region){
       const report=await page.evaluate(namespace=>JSON.parse(localStorage.getItem(namespace+'.provider-check')).report,namespace);assert.equal(report.mode,'immutable');assert.equal(report.compatible,true);
       const rootBefore=objects.get(cfg.objectKey).raw;
       if(app==='bike-cardio'){await confirmAction(page,()=>page.click('#cloudKeepLocal'));}
-      else{await page.locator('[data-action="remote-publish-local"]').click();await page.getByRole('button',{name:'Back up local copy & resume',exact:true}).click();}
+      else{await page.locator('[data-action="remote-publish-local"]').click();await page.getByRole('button',{name:'Back up & resume',exact:true}).click();}
       await page.waitForFunction(namespace=>localStorage.getItem(namespace+'.remote-paused')===null,namespace);
       assert.ok(calls.some(call=>call.method==='PUT'&&call.key.startsWith(cfg.objectKey+'.snapshots/')));assert.equal(objects.get(cfg.objectKey).raw,rootBefore);
       assert.ok(calls.filter(call=>call.method==='PUT').every(call=>call.key.includes('.checks/')||call.key.includes('.snapshots/')));assert.deepEqual(errors,[]);

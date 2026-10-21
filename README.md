@@ -265,8 +265,9 @@ retain both versions even when a provider ignores write conditions. To reconcile
 download a full local backup,
 browse cloud backups, preview and restore the desired copy. Bike can also merge
 a downloaded backup’s ride history through **Merge history**; Liftlog has its own
-history import. Restores stay paused until you choose **Resume** to create a new
-local backup and resume automatic uploads. **Restore legacy backup locally**
+history import. Restores stay paused until you choose **Back up & resume** in
+Liftlog or **Review & resume sync** in Bike. Either creates a new local backup and
+resumes automatic uploads. **Restore legacy backup locally**
 recovers the former single-object backup with the same local recovery safeguards.
 
 This mode needs bucket-list permission to browse files, and GET/PUT with exposed
@@ -279,12 +280,17 @@ probe cleanup additionally needs DELETE; ordinary backups do not.
 ## Shared interface
 
 Settings begins with the same storage summary in both apps: saved on this device,
-upload pending, backed up, uploads paused, offline, or needs attention. Local save
-failures take priority over cloud success. **Backed up** requires a confirmed
-cloud backup of the current revision, with no pending changes. Connection tests
-alone cannot produce it. The summary shows the last cloud backup and file export
-separately, with a relevant next action and expandable **Storage options**.
-Review actions open the existing choices; they do not resume or replace data.
+upload pending, backed up, cloud backups or cloud sync paused, offline, or needs
+attention. Local save failures take priority over cloud success. **Backed up**
+requires a confirmed cloud backup of the current revision, with no pending
+changes. Connection tests alone cannot produce it. The summary shows the last
+cloud backup and backup download separately, with a relevant next action and
+expandable **Storage options**. A paused summary names the recorded cause and
+time. With separate backups, **Back up & resume** opens the resume confirmation.
+With conditional sync, **Choose a copy** opens the existing choices; it does not
+resume or replace data. Saving the connection again with new credentials keeps
+the backup history; a different endpoint, region, bucket, object key, path
+style or mode clears it.
 
 Both apps apply saved appearance in the document head before the main app starts.
 The page canvas and body use the same explicit theme background, and the body
