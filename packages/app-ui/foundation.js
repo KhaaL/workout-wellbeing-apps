@@ -3,8 +3,8 @@
 const WorkoutUI = (() => {
   // Adaptive themes follow the device's light or dark setting, like System;
   // the community themes are dark only. theme-bootstrap.js repeats both lists.
-  const adaptive = ['system','contrast','lamplight','forest','blossom','ink'];
-  const themes = ['system','light','dark','contrast','lamplight','forest','blossom','ink','dracula','gruvbox','nord','solarized','monokai'].map(id=>({id,label:id[0].toUpperCase()+id.slice(1)}));
+  const adaptive = ['system','contrast','lamplight','forest','blossom','ink','iron'];
+  const themes = ['system','light','dark','contrast','lamplight','forest','blossom','ink','iron','dracula','gruvbox','nord','solarized','monokai'].map(id=>({id,label:id[0].toUpperCase()+id.slice(1)}));
   const schemes = Object.fromEntries(themes.map(({id})=>[id,adaptive.includes(id)?null:id==='light'?'light':'dark']));
   function applyTheme(value){
     const theme=themes.some(t=>t.id===value)?value:'system',root=document.documentElement;

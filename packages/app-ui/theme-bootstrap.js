@@ -2,8 +2,8 @@
 (()=>{
   if(typeof getComputedStyle!=='function'||!document.currentScript)return;
   const app=document.currentScript.dataset.app,root=document.documentElement;
-  const names=['system','light','dark','contrast','lamplight','forest','blossom','ink','dracula','gruvbox','nord','solarized','monokai'];
-  const adaptive=['system','contrast','lamplight','forest','blossom','ink'];
+  const names=['system','light','dark','contrast','lamplight','forest','blossom','ink','iron','dracula','gruvbox','nord','solarized','monokai'];
+  const adaptive=['system','contrast','lamplight','forest','blossom','ink','iron'];
   let theme='system';
   try{
     const raw=localStorage.getItem(app==='liftlog'?'liftlog.v1':'bike-cardio.ui.theme');

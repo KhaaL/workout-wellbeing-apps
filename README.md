@@ -299,7 +299,7 @@ the appearance on startup and theme changes. Native Android system-bar rendering
 is controlled by the browser and must be checked on an installed app.
 
 Both apps use the same themes, common controls and navigation. Contrast,
-Lamplight, Forest, Blossom and Ink each have a light and a dark palette and follow
+Lamplight, Forest, Blossom, Ink and Iron each have a light and a dark palette and follow
 the device setting, like System. Dracula, Gruvbox, Nord, Solarized and Monokai are
 dark only. Phones use labeled
 bottom navigation; active workouts replace it with an action bar and a Menu button.

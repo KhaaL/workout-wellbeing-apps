@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require('playwright');
 const root=path.resolve(__dirname,'../..');
-const themes=['system','light','dark','contrast','lamplight','forest','blossom','ink','dracula','gruvbox','nord','solarized','monokai'],adaptive=['system','contrast','lamplight','forest','blossom','ink'];
+const themes=['system','light','dark','contrast','lamplight','forest','blossom','ink','iron','dracula','gruvbox','nord','solarized','monokai'],adaptive=['system','contrast','lamplight','forest','blossom','ink','iron'];
 (async()=>{
  const browser=await chromium.launch({headless:true,...process.env.BROWSER_PATH?{executablePath:process.env.BROWSER_PATH}:{}});
  try{
