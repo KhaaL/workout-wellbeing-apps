@@ -109,7 +109,7 @@ const LiftlogSettings = (() => {
           '<div class="form-actions">' +
           /* In separate mode both resume paths upload a new file, so one button. */
           (paused
-            ? '<button type="button" class="btn btn-primary" data-action="remote-publish-local"' + busy + '>' + (separate ? 'Back up & resume…' : 'Keep local copy & update cloud…') + '</button>' +
+            ? '<button type="button" class="btn btn-primary" data-action="remote-publish-local"' + busy + '>' + (separate ? 'Resume backups…' : 'Keep local copy & update cloud…') + '</button>' +
               (separate ? '' : '<button type="button" class="btn" data-action="remote-resume"' + busy + '>Resume automatic sync…</button>')
             : '<button type="button" class="btn btn-primary" data-action="remote-backup"' + busy + '>' + IC.up + '<span>' + (separate ? 'Back up now' : 'Sync now') + '</span></button>' +
               '<button type="button" class="btn" data-action="remote-pause">' + (separate ? 'Pause cloud backups' : 'Pause cloud sync') + '</button>') +

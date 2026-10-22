@@ -3900,7 +3900,7 @@ const REMOTE_OBJECT_KEY_DEFAULT = 'liftlog-backup.json';
 const remoteEngine = LiftlogStorage.createRemote({
   recoveryKey:LS_REMOTE_RESTORE_KEY,local:localStore,getState:()=>state,
   prepare:(...args)=>prepareBackup(...args),validate:(...args)=>validateBackup(...args),backup:()=>backupPayload(),
-  onStatus:(...args)=>setRemoteStatus(...args),toast:(...args)=>toast(...args),confirm:(...args)=>confirmDlg(...args),
+  onStatus:(...args)=>setRemoteStatus(...args),toast:(...args)=>toast(...args),confirm:(...args)=>confirmDlg(...args),choose:(...args)=>dialog(...args),
   onBusy:value=>{ui.remoteBusy=value;render();},onRefresh:()=>render(),
   onToolsChange:()=>renderRemoteTools(),
   onRestore:()=>{applyTheme();cancelRestBeep();if(state.activeWorkout)restoreTimer();else loadTimer(state.settings.defaultRest);resetUI();render();}

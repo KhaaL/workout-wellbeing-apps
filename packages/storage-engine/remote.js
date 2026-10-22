@@ -401,17 +401,29 @@ async function appendRemoteBackup(cfg,ctx){
     return 'uploaded';
   }finally{archiveKeys.delete(key);}
 }
+/* With app.choose (a dialog with buttons), resuming also offers the newest
+   cloud backup, so data from another device can be brought here first. */
+async function chooseResume(){
+  const title='Resume separate cloud backups?';
+  if(!app.choose){
+    const body='A new backup file will be saved from this device, then changes will create separate files automatically. Existing cloud files are kept. To bring data from another device, browse cloud backups and restore or download a chosen copy first.';
+    return await confirmDlg(title,body,'Resume backups')?'resume':null;
+  }
+  const body='Resuming saves a new backup file from this device, then each change creates another file. Existing cloud files are kept. To continue from another device’s data, restore the latest cloud backup instead.';
+  const choice=await app.choose({title,body,buttons:[{label:'Cancel',value:null,autofocus:true},{label:'Restore latest cloud backup…',value:'restore'},{label:'Resume backups',value:'resume',cls:'btn-primary'}]});
+  return choice===true?'resume':choice;
+}
 function resumeImmutableBackups(cfg){
   try{pauseRemoteSync('Separate backups paused for review',{code:'review',keep:true});}catch(error){toast(error.message);return;}
   return remoteRunAction(()=>coordinateRemote(async ctx=>{
-    const expected=localRevisionKey();
-    if(!await confirmDlg('Resume separate cloud backups?','A new backup file will be saved from this device, then changes will create separate files automatically. Existing cloud files are kept. To bring data from another device, browse cloud backups and restore or download a chosen copy first.','Back up & resume'))return;
+    const expected=localRevisionKey(),choice=await chooseResume();
+    if(choice!=='resume')return choice;
     assertRemote(ctx);
     if(expected!==localRevisionKey())throw new Error('Local data changed during review — choose again; backups remain paused');
     await appendRemoteBackup(cfg,ctx);
     resumeReviewedSync(ctx);armRemoteRetry();
     setRemoteStatus('synced','Separate backups resumed');toast('Separate cloud backup saved — backups resumed');
-  },cfg,false,true));
+  },cfg,false,true)).then(choice=>choice==='restore'?remoteRestoreLatest().catch(()=>false):undefined);
 }
 function remoteRestoreLegacy(){const cfg=configured();return remoteRestoreSnapshot(cfg.objectKey||REMOTE_OBJECT_KEY_DEFAULT,true);}
 async function putRemoteBackup(cfg, ctx){
@@ -767,7 +779,19 @@ async function remoteDownloadSnapshot(key){
   const cfg=configured(),target=snapshotConfig(cfg,key);
   return toolsAction(cfg,async ctx=>{const res=await s3Request(target,'GET','',{},ctx);if(!res.ok)throw responseError(res,await res.text(),cfg,'download snapshot');return {raw:await res.text(),name:key.slice(snapshotPrefix(cfg).length).split('/').pop()};});
 }
-async function remoteRestoreSnapshot(key,legacy=false){
+/* Lists every backup file, then restores the newest after the usual
+   confirmation and resumes backups. Listing and restore errors are toasted
+   by toolsAction; the checks here toast their own. */
+async function remoteRestoreLatest(){
+  const cfg=configured();
+  if(syncMode(cfg)!=='immutable'){toast('Latest-backup restore applies to separate backup files.');return false;}
+  if(app.isActive()){toast('Finish or end the saved workout before restoring a cloud backup.');return false;}
+  await remoteListSnapshots();
+  const latest=snapshotIndex?.scope===scopeKey(cfg)?snapshotIndex.items[0]:null;
+  if(!latest){toast('No cloud backups found yet. Resume backups to create the first one.');return false;}
+  return remoteRestoreSnapshot(latest.key,false,{latestAt:latest.at,resume:true});
+}
+async function remoteRestoreSnapshot(key,legacy=false,options={}){
   const cfg=configured();
   // Legacy recovery is a separate explicit action; arbitrary keys remain out
   // of scope even when a caller passes the legacy flag.
@@ -780,7 +804,10 @@ async function remoteRestoreSnapshot(key,legacy=false){
     const expected=localRevisionKey(),target=legacy?cfg:snapshotConfig(cfg,key),saved=await readRemoteBackup(target,ctx);
     if(!saved)throw diagnosticError('missing-object',legacy?'No legacy backup exists at this path. Browse separate cloud backups instead.':'Snapshot no longer exists. Reload the list.',cfg,'restore snapshot');
     const summary=snapshotSummary(saved);
-    if(!await confirmDlg('Restore cloud snapshot?',`${summary.records} ${summary.recordLabel} will replace this device’s data and settings. A local recovery copy is saved. The cloud backup is unchanged and sync stays paused until you review the copies.`, 'Restore locally',true))return false;
+    const confirmed=options.resume
+      ?await confirmDlg('Restore latest cloud backup?',`The backup saved ${new Date(options.latestAt).toLocaleString()} holds ${summary.records} ${summary.records===1?summary.recordLabel.replace(/s$/,''):summary.recordLabel}. It replaces this device’s data and settings. A local recovery copy is saved, then backups resume.`,'Restore & resume',true)
+      :await confirmDlg('Restore cloud snapshot?',`${summary.records} ${summary.recordLabel} will replace this device’s data and settings. A local recovery copy is saved. The cloud backup is unchanged and sync stays paused until you review the copies.`, 'Restore locally',true);
+    if(!confirmed)return false;
     assertRemote(ctx);
     if(expected!==localRevisionKey()||app.isActive())throw new Error('Local data changed during review. Snapshot restore cancelled.');
     const current=await readRemoteBackup(target,ctx);
@@ -789,8 +816,14 @@ async function remoteRestoreSnapshot(key,legacy=false){
     const candidate=deepCopy(saved.candidate);
     app.setRevision(candidate,Math.max(Date.now(),remoteSnapshotTime(app.state)+1,saved.at+1));
     if(!commitSnapshot(candidate))throw new Error('Snapshot restore could not be saved. Previous data retained.');
-    scheduleRemoteBackup();setRemoteStatus('paused','Snapshot restored locally — cloud sync stays paused');toolsChanged();return true;
+    scheduleRemoteBackup();
+    if(options.resume){
+      // The restored data is a new local revision; resumed backups save it as a new file.
+      resumeReviewedSync(ctx);armRemoteRetry();
+      setRemoteStatus('pending','Latest cloud backup restored — backups resumed');toast('Latest cloud backup restored — backups resumed');
+    }else setRemoteStatus('paused','Snapshot restored locally — cloud sync stays paused');
+    toolsChanged();return true;
   });
 }
-return {remoteUploadHandoff,remoteReadHandoff,syncMode,remoteRestoreLegacy,appendRemoteBackup,remoteCheckProvider,remoteListSnapshots,remotePreviewSnapshot,remoteDownloadSnapshot,remoteRestoreSnapshot,remoteTools,diagnosticsPayload,remoteSyncPaused,remotePauseInfo,pauseRemoteSync,pauseRemoteSyncAction,resumeReviewedSync,enforceBackupLimits,remoteDestination,remoteIdentity,invalidateRemote,assertRemote,coordinateRemote,readRemoteWork,writeRemoteWork,validateRemoteConfig,loadRemoteConfig,saveRemoteConfig,clearRemoteConfig,remoteCryptoAvailable,toHex,sha256Hex,hmacRaw,signingKey,amzNow,uriEncode,remoteUrl,s3Request,remoteRunAction,scheduleRemoteBackup,armRemoteRetry,retryRemoteError,readRemoteBackup,preserveBeforeRemoteRestore,commitSnapshot,installRemoteSnapshot,markRemoteSuccess,reconcileRemote,putRemoteBackup,autoRemoteBackup,remoteBackup,reviewedRemoteDirection,remoteReviewChoice,remoteRestore,remotePublishLocal,remoteResumeSync,preserveRemoteSnapshot,remoteStartupSync,remoteTestConnection,get generation(){return remoteGeneration;},get queue(){return remoteQueue;},get controllers(){return remoteControllers;},flushScheduled(){if(remoteBackupTimer){clearTimeout(remoteBackupTimer);remoteBackupTimer=0;return autoRemoteBackup();}}};
+return {remoteUploadHandoff,remoteReadHandoff,syncMode,remoteRestoreLegacy,appendRemoteBackup,remoteCheckProvider,remoteListSnapshots,remotePreviewSnapshot,remoteDownloadSnapshot,remoteRestoreSnapshot,remoteRestoreLatest,remoteTools,diagnosticsPayload,remoteSyncPaused,remotePauseInfo,pauseRemoteSync,pauseRemoteSyncAction,resumeReviewedSync,enforceBackupLimits,remoteDestination,remoteIdentity,invalidateRemote,assertRemote,coordinateRemote,readRemoteWork,writeRemoteWork,validateRemoteConfig,loadRemoteConfig,saveRemoteConfig,clearRemoteConfig,remoteCryptoAvailable,toHex,sha256Hex,hmacRaw,signingKey,amzNow,uriEncode,remoteUrl,s3Request,remoteRunAction,scheduleRemoteBackup,armRemoteRetry,retryRemoteError,readRemoteBackup,preserveBeforeRemoteRestore,commitSnapshot,installRemoteSnapshot,markRemoteSuccess,reconcileRemote,putRemoteBackup,autoRemoteBackup,remoteBackup,reviewedRemoteDirection,remoteReviewChoice,remoteRestore,remotePublishLocal,remoteResumeSync,preserveRemoteSnapshot,remoteStartupSync,remoteTestConnection,get generation(){return remoteGeneration;},get queue(){return remoteQueue;},get controllers(){return remoteControllers;},flushScheduled(){if(remoteBackupTimer){clearTimeout(remoteBackupTimer);remoteBackupTimer=0;return autoRemoteBackup();}}};
 };

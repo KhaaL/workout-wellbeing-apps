@@ -28,8 +28,8 @@ WorkoutStorage.storageSummary = function(input){
     // Separate backups never replace local data, so resuming is one upload the
     // person confirms. Conditional sync needs a choice between two copies.
     const code=input.pause?.code,reason=Object.prototype.hasOwnProperty.call(WorkoutStorage.pauseReasons,code)?WorkoutStorage.pauseReasons[code](term):null,pausedAt=Number(input.pause?.at)||null;
-    const detail=(reason?reason+' ':'')+(conditional?'Your data stays on this device. Nothing syncs until you choose which copy to keep.':'Your data stays on this device. Nothing uploads until you choose Back up & resume.');
-    return {...state('paused',term+' paused',detail,conditional?'review':'resume',conditional?'Choose a copy':'Back up & resume…','warning'),pausedAt};
+    const detail=(reason?reason+' ':'')+(conditional?'Your data stays on this device. Nothing syncs until you choose which copy to keep.':'Your data stays on this device. Nothing uploads until you resume backups.');
+    return {...state('paused',term+' paused',detail,conditional?'review':'resume',conditional?'Choose a copy':'Resume backups…','warning'),pausedAt};
   }
   if(input.online===false)return state('offline','Offline',input.pending?'Your changes are saved here. Uploads will retry when a connection is available.':'Your local data is available. Cloud storage cannot be checked while offline.','download','Download backup','warning');
   if(input.busy||input.status==='checking')return state('checking','Checking cloud storage…','Your data remains on this device while the storage request completes.',null,null);

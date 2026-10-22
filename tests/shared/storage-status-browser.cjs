@@ -44,8 +44,8 @@ const config={endpoint:'https://storage.test',region:'test',bucket:'test',object
         await options.evaluate(node=>{node.open=true;});
         assert.equal(await page.locator('#remote-status').count(),0);
         assert.equal(await options.locator('> summary small').textContent(),'Backed up');
-        assert.equal(await options.locator('> .setting-block').first().locator('button:visible').count(),4);
-        assert.equal(await options.getByRole('button',{name:'Restore legacy backup locally…',exact:true}).count(),1);
+        assert.equal(await options.locator('> .setting-block').first().locator('button:visible').count(),3);
+        assert.equal(await options.getByRole('button',{name:'Restore legacy backup locally…',exact:true}).count(),0);
         assert.equal(await page.locator('[data-settings-section="cloud-troubleshooting"]').evaluate(node=>node.open),false);
         assert.deepEqual(await page.locator('[data-field="syncMode"] option').evaluateAll(nodes=>nodes.map(node=>node.value)),['immutable','conditional']);
         assert.doesNotMatch(await page.locator('section[aria-label="Data"]').textContent(),/MinIO|\bR2\b|amazonaws/);
@@ -54,8 +54,10 @@ const config={endpoint:'https://storage.test',region:'test',bucket:'test',object
       }
       await page.evaluate(()=>{testAPI.remote.pauseRemoteSync('review',{code:'import'});testAPI.refresh();});await expectState('paused');
       assert.match(await status.textContent(),/Cloud backups paused.*Paused when you chose a backup file to restore\..*Paused \d/);
-      const before=calls;await status.getByRole('button',{name:'Back up & resume…',exact:true}).click();
-      await page.getByRole('button',{name:'Back up & resume',exact:true}).waitFor();await page.getByRole('button',{name:'Cancel',exact:true}).click();
+      const before=calls;await status.getByRole('button',{name:'Resume backups…',exact:true}).click();
+      await page.getByRole('button',{name:'Resume backups',exact:true}).waitFor();
+      // Liftlog offers the newest cloud backup as the alternative to uploading this device's data.
+      assert.equal(await page.getByRole('button',{name:'Restore latest cloud backup…',exact:true}).count(),lift?1:0);await page.getByRole('button',{name:'Cancel',exact:true}).click();
       await page.waitForFunction(()=>!document.querySelector('dialog[open]'));
       assert.equal(calls,before,'cancelling the resume confirmation does not upload or replace data');assert.equal(await page.evaluate(()=>testAPI.remote.remoteSyncPaused()),true);
       assert.equal(await page.evaluate(()=>testAPI.remote.remotePauseInfo().code),'import','the confirmation keeps the cause shown before it opened');
