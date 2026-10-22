@@ -17,12 +17,12 @@ WorkoutStorage.pauseReasons = {
 WorkoutStorage.storageSummary = function(input){
   const cloudAt=Number(input.cloudAt)||null,fileAt=Number(input.fileAt)||null;
   const conditional=input.mode==='conditional',term=conditional?'Cloud sync':'Cloud backups';
-  const base={cloudAt,fileAt,pausedAt:null,action:'download',actionLabel:'Download backup',tone:'neutral',detail:'Your data is saved on this device.'};
+  const base={cloudAt,fileAt,pausedAt:null,configured:!!input.configured,detailsLabel:input.detailsLabel||'Storage options',action:'download',actionLabel:'Download backup',tone:'neutral',detail:'Your data is saved on this device.'};
   const state=(id,title,detail,action=base.action,actionLabel=base.actionLabel,tone=base.tone)=>({...base,id,title,detail,action,actionLabel,tone});
   if(input.failed||input.blocked)return state('attention','Needs attention','Changes may only be in memory. Keep this page open and download a backup.','download','Download backup','danger');
   if(input.localPending)return state('saving','Saving on this device…','Keep this page open until saving finishes.',null,null);
   if(input.held)return state('paused',term+' paused','A workout is held for transfer. Finish or cancel the handoff before resuming '+term.toLowerCase()+'.','handoff','Review handoff','warning');
-  if(!input.configured)return state('local','Saved on this device','Cloud backup is not configured. Download a backup or connect cloud storage.','configure','Set up cloud backup');
+  if(!input.configured)return state('local','Saved on this device','Cloud backup is not set up. Download a backup to keep a copy off this device.','configure','Set up cloud backup');
   if(input.status==='conflict')return state('attention','Needs attention','Local and cloud copies differ. Review them before choosing which copy to keep.','review','Review copies','warning');
   if(input.paused){
     // Separate backups never replace local data, so resuming is one upload the
@@ -53,13 +53,14 @@ WorkoutStorage.renderStorageSummary = function(container,input,actions){
   const live=container.querySelector('.storage-summary-live');live.replaceChildren();
   const title=document.createElement('strong');title.className='storage-summary-title';title.dataset.tone=model.tone;title.textContent=model.title;
   const detail=document.createElement('p');detail.textContent=model.detail;
-  const date=value=>new Date(value).toLocaleString();const backup=document.createElement('p');backup.className='hint';backup.textContent=(model.pausedAt?'Paused '+date(model.pausedAt)+'. ':'')+(model.cloudAt?'Last verified cloud backup: '+date(model.cloudAt)+'.':'No verified cloud backup yet.');
+  const date=value=>new Date(value).toLocaleString();const backup=document.createElement('p');backup.className='hint';backup.textContent=(model.pausedAt?'Paused '+date(model.pausedAt)+'. ':'')+(model.cloudAt?'Last verified cloud backup: '+date(model.cloudAt)+'.':model.configured?'No verified cloud backup yet.':'');
   if(model.fileAt){const file=document.createElement('span');file.textContent=' Last backup download: '+date(model.fileAt)+'.';backup.append(file);}
-  live.append(title,detail,backup);
+  live.append(title,detail);if(backup.textContent)live.append(backup);
   const buttons=container.querySelector('.shared-actions'),focused=document.activeElement?.closest('.storage-summary')===container?document.activeElement.dataset.storageAction:null;buttons.replaceChildren();
   function button(id,label,primary){const b=document.createElement('button');b.type='button';b.className='btn'+(primary?' btn-primary':'');b.dataset.storageAction=id;b.textContent=label;b.addEventListener('click',()=>Promise.resolve().then(()=>actions[id]?.()).catch(error=>actions.error?.(error)));buttons.append(b);}
   if(model.action)button(model.action,model.actionLabel,true);
   if(model.action&&model.action!=='download')button('download','Download backup',false);
-  button('details','Storage options',false);
+  // Setting up or reviewing the connection already opens the same section.
+  if(model.action!=='configure')button('details',model.detailsLabel,false);
   if(focused)(buttons.querySelector('[data-storage-action="'+focused+'"]')||buttons.lastElementChild)?.focus();
 };

@@ -8,44 +8,38 @@ const LiftlogSettings = (() => {
       storageEstimate,esc,installedAsApp,fmtBytes,storageSize,
       rescuedDataRaw,remoteRestoreRescueInfo,unitLabel,fmtNum,fmtDate,
       convertWeight,toLocalInput,loadRemoteConfig,remoteCryptoAvailable,remoteSyncPaused,
-      remoteStatusDetail,remoteEngine,remoteDraftFromConfig,lastBackupInfo,backupIsStale,
+      cloudSummaryText,workoutHandoff,remoteEngine,remoteDraftFromConfig,lastBackupInfo,backupIsStale,
       sinceLabel,systemBarDiagnostics,historyExerciseIdentities,exerciseById,unresolvedHistoryExercises,
       historyImportSummaryHTML,shortcutTable
     }=context;
-    function storageHTML(){
+    function deviceStorageHTML(){
       /* One line per state, and a button only where pressing it can change the
-         answer. Where it cannot, the way out is a backup — so that is the button. */
+         answer. Download backup sits in Backup & restore just above. */
       const installed = installedAsApp();
-      const backupBtn = '<div class="form-actions"><button type="button" class="btn" data-action="export">' +
-        IC.down + '<span>Download backup</span></button></div>';
-      let line, cls = 'hint', btn = '';
+      const ios = ' iOS also clears it after about 7 days without a visit.';
+      let line, cls = 'warning-text', btn = '';
       if (storageState === 'persistent'){
-        line = 'Persistent — this browser has agreed not to clear Liftlog’s data to reclaim space.';
+        line = 'Persistent: this browser will not clear Liftlog’s data to free space.'; cls = 'hint';
       } else if (storageState === 'declined'){
-        line = (storageIsBrave ? 'Brave does not grant persistent storage' : 'This browser has refused persistent storage') +
-          ', so asking again cannot help. The data is saved here and stays put in normal use, but the browser is free to clear it when space runs low, when you clear site data, and on iOS after about a week without a visit.' +
-          (installed ? ' Liftlog is running as an installed app here, which is the most durable this browser offers.'
-                     : ' Installing Liftlog to the home screen is the one thing that still improves on that.') +
-          ' Either way, keep an off-device backup — that is the only real guarantee.';
-        cls = 'error-text';
-        btn = backupBtn;
+        line = (storageIsBrave ? 'Brave does not grant persistent storage' : 'This browser refused persistent storage') +
+          ', so it may clear Liftlog’s data when space runs low or site data is cleared.' + ios +
+          (installed ? ' The installed app is the most durable option here.' : ' Installing Liftlog to the home screen helps.') +
+          ' Keep an off-device backup.';
       } else if (storageState === 'best-effort'){
-        line = 'Best-effort — this browser may clear the data when space runs low, and iOS clears it after about a week without a visit. Granting persistence, or installing Liftlog to the home screen, prevents that.';
-        cls = 'error-text';
+        line = 'Best-effort: this browser may clear Liftlog’s data when space runs low.' + ios +
+          ' Persistent storage or installing Liftlog to the home screen prevents this.';
         btn = '<div class="form-actions"><button type="button" class="btn" data-action="request-persist">Request persistent storage</button></div>';
       } else if (storageState === 'unavailable'){
-        line = 'This browser will not say whether it may evict the data: the API that reports it needs a secure context, and this page is not one (it is open over file:// or plain http://). Treat the data as evictable and keep a backup.';
-        cls = 'error-text';
-        btn = backupBtn;
+        line = 'This page is not a secure context (file:// or http://), so the browser cannot say whether it may clear Liftlog’s data. Keep an off-device backup.';
       } else {
-        line = 'Checking whether this browser may evict the data…';
+        line = 'Checking whether this browser may clear Liftlog’s data…'; cls = 'hint';
       }
-      const est = storageEstimate
-        ? ' This site is using ' + fmtBytes(storageEstimate.usage) + ' of roughly ' + fmtBytes(storageEstimate.quota) + ' available to it.'
-        : '';
+      // The site-wide estimate includes caches, so it only appears when the quota is nearly used.
+      const full = storageEstimate && storageEstimate.quota && storageEstimate.usage / storageEstimate.quota >= 0.8
+        ? ' This site has used ' + Math.round(100 * storageEstimate.usage / storageEstimate.quota) + '% of its storage quota.' : '';
       return '<div class="setting-block">' +
-        '<h3>Storage</h3>' +
-        '<p class="desc">Liftlog’s data takes ' + storageSize() + ' in this browser.' + est + '</p>' +
+        '<h3>Device storage</h3>' +
+        '<p class="desc">Liftlog’s data takes ' + storageSize() + ' in this browser.' + full + '</p>' +
         '<p class="' + cls + '">' + line + '</p>' + btn +
       '</div>';
     }
@@ -100,79 +94,89 @@ const LiftlogSettings = (() => {
     }
 
     function remoteStorageHTML(){
-      const cfg = loadRemoteConfig(),separate=remoteEngine.syncMode(cfg)==='immutable';
-      const cryptoOk = remoteCryptoAvailable();
-      let html = '<div class="setting-block">' +
-        '<h3>Remote storage <span class="hint">(optional, S3-compatible)</span></h3>' +
-        '<p class="desc">Changes upload automatically. Separate backup mode keeps every upload in a new file and requires explicit restores between devices. Conditional sync can adopt a newer cloud copy and requires enforced overwrite protection. Local restores pause sync until you choose which copy to keep. ' +
-        'Active workouts and edits during remote checks defer replacement. Requests go straight from this device to your storage provider using your own credentials — ' +
-        'this app has no server to relay them through. Credentials are stored in this browser’s local storage in plain text.</p>';
-      if (!cryptoOk){
-        html += '<p class="error-text">Remote storage needs the Web Crypto API, only available in a secure context (https:// or localhost). It is unavailable here.</p></div>';
-        return html;
-      }
+      const cfg = loadRemoteConfig(),separate = remoteEngine.syncMode(cfg) === 'immutable';
+      if (!remoteCryptoAvailable())
+        return '<div class="setting-block"><p class="error-text">Cloud backup needs the Web Crypto API, only available in a secure context (https:// or localhost). It is unavailable here.</p></div>';
+      const busy = ui.remoteBusy ? ' disabled' : '';
       const paused = remoteSyncPaused();
-      html += '<p id="remote-status" class="desc" role="status">Status: ' + (cfg ? 'Configured — <strong>' + esc(cfg.bucket) + '</strong>' : 'Not configured') +
-        esc(remoteStatusDetail(cfg)) + '</p>';
-      if (cfg){
-        html += '<div class="form-actions">' +
-          '<button type="button" class="btn" data-action="remote-test"' + (ui.remoteBusy ? ' disabled' : '') + '>Test connection</button>' +
+      let html = '<div class="setting-block">';
+      if (!cfg){
+        html += '<p class="desc">Back up automatically to S3-compatible storage you control. Requests go straight from this browser to your storage; Liftlog has no server.</p>';
+      } else {
+        html += '<p class="desc"><strong>' + esc(cfg.bucket) + '</strong> · ' + (separate
+          ? 'Separate backup files. Every backup is a new file; other devices change only when you restore one there.'
+          : 'Conditional sync. One shared file; sync can replace this device’s data with a newer cloud copy.') + '</p>' +
+          '<div class="form-actions">' +
           /* In separate mode both resume paths upload a new file, so one button. */
           (paused
-            ? '<button type="button" class="btn btn-primary" data-action="remote-publish-local"' + (ui.remoteBusy ? ' disabled' : '') + '>' + (separate ? 'Back up & resume…' : 'Keep local copy & update cloud…') + '</button>' +
-              (separate ? '' : '<button type="button" class="btn" data-action="remote-resume"' + (ui.remoteBusy ? ' disabled' : '') + '>Resume automatic sync…</button>')
-            : '<button type="button" class="btn btn-primary" data-action="remote-backup"' + (ui.remoteBusy ? ' disabled' : '') + '>' + IC.up + '<span>' + (separate ? 'Back up now' : 'Sync now') + '</span></button>' +
+            ? '<button type="button" class="btn btn-primary" data-action="remote-publish-local"' + busy + '>' + (separate ? 'Back up & resume…' : 'Keep local copy & update cloud…') + '</button>' +
+              (separate ? '' : '<button type="button" class="btn" data-action="remote-resume"' + busy + '>Resume automatic sync…</button>')
+            : '<button type="button" class="btn btn-primary" data-action="remote-backup"' + busy + '>' + IC.up + '<span>' + (separate ? 'Back up now' : 'Sync now') + '</span></button>' +
               '<button type="button" class="btn" data-action="remote-pause">' + (separate ? 'Pause cloud backups' : 'Pause cloud sync') + '</button>') +
-          '<button type="button" class="btn" data-action="remote-restore"' + (ui.remoteBusy ? ' disabled' : '') + '>' + IC.down + '<span>'+(remoteEngine.syncMode(cfg)==='immutable'?'Restore legacy backup locally…':'Use cloud copy…')+'</span></button>' +
-          '<button type="button" class="btn" data-action="remote-form-toggle">' + (ui.remoteFormOpen ? 'Hide configuration' : 'Edit configuration') + '</button>' +
-          '<button type="button" class="btn btn-danger" data-action="remote-forget">Forget configuration</button>' +
-        '</div>' + (separate ? '<p class="hint">Each upload saves a separate backup file. Other devices keep their local data until you restore a chosen backup. ' + (paused ? 'Nothing uploads until you choose Back up & resume.' : 'Browse cloud snapshots to restore an earlier backup.') + '</p>' : paused ? '<p class="hint">Local edits stay on this device. Choose which copy to keep before resuming. Pause survives reloads and configuration changes.</p>' : '<p class="hint">Sync now reconciles both copies; a newer cloud copy can replace local data. Pause cloud sync before recovery.</p>');
+          /* Separate mode restores through the earlier-backups list below. */
+          (separate ? '' : '<button type="button" class="btn" data-action="remote-restore"' + busy + '>' + IC.down + '<span>Use cloud copy…</span></button>') +
+          '</div>' +
+          '<div id="remote-snapshots" class="remote-tools mt-3"></div>';
       }
-      if (!cfg || ui.remoteFormOpen){
-        /* Populated once from the saved config (or blank); after that every
-           keystroke writes straight into this object (see the "remote" binder)
-           so the fields survive a re-render triggered by anything else on this
-           page — they don't reset to the last-saved value until a real save. */
-        if (!ui.remoteDraft) ui.remoteDraft = remoteDraftFromConfig(cfg);
-        const d = ui.remoteDraft;
-        html += '<form data-form="remote-config" class="mt-3">' +
-          '<label class="field"><span class="cap">Backup mode</span><select data-bind="remote" data-field="syncMode">'+[['auto','Automatic (separate backup files)'],['immutable','Separate backup files — explicit restore'],['conditional','Conditional sync — overwrite protection required']].map(([value,label])=>'<option value="'+value+'"'+(d.syncMode===value?' selected':'')+'>'+label+'</option>').join('')+'</select></label>' +
-          '<div class="form-row">' +
-            '<label class="field flex-2"><span class="cap">Endpoint URL</span><input type="url" data-bind="remote" data-field="endpoint" required placeholder="https://s3.us-east-1.amazonaws.com" value="' + esc(d.endpoint) + '"></label>' +
+      html += '</div>';
+      /* Populated once from the saved config (or blank); after that every
+         keystroke writes straight into this object (see the "remote" binder)
+         so the fields survive a re-render triggered by anything else on this
+         page — they don't reset to the last-saved value until a real save. */
+      if (!ui.remoteDraft) ui.remoteDraft = remoteDraftFromConfig(cfg);
+      const d = ui.remoteDraft;
+      const form = '<div class="setting-block"><form data-form="remote-config">' +
+          '<label class="field"><span class="cap">Backup mode</span><select data-bind="remote" data-field="syncMode">' +
+            [['immutable','Separate backup files (recommended)'],['conditional','Conditional sync (one shared file)']].map(([value,label])=>'<option value="'+value+'"'+(d.syncMode===value?' selected':'')+'>'+label+'</option>').join('') + '</select></label>' +
+          '<p class="hint mt-1">Separate files never replace another device’s data. Conditional sync needs a provider that enforces overwrite protection.</p>' +
+          '<div class="form-row mt-2">' +
+            '<label class="field flex-2"><span class="cap">Endpoint URL</span><input type="url" data-bind="remote" data-field="endpoint" required placeholder="https://storage.example.com" value="' + esc(d.endpoint) + '"></label>' +
             '<label class="field"><span class="cap">Region</span><input type="text" data-bind="remote" data-field="region" required placeholder="us-east-1" value="' + esc(d.region) + '"></label>' +
             '<label class="field"><span class="cap">Bucket</span><input type="text" data-bind="remote" data-field="bucket" required value="' + esc(d.bucket) + '"></label>' +
           '</div>' +
-          '<p class="hint mt-1">Use an HTTPS endpoint without credentials, paths, query strings or fragments. HTTP is only allowed when Liftlog runs from a local file or localhost.</p>' +
+          '<p class="hint mt-1">HTTPS address with no path or query. Plain HTTP works only from a local file or localhost.</p>' +
           '<div class="form-row mt-2">' +
             '<label class="field flex-2"><span class="cap">Object key / path</span><input type="text" data-bind="remote" data-field="objectKey" placeholder="' + REMOTE_OBJECT_KEY_DEFAULT + '" value="' + esc(d.objectKey) + '"></label>' +
             '<label class="field"><span class="cap">Access key ID</span><input type="text" data-bind="remote" data-field="accessKeyId" required value="' + esc(d.accessKeyId) + '"></label>' +
             '<label class="field"><span class="cap">Secret access key</span><input type="password" data-bind="remote" data-field="secretAccessKey" placeholder="' + (cfg ? '•••••••• (leave blank to keep)' : '') + '" value="' + esc(d.secretAccessKey) + '"' + (!cfg ? ' required' : '') + '></label>' +
           '</div>' +
+          '<p class="hint mt-1">Keys are stored unencrypted in this browser. Use a key limited to this bucket.</p>' +
           '<div class="switch-row mt-2">' +
-            '<label for="sw-pathstyle"><strong>Path-style addressing</strong><br><span class="hint">Turn on for MinIO and R2 (R2 region: auto); consult provider guidance for other endpoints</span></label>' +
+            '<label for="sw-pathstyle"><strong>Path-style addressing</strong><br><span class="hint">Some S3-compatible services require it. Check your provider’s documentation.</span></label>' +
             '<span class="switch"><input type="checkbox" id="sw-pathstyle" data-change="remote-pathstyle"' + (d.pathStyle ? ' checked' : '') + '><span class="track" aria-hidden="true"></span></span>' +
           '</div>' +
           (ui.remoteError ? '<p class="error-text mt-2" role="alert">' + esc(ui.remoteError) + '</p>' : '') +
           '<div class="form-actions mt-3">' +
-            '<button type="submit" class="btn btn-primary"' + (ui.remoteBusy ? ' disabled' : '') + '>' + (ui.remoteBusy ? 'Testing connection…' : 'Save configuration') + '</button>' +
-            '<label class="file-btn"><span>' + IC.up + ' Load config file</span><input type="file" accept=".json,application/json" data-change="load-remote-config" aria-label="Load remote storage configuration from a JSON file"></label>' +
+            '<button type="submit" class="btn btn-primary"' + busy + '>' + (ui.remoteBusy ? 'Testing connection…' : 'Save connection') + '</button>' +
+            '<label class="file-btn"><span>' + IC.up + ' Load config file</span><input type="file" accept=".json,application/json" data-change="load-remote-config" aria-label="Load cloud backup connection from a JSON file"></label>' +
             /* the counterpart to Load, so setting up a second device does not mean retyping the form */
             (cfg ? '<button type="button" class="btn" data-action="remote-export-config">' + IC.down + '<span>Save config file</span></button>' : '') +
           '</div>' +
           '<p class="hint mt-2">' + (cfg
-            ? 'A config file sets up another device without retyping this form, and can be written with or without the secret key.'
-            : 'Have a config file from another device? <strong>Load config file</strong> fills this form from it.') + '</p>' +
-        '</form>';
-      }
-      html += (cfg?'<div id="remote-tools" class="setting-block"></div>':'')+'</div>';
+            ? 'A config file sets up another device without retyping, with or without the secret key.'
+            : 'Have a config file from another device? <strong>Load config file</strong> fills this form.') + '</p>' +
+        '</form>' +
+        (cfg ? '<div class="form-actions mt-3">' +
+          '<button type="button" class="btn" data-action="remote-test"' + busy + '>Test read access</button>' +
+          '<button type="button" class="btn btn-danger" data-action="remote-forget">Forget connection</button>' +
+        '</div>' : '') +
+      '</div>';
+      html += settingsDisclosure('cloud-connection', 'Connection', cfg ? 'Endpoint, bucket, keys and config file' : 'Required before the first backup', form,
+        {open:!cfg || ui.remoteFormOpen, nested:true});
+      if (cfg) html += settingsDisclosure('cloud-troubleshooting', 'Troubleshooting',
+        remoteEngine.diagnosticsPayload().lastError ? 'Last connection failed; details inside' : 'Provider check and diagnostics',
+        '<div id="remote-troubleshooting" class="setting-block remote-tools"></div>', {defaultOpen:false, nested:true});
       return html;
     }
 
-    function settingsDisclosure(id, title, summary, body){
+    /* options.open forces the state; options.defaultOpen applies until the
+       person toggles the section; options.nested marks a section inside another. */
+    function settingsDisclosure(id, title, summary, body, options = {}){
       const remembered = ui.settingsSections[id];
       const compact = window.matchMedia && window.matchMedia('(max-width:600px)').matches;
-      const open = remembered == null ? id!=='storage'&&!compact : remembered;
-      return '<details class="settings-disclosure" data-settings-section="' + esc(id) + '"' + (open ? ' open' : '') + '>' +
+      const fallback = options.defaultOpen != null ? options.defaultOpen : id!=='storage'&&!compact;
+      const open = options.open != null ? options.open : remembered == null ? fallback : remembered;
+      return '<details class="settings-disclosure' + (options.nested ? ' is-nested' : '') + '" data-settings-section="' + esc(id) + '"' + (open ? ' open' : '') + '>' +
         '<summary><span class="settings-summary">' + esc(title) + '<small>' + esc(summary) + '</small></span></summary>' +
         body + '</details>';
     }
@@ -246,18 +250,19 @@ const LiftlogSettings = (() => {
           '<h3>Backup &amp; restore</h3>' +
           '<p class="desc">Everything in one file: exercises, routines, history and preferences. ' +
             'Restoring replaces what is in this browser (' + storage + ')' +
-            (loadRemoteConfig() ? '' : '. Nothing leaves this device unless you configure remote storage below') + '.</p>' +
-          '<p class="' + (backupIsStale() ? 'error-text' : 'hint') + '">Last full backup: ' + sinceLabel(backup.at) +
-            (backup.where ? ' (to ' + backup.where + ')' : '') + '.</p>' +
+            (loadRemoteConfig() ? '' : '. Nothing leaves this device unless you set up cloud backup below') + '.</p>' +
+          '<p class="' + (backupIsStale() ? 'error-text' : 'hint') + '">Last backup: ' + sinceLabel(backup.at) +
+            (backup.where ? ', to ' + (backup.where === 'remote storage' ? 'the cloud' : backup.where) : '') + '.</p>' +
           '<div class="form-actions mt-2">' +
             '<button type="button" class="btn" data-action="export">' + IC.down + '<span>Download backup</span></button>' +
             '<label class="file-btn"><span>' + IC.up + ' Restore from file</span><input type="file" accept=".json,application/json" data-change="import-all" aria-label="Restore from a backup file"></label>' +
           '</div>' +
         '</div>' +
-        settingsDisclosure('storage', 'Cloud backup & device storage',
-          loadRemoteConfig() ? 'Automatic S3 backup is configured' : 'Storage durability and optional automatic S3 backup',
-          storageHTML() + remoteStorageHTML()) +
-        '<div id="handoff-tools" class="setting-block handoff-tools"></div>' +
+        deviceStorageHTML() +
+        settingsDisclosure('storage', 'Cloud backup', cloudSummaryText(), remoteStorageHTML()) +
+        settingsDisclosure('handoff', 'Move workout to another device', 'Continue a paused workout elsewhere',
+          '<div id="handoff-tools" class="setting-block handoff-tools"></div>',
+          {defaultOpen:!!state.activeWorkout || !!workoutHandoff.held()}) +
     settingsDisclosure('app-updates','App updates','Loaded version and safe update controls','<div id="app-update-controls"></div>')+
         settingsDisclosure('transfer', 'Transfer routines & history', 'Import or export either data set',
         '<div class="setting-block">' +

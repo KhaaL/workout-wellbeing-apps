@@ -203,6 +203,7 @@ select{ appearance:none; padding-right:30px; background-image:linear-gradient(45
 .form-actions{ display:flex; gap:var(--sp-2); align-items:center; flex-wrap:wrap; }
 .form-footer{ margin-top:var(--sp-5); padding-top:var(--sp-4); border-top:1px solid var(--border); }
 .error-text{ color:var(--danger); font-size:var(--fs-sm); font-weight:600; }
+.warning-text{ color:var(--warning); font-size:var(--fs-sm); font-weight:500; }
 /* Not dismissable and not sticky: it sits under the header in normal flow so
    it cannot cover the session strip, and it stays until a write succeeds. */
 .save-banner{ background:var(--danger-soft); border-bottom:2px solid var(--danger-strong); }
@@ -841,6 +842,12 @@ html.is-reordering{ user-select:none; -webkit-user-select:none; }
 .settings-summary small{ display:block; color:var(--muted); font-size:var(--fs-xs); font-weight:400; margin-top:2px; }
 .settings-disclosure[open] > summary{ background:var(--surface-2); border-bottom:1px solid var(--border); }
 .settings-disclosure > .setting-block:last-child{ border-bottom:0; }
+/* A section inside Cloud backup: lighter title, and its body reads as part of the parent. */
+.settings-disclosure.is-nested > summary{ padding:var(--sp-3) var(--sp-4); font-size:var(--fs-sm); font-weight:600; }
+.settings-disclosure.is-nested[open] > summary{ background:transparent; }
+.remote-tools h3{ font-size:var(--fs-base); margin-top:var(--sp-4); }
+.remote-tools h3:first-child{ margin-top:0; }
+.remote-tools .form-actions{ margin:var(--sp-2) 0; }
 @media (max-width:600px){
   .settings-disclosure > summary{ min-height:52px; }
 }
@@ -2620,7 +2627,7 @@ function freshUI(){
     importSummary:null,         /* last history import result; survives navigation until dismissed */
     editWorkoutId:null,         /* history session currently being edited */
     focus:null,                 /* element id to focus after render */
-    remoteFormOpen:false,       /* remote-storage config form expanded in Settings */
+    remoteFormOpen:false,       /* Connection section open under Cloud backup in Settings */
     remoteError:'',
     remoteBusy:false,           /* a remote backup/restore/test request is in flight */
     remoteStatus:'idle',        /* checking | pending | synced | error */
@@ -3895,7 +3902,7 @@ const remoteEngine = LiftlogStorage.createRemote({
   prepare:(...args)=>prepareBackup(...args),validate:(...args)=>validateBackup(...args),backup:()=>backupPayload(),
   onStatus:(...args)=>setRemoteStatus(...args),toast:(...args)=>toast(...args),confirm:(...args)=>confirmDlg(...args),
   onBusy:value=>{ui.remoteBusy=value;render();},onRefresh:()=>render(),
-  onToolsChange:()=>{const container=$('#remote-tools');if(container)WorkoutStorage.renderRemoteTools(container,remoteEngine,(raw,name)=>downloadBlob(new Blob([raw],{type:'application/json'}),name));},
+  onToolsChange:()=>renderRemoteTools(),
   onRestore:()=>{applyTheme();cancelRestBeep();if(state.activeWorkout)restoreTimer();else loadTimer(state.settings.defaultRest);resetUI();render();}
 });
 
@@ -3961,7 +3968,15 @@ async function deleteFinishedWorkout(id){
   scheduleRemoteBackup();ui.detail=null;ui.editWorkoutId=null;render();
 }
 
-function renderHandoffTools(){WorkoutStorage.renderHandoff($('#handoff-tools'),workoutHandoff,(raw,name)=>downloadBlob(new Blob([raw],{type:'application/json'}),name),toast);}
+function renderHandoffTools(){WorkoutStorage.renderHandoff($('#handoff-tools'),workoutHandoff,(raw,name)=>downloadBlob(new Blob([raw],{type:'application/json'}),name),toast,{heading:false,fileButton:true});}
+/* Earlier backups sit with the backup actions; checks and diagnostics sit
+   under Troubleshooting. */
+function renderRemoteTools(){
+  const download=(raw,name)=>downloadBlob(new Blob([raw],{type:'application/json'}),name);
+  const snapshots=$('#remote-snapshots'),checks=$('#remote-troubleshooting');
+  if(snapshots)WorkoutStorage.renderRemoteTools(snapshots,remoteEngine,download,'liftlog',['snapshots']);
+  if(checks)WorkoutStorage.renderRemoteTools(checks,remoteEngine,download,'liftlog',['checks']);
+}
 
 function remoteDraftFromConfig(cfg){
   return {
@@ -3971,13 +3986,13 @@ function remoteDraftFromConfig(cfg){
     objectKey: cfg ? cfg.objectKey : '',
     accessKeyId: cfg ? cfg.accessKeyId : '',
     secretAccessKey: '',
-    syncMode:cfg?.syncMode||'auto',
+    syncMode:remoteEngine.syncMode(cfg),
     pathStyle: cfg ? !!cfg.pathStyle : false
   };
 }
 function openStorageOptions(target){
   ui.settingsSections.storage=true;
-  if(target==='configure'){ui.remoteFormOpen=true;render();}
+  if(target==='configure'&&!ui.remoteFormOpen){ui.remoteFormOpen=true;render();}
   const section=$('[data-settings-section="storage"]');if(!section)return;section.open=true;
   const node=target==='configure'?section.querySelector('[data-field="endpoint"]'):
     target==='review'?section.querySelector('[data-action="remote-resume"],[data-action="remote-publish-local"]'):section.querySelector('summary');
@@ -3985,41 +4000,32 @@ function openStorageOptions(target){
   // above them does not fill the view.
   const focus=node||section.querySelector('summary');focus?.scrollIntoView({block:target==='review'?'center':'nearest'});focus?.focus();
 }
-function renderStorageStatus(){
-  const container=$('#storage-summary');if(!container)return;
+function storageSummaryInput(){
   const cfg=loadRemoteConfig();
-  WorkoutStorage.renderStorageSummary(container,{
+  return {
     failed:localStore.failed,blocked:localStore.blocked,localPending:localStore.pending,
     configured:!!cfg,paused:remoteSyncPaused(),pause:remoteEngine.remotePauseInfo(),held:!!workoutHandoff.held(),online:navigator.onLine,
     status:ui.remoteStatus,errorCategory:remoteEngine.diagnosticsPayload().lastError?.category,busy:ui.remoteBusy,
     pending:!!readRemoteWork()?.pending,revision:remoteSnapshotTime(state),
     cloudAt:cfg?.lastBackupAt,cloudRevision:cfg?.lastUploadedModifiedAt,fileAt:state.settings.lastFileBackupAt,
-    active:!!state.activeWorkout,mode:remoteEngine.syncMode(cfg)
-  },{download:exportData,details:()=>openStorageOptions(),configure:()=>openStorageOptions('configure'),
+    active:!!state.activeWorkout,mode:remoteEngine.syncMode(cfg),detailsLabel:'Cloud backup settings'
+  };
+}
+/* The Cloud backup section's summary line repeats the banner title, so a
+   collapsed section still says whether backups are working. */
+function cloudSummaryText(){
+  return loadRemoteConfig() ? WorkoutStorage.storageSummary(storageSummaryInput()).title : 'Not set up';
+}
+function renderStorageStatus(){
+  const container=$('#storage-summary');if(!container)return;
+  const summary=$('[data-settings-section="storage"] > summary small');if(summary)summary.textContent=cloudSummaryText();
+  WorkoutStorage.renderStorageSummary(container,storageSummaryInput(),{download:exportData,details:()=>openStorageOptions(),configure:()=>openStorageOptions('configure'),
     backup:remoteBackup,retry:remoteBackup,review:()=>openStorageOptions('review'),resume:remotePublishLocal,
-    handoff:()=>{$('#handoff-tools')?.scrollIntoView({block:'nearest'});$('#handoff-tools button')?.focus();},error:error=>toast(error.message)});
+    handoff:()=>{ui.settingsSections.handoff=true;const section=$('[data-settings-section="handoff"]');if(section)section.open=true;$('#handoff-tools')?.scrollIntoView({block:'nearest'});$('#handoff-tools button')?.focus();},error:error=>toast(error.message)});
 }
 function setRemoteStatus(status, text){
   ui.remoteStatus = status; ui.remoteStatusText = text || '';
   renderStorageStatus();
-  const el = $('#remote-status');
-  if (el){
-    const cfg = loadRemoteConfig();
-    el.textContent = 'Status: ' + (cfg ? 'Configured — ' + cfg.bucket : 'Not configured') + remoteStatusDetail(cfg);
-  }
-}
-/* The settings render and setRemoteStatus share this text, so the line reads
-   the same before and after an in-place refresh. */
-function remoteStatusDetail(cfg){
-  const parts = [];
-  if (remoteSyncPaused()) parts.push((remoteEngine.syncMode(cfg) === 'immutable' ? 'Cloud backups' : 'Cloud sync') + ' paused');
-  if (cfg){
-    // A 'paused' status text repeats the line above; errors and results still show.
-    if (ui.remoteStatusText && !(ui.remoteStatus === 'paused' && remoteSyncPaused())) parts.push(ui.remoteStatusText);
-    parts.push(cfg.lastBackupAt ? 'last verified backup ' + new Date(cfg.lastBackupAt).toLocaleString() : 'no verified backup yet');
-    if (readRemoteWork()?.pending) parts.push('changes waiting to upload');
-  }
-  return parts.map(part => ' · ' + part).join('');
 }
 function remoteSnapshotTime(obj){return LiftlogStorage.revision(obj);}
 function backupDataKey(obj){return LiftlogStorage.dataKey(obj,prepareBackup);}
@@ -4088,7 +4094,7 @@ function saveRemoteConfigForm(form){
   const secretAccessKey = (d.secretAccessKey || '').trim() || (existing ? existing.secretAccessKey : '');
   if (!secretAccessKey){ ui.remoteError = 'Secret access key is required.'; render(); return; }
   testAndSaveRemoteConfig({
-    endpoint, region, bucket, accessKeyId, secretAccessKey,syncMode:d.syncMode||'auto',
+    endpoint, region, bucket, accessKeyId, secretAccessKey,syncMode:d.syncMode==='conditional'?'conditional':'immutable',
     objectKey: (d.objectKey || '').trim() || REMOTE_OBJECT_KEY_DEFAULT,
     pathStyle: !!d.pathStyle,
     lastBackupAt: existing ? existing.lastBackupAt : null,
@@ -4173,7 +4179,7 @@ function loadRemoteConfigFile(file){
       objectKey:String(obj.objectKey || REMOTE_OBJECT_KEY_DEFAULT),
       accessKeyId:String(obj.accessKeyId),
       secretAccessKey:obj.secretAccessKey ? String(obj.secretAccessKey) : '',
-      syncMode:obj.syncMode||'auto',pathStyle:!!obj.pathStyle
+      syncMode:obj.syncMode==='conditional'?'conditional':'immutable',pathStyle:!!obj.pathStyle
     };
     ui.remoteDraft = draft; ui.remoteFormOpen = true; ui.remoteError = '';
     if (!draft.secretAccessKey){
@@ -4837,8 +4843,7 @@ function render(){
   appUpdates?.refresh();
   renderHandoffTools();
   if(workoutHandoff.held()){ui.overviewOpen=false;if(ui.view==='today'){const notice=document.createElement('p');notice.className='notice';notice.textContent='Workout held for handoff. Open Settings to download it or cancel the handoff on this device.';main.prepend(notice);main.querySelectorAll('button,input,textarea,select').forEach(node=>node.disabled=true);}}
-  const toolsContainer=$('#remote-tools');
-  if(toolsContainer)WorkoutStorage.renderRemoteTools(toolsContainer,remoteEngine,(raw,name)=>downloadBlob(new Blob([raw],{type:'application/json'}),name));
+  renderRemoteTools();
   /* The action bar can only stay put if main reaches the bottom of the
      viewport — see html.session-active in the stylesheet. */
   document.documentElement.classList.toggle('session-active',
@@ -6887,7 +6892,7 @@ function settingsContext(){
     storageEstimate,esc,installedAsApp,fmtBytes,storageSize,
     rescuedDataRaw,remoteRestoreRescueInfo,unitLabel,fmtNum,fmtDate,
     convertWeight,toLocalInput,loadRemoteConfig,remoteCryptoAvailable,remoteSyncPaused,
-    remoteStatusDetail,remoteEngine,remoteDraftFromConfig,lastBackupInfo,backupIsStale,
+    cloudSummaryText,workoutHandoff,remoteEngine,remoteDraftFromConfig,lastBackupInfo,backupIsStale,
     sinceLabel,systemBarDiagnostics,historyExerciseIdentities,exerciseById,unresolvedHistoryExercises,
     historyImportSummaryHTML,shortcutTable
   };
@@ -7201,11 +7206,6 @@ const actions = {
   'request-persist'(){ requestPersistence(true); },
   'export-routines'(){ exportRoutines(); },
   'export-history'(){ exportHistory(); },
-  'remote-form-toggle'(){
-    ui.remoteFormOpen = !ui.remoteFormOpen; ui.remoteError='';
-    if (!ui.remoteFormOpen) ui.remoteDraft = null;
-    render();
-  },
   'remote-export-config'(){ exportRemoteConfig(); },
   'remote-test'(){ remoteTestConnection(); },
   'remote-backup'(){ remoteBackup(); },
@@ -7671,6 +7671,7 @@ document.addEventListener('toggle', e => {
   const d = e.target;
   if (d && d.dataset && d.dataset.settingsSection)
     ui.settingsSections[d.dataset.settingsSection] = d.open;
+  if (d && d.dataset && d.dataset.settingsSection === 'cloud-connection') ui.remoteFormOpen = d.open;
   if (d && d.dataset && 'progressionAnalysis' in d.dataset)
     ui.progressionAnalysisOpen = d.open;
 }, true);

@@ -1500,7 +1500,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     await navigateUI(touch,'settings');
     assert.equal(await touch.locator('[aria-label="Keyboard shortcuts"]').evaluate(el => getComputedStyle(el).display), 'none',
       'shortcut table is hidden on touch');
-    assert.deepEqual(await touch.locator('.settings-disclosure').evaluateAll(nodes => nodes.map(node => node.open)), [false,false,false,false],
+    assert.deepEqual(await touch.locator('.settings-disclosure:not(.is-nested)').evaluateAll(nodes => nodes.map(node => node.open)), [false,false,false,false,false],
       'secondary data controls are collapsed in mobile Settings');
     await touch.locator('[data-settings-section="transfer"] summary').click();
     assert.equal(await touch.locator('[data-settings-section="transfer"]').evaluate(node => node.open), true,

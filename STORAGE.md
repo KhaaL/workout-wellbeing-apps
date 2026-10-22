@@ -83,10 +83,12 @@ of applying an empty rule set.
 ## Verify and use backups
 
 1. Save the connection in each app with its own object path.
-2. Test connection checks reading/listing only; it does not verify writes.
-3. Run Storage provider checks for upload/read-back and compatibility results.
+2. Test the connection (Liftlog: **Test read access** under Connection). It
+   checks reading and listing only; it does not verify writes.
+3. Run the provider check (Liftlog: under Troubleshooting) for upload,
+   read-back and compatibility results.
 4. Review local data, resume backups if paused, then use Back up now.
-5. Browse cloud snapshots and confirm the uploaded backup exists.
+5. Browse earlier cloud backups and confirm the uploaded backup exists.
 
 Separate backups use `<object-path>.snapshots/<timestamp>-<UUID>.json`. The base
 object may be absent. Devices retain local data until you explicitly restore a

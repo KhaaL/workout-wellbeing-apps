@@ -177,8 +177,8 @@ The default cloud objects are `liftlog-backup.json` and
 `bike-cardio-backup.json`. Credentials are kept separately and excluded from
 workout backups. No cloud connection runs until configured by the user.
 
-Both apps provide **Storage provider checks** and **Cloud snapshots** under
-their cloud-storage settings. Compatibility checks create a small disposable
+Both apps provide a **provider check** and a list of **earlier cloud backups**
+under their cloud-storage settings. Compatibility checks create a small disposable
 object beneath `<backup-path>.checks/` and verify read-back, exposed ETags,
 create-only writes, rejected stale writes and accepted current-version updates.
 They never write to the configured workout backup. Checks pause automatic sync;
@@ -284,13 +284,20 @@ upload pending, backed up, cloud backups or cloud sync paused, offline, or needs
 attention. Local save failures take priority over cloud success. **Backed up**
 requires a confirmed cloud backup of the current revision, with no pending
 changes. Connection tests alone cannot produce it. The summary shows the last
-cloud backup and backup download separately, with a relevant next action and
-expandable **Storage options**. A paused summary names the recorded cause and
+cloud backup and backup download separately, with a relevant next action and a
+button that opens the storage settings (**Cloud backup settings** in Liftlog,
+**Storage options** in Bike). A paused summary names the recorded cause and
 time. With separate backups, **Back up & resume** opens the resume confirmation.
 With conditional sync, **Choose a copy** opens the existing choices; it does not
 resume or replace data. Saving the connection again with new credentials keeps
 the backup history; a different endpoint, region, bucket, object key, path
 style or mode clears it.
+
+Liftlog's **Cloud backup** section shows the bucket, the backup mode in one
+sentence, the backup and pause actions, and earlier cloud backups. After setup,
+**Connection** (form, config file, read test, forget) and **Troubleshooting**
+(provider check, diagnostics, last error) stay collapsed. **Move workout to
+another device** is collapsed unless a workout is active or held.
 
 Both apps apply saved appearance in the document head before the main app starts.
 The page canvas and body use the same explicit theme background, and the body
