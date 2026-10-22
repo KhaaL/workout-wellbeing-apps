@@ -265,10 +265,12 @@ retain both versions even when a provider ignores write conditions. To reconcile
 download a full local backup,
 browse cloud backups, preview and restore the desired copy. Bike can also merge
 a downloaded backup’s ride history through **Merge history**; Liftlog has its own
-history import. Restores stay paused until you choose **Back up & resume** in
-Liftlog or **Review & resume sync** in Bike. Either creates a new local backup and
-resumes automatic uploads. **Restore legacy backup locally**
-recovers the former single-object backup with the same local recovery safeguards.
+history import. Restores stay paused until you choose **Resume backups** in
+Liftlog or **Review & resume sync** in Bike. Either saves a new backup file from
+this device and resumes automatic uploads. Liftlog's resume dialog also offers
+**Restore latest cloud backup**, which restores the newest backup file and then
+resumes. In Bike and Tabata, **Restore legacy backup locally** recovers the former
+single-object backup with the same local recovery safeguards.
 
 This mode needs bucket-list permission to browse files, and GET/PUT with exposed
 ETag. Every device must be able to reach the configured endpoint. Browsers
@@ -287,7 +289,7 @@ changes. Connection tests alone cannot produce it. The summary shows the last
 cloud backup and backup download separately, with a relevant next action and a
 button that opens the storage settings (**Cloud backup settings** in Liftlog,
 **Storage options** in Bike). A paused summary names the recorded cause and
-time. With separate backups, **Back up & resume** opens the resume confirmation.
+time. With separate backups, **Resume backups** opens the resume confirmation.
 With conditional sync, **Choose a copy** opens the existing choices; it does not
 resume or replace data. Saving the connection again with new credentials keeps
 the backup history; a different endpoint, region, bucket, object key, path

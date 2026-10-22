@@ -93,7 +93,8 @@ of applying an empty rule set.
 Separate backups use `<object-path>.snapshots/<timestamp>-<UUID>.json`. The base
 object may be absent. Devices retain local data until you explicitly restore a
 chosen backup. Restores and history clearing leave uploads paused for review.
-Finish any saved workout before restoring. Legacy base objects remain available
+Finish any saved workout before restoring. Liftlog's resume dialog can restore
+the newest backup file directly. Bike and Tabata restore legacy base objects
 through Restore legacy backup locally.
 
 Conditional sync updates one shared object and requires enforced write

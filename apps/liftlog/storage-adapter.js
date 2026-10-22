@@ -27,7 +27,7 @@ const LiftlogStorage = (() => {
       summarizeBackup:obj=>({records:obj.workouts.length,recordLabel:'workouts',hasActive:!!obj.activeWorkout}),
       hasData:()=>{const state=options.getState();return !!(options.local.existing||state.workouts.length||state.activeWorkout||state.bodyweights.length);},
       setRevision:(obj,value)=>{obj.settings.lastModifiedAt=value;},isActive:()=>!!options.getState().activeWorkout,
-      onStatus:options.onStatus,toast:options.toast,confirm:options.confirm,
+      onStatus:options.onStatus,toast:options.toast,confirm:options.confirm,choose:options.choose,
       onBusy:options.onBusy,onRefresh:options.onRefresh,onToolsChange:options.onToolsChange,onRestore:options.onRestore
     });
   }

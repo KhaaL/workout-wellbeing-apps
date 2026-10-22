@@ -1,7 +1,8 @@
 /* Shared storage tools presentation. Provider responses and keys stay inert text. */
-/* `parts` picks sections ('mode', 'checks', 'snapshots') so an app can place
-   them apart; the default renders all three in order. */
-WorkoutStorage.renderRemoteTools = function(container, remote, download, layout='liftlog', parts=['mode','checks','snapshots']) {
+/* `parts` picks sections ('mode', 'checks', 'snapshots', and 'legacy' for the
+   former single-file restore) so an app can place them apart or leave one out;
+   the default renders all of them in order. */
+WorkoutStorage.renderRemoteTools = function(container, remote, download, layout='liftlog', parts=['mode','checks','snapshots','legacy']) {
   const state=remote.remoteTools(),cfg=remote.loadRemoteConfig();
   container.replaceChildren();if(!cfg)return;
   const element=(tag,text,parent=container)=>{const node=document.createElement(tag);if(text!=null)node.textContent=text;parent.append(node);return node;};
@@ -42,7 +43,7 @@ WorkoutStorage.renderRemoteTools = function(container, remote, download, layout=
   paragraph('Newest first. Preview shows record counts. Restoring replaces this device’s data and pauses '+term+' until you review.');
   controls=actions(container);
   button('Browse cloud backups','browseSnapshots',()=>remote.remoteListSnapshots(),controls,!remote.remoteCryptoAvailable());
-  if(immutable)button('Restore legacy backup locally…','restoreLegacyBackup',()=>remote.remoteRestoreLegacy(),controls,state.active);
+  if(immutable&&parts.includes('legacy'))button('Restore legacy backup locally…','restoreLegacyBackup',()=>remote.remoteRestoreLegacy(),controls,state.active);
   if(state.snapshots?.offset)button('Newer backups','previousSnapshots',()=>remote.remoteListSnapshots('previous'),controls);
   if(state.snapshots?.token)button('Older backups','nextSnapshots',()=>remote.remoteListSnapshots(true),controls);
   const list=element('div');list.id='snapshotList';

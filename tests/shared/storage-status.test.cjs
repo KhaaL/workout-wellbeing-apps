@@ -33,7 +33,7 @@ test('local saving failures override cloud success; holds, conflicts and pauses 
 });
 test('pause summary names the recorded cause and uses the mode’s own term',()=>{
   const separate=summary({...verified,paused:true,pause:{code:'import',at:500}});
-  assert.equal(separate.title,'Cloud backups paused');assert.equal(separate.actionLabel,'Back up & resume…');assert.equal(separate.pausedAt,500);
+  assert.equal(separate.title,'Cloud backups paused');assert.equal(separate.actionLabel,'Resume backups…');assert.equal(separate.pausedAt,500);
   assert.match(separate.detail,/^Paused when you chose a backup file to restore\. Your data stays on this device\. Nothing uploads/);
   const sync=summary({...verified,mode:'conditional',paused:true,pause:{code:'manual',at:500}});
   assert.equal(sync.title,'Cloud sync paused');assert.equal(sync.actionLabel,'Choose a copy');
