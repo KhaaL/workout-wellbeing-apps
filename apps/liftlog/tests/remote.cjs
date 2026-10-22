@@ -265,5 +265,10 @@ await test('re-saving the same destination keeps verified backup history; anothe
  const moved=JSON.parse(other.storage.get('liftlog.v1.remote'));
  assert.equal(moved.bucket,'other');assert.equal(moved.lastBackupAt,null);assert.equal(moved.lastUploadedModifiedAt,null);assert.equal(moved.lastBackupMode,undefined);
 });
+await test('settings offer two backup modes and show a saved automatic mode as separate files',async()=>{
+ const d=setup();d.api.saveRemoteConfig({...cfg,syncMode:'auto'});const html=d.api.remoteStorageHTML();
+ assert.match(html,/<option value="immutable" selected>Separate backup files/);assert.doesNotMatch(html,/value="auto"/);
+ assert.equal((html.match(/<option /g)||[]).length,2);assert.doesNotMatch(html,/id="remote-status"/);
+});
 console.log(`${passed} remote data-management tests passed`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

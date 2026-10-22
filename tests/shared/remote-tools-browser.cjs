@@ -76,7 +76,9 @@ function verifySignature(url,headers,body,region=cfg.region){
           if(!await backups.evaluate(node=>node.open))await backups.locator('summary').first().click();
           if(!await page.locator('#storageTools').evaluate(node=>node.open))await page.locator('#storageTools > summary').click();
         }else{
-          await page.locator('.nav-btn[data-view="settings"]').click();const storage=page.locator('details[data-settings-section="storage"]');if(!await storage.evaluate(node=>node.open))await storage.locator('summary').first().click();
+          await page.locator('.nav-btn[data-view="settings"]').click();
+          // Cloud backup holds Connection (read test) and Troubleshooting (provider check) as nested sections.
+          for(const id of ['storage','cloud-connection','cloud-troubleshooting']){const section=page.locator('details[data-settings-section="'+id+'"]');if(!await section.evaluate(node=>node.open))await section.locator('summary').first().click();}
         }
       };
       const acceptRestore=async accept=>{
@@ -121,8 +123,8 @@ function verifySignature(url,headers,body,region=cfg.region){
       // Exercise generic automatic backup mode through each app's real form.
       ignoreWriteConditions=true;calls.length=0;
       if(app==='bike-cardio'){await page.fill('#cloudRegion','test');await page.selectOption('#cloudMode','auto');await page.click('#saveCloud');}
-      else{await page.locator('[data-action="remote-form-toggle"]').click();await page.fill('[data-bind="remote"][data-field="region"]','test');await page.selectOption('[data-bind="remote"][data-field="syncMode"]','auto');await page.locator('form[data-form="remote-config"] button[type="submit"]').click();}
-      await page.waitForFunction(namespace=>JSON.parse(localStorage.getItem(namespace+'.remote')).syncMode==='auto',namespace);
+      else{await openTools();await page.fill('[data-bind="remote"][data-field="region"]','test');await page.selectOption('[data-bind="remote"][data-field="syncMode"]','immutable');await page.locator('form[data-form="remote-config"] button[type="submit"]').click();}
+      await page.waitForFunction(({namespace,mode})=>JSON.parse(localStorage.getItem(namespace+'.remote')).syncMode===mode,{namespace,mode:app==='bike-cardio'?'auto':'immutable'});
       await openTools();
       const testConnection=async()=>{const before=calls.length;await page.locator(app==='bike-cardio'?'#cloudTest':'[data-action="remote-test"]').click();await page.waitForFunction(app=>!document.querySelector(app==='bike-cardio'?'#cloudTest':'[data-action="remote-test"]').disabled,app);assert.equal(calls.length,before+1);assert.equal(calls.at(-1).method,'GET');assert.ok(new URL(calls.at(-1).url).searchParams.has('list-type'));};
       await testConnection();assert.match(await page.locator(app==='bike-cardio'?'#toast':'#toast-region').textContent(),/Backup listing readable — write permission unverified/);

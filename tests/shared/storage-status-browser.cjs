@@ -30,6 +30,8 @@ const config={endpoint:'https://storage.test',region:'test',bucket:'test',object
       const status=page.locator('#storage-summary'),options=page.locator(lift?'[data-settings-section="storage"]':'#storage-options');
       const expectState=async state=>{try{await page.waitForFunction(state=>document.querySelector('#storage-summary').dataset.state===state,state,{timeout:10000});}catch(error){throw Error(app+' expected '+state+'; '+await status.textContent()+'; '+JSON.stringify(errors));}};
       await expectState('local');assert.equal(await options.evaluate(node=>node.open),false);
+      // Before setup the banner offers setup only; a second button to the same section is noise.
+      assert.doesNotMatch(await status.textContent(),/No verified cloud backup yet/);assert.equal(await status.locator('[data-storage-action="details"]').count(),0);
       await status.getByRole('button',{name:'Set up cloud backup',exact:true}).click();
       const endpoint=page.locator(lift?'[data-field="endpoint"]':'#cloudEndpoint');await endpoint.fill('https://draft.test');
       await page.evaluate(()=>window.dispatchEvent(new Event('offline')));
@@ -37,6 +39,19 @@ const config={endpoint:'https://storage.test',region:'test',bucket:'test',object
       await page.evaluate(cfg=>{testAPI.remote.saveRemoteConfig(cfg);testAPI.refresh();},config);await expectState('pending');
       await status.getByRole('button',{name:'Back up now',exact:true}).click();await expectState('backed-up');
       assert.match(await status.textContent(),/Last verified cloud backup:/);assert(calls>=2,'backup is uploaded and read back');
+      if(lift){
+        // Liftlog: the banner is the only status; Cloud backup keeps 4 buttons in view and repeats the banner title.
+        await options.evaluate(node=>{node.open=true;});
+        assert.equal(await page.locator('#remote-status').count(),0);
+        assert.equal(await options.locator('> summary small').textContent(),'Backed up');
+        assert.equal(await options.locator('> .setting-block').first().locator('button:visible').count(),4);
+        assert.equal(await options.getByRole('button',{name:'Restore legacy backup locally…',exact:true}).count(),1);
+        assert.equal(await page.locator('[data-settings-section="cloud-troubleshooting"]').evaluate(node=>node.open),false);
+        assert.deepEqual(await page.locator('[data-field="syncMode"] option').evaluateAll(nodes=>nodes.map(node=>node.value)),['immutable','conditional']);
+        assert.doesNotMatch(await page.locator('section[aria-label="Data"]').textContent(),/MinIO|\bR2\b|amazonaws/);
+        assert.equal(await page.locator('[data-settings-section="handoff"]').evaluate(node=>node.open),false,'handoff stays collapsed without a workout');
+        assert.equal(await status.getByRole('button',{name:'Cloud backup settings',exact:true}).count(),1);
+      }
       await page.evaluate(()=>{testAPI.remote.pauseRemoteSync('review',{code:'import'});testAPI.refresh();});await expectState('paused');
       assert.match(await status.textContent(),/Cloud backups paused.*Paused when you chose a backup file to restore\..*Paused \d/);
       const before=calls;await status.getByRole('button',{name:'Back up & resume…',exact:true}).click();

@@ -19,6 +19,8 @@ test('storage summary requires matching saved and cloud revisions, not a success
   assert.match(summary({...verified,pending:true,mode:'conditional'}).detail,/may replace local data/);
   assert.equal(summary(verified).id,'backed-up');
   assert.equal(summary({...verified,fileAt:200}).cloudAt,100);
+  assert.equal(summary({}).configured,false);assert.equal(summary(verified).configured,true);
+  assert.equal(summary({}).detailsLabel,'Storage options');assert.equal(summary({detailsLabel:'Cloud backup settings'}).detailsLabel,'Cloud backup settings');
 });
 test('local saving failures override cloud success; holds, conflicts and pauses never offer an upload',()=>{
   for(const flag of ['failed','blocked'])assert.equal(summary({...verified,[flag]:true}).action,'download');

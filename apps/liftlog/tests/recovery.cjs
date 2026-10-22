@@ -28,7 +28,7 @@ const cfg={endpoint:'https://storage.test',region:'test',syncMode:'conditional',
  await page.getByRole('button',{name:'Import & replace',exact:true}).click();
  await page.waitForFunction(()=>window.testAPI.state.workouts[0].notes==='chosen local');
  assert.equal(await page.evaluate(()=>window.testAPI.remoteSyncPaused()),true);
- assert.match(await page.locator('#remote-status').textContent(),/paused/);
+ assert.match(await page.locator('#storage-summary').textContent(),/Cloud sync paused/);
  assert.equal(await page.locator('[data-action="remote-backup"]').count(),0);
  assert.equal(await page.locator('[data-action="remote-publish-local"]').count(),1);
  await page.reload();await fake(fixture(Date.now()+100000,'cloud'));await page.evaluate(()=>window.testAPI.navigate('settings'));
