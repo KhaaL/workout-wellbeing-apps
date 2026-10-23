@@ -3103,6 +3103,13 @@ function loadTimer(sec, keep){
   timer.running = false; timer.done = false; timer.beepScheduled = false;
   persistTimer(); drawTimer();
 }
+/* After an exercise's last set there is no next set to rest for, so its own
+   clock goes back to a stopped, untouched state. An untouched clock is not
+   kept, so the bar moves on to a partner's running rest or the next exercise. */
+function endRest(){
+  if(workoutHandoff.held()||!state.activeWorkout)return;
+  loadTimer(currentRestSeconds());
+}
 function startTimer(){
   if(workoutHandoff.held()){toast('Workout held for handoff — cancel it in Settings to continue here');return;}
   if (timer.remaining <= 0){ timer.remaining = timer.seconds; timer.total = timer.seconds; timer.done = false; }
@@ -3535,6 +3542,7 @@ function workoutController(){
     get setWarmup(){return setWarmup;},
     get sortWorkouts(){return sortWorkouts;},
     get startTimer(){return startTimer;},
+    get endRest(){return endRest;},
     get syncRestTimer(){return syncRestTimer;},
     get suggestedLoad(){return suggestedLoad;},
     get state(){return state;},
@@ -4524,7 +4532,7 @@ function schemaHelpHTML(){
       ['items[].repsMax', 'integer', 'Upper rep target, clamped to the same range. Values below <code>repsMin</code> are reordered.'],
       ['items[].targetRir', 'integer | null', 'Optional target reps in reserve, clamped to 0\u201310. When set, RIR is shown while logging this exercise.'],
       ['items[].eitherOf', 'optional string', 'Exactly two different exercises in a routine share a key to form an either-of pair. They are placed together; completing one removes the other from that workout only. Invalid or incomplete pairs become independent exercises.'],
-      ['items[].supersetOf', 'optional string', 'Exactly two different exercises in a routine share a key to form a superset. They are placed together; a workout alternates between them set by set, and each exercise rests on its own timer after its sets. An item cannot be in an either-of pair and a superset at once. Invalid or incomplete supersets become independent exercises. Finished workouts do not record supersets.'],
+      ['items[].supersetOf', 'optional string', 'Exactly two different exercises in a routine share a key to form a superset. They are placed together; a workout alternates between them set by set, and each exercise rests on its own timer between its sets. An item cannot be in an either-of pair and a superset at once. Invalid or incomplete supersets become independent exercises. Finished workouts do not record supersets.'],
       ['items[].weight', 'number | null', 'Planned load, or added load for a bodyweight exercise. <code>null</code> uses last time\u2019s figure.'],
       ['exercises[]', 'optional', 'Definitions for the ids above, including broad <code>category</code>, <code>movementFamily</code>, <code>loadMode</code>, optional <code>equipmentKey</code>, <code>archived</code>, notes and URL.'],
       ['exercises[].unit', 'enum', 'One of ' + units + '. <code>kg</code> and <code>lb</code> both mean weighted; a created Library exercise follows this browser’s global weight unit.'],

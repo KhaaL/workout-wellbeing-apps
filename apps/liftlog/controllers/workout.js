@@ -257,7 +257,8 @@ function toggleSet(setId){
   s.completed = !s.completed;
   if (s.completed){ s.completedAt = Date.now(); fillSetDefaults(ex, s); }
   else s.completedAt = null;
-  let finished = s.completed && allSetsDone(ex);
+  const lastSet = s.completed && allSetsDone(ex);
+  let finished = lastSet;
   const removed = finished ? settleEitherOf(w, ex) : null;
   /* In a superset a logged set hands over to the partner. The superset is
      finished only when every member is. A warm-up stays on this exercise,
@@ -273,8 +274,10 @@ function toggleSet(setId){
     context.announce('Set ' + (i+1) + ' of ' + ex.sets.length + ' complete.' + (handOver ? ' Now: ' + handOver.name + '.' : ''));
     /* Rest belongs to the exercise just performed, superset member or not.
        Superset partners work different muscles, so each rests on its own
-       clock: this one counts down while the partner is worked. */
-    if (context.state.settings.autoRest){
+       clock: this one counts down while the partner is worked. Rest only
+       separates sets of one exercise, so its last set ends its clock. */
+    if (lastSet) context.endRest();
+    else if (context.state.settings.autoRest){
       context.loadTimer(context.currentRestSeconds(ex));
       context.startTimer();
     }
