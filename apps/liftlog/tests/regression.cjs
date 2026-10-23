@@ -776,15 +776,15 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
         barLabel() === 'Rest · Bench' && others().includes('Row'),
         'each member rests on its own clock; returning shows its own rest, the partner\'s counts beside it');
       log(); log();
-      check(t.currentExercise().name === 'Bench' && resting('Bench') && resting('Row') && w.exercises[1].sets.every(s => s.completed),
-        'with the partner finished the remaining sets run straight, with rest');
+      check(t.currentExercise().name === 'Bench' && resting('Bench') && !resting('Row') && w.exercises[1].sets.every(s => s.completed),
+        'with the partner finished the remaining sets run straight, with rest; the finished partner has no rest left');
       t.validateBackup(t.backupPayload());
       const reloaded = t.prepareBackup(t.backupPayload()).activeWorkout;
       check(reloaded.supersetSide === 0 && reloaded.exercises[0].supersetOf, 'the group cursor survives a save and reload');
       log();
       check(t.currentExercise().name === 'Plank' && w.currentExerciseIndex === 2, 'finishing both members moves past the superset');
-      check(barLabel() === 'Rest · Bench' && others().includes('Row'),
-        'leaving a superset keeps the rest just started on the bar, the partner\'s beside it');
+      check(!resting('Bench') && !resting('Row') && !barLabel().includes('Bench') && !others().includes('Row'),
+        'an exercise\'s last set ends its rest, so leaving a finished superset keeps no rest for it');
       t.state.activeWorkout = null;
       t.startRoutine('rt-ss');
       const w2 = t.state.activeWorkout;
@@ -813,14 +813,11 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
         'an untouched exercise leaves the running rest on the bar, still named for its exercise');
       log();
       check(t.currentExercise().name === 'Bench' && t.timer.key === 'exercise:ex-a' && barLabel() === 'Rest · Bench' &&
-        others().includes('Plank') && others().includes('Row'),
-        'a set on another exercise starts its own rest; going back shows the earlier one, the new one counts beside it');
-      check(w3.restTimers.length === 2 && w3.restTimers.every(r => r.running) &&
-        w3.restTimers.map(r => r.label).sort().join() === 'Plank,Row',
+        !others().includes('Plank') && others().includes('Row') && !resting('Plank'),
+        'an exercise\'s last set starts no rest; going back shows the earlier rest, the partner\'s beside it');
+      check(w3.restTimers.length === 1 && w3.restTimers.every(r => r.running) &&
+        w3.restTimers.map(r => r.label).join() === 'Row',
         'every running rest is saved with the workout');
-      w3.currentExerciseIndex = 2; t.render();
-      check(t.timer.running && barLabel() === 'Rest · Plank' && others().includes('Bench') && others().includes('Row'),
-        'each exercise brings back its own rest');
       w3.currentExerciseIndex = 0; w3.supersetSide = 1; t.render();
       check(t.timer.running && barLabel() === 'Rest · Row' && others().includes('Bench'),
         'each superset member brings back its own rest');
