@@ -330,9 +330,20 @@ actions. Direct row entry and Done remain available. Shared frequent controls ha
 When the last session met an exercise's full prescription (every working set at
 the top of the rep range, and the target RIR when one is set), Liftlog starts the
 next session's working sets at the suggested load: the last working load plus
-the Settings load step. A planned routine weight still wins; dismissed or
-turned-off suggestions seed the last load. Bodyweight work steps only a load that
-was already added. The exercise's load cue says when sets start at the suggestion.
+the Settings load step. A planned routine weight still wins; hidden or stopped
+suggestions seed the last load. Bodyweight work steps only a load that was
+already added.
+
+**Load suggestions** use the same words on Today, the routine sheet, the workout
+and History → Progress. Each shows a state (Ready; Reps met, check RIR; RIR not
+logged), the last result as load × reps, and the next load with the routine's rep
+range. A planned routine weight replaces the suggested figure ("Planned 100 kg"),
+since sessions start there. When a routine sets a target RIR and the last session
+met the reps without RIR on every set, the exercise is listed as "RIR not logged"
+with no suggestion and never changes a load. The workout card says what this
+session's sets start at. Its ⋯ menu offers View last session, Hide until next
+session, and Stop for the exercise; stopped suggestions resume under History →
+Progress → Load suggestions by exercise.
 
 Rest comes from Settings unless a library exercise sets its own (Exercises →
 Edit → Rest after a set). The override belongs to the movement, so it rests the

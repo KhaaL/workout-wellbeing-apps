@@ -518,7 +518,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     assert.equal(await page.locator('#progression-ready').count(), 0,
       'History no longer opens with ready-to-increase notifications');
     await page.locator('[data-progression-analysis] summary').click();
-    assert.match(await page.locator('.cue-manager').innerText(), /Ready to increase load/,
+    assert.match(await page.locator('.cue-manager').innerText(), /Ready/,
       'historical load results remain available in progression analysis');
     await page.evaluate(() => {
       const t = window.testAPI, squat = t.state.exercises.find(ex => ex.name === 'Back Squat');
@@ -538,23 +538,32 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
         {id:'cue-item',exerciseId:squat.id,sets:3,repsMin:5,repsMax:8,targetRir:2,weight:100}]});
       t.ui.selectedRoutineId='cue-routine'; t.ui.view='today'; t.render();
     });
-    assert.equal(await page.locator('.today-cues .cue-table tbody tr:not(.cue-actions-row)').count(), 0,
-      'current routine target RIR prevents a cue when latest sets have no RIR');
+    assert.equal(await page.locator('.today-cues .cue-table tbody tr:not(.cue-actions-row)').count(), 1,
+      'a target RIR with no RIR logged lists the exercise without a suggestion');
+    assert.match(await page.locator('.today-cues').innerText(), /RIR not logged last time[\s\S]*a suggestion needs RIR on each set/,
+      'the row and the note say the suggestion was held back for missing RIR');
+    assert.equal(await page.locator('.today-cues .cue-next').innerText(), '—', 'a held suggestion shows no next load');
+    assert.equal(await page.evaluate(() => window.testAPI.loadCueFor('ex-squat', window.testAPI.state.routines.find(r => r.id==='cue-routine').items[0])), null,
+      'a held suggestion never seeds a session');
     await page.evaluate(() => { const t=window.testAPI;
       t.state.routines.find(r => r.id==='cue-routine').items[0].targetRir=null; t.render(); });
-    assert.match(await page.locator('.today-cues').innerText(), /Reps met — check technique and 1–2 RIR first/,
-      'missing target RIR gets a rep cue and technique check rather than an unconditional load increase');
-    assert.match(await page.locator('.today-cues .cue-next').innerText(), /^102\.5 kg × 5$/,
-      'next load is the last load plus the step, at the bottom of the rep range');
-    assert.equal(await page.locator('.today-cues .cue-date').last().innerText(), await page.evaluate(() => {
-      const d = new Date(window.testAPI.state.workouts[0].startedAt);
-      return String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    }), 'the last result is dated MM-DD');
+    assert.match(await page.locator('.today-cues').innerText(), /Check RIR first[\s\S]*confirm good technique and 1–2 reps in reserve/,
+      'missing target RIR gets a rep cue and one technique note rather than an unconditional load increase');
+    assert.equal(await page.locator('.today-cues .cue-next').innerText(), 'Planned 100 kg',
+      'a planned routine weight replaces the suggested figure, since sessions start there');
+    assert.match(await page.locator('.today-cues').innerText(), /Planned: the routine sets this weight/, 'the planned note explains it');
+    await page.evaluate(() => { const t=window.testAPI;
+      t.state.routines.find(r => r.id==='cue-routine').items[0].weight=null; t.render(); });
+    assert.match(await page.locator('.today-cues .cue-next').innerText(), /^102\.5 kg × 5–8$/,
+      'next load is the last load plus the step, with the routine\'s rep range');
+    assert.equal(await page.locator('.today-cues .cue-date').last().innerText(), await page.evaluate(() =>
+      new Date(window.testAPI.state.workouts[0].startedAt).toLocaleDateString(undefined, {month:'short', day:'numeric'})),
+      'the last result is dated like the rest of the app, month and day');
     await navigateUI(page,'settings');
     await page.locator('#load-step').fill('5');
     await page.locator('#load-step').press('Tab');
     await navigateUI(page,'today');
-    assert.match(await page.locator('.today-cues .cue-next').innerText(), /^105 kg × 5$/, 'the step comes from Settings');
+    assert.match(await page.locator('.today-cues .cue-next').innerText(), /^105 kg × 5–8$/, 'the step comes from Settings');
     assert.equal(await page.locator('.today-cues [data-action="cue-dismiss"]').count(), 0, 'row actions start hidden');
     await page.locator('.today-cues [data-action="cue-menu"]').click();
     assert.equal(await page.locator('.today-cues [data-action="cue-menu"]').getAttribute('aria-expanded'), 'true', 'the row menu opens');
@@ -579,8 +588,8 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     if (!await page.locator('[data-progression-analysis]').evaluate(el => el.open))
       await page.locator('[data-progression-analysis] summary').click();
     const historicRow=page.locator('.cue-manager-list li').filter({hasText:'Historic only'});
-    await historicRow.getByRole('button', {name:'Turn off load suggestions'}).click();
-    assert.match(await historicRow.innerText(), /Suggestions off/,
+    await historicRow.getByRole('button', {name:'Stop suggestions'}).click();
+    assert.match(await historicRow.innerText(), /Suggestions stopped/,
       'historical IDs without library definitions can disable suggestions');
     assert.equal(await page.evaluate(() => {
       const t=window.testAPI;
@@ -588,11 +597,12 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
         t.state.bodyweights,t.state.progressionPreferences).progressionPreferences
         .some(pref => pref.exerciseId==='historic-only' && pref.loadCuesOff);
     }), true, 'history transfer carries disabled historical-series suggestions');
-    await historicRow.getByRole('button', {name:'Turn on load suggestions'}).click();
-    assert.match(await historicRow.innerText(), /Rep target met/,
+    await historicRow.getByRole('button', {name:'Resume suggestions'}).click();
+    assert.match(await historicRow.innerText(), /Reps met, check RIR/,
       'historical series can enable suggestions again');
     const squatRow=page.locator('.cue-manager-list li').filter({hasText:'Back Squat'});
-    await squatRow.getByRole('button', {name:'Turn on load suggestions'}).click();
+    assert.match(await squatRow.innerText(), /Last [A-Z][a-z]{2} \d{1,2}: 100 kg × 8 \/ 8 \/ 8/, 'the list shows the last load with the reps');
+    await squatRow.getByRole('button', {name:'Resume suggestions'}).click();
     await page.locator('[data-action="history-tab"][data-tab="sessions"]').click();
     await page.getByLabel('Find an exercise or session').fill('Historic only');
     assert.equal(await page.locator('.hist-row').count(), 2,
@@ -616,6 +626,14 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     await page.getByRole('button', {name:'Start Cue routine'}).click();
     assert.equal(await page.locator('.load-cue.is-compact').count(), 1,
       'active workout shows the cue beside load entry');
+    const card = page.locator('.load-cue.is-compact');
+    assert.match(await card.innerText(), /Load suggestion[\s\S]*Reps met, check RIR[\s\S]*Sets start at 105 kg, up from 100 kg/,
+      'the workout card says what this session starts at');
+    assert.doesNotMatch(await card.innerText(), /next time/, 'the card does not advise for a later session');
+    assert.equal(await card.locator('[data-action="cue-dismiss"]').count(), 0, 'card actions start behind its menu');
+    await card.locator('[data-action="cue-menu"]').click();
+    assert.equal(await page.locator('.load-cue.is-compact').getByRole('button', {name:'Stop for Back Squat'}).count(), 1,
+      'the card menu names the exercise a stop applies to');
 
     await navigateUI(page,'settings');
     const bodyweightsBefore = await page.evaluate(() => window.testAPI.state.bodyweights.length);
@@ -1467,11 +1485,11 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     const cueSheet = ds.getByRole('dialog', {name:'Push day'});
     sheetCheck(await cueSheet.locator('.detail-cues .cue-table tbody tr').count() === 1 &&
       (await cueSheet.locator('.detail-cues').innerText()).includes('Bench Press') &&
-      /^87\.5 kg × 5$/.test(await cueSheet.locator('.cue-next').innerText()),
-      'the routine sheet leads with the load table for a met target');
+      await cueSheet.locator('.cue-next').innerText() === 'Planned 80 kg',
+      'the routine sheet leads with the load table for a met target, showing the planned weight sessions start at');
     sheetCheck(await ds.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'the load table fits phone width');
     await cueSheet.getByRole('button', {name:'Actions for Bench Press'}).click();
-    await cueSheet.getByRole('button', {name:'Dismiss this result'}).click();
+    await cueSheet.getByRole('button', {name:'Hide until next session'}).click();
     sheetCheck(await cueSheet.locator('.detail-cues').count() === 0 && (await sheetState()).open,
       'dismissing a cue from the sheet removes it and keeps the sheet open');
     await ds.close();
