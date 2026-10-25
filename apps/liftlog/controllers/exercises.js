@@ -23,6 +23,7 @@ function saveNewExercise(form){
     movementFamily: String(form.movementFamily || '').trim() || context.inferMovementFamily(name, form.category),
     archived:false,
     notes: form.notes.trim(),
+    instructions: String(form.instructions || '').trimEnd(),
     url,
     ...(context.normalizeRestSeconds(form.restSeconds) != null ? { restSeconds:context.normalizeRestSeconds(form.restSeconds) } : {})
   });
@@ -75,7 +76,7 @@ function saveExerciseDraft(){
                     unit:context.normalizedExerciseUnit(d.unit, context.state.settings.unit),
                     loadMode:context.normalizeLoadMode(d.loadMode, d.unit), equipmentKey:String(d.equipmentKey || '').trim(),
                     movementFamily:String(d.movementFamily || '').trim() || context.inferMovementFamily(d.name, d.category),
-                    archived:!!d.archived, notes:d.notes.trim(), url,
+                    archived:!!d.archived, notes:d.notes.trim(), instructions:String(d.instructions || '').trimEnd(), url,
                     ...(context.normalizeRestSeconds(d.restSeconds) != null ? { restSeconds:context.normalizeRestSeconds(d.restSeconds) } : {}) };
   const broken = context.linksBrokenBy(d.id, updated);
   if (!broken.length) return applyExerciseDraft(updated, badUrl ? ['the link was not a valid web address'] : []);
@@ -147,6 +148,8 @@ function mergeExerciseInto(sourceId, targetId){
       context.state.activeWorkout.exercises.some(ex => ex.exerciseId === targetId))
     return 'The ongoing workout contains both exercises. Finish it or remove one exercise before merging.';
   const keepWeight = context.sameLoadNumbers(source, target);
+  /* the survivor keeps its own instructions; the source's fill an empty field */
+  if (!String(target.instructions || '').trim() && String(source.instructions || '').trim()) target.instructions = source.instructions;
   context.state.routines.forEach(r => r.items.forEach(it => {
     if (it.exerciseId !== sourceId) return;
     it.exerciseId = targetId;

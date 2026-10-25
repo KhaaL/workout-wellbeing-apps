@@ -350,6 +350,26 @@ kbd{
   text-decoration:none; padding:var(--sp-2) 0; min-height:24px;
 }
 .how-to:hover{ text-decoration:underline; }
+button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
+.ex-links{ display:inline-flex; gap:var(--sp-3); align-items:center; }
+/* exercise instructions: rendered Markdown in sheets and the form preview */
+.md h3,.md h4,.md h5{ margin:var(--sp-3) 0 var(--sp-1); font-size:var(--fs-base); }
+.md h4{ font-size:var(--fs-sm); }
+.md h5{ font-size:var(--fs-sm); color:var(--muted); }
+.md > :first-child{ margin-top:0; }
+.md p{ margin:0 0 var(--sp-2); }
+.md ul,.md ol{ margin:0 0 var(--sp-2); padding-left:1.4em; }
+.md ul{ list-style:disc; }
+.md ol{ list-style:decimal; }
+.md li > ul{ list-style:circle; }
+.md li{ margin-bottom:var(--sp-1); }
+.md li > ul,.md li > ol{ margin:var(--sp-1) 0 0; }
+.md blockquote{ margin:0 0 var(--sp-2); padding-left:var(--sp-3); border-left:3px solid var(--border-strong); color:var(--muted); }
+.md hr{ border:0; border-top:1px solid var(--border); margin:var(--sp-3) 0; }
+.md code{ font-family:var(--font-mono); font-size:.92em; background:var(--surface-2); padding:0 .25em; border-radius:var(--radius-sm); }
+.md-field-head{ display:flex; justify-content:space-between; align-items:center; gap:var(--sp-2); }
+.md-field textarea{ width:100%; }
+.md-preview{ border:1px solid var(--border); border-radius:var(--radius); padding:var(--sp-3); background:var(--surface); min-height:6em; }
 .how-to .ic{ width:14px; height:14px; }
 .tag{
   font-size:var(--fs-xs); font-weight:650; padding:2px 8px; border-radius:99px;
@@ -1416,6 +1436,8 @@ button,.btn,.icon-btn,.nav-btn,.strip-step,.strip-num,.set-num,.hist-row,.list-o
 /* liftlog-settings-screen:end */
 /* liftlog-comparisons:start */
 /* liftlog-comparisons:end */
+/* liftlog-markdown:start */
+/* liftlog-markdown:end */
 (function(){
 'use strict';
 
@@ -1860,7 +1882,7 @@ const BACKUP_MAX_NODES = 200000;
 const LS_KEY = 'liftlog.v1';
 const LS_RESCUE_KEY = 'liftlog.v1.unreadable';  /* holds data we could not load, so nothing is lost silently */
 const LS_REMOTE_RESTORE_KEY = 'liftlog.v1.before-remote-restore';
-const SCHEMA_VERSION = 15;  /* v3: sets carry durationSeconds (time no longer overloads reps)
+const SCHEMA_VERSION = 16;  /* v3: sets carry durationSeconds (time no longer overloads reps)
                                + countForVolume / countForPR split execution from analytics
                                v4: settings carry effortMetric ('none'|'rpe'|'rir'), sets carry rir
                                v5: library exercises carry url (how to perform the movement)
@@ -1874,8 +1896,9 @@ const SCHEMA_VERSION = 15;  /* v3: sets carry durationSeconds (time no longer ov
                                v12: per-series load cue preferences
                                v13: routine items can share a supersetOf pair key
                                v14: routines can be one-off plans (plan, plannedFor)
-                               v15: library exercises can override the rest length (restSeconds) */
-const EXPORT_SCHEMA = '1.13.0'; /* version of the documented import/export contract — 1.1: sets[].rir;
+                               v15: library exercises can override the rest length (restSeconds)
+                               v16: library exercises carry instructions (Markdown text) */
+const EXPORT_SCHEMA = '1.14.0'; /* version of the documented import/export contract — 1.1: sets[].rir;
                                   1.2: exercises[].url; 1.3: per-item rest dropped; 1.4: items[].eitherOf;
                                   1.5: lower/upper rep targets and optional target RIR;
                                   1.6: reversible historical exercise links;
@@ -1884,7 +1907,7 @@ const EXPORT_SCHEMA = '1.13.0'; /* version of the documented import/export contr
                                   1.9: archived/loadMode/equipmentKey/movementFamily exercise metadata;
                                   1.10: progressionPreferences in full backups and history transfers;
                                   1.11: items[].supersetOf; 1.12: routines[].plan/plannedFor;
-                                  1.13: exercises[].restSeconds */
+                                  1.13: exercises[].restSeconds; 1.14: exercises[].instructions */
 
 /* Set by load() when stored data could not be used, surfaced once after init. */
 const localStore = LiftlogStorage.createLocal({
@@ -2085,7 +2108,9 @@ function validateBackup(s){
   s.exercises.forEach((e, i) => {
     const path = 'exercises[' + i + ']'; object(e, path);
     id(e.id, path + '.id', exercises); text(e.name, path + '.name', true);
-    fields(e, path, ['category', 'unit', 'notes', 'url', 'loadMode', 'equipmentKey', 'movementFamily'], text);
+    fields(e, path, ['category', 'unit', 'notes', 'instructions', 'url', 'loadMode', 'equipmentKey', 'movementFamily'], text);
+    if (typeof e.instructions === 'string' && e.instructions.length > LiftlogMarkdown.MAX_LENGTH)
+      fail(path + '.instructions', 'at most ' + LiftlogMarkdown.MAX_LENGTH + ' characters');
     number(e.restSeconds, path + '.restSeconds');
     bool(e.archived, path + '.archived');
   });
@@ -2199,6 +2224,7 @@ function migrateState(s){
   if (s.version === 12) s.version = 13; // optional supersetOf: old routines need no conversion
   if (s.version === 13) s.version = 14; // optional plan fields: old routines stay stable routines
   if (s.version === 14) s.version = 15; // optional rest override: old exercises use Settings
+  if (s.version === 15) s.version = 16; // optional instructions: old exercises have none
   return s;
 }
 /* v1 shipped an earlier seed library/routines. v2 refreshes both to the
@@ -2363,6 +2389,7 @@ function normalizeState(s){
     movementFamily: typeof e.movementFamily === 'string' && e.movementFamily.trim() ? e.movementFamily.trim() : inferMovementFamily(e.name, e.category),
     archived: !!e.archived,
     notes: typeof e.notes === 'string' ? e.notes : '',
+    instructions: typeof e.instructions === 'string' ? e.instructions.slice(0, LiftlogMarkdown.MAX_LENGTH) : '',
     url: safeUrl(e.url)
   }));
   const libraryIds = new Set(s.exercises.map(e => e.id));
@@ -4329,7 +4356,8 @@ function applyRoutineImport(plan, choices){
       local = { id, name:distinctExerciseName(src.name, m.source), category:normalizeCategory(src.category, src.name),
         unit:normalizedExerciseUnit(m.source.unit, state.settings.unit),
         loadMode:m.source.loadMode, equipmentKey:m.source.equipmentKey.trim(), movementFamily:m.source.movementFamily,
-        archived:!!src.archived, notes:String(src.notes || ''), url:safeUrl(src.url) };
+        archived:!!src.archived, notes:String(src.notes || ''),
+        instructions:String(src.instructions || '').slice(0, LiftlogMarkdown.MAX_LENGTH), url:safeUrl(src.url) };
       state.exercises.push(local); addedEx++;
     }
     /* A planned load that means a different number here (per hand, added to
@@ -4542,6 +4570,7 @@ function schemaHelpHTML(){
       ['exercises[].unit', 'enum', 'One of ' + units + '. <code>kg</code> and <code>lb</code> both mean weighted; a created Library exercise follows this browser’s global weight unit.'],
       ['exercises[].loadMode', 'enum', '<code>total</code>, <code>per_hand</code>, <code>machine_stack</code>, <code>bodyweight_added</code>, or <code>duration</code>. Same-series analytics require matching load mode and equipment identity.'],
       ['exercises[].movementFamily', 'string', 'A volume grouping such as <code>horizontal_push</code> or <code>vertical_pull</code>. It does not join load progression.'],
+      ['exercises[].instructions', 'string', 'How to perform the movement, in Markdown: # headings, **bold**, *italic*, lists nested up to 3 levels, &gt; quotes and --- dividers. Links, images, tables and HTML are shown as typed. At most 10,000 characters.'],
       ['exercises[].url', 'string', 'A link showing how to perform the movement. Only <code>http</code> and <code>https</code> survive; anything else is dropped.']
     ]) +
     code(sampleRoutinesFile()) +
@@ -5452,7 +5481,8 @@ function htmlCurrentExercise(w, ex){
       /* Read from the library rather than from the session's own copy of the
          exercise: a link corrected today should work in a session started
          yesterday, and the workout block already duplicates enough. */
-      htmlHowTo((exerciseById(ex.exerciseId) || {}).url, ex.name) +
+      '<span class="ex-links">' + htmlInstructionsButton(exerciseById(ex.exerciseId), ex.name) +
+        htmlHowTo((exerciseById(ex.exerciseId) || {}).url, ex.name) + '</span>' +
     '</div>' +
     htmlSupersetNote(w, ex, run) +
     prevHTML +
@@ -5666,6 +5696,14 @@ const DETAIL_SHEETS = {
     title:e => e.name, sub:e => e.category + (e.archived ? ' · archived' : ''),
     body:exerciseDetailHTML, actions:exerciseDetailActions
   },
+  /* The workout's Instructions button: the exercise's instructions only, over
+     the session, which keeps running behind it. */
+  instructions:{
+    view:'today', noun:'instructions', find:id => { const e = exerciseById(id); return e && String(e.instructions || '').trim() ? e : null; },
+    title:e => e.name, sub:() => 'Instructions',
+    body:e => '<div class="detail-section">' + LiftlogMarkdown.render(e.instructions) + '</div>',
+    actions:() => '<button type="button" class="btn btn-primary" data-action="detail-close">Back to workout</button>'
+  },
   workout:{
     view:'history', noun:'session', find:id => state.workouts.find(w => w.id === id),
     title:w => w.routineName, sub:w => fmtDate(w.startedAt) + ' · ' + relDays(w.startedAt),
@@ -5780,6 +5818,8 @@ function exerciseDetailHTML(e){
   let html = '<div class="detail-section">' + dl(facts.map(([k, v]) => [k, esc(v)])) +
     (e.notes ? '<p class="detail-note quote">“' + esc(e.notes) + '”</p>' : '') +
     htmlHowTo(e.url, e.name) + '</div>';
+  const instructions = LiftlogMarkdown.render(e.instructions);
+  if (instructions) html += '<section class="detail-section" aria-labelledby="detail-instructions"><h3 id="detail-instructions">Instructions</h3>' + instructions + '</section>';
 
   const bests = bestBits(exerciseStats(e.id), e);
   const recent = recentSessions(e.id, 5);
@@ -6882,8 +6922,9 @@ function htmlExerciseForm(){
       '</div>' +
       restField('name="exrest"', '') +
       '<label class="field mt-3"><span class="cap">Notes (optional)</span>' +
-        '<input type="text" name="exnotes" placeholder="Machine setting, grip, load convention, technique cue…">' +
-        '<span class="hint">Keep stable facts here. Sets, rep ranges, RIR and starting load belong in the routine.</span></label>' +
+        '<input type="text" name="exnotes" placeholder="Machine settings: seat height, pin position, grip…">' +
+        '<span class="hint">Machine and setup settings that stay the same between sessions. Sets, rep ranges, RIR and starting load belong in the routine.</span></label>' +
+      instructionsField('name="exinstructions"', '', 'ex-new-instructions') +
       /* type="text" with inputmode="url", not type="url": the native validator
          refuses a bare "example.com" and blocks the whole submit over an
          optional field, where safeUrl() simply gives it https://. The keyboard
@@ -6897,6 +6938,30 @@ function htmlExerciseForm(){
         '<button type="button" class="btn" data-action="ex-form-close">Cancel</button>' +
       '</div>' +
     '</form></div></section>';
+}
+/* The instructions box in the add and edit forms. Preview renders the text in
+   place without a re-render, so values typed into the add form survive. */
+function instructionsField(attrs, value, id){
+  const length = String(value || '').length;
+  return '<div class="field mt-3 md-field">' +
+    '<div class="md-field-head"><label class="cap" for="' + id + '">Instructions (optional)</label>' +
+      '<button type="button" class="btn btn-sm" data-action="md-preview" data-target="' + id + '" aria-pressed="false" aria-controls="' + id + '-preview">Preview</button></div>' +
+    '<textarea id="' + id + '" ' + attrs + ' data-md rows="6" maxlength="' + LiftlogMarkdown.MAX_LENGTH + '" ' +
+      'placeholder="How to perform the movement: setup, steps, cues…">' + esc(value || '') + '</textarea>' +
+    '<div class="md-preview" id="' + id + '-preview" hidden></div>' +
+    '<span class="hint">How to perform the movement. # headings, **bold**, *italic*, - lists, 1. steps, &gt; quotes and --- dividers. Links and tables show as typed. ' +
+      '<span id="' + id + '-count">' + instructionsCount(length) + '</span></span>' +
+  '</div>';
+}
+function instructionsCount(length){
+  return length >= LiftlogMarkdown.MAX_LENGTH * 0.9 ? fmtNum(length) + ' of ' + fmtNum(LiftlogMarkdown.MAX_LENGTH) + ' characters.' : '';
+}
+/* Opens the instructions sheet from the workout; only an exercise that has
+   instructions gets the button. Its id is the one closeDetail() refocuses. */
+function htmlInstructionsButton(e, name){
+  if (!e || !String(e.instructions || '').trim()) return '';
+  return '<button type="button" class="how-to" ' + detailRowAttrs('instructions', e.id, 'Instructions for ' + name) + '>' +
+    IC.help + '<span>Instructions</span></button>';
 }
 /* The how-to link, wherever it is shown. Rendered only for a URL that survives
    safeUrl() — stored values already have, but an exercise object can also come
@@ -6937,8 +7002,9 @@ function htmlExerciseEditRow(e){
       '</div>' +
       restField('data-bind="edraft" data-field="restSeconds"', d.restSeconds) +
       '<label class="field mt-3"><span class="cap">Notes</span>' +
-        '<input type="text" data-bind="edraft" data-field="notes" value="' + esc(d.notes) + '">' +
-        '<span class="hint">Stable facts only; prescription belongs in the routine.</span></label>' +
+        '<input type="text" data-bind="edraft" data-field="notes" value="' + esc(d.notes) + '" placeholder="Machine settings: seat height, pin position, grip…">' +
+        '<span class="hint">Machine and setup settings; prescription belongs in the routine.</span></label>' +
+      instructionsField('data-bind="edraft" data-field="instructions"', d.instructions, 'ex-edit-instructions') +
       '<label class="field mt-3"><span class="cap">How-to link</span>' +
         '<input type="text" inputmode="url" autocomplete="url" spellcheck="false" ' +
         'data-bind="edraft" data-field="url" value="' + esc(d.url || '') + '" ' +
@@ -7138,10 +7204,19 @@ const actions = {
     const e = exerciseById(d.id); if (!e) return;
     editFromDetail(() => {
       if (e.archived) ui.showArchivedExercises = true;
-      ui.mergeExerciseId = null; ui.exerciseDraft = Object.assign({ url:'' }, deepCopy(e));
+      ui.mergeExerciseId = null; ui.exerciseDraft = Object.assign({ url:'', instructions:'' }, deepCopy(e));
     }, 'ex-edit-form');
   },
   'ex-edit-cancel'(){ ui.exerciseDraft = null; render(); },
+  'md-preview'(d, el){
+    const box = document.getElementById(d.target), preview = document.getElementById(d.target + '-preview');
+    if (!box || !preview) return;
+    const showing = el.getAttribute('aria-pressed') === 'true';
+    if (!showing) preview.innerHTML = LiftlogMarkdown.render(box.value) || '<p class="muted">Nothing to preview yet.</p>';
+    preview.hidden = showing; box.hidden = !showing;
+    el.setAttribute('aria-pressed', String(!showing)); el.textContent = showing ? 'Preview' : 'Edit';
+    if (showing) box.focus();
+  },
   'ex-archived-toggle'(){ ui.showArchivedExercises = !ui.showArchivedExercises; render(); },
   'ex-archive'(d){if(!ui.detail)ui.focus=d.archived==='true'?'ex-archived-toggle':'archive-ex-'+encodeURIComponent(d.id);setExerciseArchived(d.id, d.archived === 'true');},
   'ex-merge'(d){
@@ -7630,6 +7705,7 @@ document.addEventListener('input', e => {
   const t = e.target;
   const fn = t.dataset && binders[t.dataset.bind];
   if (fn) fn(t);
+  if (t.dataset && 'md' in t.dataset){ const count = document.getElementById(t.id + '-count'); if (count) count.textContent = instructionsCount(t.value.length); }
 });
 
 /* Controls that commit on change rather than per keystroke. Keyed by data-change. */
@@ -7754,7 +7830,8 @@ document.addEventListener('submit', e => {
   else if (kind === 'ex-new'){
     const g = n => { const el = form.elements.namedItem(n); return el ? el.value : ''; };
     saveNewExercise({ name:g('exname'), category:g('excat'), unit:g('exunit'), loadMode:g('exloadmode'),
-      equipmentKey:g('exequipment'), movementFamily:g('exfamily'), notes:g('exnotes'), url:g('exurl'), restSeconds:g('exrest') });
+      equipmentKey:g('exequipment'), movementFamily:g('exfamily'), notes:g('exnotes'), instructions:g('exinstructions'),
+      url:g('exurl'), restSeconds:g('exrest') });
   }
   else if (kind === 'ex-save'){ saveExerciseDraft(); }
   else if (kind === 'ex-merge'){

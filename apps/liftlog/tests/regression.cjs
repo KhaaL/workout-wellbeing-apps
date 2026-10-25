@@ -18,7 +18,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       const wait = () => new Promise(r => setTimeout(r, 60));
       t.state.exercises = []; t.state.routines = []; t.state.workouts = [];
       const sample = t.sampleRoutinesFile();
-      check(sample.version === 15 && sample.schemaVersion === '1.13.0', 'sample version markers');
+      check(sample.version === 16 && sample.schemaVersion === '1.14.0', 'sample version markers');
       t.importRoutines(file(sample)); await wait();
       check(t.state.routines.length === 2 && t.state.exercises.length === 5, 'routine sample imports all definitions');
       check(t.state.routines[1].plan === true && /^\d{4}-\d{2}-\d{2}$/.test(t.state.routines[1].plannedFor) && !('plan' in t.state.routines[0]),
@@ -113,7 +113,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
         'rep range is ordered and target RIR is clamped');
       const old = {version:3, settings:{theme:'invalid',effortMetric:'invalid'}, exercises:[], routines:[{items:[{rest:60,sets:3,reps:5}]}],workouts:[{startedAt:1,exercises:[{restSeconds:60,sets:[{rpe:8}]}]}]};
       t.normalizeState(t.migrateState(old));
-      check(old.version === 15 && Array.isArray(old.exerciseLinks) && Array.isArray(old.historySeparateIds) && Array.isArray(old.bodyweights) && Array.isArray(old.progressionPreferences) &&
+      check(old.version === 16 && Array.isArray(old.exerciseLinks) && Array.isArray(old.historySeparateIds) && Array.isArray(old.bodyweights) && Array.isArray(old.progressionPreferences) &&
         old.routines[0].items[0].repsMin === 5 && old.routines[0].items[0].repsMax === 5 &&
         old.settings.effortMetric === 'rpe' && old.settings.theme === 'system' && !('rest' in old.routines[0].items[0]) &&
         !('restSeconds' in old.workouts[0].exercises[0]), 'complete migration chain and settings fallback');
@@ -137,7 +137,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       t.state.schemaVersion = 'stale'; t.state.source = 'stale'; t.state.exportedAt = 'stale';
       const freshEnvelope = t.backupPayload();
       delete t.state.schemaVersion; delete t.state.source; delete t.state.exportedAt;
-      check(freshEnvelope.schemaVersion === '1.13.0' && freshEnvelope.source === 'liftlog-web' && freshEnvelope.exportedAt !== 'stale',
+      check(freshEnvelope.schemaVersion === '1.14.0' && freshEnvelope.source === 'liftlog-web' && freshEnvelope.exportedAt !== 'stale',
         'fresh export metadata wins over stale state fields');
       t.setUnit('lb');
       check(t.state.exercises.filter(ex => ex.unit === 'kg' || ex.unit === 'lb').every(ex => ex.unit === 'lb'),
@@ -390,7 +390,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     });
     await page.getByRole('button', {name:'Import & replace', exact:true}).click();
     await page.waitForFunction(() => window.testAPI.state.activeWorkout?.timer?.remaining === 37);
-    assert.equal(await page.evaluate(() => window.testAPI.state.version), 15, 'full backup restore migrates');
+    assert.equal(await page.evaluate(() => window.testAPI.state.version), 16, 'full backup restore migrates');
     assert.equal(await page.evaluate(() => window.testAPI.state.activeWorkout.timer.remaining), 37, 'backup restore retains rest timer');
     await page.reload();
     assert.equal(await page.evaluate(() => window.testAPI.state.activeWorkout.exercises[0].name), 'Leg Press', 'settled workout survives reload');
@@ -771,7 +771,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
         'routine import preserves the superset');
       t.state.routines = t.state.routines.filter(r => r !== copy);
       const legacy = t.backupPayload(); legacy.version = 12;
-      check(t.prepareBackup(legacy).version === 15, 'v12 data migrates to v15 unchanged');
+      check(t.prepareBackup(legacy).version === 16, 'v12 data migrates to v16 unchanged');
 
       t.state.settings.autoRest = true;
       const clock = name => [t.timer, ...t.restTimers.values()].find(c => c.label === name);
@@ -1326,7 +1326,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       check(round.routines.find(r => r.id === 'f2').plan === true && round.routines.find(r => r.id === 'f2').plannedFor === day(14) &&
         !('plan' in round.routines.find(r => r.id === 'rt-b')), 'a backup keeps plans and stable routines apart');
       const v13 = t.backupPayload(); v13.version = 13; v13.routines.forEach(r => { delete r.plan; delete r.plannedFor; });
-      check(t.prepareBackup(v13).version === 15 && t.prepareBackup(v13).routines.every(r => !r.plan), 'v13 data migrates, every routine stable');
+      check(t.prepareBackup(v13).version === 16 && t.prepareBackup(v13).routines.every(r => !r.plan), 'v13 data migrates, every routine stable');
       setup(); t.navigate('today');
       return checks;
     });
