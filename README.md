@@ -1,16 +1,52 @@
-# Workout apps
+# Wellbeing apps
 
-Three standalone workout apps with one shared browser storage engine.
+Four standalone apps with one shared browser storage engine: three workout apps
+(Liftlog, Bike cardio, Tabata) and Foodlog, a food intake log.
 
 See [STORAGE.md](STORAGE.md) for generic S3-compatible backup configuration.
 `npm run build` produces one static site in `dist/`:
 
 - `dist/index.html`: a home page that links to each app
-- `dist/liftlog/`, `dist/bike-cardio/`, `dist/tabata/`: one folder per app
+- `dist/liftlog/`, `dist/bike-cardio/`, `dist/tabata/`, `dist/foodlog/`: one folder per app
 - `dist/_headers`, `dist/_redirects`, `dist/404.html`: site-wide host files
 
-Each app keeps its own address (`/liftlog/`, `/bike-cardio/`, `/tabata/`) and
+Each app keeps its own address (`/liftlog/`, `/bike-cardio/`, `/tabata/`, `/foodlog/`) and
 installs as its own home-screen app. See [Deploying](#deploying).
+
+## Foodlog
+
+Foodlog logs what you eat from your own food catalog. Every logged item is a
+catalog food, so the catalog holds three kinds: packaged products with label
+values, everyday foods with typical values, and dishes with per-portion values.
+Nutrients describe 100 g, 100 ml or one portion. A blank value is unknown: it is
+never counted as 0, and totals say how many items lacked it.
+
+- **Catalog file:** Foods imports a JSON catalog (schema 1.x) and merges it by
+  `id`. Label values come from the file. Portions added in the app and archived
+  foods stay, and foods the file no longer lists are kept. Export writes the
+  same format, including foods added in the app and every field Foodlog does not
+  use. See [Foodlog catalog and exports](docs/FOODLOG.md).
+- **Logging:** Today groups the day by meal. **Add food** searches the catalog,
+  ignoring accents, with this meal's recent foods first. Portion buttons and a
+  stepper set the amount, and a live preview shows its nutrients. A food that
+  is missing can be created from the same dialog. Logs before the day change
+  time (default 04:00) count toward the previous day.
+- **Frozen values:** logging stores a frozen copy of the food's values, shared
+  by all entries of that version. Correcting a label later leaves logged days
+  unchanged.
+- **Totals:** energy, the share of energy from estimated items, and bars for
+  daily targets. "At least" targets (such as protein and fibre) fill toward a
+  goal; "at most" limits (such as salt and saturated fat) warn when passed.
+  Sugars are shown as total sugars without a limit, because labels do not
+  separate free sugars from fruit and dairy sugars.
+- **History and export:** History lists logged days with their totals. **Export
+  day as JSON** writes a food-log file with meals, items, nutrition, subtotals
+  and day totals.
+
+Foodlog uses the shared local saving, recovery, backup files, cloud backups and
+updates, with its own `foodlog.v1` namespace and `foodlog-backup.json` default
+object. Capacity is 5,000 foods and 20,000 logged items (about five years at ten
+items a day).
 
 ## Tabata timer
 
@@ -141,7 +177,7 @@ per app. The home page has no manifest or service worker; one at `/` would
 control every app's pages.
 
 Cloud backups need the site's origin (no path) in the bucket's CORS rules; see
-[STORAGE.md](STORAGE.md). One origin covers all three apps.
+[STORAGE.md](STORAGE.md). One origin covers all four apps.
 
 ## Source layout
 
@@ -152,6 +188,7 @@ Cloud backups need the site's origin (no path) in the bucket's CORS rules; see
 | `apps/liftlog/storage-adapter.js` | Liftlog storage policy, revisions and comparable backup identity |
 | `apps/liftlog/screens/settings.js` | Settings templates with explicit state and helper inputs |
 | `apps/tabata/` | Tabata timer composition, timing core, storage adapter and offline shell |
+| `apps/foodlog/` | Foodlog model (`food-core.js`), storage adapter, screens and offline shell |
 | `apps/bike-cardio/index.html` | Bike interface and app composition |
 | `apps/bike-cardio/controllers/storage.js` | Backup controls, recovery copies and device-storage diagnostics |
 | `apps/bike-cardio/targets.js`, `workout-core.js` | Target validation, plans, timing and active-session migration |
@@ -288,7 +325,7 @@ use them. Liftlog's workout format is unchanged.
 
 Browsers keep device data per site address. Moving the apps to a new address
 starts each app empty there: download a full backup (or make a cloud backup) at
-the old address, then restore it at the new one. The three apps share one origin
+the old address, then restore it at the new one. The four apps share one origin
 on the site. Their storage keys, theme keys, service-worker scopes and cache
 prefixes stay separate, and each app reacts only to its own storage events.
 Deployment credentials and personal workout data are not part of this package.
