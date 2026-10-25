@@ -2,7 +2,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const context=vm.createContext({TextEncoder});
-for(const file of ['packages/storage-engine/local.js','apps/tabata/timer-core.js','apps/tabata/storage-adapter.js'])vm.runInContext(fs.readFileSync(file,'utf8'),context);
+for(const file of ['packages/storage-engine/local.js','packages/app-ui/markdown.js','apps/tabata/timer-core.js','apps/tabata/storage-adapter.js'])vm.runInContext(fs.readFileSync(file,'utf8'),context);
 const C=vm.runInContext('TabataTimer',context),S=vm.runInContext('TabataStorage',context);
 assert.equal(C.config().work,60);assert.equal(C.config().rest,3);
 assert.deepEqual(Array.from(C.settings().workPresets),[60,150,180]);assert.deepEqual(Array.from(C.settings().restPresets),[3,60,120]);
@@ -34,4 +34,14 @@ for(const invalid of [{...raw,app:'liftlog'},{...raw,active:{...session,elapsedM
 const finished={id:'finished',config,startedAt:1000,elapsedMs:235000,outcome:'complete'};
 assert.throws(()=>S.prepare({...raw,history:[finished,finished]}),'Duplicate history IDs rejected');
 assert.throws(()=>S.prepare({...raw,active:{...session,id:'finished'},history:[finished]}),'Active timer cannot duplicate history');
-console.log('PASS Tabata: phase boundaries, delayed callbacks, zero rest, pause/resume, checkpoints and backup validation');
+// Instructions are optional settings text; version 1 data upgrades and newer data is refused.
+assert.equal(C.settings().instructions,'');assert.equal(S.prepare(raw).settings.instructions,'','Version 1 backups get empty instructions');
+assert.equal(S.prepare(raw).version,2,'Prepared data is version 2');
+const steps='# Circuit\n1. Burpees\n2. Squats';
+const withSteps=S.prepare({...raw,version:2,settings:{...config,instructions:steps}});
+assert.equal(withSteps.settings.instructions,steps);assert.equal(withSteps.active.config.instructions,undefined,'The running plan never copies instructions');
+assert.equal(C.settings({instructions:'x'.repeat(10000)}).instructions.length,10000);
+for(const instructions of ['x'.repeat(10001),42,['a']])assert.throws(()=>C.settings({instructions}),/Instructions must be text/);
+assert.throws(()=>S.prepare({...raw,version:3}),/newer Tabata version/);
+for(const version of [0,'2',null])assert.throws(()=>S.prepare({...raw,version}),/Not a valid Tabata backup/);
+console.log('PASS Tabata: phase boundaries, delayed callbacks, zero rest, pause/resume, checkpoints, instructions and backup validation');

@@ -1,8 +1,8 @@
-// Exercise instructions renderer: supported Markdown, excluded syntax, escaping and speed.
+// Shared Markdown renderer: supported syntax, excluded syntax, links option, escaping and speed.
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
 const ctx = vm.createContext({});
-vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'markdown.js'), 'utf8') + ';globalThis.Markdown=LiftlogMarkdown;', ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, '..', '..', 'packages', 'app-ui', 'markdown.js'), 'utf8') + ';globalThis.Markdown=WorkoutMarkdown;', ctx);
 const render = ctx.Markdown.render;
 let passed = 0;
 const test = (name, fn) => { fn(); passed++; console.log('PASS ' + name); };
@@ -47,5 +47,20 @@ test('input beyond 10,000 characters is cut, and worst cases render quickly', ()
   for (const input of ['*'.repeat(10000), '**x '.repeat(2500), '_a '.repeat(3333), ' '.repeat(9999) + '#', '- '.repeat(5000),
     ('  '.repeat(40) + '- a\n').repeat(200), '> '.repeat(5000), '`'.repeat(10000)]) render(input);
   assert.ok(Date.now() - start < 200, 'eight worst-case inputs render in under 200 ms');
+});
+test('links render only with {links:true}, only for web and mail addresses, and never across lines', () => {
+  const text = 'See [the guide](https://example.com/a?b=1) or [mail](mailto:coach@example.com).';
+  assert.equal(render(text), '<div class="md"><p>See [the guide](https://example.com/a?b=1) or [mail](mailto:coach@example.com).</p></div>');
+  assert.equal(render(text, {links:true}), '<div class="md"><p>See <a href="https://example.com/a?b=1" target="_blank" rel="noopener noreferrer">the guide</a> or ' +
+    '<a href="mailto:coach@example.com" target="_blank" rel="noopener noreferrer">mail</a>.</p></div>');
+  for (const bad of ['[x](javascript:alert(1))', '[x](data:text/html,hi)', '[x](https://a b)', '[x](https://a"onmouseover="1)', '[x\n](https://a)', '[x](//example.com)'])
+    assert.doesNotMatch(render(bad, {links:true}), /<a /, bad);
+  assert.equal(render('[**bold** [inner](https://b)](https://a)', {links:true}).match(/<a /g).length, 1, 'a link holds no link');
+  assert.match(render('- [step](https://example.com)', {links:true}), /<li><a href="https:\/\/example\.com"/);
+});
+test('bounded searches keep many unclosed brackets and backticks fast', () => {
+  const start = Date.now();
+  for (const input of ['['.repeat(10000), '[a]('.repeat(2500), 'a`b`'.repeat(2500), '`'.repeat(1) + 'x'.repeat(9999)]) render(input, {links:true});
+  assert.ok(Date.now() - start < 200);
 });
 console.log(passed + ' markdown tests passed');

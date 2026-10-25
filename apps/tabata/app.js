@@ -22,7 +22,16 @@
     onBusy:busy=>{cloudBusy=busy;renderCloud();},onRefresh:()=>renderCloud(),
     onRestore:()=>{fillSetup();fillSettings();navigate(storage.state.active?'run':view==='run'?'setup':view);renderCloud();localStatus();}});
   function active(){return storage.state.active;}
-  function fillSetup(){for(const key of ['work','rest','rounds'])$(key).value=storage.state.settings[key];renderPresets();renderPlan();}
+  function fillSetup(){
+    for(const key of ['work','rest','rounds'])$(key).value=storage.state.settings[key];
+    $('instructions').value=storage.state.settings.instructions;WorkoutMarkdown.setPreview($('instructionsPreview'),$('instructions'),$('instructions-preview'),false);
+    renderPresets();renderPlan();renderInstructions();
+  }
+  function hasInstructions(){return !!storage.state.settings.instructions.trim();}
+  function renderInstructions(){$('instructionsState').textContent=hasInstructions()?'Added':'Optional';$('openInstructions').hidden=!hasInstructions();}
+  function saveInstructions(){
+    storage.state.settings=C.settings({...storage.state.settings,instructions:$('instructions').value});storage.save();renderInstructions();
+  }
   function renderPresets(){
     for(const key of ['work','rest']){
       const container=$(key+'Presets');container.replaceChildren();
@@ -49,6 +58,7 @@
   }
   function navigate(target){
     if(target==='setup'&&active())target='run';view=target;
+    if(target!=='run'&&$('instructionsDialog').open)$('instructionsDialog').close();
     if(!active())document.title='Tabata · Interval timer';
     for(const id of ['setup','run','complete','settings'])$(id).hidden=id!==target;
     const onWorkout=target==='run';document.documentElement.classList.toggle('setup-screen',target==='setup');
@@ -226,6 +236,13 @@
       $('bellTestStatus').textContent='Playing the recorded boxing bell.';
     }catch(error){$('testBell').disabled=false;$('bellTestStatus').textContent='Sound unavailable. Check your browser audio settings.';}
   });
+  $('instructions').maxLength=WorkoutMarkdown.MAX_LENGTH;
+  $('instructions').addEventListener('input',saveInstructions);
+  $('instructionsPreview').addEventListener('click',()=>WorkoutMarkdown.togglePreview($('instructionsPreview'),$('instructions'),$('instructions-preview')));
+  // The pop-out leaves the timer running; closing returns focus to the button.
+  $('openInstructions').addEventListener('click',()=>{$('instructionsBody').innerHTML=WorkoutMarkdown.render(storage.state.settings.instructions);$('instructionsDialog').showModal();});
+  $('closeInstructions').addEventListener('click',()=>$('instructionsDialog').close());
+  $('instructionsDialog').addEventListener('close',()=>{if(view==='run')$('openInstructions').focus();});
   $('pause').addEventListener('click',pauseOrResume);$('retryWake').addEventListener('click',requestWake);
   $('end').addEventListener('click',async()=>{
     const session=active();if(!session)return;

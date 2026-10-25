@@ -352,24 +352,6 @@ kbd{
 .how-to:hover{ text-decoration:underline; }
 button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .ex-links{ display:inline-flex; gap:var(--sp-3); align-items:center; }
-/* exercise instructions: rendered Markdown in sheets and the form preview */
-.md h3,.md h4,.md h5{ margin:var(--sp-3) 0 var(--sp-1); font-size:var(--fs-base); }
-.md h4{ font-size:var(--fs-sm); }
-.md h5{ font-size:var(--fs-sm); color:var(--muted); }
-.md > :first-child{ margin-top:0; }
-.md p{ margin:0 0 var(--sp-2); }
-.md ul,.md ol{ margin:0 0 var(--sp-2); padding-left:1.4em; }
-.md ul{ list-style:disc; }
-.md ol{ list-style:decimal; }
-.md li > ul{ list-style:circle; }
-.md li{ margin-bottom:var(--sp-1); }
-.md li > ul,.md li > ol{ margin:var(--sp-1) 0 0; }
-.md blockquote{ margin:0 0 var(--sp-2); padding-left:var(--sp-3); border-left:3px solid var(--border-strong); color:var(--muted); }
-.md hr{ border:0; border-top:1px solid var(--border); margin:var(--sp-3) 0; }
-.md code{ font-family:var(--font-mono); font-size:.92em; background:var(--surface-2); padding:0 .25em; border-radius:var(--radius-sm); }
-.md-field-head{ display:flex; justify-content:space-between; align-items:center; gap:var(--sp-2); }
-.md-field textarea{ width:100%; }
-.md-preview{ border:1px solid var(--border); border-radius:var(--radius); padding:var(--sp-3); background:var(--surface); min-height:6em; }
 .how-to .ic{ width:14px; height:14px; }
 .tag{
   font-size:var(--fs-xs); font-weight:650; padding:2px 8px; border-radius:99px;
@@ -641,10 +623,6 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .md-note ul,.md-note ol{ margin:0 0 var(--sp-2); padding-left:1.2em; }
 .md-note li{ margin-bottom:var(--sp-1); }
 .md-note a{ color:var(--accent); }
-.md-h{ font-weight:650; margin:0 0 var(--sp-1); }
-.md-h1{ font-size:var(--fs-md); }
-.md-h2{ font-size:var(--fs-base); }
-.md-h3{ font-size:var(--fs-sm); }
 .hist-ex{ margin-bottom:var(--sp-3); }
 .hist-ex:last-child{ margin-bottom:0; }
 .hist-ex h4{ margin:0 0 var(--sp-1); font-size:var(--fs-sm); font-weight:650; }
@@ -1436,8 +1414,6 @@ button,.btn,.icon-btn,.nav-btn,.strip-step,.strip-num,.set-num,.hist-row,.list-o
 /* liftlog-settings-screen:end */
 /* liftlog-comparisons:start */
 /* liftlog-comparisons:end */
-/* liftlog-markdown:start */
-/* liftlog-markdown:end */
 (function(){
 'use strict';
 
@@ -1490,54 +1466,6 @@ function safeUrl(raw){
    Everything runs on the already-`esc()`-escaped string, so the only tags
    this ever emits are the ones written here; no user input can introduce a
    new one. */
-function mdInline(s){
-  const codes = [];
-  s = s.replace(/`([^`\n]+)`/g, (m, c) => { codes.push(c); return '\x01MDCODE\x01' + (codes.length - 1) + '\x01MDCODE\x01'; });
-  s = s.replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (m, text, url) => {
-    if (!/^(https?:|mailto:)/i.test(url)) return m;
-    return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + text + '</a>';
-  });
-  s = s.replace(/\*\*([^*\n]+?)\*\*|__([^_\n]+?)__/g, (m, a, b) => '<strong>' + (a || b) + '</strong>');
-  s = s.replace(/\*([^*\n]+?)\*|_([^_\n]+?)_/g, (m, a, b) => '<em>' + (a || b) + '</em>');
-  return s.replace(/\x01MDCODE\x01(\d+)\x01MDCODE\x01/g, (m, i) => '<code>' + codes[i] + '</code>');
-}
-function mdToHtml(raw){
-  const lines = esc(raw).split(/\r?\n/);
-  const isListLine = l => /^\s*([-*]|\d+\.)\s+(.*)$/.exec(l);
-  const isHeadingLine = l => /^(#{1,3})\s+(.*)$/.exec(l);
-  const out = [];
-  let i = 0;
-  while (i < lines.length){
-    if (!lines[i].trim()){ i++; continue; }
-    const h = isHeadingLine(lines[i]);
-    if (h){
-      out.push('<div class="md-h md-h' + h[1].length + '">' + mdInline(h[2]) + '</div>');
-      i++;
-      continue;
-    }
-    const l = isListLine(lines[i]);
-    if (l){
-      const ordered = /^\d+\.$/.test(l[1]);
-      const items = [];
-      while (i < lines.length){
-        const m2 = isListLine(lines[i]);
-        if (!m2) break;
-        items.push('<li>' + mdInline(m2[2]) + '</li>');
-        i++;
-      }
-      const tag = ordered ? 'ol' : 'ul';
-      out.push('<' + tag + '>' + items.join('') + '</' + tag + '>');
-      continue;
-    }
-    const para = [];
-    while (i < lines.length && lines[i].trim() && !isHeadingLine(lines[i]) && !isListLine(lines[i])){
-      para.push(lines[i]);
-      i++;
-    }
-    out.push('<p>' + para.map(mdInline).join('<br>') + '</p>');
-  }
-  return out.join('');
-}
 function uid(){
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
   return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,9);
@@ -2109,8 +2037,8 @@ function validateBackup(s){
     const path = 'exercises[' + i + ']'; object(e, path);
     id(e.id, path + '.id', exercises); text(e.name, path + '.name', true);
     fields(e, path, ['category', 'unit', 'notes', 'instructions', 'url', 'loadMode', 'equipmentKey', 'movementFamily'], text);
-    if (typeof e.instructions === 'string' && e.instructions.length > LiftlogMarkdown.MAX_LENGTH)
-      fail(path + '.instructions', 'at most ' + LiftlogMarkdown.MAX_LENGTH + ' characters');
+    if (typeof e.instructions === 'string' && e.instructions.length > WorkoutMarkdown.MAX_LENGTH)
+      fail(path + '.instructions', 'at most ' + WorkoutMarkdown.MAX_LENGTH + ' characters');
     number(e.restSeconds, path + '.restSeconds');
     bool(e.archived, path + '.archived');
   });
@@ -2389,7 +2317,7 @@ function normalizeState(s){
     movementFamily: typeof e.movementFamily === 'string' && e.movementFamily.trim() ? e.movementFamily.trim() : inferMovementFamily(e.name, e.category),
     archived: !!e.archived,
     notes: typeof e.notes === 'string' ? e.notes : '',
-    instructions: typeof e.instructions === 'string' ? e.instructions.slice(0, LiftlogMarkdown.MAX_LENGTH) : '',
+    instructions: typeof e.instructions === 'string' ? e.instructions.slice(0, WorkoutMarkdown.MAX_LENGTH) : '',
     url: safeUrl(e.url)
   }));
   const libraryIds = new Set(s.exercises.map(e => e.id));
@@ -4357,7 +4285,7 @@ function applyRoutineImport(plan, choices){
         unit:normalizedExerciseUnit(m.source.unit, state.settings.unit),
         loadMode:m.source.loadMode, equipmentKey:m.source.equipmentKey.trim(), movementFamily:m.source.movementFamily,
         archived:!!src.archived, notes:String(src.notes || ''),
-        instructions:String(src.instructions || '').slice(0, LiftlogMarkdown.MAX_LENGTH), url:safeUrl(src.url) };
+        instructions:String(src.instructions || '').slice(0, WorkoutMarkdown.MAX_LENGTH), url:safeUrl(src.url) };
       state.exercises.push(local); addedEx++;
     }
     /* A planned load that means a different number here (per hand, added to
@@ -5701,7 +5629,7 @@ const DETAIL_SHEETS = {
   instructions:{
     view:'today', noun:'instructions', find:id => { const e = exerciseById(id); return e && String(e.instructions || '').trim() ? e : null; },
     title:e => e.name, sub:() => 'Instructions',
-    body:e => '<div class="detail-section">' + LiftlogMarkdown.render(e.instructions) + '</div>',
+    body:e => '<div class="detail-section">' + WorkoutMarkdown.render(e.instructions) + '</div>',
     actions:() => '<button type="button" class="btn btn-primary" data-action="detail-close">Back to workout</button>'
   },
   workout:{
@@ -5818,7 +5746,7 @@ function exerciseDetailHTML(e){
   let html = '<div class="detail-section">' + dl(facts.map(([k, v]) => [k, esc(v)])) +
     (e.notes ? '<p class="detail-note quote">“' + esc(e.notes) + '”</p>' : '') +
     htmlHowTo(e.url, e.name) + '</div>';
-  const instructions = LiftlogMarkdown.render(e.instructions);
+  const instructions = WorkoutMarkdown.render(e.instructions);
   if (instructions) html += '<section class="detail-section" aria-labelledby="detail-instructions"><h3 id="detail-instructions">Instructions</h3>' + instructions + '</section>';
 
   const bests = bestBits(exerciseStats(e.id), e);
@@ -6181,7 +6109,7 @@ function htmlWorkoutDetail(w){
     '<span>' + fmtDuration(workoutDuration(w)) + '</span>' +
     '<span>' + plural(workoutSets(visibleHistoryWorkout(w)), 'set') + '</span>' +
     '<span><b>' + fmtNum(workoutVolume(visibleHistoryWorkout(w))) + '</b> ' + unitLabel() + '</span></p>' +
-    (w.notes ? '<div class="small mt-3 md-note">' + mdToHtml(w.notes) + '</div>' : '') + '</div>' +
+    (w.notes ? '<div class="small mt-3 md-note">' + WorkoutMarkdown.render(w.notes, {links:true}) + '</div>' : '') + '</div>' +
     '<div class="detail-section">';
   let shown = 0;
   w.exercises.forEach((ex, index) => {
@@ -6946,7 +6874,7 @@ function instructionsField(attrs, value, id){
   return '<div class="field mt-3 md-field">' +
     '<div class="md-field-head"><label class="cap" for="' + id + '">Instructions (optional)</label>' +
       '<button type="button" class="btn btn-sm" data-action="md-preview" data-target="' + id + '" aria-pressed="false" aria-controls="' + id + '-preview">Preview</button></div>' +
-    '<textarea id="' + id + '" ' + attrs + ' data-md rows="6" maxlength="' + LiftlogMarkdown.MAX_LENGTH + '" ' +
+    '<textarea id="' + id + '" ' + attrs + ' data-md rows="6" maxlength="' + WorkoutMarkdown.MAX_LENGTH + '" ' +
       'placeholder="How to perform the movement: setup, steps, cues…">' + esc(value || '') + '</textarea>' +
     '<div class="md-preview" id="' + id + '-preview" hidden></div>' +
     '<span class="hint">How to perform the movement. # headings, **bold**, *italic*, - lists, 1. steps, &gt; quotes and --- dividers. Links and tables show as typed. ' +
@@ -6954,7 +6882,7 @@ function instructionsField(attrs, value, id){
   '</div>';
 }
 function instructionsCount(length){
-  return length >= LiftlogMarkdown.MAX_LENGTH * 0.9 ? fmtNum(length) + ' of ' + fmtNum(LiftlogMarkdown.MAX_LENGTH) + ' characters.' : '';
+  return length >= WorkoutMarkdown.MAX_LENGTH * 0.9 ? fmtNum(length) + ' of ' + fmtNum(WorkoutMarkdown.MAX_LENGTH) + ' characters.' : '';
 }
 /* Opens the instructions sheet from the workout; only an exercise that has
    instructions gets the button. Its id is the one closeDetail() refocuses. */
@@ -7210,12 +7138,7 @@ const actions = {
   'ex-edit-cancel'(){ ui.exerciseDraft = null; render(); },
   'md-preview'(d, el){
     const box = document.getElementById(d.target), preview = document.getElementById(d.target + '-preview');
-    if (!box || !preview) return;
-    const showing = el.getAttribute('aria-pressed') === 'true';
-    if (!showing) preview.innerHTML = LiftlogMarkdown.render(box.value) || '<p class="muted">Nothing to preview yet.</p>';
-    preview.hidden = showing; box.hidden = !showing;
-    el.setAttribute('aria-pressed', String(!showing)); el.textContent = showing ? 'Preview' : 'Edit';
-    if (showing) box.focus();
+    if (box && preview) WorkoutMarkdown.togglePreview(el, box, preview);
   },
   'ex-archived-toggle'(){ ui.showArchivedExercises = !ui.showArchivedExercises; render(); },
   'ex-archive'(d){if(!ui.detail)ui.focus=d.archived==='true'?'ex-archived-toggle':'archive-ex-'+encodeURIComponent(d.id);setExerciseArchived(d.id, d.archived === 'true');},

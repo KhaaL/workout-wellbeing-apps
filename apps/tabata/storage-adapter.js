@@ -2,9 +2,13 @@
 /* exported TabataStorage */
 const TabataStorage = (() => {
   const namespace='tabata.v1',key='tabata.state.v1';
+  // Version 2 adds settings.instructions. Version 1 apps rebuild settings from the
+  // fields they know and would drop the text, so they refuse version 2 data.
+  const VERSION=2;
   function prepare(raw){
     WorkoutStorage.enforceLimits(raw,{history:10000});
-    if(!raw||raw.app!=='tabata'||raw.version!==1||!Array.isArray(raw.history)||!Number.isSafeInteger(raw.updatedAt)||raw.updatedAt<0)throw new Error('Not a valid Tabata backup.');
+    if(raw?.app==='tabata'&&Number.isSafeInteger(raw.version)&&raw.version>VERSION)throw new Error('This backup is from a newer Tabata version. Update the app, then try again.');
+    if(!raw||raw.app!=='tabata'||![1,VERSION].includes(raw.version)||!Array.isArray(raw.history)||!Number.isSafeInteger(raw.updatedAt)||raw.updatedAt<0)throw new Error('Not a valid Tabata backup.');
     const ids=new Set();
     const history=raw.history.map(row=>{
       if(!row||typeof row.id!=='string'||!row.id||row.id.length>100||ids.has(row.id)||!['complete','ended'].includes(row.outcome))throw new Error('Invalid Tabata history.');
@@ -16,11 +20,11 @@ const TabataStorage = (() => {
     });
     const active=raw.active==null?null:TabataTimer.validateSession(raw.active);
     if(active&&ids.has(active.id))throw new Error('Saved timer is already in history.');
-    return {app:'tabata',version:1,updatedAt:raw.updatedAt,settings:TabataTimer.settings(raw.settings),history,active};
+    return {app:'tabata',version:VERSION,updatedAt:raw.updatedAt,settings:TabataTimer.settings(raw.settings),history,active};
   }
   function create(options){
     let state,remote;
-    const seed=()=>({app:'tabata',version:1,updatedAt:0,settings:TabataTimer.settings(),history:[],active:null});
+    const seed=()=>({app:'tabata',version:VERSION,updatedAt:0,settings:TabataTimer.settings(),history:[],active:null});
     const local=WorkoutStorage.createLocal({key,rescueKey:namespace+'.unreadable',seed,prepare,getState:()=>state,setState:value=>{state=value;},
       touch:()=>{state.updatedAt=Math.max(Date.now(),state.updatedAt+1);},onChange:()=>remote?.scheduleRemoteBackup(),onStatus:options.onLocalStatus});
     state=local.load();

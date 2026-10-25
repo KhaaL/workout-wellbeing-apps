@@ -25,6 +25,10 @@ const TabataTimer = (() => {
       if(!Array.isArray(values)||values.length!==3)throw new Error('Provide three '+(name==='workPresets'?'work':'rest')+' presets.');
       result[name]=values.map(value=>integer(value,'Preset seconds',min,3600));
     }
+    // Markdown shown by the run screen's Instructions button; the running plan never copies it.
+    const instructions=raw.instructions??'';
+    if(typeof instructions!=='string'||instructions.length>WorkoutMarkdown.MAX_LENGTH)throw new Error('Instructions must be text of at most '+WorkoutMarkdown.MAX_LENGTH.toLocaleString('en')+' characters.');
+    result.instructions=instructions;
     return result;
   }
   function elapsed(session,now){return Math.min(duration(session.config),Math.max(0,session.elapsedMs+(session.status==='running'?Math.max(0,now-session.anchorAt):0)));}

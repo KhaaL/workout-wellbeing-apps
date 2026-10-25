@@ -10,7 +10,7 @@ const concat=async(dir,names)=>(await Promise.all(names.map(name=>read(dir,name)
    so source files never carry a second copy of a module. Edit the canonical
    files; open or test the built app in dist/. */
 const shared={
-  'app-foundation':await concat('packages/app-ui',['foundation.js','comparisons.js']),
+  'app-foundation':await concat('packages/app-ui',['foundation.js','comparisons.js','markdown.js']),
   'app-ui-styles':await concat('packages/app-ui',['themes.css','components.css']),
   'theme-bootstrap':await read('packages/app-ui','theme-bootstrap.js'),
   'storage-engine':await concat('packages/storage-engine',['local.js','remote.js','handoff.js','undo.js']),
@@ -23,7 +23,7 @@ const appModules={
     ['presets.js','bike-presets'],['plan-ui.js','bike-plan-ui'],['targets.js','bike-targets'],['trace.js','bike-trace'],['heart-rate.js','bike-heart-rate'],['power.js','bike-power'],
     ['bluetooth.js','bike-bluetooth'],['plans.js','bike-plans'],['workout-core.js','bike-workout-core'],['history.js','bike-history']
   ],
-  liftlog:[['controllers/exercises.js','liftlog-exercises-controller'],['controllers/routines.js','liftlog-routines-controller'],['controllers/workout.js','liftlog-workout-controller'],['storage-adapter.js','liftlog-storage-adapter'],['screens/settings.js','liftlog-settings-screen'],['comparisons.js','liftlog-comparisons'],['markdown.js','liftlog-markdown']],
+  liftlog:[['controllers/exercises.js','liftlog-exercises-controller'],['controllers/routines.js','liftlog-routines-controller'],['controllers/workout.js','liftlog-workout-controller'],['storage-adapter.js','liftlog-storage-adapter'],['screens/settings.js','liftlog-settings-screen'],['comparisons.js','liftlog-comparisons']],
   tabata:[['bell-audio.js','tabata-bell-audio'],['timer-core.js','tabata-timer-core'],['storage-adapter.js','tabata-storage-adapter'],['app.js','tabata-app']]
 };
 // Exactly one empty or filled marker pair, in order, or the build stops.

@@ -68,7 +68,7 @@ Deleting a plan keeps the rides done with it; each ride stores its own copy.
 | `resistanceCues` | `levels` (default) when numbers name console levels, `feel` otherwise. |
 | `conditions` | Up to 10 `{label, value}` pairs confirmed before the ride starts. |
 | `record` | Optional subset of `effortResistance`, `effortWatts5s`, `recovery60`, `timeOfDay`, `hoursSinceLifting`, `fed`, `note`; all by default. |
-| `notes` | Up to 1000 characters, shown with the plan. |
+| `notes` | Up to 1000 characters of Markdown, shown formatted with the plan. Links may use `https://`, `http://` or `mailto:`. |
 | `steps` | 1 to 40 steps or repeat blocks; at most 200 phases and 20 efforts after expansion. |
 
 ### Steps
