@@ -7278,10 +7278,14 @@ const actions = {
   'remote-resume'(){ remoteResumeSync(); },
   'remote-publish-local'(){ remotePublishLocal(); },
   'remote-forget'(){
-    confirmDlg('Forget remote configuration?',
-      'This removes the stored endpoint and credentials from this browser. It does not delete anything already uploaded to your bucket.',
-      'Forget', true).then(ok => { if (!ok) return; clearRemoteConfig(); ui.remoteDraft = null; render(); toast('Remote configuration removed'); });
+    const text = WorkoutStorage.forgetConnectionText(remoteEngine);
+    confirmDlg(text.title, text.body, 'Forget', true).then(ok => { if (!ok) return; clearRemoteConfig(); ui.remoteDraft = null; render(); toast('Remote configuration removed'); });
   },
+  'remote-use-shared'(){
+    const text = WorkoutStorage.useSharedConnectionText;
+    confirmDlg(text.title, text.body, text.label).then(ok => { if (!ok) return; remoteEngine.useSharedConnection(); ui.remoteDraft = null; render(); toast('Using the shared connection'); });
+  },
+
   'clear-workouts'(){ clearWorkoutData(); },
   'help-open'(){ $('#help-dlg').showModal(); },
   'help-close'(){ $('#help-dlg').close(); },
@@ -7930,7 +7934,11 @@ function init(){
   window.addEventListener('online', ()=>{renderStorageStatus();remoteStartupSync();});
   window.addEventListener('offline',renderStorageStatus);
   // Other apps on this site share localStorage; only this app's keys matter.
-  window.addEventListener('storage',event=>{if(!event.key||event.key.startsWith('liftlog.'))renderStorageStatus();});
+  window.addEventListener('storage',event=>{
+    // Another app on this site saved or forgot the shared connection.
+    if(event.key===WorkoutStorage.SHARED_CONNECTION_KEY){ui.remoteDraft=null;render();}
+    else if(!event.key||event.key.startsWith('liftlog.'))renderStorageStatus();
+  });
 
   updateSaveBanner();   /* init()'s own save() above may already have failed */
   refreshStorageState();

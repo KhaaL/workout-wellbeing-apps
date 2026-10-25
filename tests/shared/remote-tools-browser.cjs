@@ -124,7 +124,8 @@ function verifySignature(url,headers,body,region=cfg.region){
       ignoreWriteConditions=true;calls.length=0;
       if(app==='bike-cardio'){await page.fill('#cloudRegion','test');await page.selectOption('#cloudMode','auto');await page.click('#saveCloud');}
       else{await openTools();await page.fill('[data-bind="remote"][data-field="region"]','test');await page.selectOption('[data-bind="remote"][data-field="syncMode"]','immutable');await page.locator('form[data-form="remote-config"] button[type="submit"]').click();}
-      await page.waitForFunction(({namespace,mode})=>JSON.parse(localStorage.getItem(namespace+'.remote')).syncMode===mode,{namespace,mode:app==='bike-cardio'?'auto':'immutable'});
+      // The backup mode belongs to the connection, which every app on the site shares.
+      await page.waitForFunction(({mode})=>JSON.parse(localStorage.getItem('wellbeing.connection.v1')).syncMode===mode,{mode:app==='bike-cardio'?'auto':'immutable'});
       await openTools();
       const testConnection=async()=>{const before=calls.length;await page.locator(app==='bike-cardio'?'#cloudTest':'[data-action="remote-test"]').click();await page.waitForFunction(app=>!document.querySelector(app==='bike-cardio'?'#cloudTest':'[data-action="remote-test"]').disabled,app);assert.equal(calls.length,before+1);assert.equal(calls.at(-1).method,'GET');assert.ok(new URL(calls.at(-1).url).searchParams.has('list-type'));};
       await testConnection();assert.match(await page.locator(app==='bike-cardio'?'#toast':'#toast-region').textContent(),/Backup listing readable — write permission unverified/);

@@ -129,15 +129,17 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
     <p id="backupAge" class="small" role="status"></p>
     <details><summary>Device storage</summary><p id="storageDiagnostics" class="small" role="status">Checking device storage…</p><button id="requestPersistence" class="secondary" hidden>Request persistent storage</button></details>
     <div id="recoveryCopies" class="stack"></div>
+    <p class="small">One cloud connection serves every app on this site: enter your S3-compatible storage details once. Each app backs up to its own path.</p>
+    <div id="connectionScope" class="stack"></div>
     <form id="cloudForm" class="stack">
       <label class="field">Backup mode<select id="cloudMode"><option value="auto">Automatic (separate backup files)</option><option value="immutable">Separate backup files — explicit restore</option><option value="conditional">Conditional sync — overwrite protection required</option></select></label>
       <label class="field">Storage endpoint<input id="cloudEndpoint" type="url" required placeholder="https://your-s3-server.example"></label>
       <div class="grid"><label class="field">Region<input id="cloudRegion" required placeholder="Provider region"></label><label class="field">Bucket<input id="cloudBucket" required></label></div>
-      <label class="field">Backup object path<input id="cloudObject" value="bike-cardio-backup.json" required></label>
+      <label class="field">Backup object path · this app<input id="cloudObject" value="bike-cardio-backup.json" required></label>
       <label class="field">Access key ID<input id="cloudAccess" required autocomplete="off"></label>
       <label class="field">Secret access key<input id="cloudSecret" type="password" autocomplete="off" placeholder="Leave blank to keep the saved secret"></label>
       <label class="check"><input id="cloudPathStyle" type="checkbox" checked>Use path-style addressing</label>
-      <p class="small">Credentials are saved in this browser. They are excluded from workout backups. Use a private bucket; each app needs its own backup object path.</p>
+      <p class="small">Credentials are saved in this browser and excluded from workout backups. Use a private bucket. The connection is shared by every app on this site; the backup object path is this app’s.</p>
       <button type="submit" id="saveCloud" class="secondary">Check &amp; save connection</button>
     </form>
     <label class="field">Load connection configuration<input id="importCloudConfig" type="file" accept=".json,application/json"></label>
@@ -784,8 +786,9 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   });
   for(const [id,method]of [['cloudTest','remoteTestConnection'],['cloudBackup','remoteBackup'],['cloudPause','pauseRemoteSyncAction'],['cloudResume','remoteResumeSync'],['cloudKeepLocal','remotePublishLocal'],['cloudUseRemote','remoteRestore']])$(id).addEventListener('click',async()=>{try{await storage.remote[method]();renderBackupControls();}catch(error){toast(error.message);}});
   $('cloudForget').addEventListener('click',async()=>{
-    if(!await WorkoutUI.confirm('Forget cloud connection?','Saved credentials will be removed from this browser. Local rides and cloud backups are kept.','Forget connection',true))return;
-    storage.remote.clearRemoteConfig();$('cloudForm').reset();$('cloudConfigStatus').textContent='Connection forgotten.';renderBackupControls();
+    const text=WorkoutStorage.forgetConnectionText(storage.remote);
+    if(!await WorkoutUI.confirm(text.title,text.body,'Forget connection',true))return;
+    storage.remote.clearRemoteConfig();$('cloudForm').reset();loadCloudFields();$('cloudConfigStatus').textContent='Connection forgotten.';renderBackupControls();
   });
   $('requestPersistence').addEventListener('click',()=>requestPersistence(true));
   $('exportHistoryJSON').addEventListener('click',()=>downloadJSON(storage.historyPayload(),`bike-cardio-history-${new Date().toISOString().slice(0,10)}.json`));
@@ -800,7 +803,11 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   window.addEventListener('online',()=>{renderStorageStatus();storage.remote.remoteStartupSync();});
   window.addEventListener('offline',renderStorageStatus);
   // Other apps on this site share localStorage; only this app's keys matter.
-  window.addEventListener('storage',event=>{if(!event.key||event.key.startsWith('bike-cardio.'))renderStorageStatus();});
+  window.addEventListener('storage',event=>{
+    // Another app on this site saved or forgot the shared connection.
+    if(event.key===WorkoutStorage.SHARED_CONNECTION_KEY){loadCloudFields();renderBackupControls();}
+    else if(!event.key||event.key.startsWith('bike-cardio.'))renderStorageStatus();
+  });
   document.addEventListener('visibilitychange',()=>{if(document.hidden)save(true);storage.local.flush();if(document.hidden)storage.remote.flushScheduled();else storage.remote.remoteStartupSync();});
   document.addEventListener('visibilitychange',()=>{h10.visibilityChanged();H.breakSeries(session?.hr);power.visibilityChanged();PowerCore.breakSeries(session?.power);highSince=null;lastHighAt=null;if(!session||storage.handoff.held())return;if(document.hidden){handle(C.advance(session,Date.now(),{visible:false}));if(session&&session.config.mode==='sprint'&&session.status==='running'){C.pause(session,Date.now(),'Sprint cues need this app visible. Timing paused when you switched away.');save(true);}cancelVoice();release();}else{cancelVoice();tick();if(session?.status==='paused')openPause();else if(session){audio?.resume().catch(()=>{});lock();render();}}});
   window.addEventListener('pagehide',()=>{h10.disconnect();H.breakSeries(session?.hr);if(session){handle(C.advance(session,Date.now(),{visible:false}));save(true);}if(selected&&!$('summary').hidden)saveMetrics();});

@@ -101,7 +101,7 @@ const LiftlogSettings = (() => {
       const paused = remoteSyncPaused();
       let html = '<div class="setting-block">';
       if (!cfg){
-        html += '<p class="desc">Back up automatically to S3-compatible storage you control. Requests go straight from this browser to your storage; Liftlog has no server.</p>';
+        html += '<p class="desc">Back up automatically to S3-compatible storage you control. Requests go straight from this browser to your storage; Liftlog has no server. One connection serves every app on this site.</p>';
       } else {
         html += '<p class="desc"><strong>' + esc(cfg.bucket) + '</strong> · ' + (separate
           ? 'Separate backup files. Every backup is a new file; other devices change only when you restore one there.'
@@ -124,8 +124,10 @@ const LiftlogSettings = (() => {
          so the fields survive a re-render triggered by anything else on this
          page — they don't reset to the last-saved value until a real save. */
       if (!ui.remoteDraft) ui.remoteDraft = remoteDraftFromConfig(cfg);
-      const d = ui.remoteDraft;
-      const form = '<div class="setting-block"><form data-form="remote-config">' +
+      const d = ui.remoteDraft, scope = WorkoutStorage.describeConnection(remoteEngine);
+      const form = '<div class="setting-block"><p class="hint" id="connection-scope">' + esc(scope.text) + '</p>' +
+          (scope.canSwitch ? '<div class="form-actions mt-2"><button type="button" class="btn" data-action="remote-use-shared">Use the shared connection…</button></div>' : '') +
+          '<form data-form="remote-config" class="mt-2">' +
           '<label class="field"><span class="cap">Backup mode</span><select data-bind="remote" data-field="syncMode">' +
             [['immutable','Separate backup files (recommended)'],['conditional','Conditional sync (one shared file)']].map(([value,label])=>'<option value="'+value+'"'+(d.syncMode===value?' selected':'')+'>'+label+'</option>').join('') + '</select></label>' +
           '<p class="hint mt-1">Separate files never replace another device’s data. Conditional sync needs a provider that enforces overwrite protection.</p>' +
@@ -136,11 +138,11 @@ const LiftlogSettings = (() => {
           '</div>' +
           '<p class="hint mt-1">HTTPS address with no path or query. Plain HTTP works only from a local file or localhost.</p>' +
           '<div class="form-row mt-2">' +
-            '<label class="field flex-2"><span class="cap">Object key / path</span><input type="text" data-bind="remote" data-field="objectKey" placeholder="' + REMOTE_OBJECT_KEY_DEFAULT + '" value="' + esc(d.objectKey) + '"></label>' +
+            '<label class="field flex-2"><span class="cap">Object key / path · this app</span><input type="text" data-bind="remote" data-field="objectKey" placeholder="' + REMOTE_OBJECT_KEY_DEFAULT + '" value="' + esc(d.objectKey) + '"></label>' +
             '<label class="field"><span class="cap">Access key ID</span><input type="text" data-bind="remote" data-field="accessKeyId" required value="' + esc(d.accessKeyId) + '"></label>' +
             '<label class="field"><span class="cap">Secret access key</span><input type="password" data-bind="remote" data-field="secretAccessKey" placeholder="' + (cfg ? '•••••••• (leave blank to keep)' : '') + '" value="' + esc(d.secretAccessKey) + '"' + (!cfg ? ' required' : '') + '></label>' +
           '</div>' +
-          '<p class="hint mt-1">Keys are stored unencrypted in this browser. Use a key limited to this bucket.</p>' +
+          '<p class="hint mt-1">Keys are stored unencrypted in this browser and shared by every app on this site. Use a key limited to this bucket.</p>' +
           '<div class="switch-row mt-2">' +
             '<label for="sw-pathstyle"><strong>Path-style addressing</strong><br><span class="hint">Some S3-compatible services require it. Check your provider’s documentation.</span></label>' +
             '<span class="switch"><input type="checkbox" id="sw-pathstyle" data-change="remote-pathstyle"' + (d.pathStyle ? ' checked' : '') + '><span class="track" aria-hidden="true"></span></span>' +

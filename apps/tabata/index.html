@@ -76,7 +76,8 @@ main{max-width:640px;margin:auto;padding:24px 20px 32px}h1{font-size:var(--fs-xl
 <label class="check"><input id="keepAwake" type="checkbox">Keep screen awake during a session</label><p class="hint">Requires a supported browser and HTTPS. Your device may release stay-awake in power-saving mode. Check its status during your timer.</p>
 <p id="settingsNote" class="hint">Changes apply to the next timer.</p>
 <details><summary>Backups &amp; cloud storage</summary><div class="stack">
-<p class="hint">Uses the shared workout storage engine. Tabata has its own connection and backup path. Enter your S3-compatible storage details to enable cloud backups.</p>
+<p class="hint">One cloud connection serves every app on this site: enter your S3-compatible storage details once. Each app backs up to its own path.</p>
+<div id="connectionScope" class="stack"></div>
 <button id="exportBackup" class="btn" type="button">Download full backup</button>
 <label class="field">Restore Tabata backup<input id="importBackup" type="file" accept=".json,application/json"></label>
 <div id="recoveryCopies" class="stack recovery"></div>
@@ -84,7 +85,7 @@ main{max-width:640px;margin:auto;padding:24px 20px 32px}h1{font-size:var(--fs-xl
 <label class="field">Endpoint<input id="cloudEndpoint" type="url" placeholder="https://storage.example.com" required autocapitalize="none" spellcheck="false"></label>
 <label class="field">Region<input id="cloudRegion" required autocapitalize="none" spellcheck="false"></label>
 <label class="field">Bucket<input id="cloudBucket" required autocapitalize="none" spellcheck="false"></label>
-<label class="field">Backup path<input id="cloudObject" value="tabata-backup.json" required autocapitalize="none" spellcheck="false"></label>
+<label class="field">Backup path · this app<input id="cloudObject" value="tabata-backup.json" required autocapitalize="none" spellcheck="false"></label>
 <label class="field">Access key ID<input id="cloudAccess" required autocomplete="off" autocapitalize="none" spellcheck="false"></label>
 <label class="field">Secret access key<input id="cloudSecret" type="password" autocomplete="off" placeholder="Leave blank to keep saved secret"></label>
 <label class="field">Backup mode<select id="cloudMode"><option value="immutable">Separate backup files</option><option value="conditional">Conditional sync</option></select></label>

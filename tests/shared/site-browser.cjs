@@ -2,31 +2,11 @@
 // _redirects and 404.html. Checks the home page, separate service-worker scopes and offline caches,
 // per-app manifests and offline launches. Service workers need a secure context, which localhost is.
 const assert=require('node:assert/strict');
-const fs=require('node:fs');
-const path=require('node:path');
-const http=require('node:http');
 const {chromium}=require('playwright');
-const dist=path.resolve(__dirname,'../../dist');
+const site=require('./site-server.cjs');
 const apps=['liftlog','bike-cardio','tabata','foodlog'];
-const rules=fs.readFileSync(path.join(dist,'_headers'),'utf8').split(/\n\n+/).filter(Boolean).map(block=>{
-  const [pattern,...lines]=block.trim().split('\n');return {pattern,headers:lines.map(line=>{const i=line.indexOf(':');return [line.slice(0,i).trim(),line.slice(i+1).trim()];})};
-});
-const redirects=new Map(fs.readFileSync(path.join(dist,'_redirects'),'utf8').trim().split('\n').map(line=>line.split(' ')));
-const types={'.html':'text/html','.js':'application/javascript','.webmanifest':'application/manifest+json','.png':'image/png','.svg':'image/svg+xml'};
-const server=http.createServer((req,res)=>{
-  const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
-  if(redirects.has(pathname)){res.writeHead(301,{Location:redirects.get(pathname)}).end();return;}
-  let file=path.join(dist,pathname.endsWith('/')?pathname+'index.html':pathname),status=200;
-  if(!file.startsWith(dist+path.sep)||!fs.existsSync(file)||fs.statSync(file).isDirectory()){file=path.join(dist,'404.html');status=404;}
-  // Every matching rule applies, as on the host; repeated names are joined.
-  const headers={'Content-Type':types[path.extname(file)]||'application/octet-stream'};
-  for(const rule of rules)if(rule.pattern.endsWith('*')?pathname.startsWith(rule.pattern.slice(0,-1)):pathname===rule.pattern)
-    for(const [name,value] of rule.headers)headers[name]=headers[name]?headers[name]+', '+value:value;
-  res.writeHead(status,headers).end(fs.readFileSync(file));
-});
 (async()=>{
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-  const origin='http://localhost:'+server.address().port;
+  const server=await site.start(),origin=server.origin;
   const browser=await chromium.launch({headless:true,...process.env.BROWSER_PATH?{executablePath:process.env.BROWSER_PATH}:{}});
   try{
     const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true}),page=await context.newPage(),errors=[];

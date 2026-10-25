@@ -424,11 +424,12 @@
     $('cloudActions').hidden=!cfg;$('cloudBackup').hidden=paused;$('cloudPause').hidden=paused;$('cloudResume').hidden=!paused;
     $('cloudUseRemote').hidden=remote.syncMode(cfg)==='immutable';
     for(const node of document.querySelectorAll('#cloudForm input,#cloudForm select,#cloudForm button,#cloudActions button'))node.disabled=cloudBusy||configBusy;
+    WorkoutStorage.renderConnectionScope($('connectionScope'),remote,{confirm:WorkoutUI.confirm,onChange:()=>{loadCloud();renderCloud();}});
     renderRecovery();WorkoutStorage.renderRemoteTools($('remoteTools'),remote,downloadJSON,'foodlog',['mode','checks','snapshots']);
   }
   function loadCloud(){
     const cfg=storage.remote.loadRemoteConfig();if(!cfg)return;
-    for(const [field,name] of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId']])$(field).value=cfg[name]||'';
+    for(const [field,name] of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId']])$(field).value=cfg[name]||(name==='objectKey'?storage.remote.defaultObjectKey:'');
     $('cloudPathStyle').checked=cfg.pathStyle;$('cloudMode').value=storage.remote.syncMode(cfg);
   }
   $('exportBackup').addEventListener('click',()=>{storage.local.flush();downloadJSON(storage.backup(),'foodlog-backup.json');});
@@ -440,7 +441,7 @@
     }catch(error){toast(error.message);}finally{configBusy=false;renderCloud();}
   });
   for(const [id,method] of [['cloudBackup','remoteBackup'],['cloudPause','pauseRemoteSyncAction'],['cloudResume','remoteResumeSync'],['cloudKeepLocal','remotePublishLocal'],['cloudUseRemote','remoteRestore']])$(id).addEventListener('click',async()=>{try{await storage.remote[method]();}catch(error){toast(error.message);}renderCloud();});
-  $('cloudForget').addEventListener('click',async()=>{if(await WorkoutUI.confirm('Forget cloud connection?','Remove saved credentials on this device? Your foods, log and cloud files are kept.','Forget connection',true)){storage.remote.clearRemoteConfig();$('cloudForm').reset();$('cloudSecret').value='';renderCloud();}});
+  $('cloudForget').addEventListener('click',async()=>{const text=WorkoutStorage.forgetConnectionText(storage.remote);if(await WorkoutUI.confirm(text.title,text.body,'Forget connection',true)){storage.remote.clearRemoteConfig();$('cloudForm').reset();$('cloudSecret').value='';loadCloud();renderCloud();}});
 
   /* Navigation. */
   function render(){if(view==='today')renderToday();else if(view==='foods')renderFoods();else if(view==='history')renderHistory();}
@@ -468,6 +469,8 @@
   document.addEventListener('visibilitychange',()=>{if(document.hidden){storage.local.flush();return;}if(followToday&&viewDate!==today()){viewDate=today();if(view==='today')renderToday();}storage.remote.remoteStartupSync();});
   window.addEventListener('pagehide',()=>storage.local.flush());
   window.addEventListener('online',()=>storage.remote.remoteStartupSync());
+  // Another app on this site saved or forgot the shared connection.
+  window.addEventListener('storage',event=>{if(event.key===WorkoutStorage.SHARED_CONNECTION_KEY){loadCloud();renderCloud();}});
   fillSettings();loadCloud();localStatus();navigate('today');
   storage.remote.remoteStartupSync();
 })();

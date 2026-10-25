@@ -56,7 +56,7 @@ const cfg={endpoint:'https://storage.test',region:'test',syncMode:'conditional',
  await page.locator('[data-action="remote-pause"]').click();
  assert.equal(await page.evaluate(()=>window.testAPI.remoteSyncPaused()),true);
  assert.equal(await page.locator('[data-action="remote-resume"]').count(),1);
- assert.ok(await page.evaluate(()=>!!JSON.parse(localStorage.getItem('liftlog.v1.remote')).secretAccessKey));
+ assert.ok(await page.evaluate(()=>!!JSON.parse(localStorage.getItem('wellbeing.connection.v1')).secretAccessKey),'pausing keeps the shared credentials');
  console.log('PASS explicit local publication uses snapshots; pause retains credentials and exposes reviewed choices');
  assert.deepEqual(errors,[]);await context.close();
  console.log('PASS no browser errors in recovery flows');
