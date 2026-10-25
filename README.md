@@ -334,6 +334,17 @@ the Settings load step. A planned routine weight still wins; hidden or stopped
 suggestions seed the last load. Bodyweight work steps only a load that was
 already added.
 
+Each Library exercise can carry **instructions**: how to perform the movement,
+up to 10,000 characters of Markdown. Notes stay a separate one-line field for
+machine settings. Instructions support # to ### headings, **bold**, *italic*,
+`code`, bulleted and numbered lists nested up to 3 levels, > quotes and ---
+dividers; a single line break stays a line break. Links, images, tables, code
+blocks and HTML show as typed. The add and edit forms have a Preview switch.
+The exercise sheet shows the instructions, and during a workout an
+**Instructions** button beside How to opens them over the session, with the rest
+timer still running. They live on the Library exercise only, so sessions do not
+store copies.
+
 **Load suggestions** use the same words on Today, the routine sheet, the workout
 and History → Progress. Each shows a state (Ready; Reps met, check RIR; RIR not
 logged), the last result as load × reps, and the next load with the routine's rep

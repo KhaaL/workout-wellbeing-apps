@@ -173,12 +173,12 @@ test('Liftlog rest comes from the exercise when it sets one, else from Settings'
  s.activeWorkout=null;
  const backup=JSON.parse(JSON.stringify(s));backup.exercises.find(e=>e.id==='curl').restSeconds=5;backup.exercises.find(e=>e.id==='dips').restSeconds=0;
  const prepared=d.api.prepareBackup(backup);
- assert.equal(prepared.version,15);
+ assert.equal(prepared.version,16);
  assert.equal(prepared.exercises.find(e=>e.id==='squat').restSeconds,180);
  assert.equal(prepared.exercises.find(e=>e.id==='curl').restSeconds,15,'clamped to the shortest rest');
  assert.equal('restSeconds' in prepared.exercises.find(e=>e.id==='dips'),false,'0 means use Settings');
  backup.exercises.find(e=>e.id==='curl').restSeconds='long';assert.throws(()=>d.api.prepareBackup(backup),/restSeconds/);
- const v14=JSON.parse(JSON.stringify(s));v14.version=14;v14.exercises.forEach(e=>delete e.restSeconds);assert.equal(d.api.prepareBackup(v14).version,15);
+ const v14=JSON.parse(JSON.stringify(s));v14.version=14;v14.exercises.forEach(e=>delete e.restSeconds);assert.equal(d.api.prepareBackup(v14).version,16);
 });
 test('Liftlog swaps an exercise for this session and keeps its prescription',()=>{
  const d=lift(),s=d.api.state;s.settings.unit='kg';
@@ -237,4 +237,22 @@ test('Liftlog shows the last session compactly, naming a shared load label once'
  const d=lift(),ex={unit:'kg',loadMode:'machine_stack'},set=(weight,reps,extra={})=>({completed:true,weight,reps,unit:'kg',...extra});
  assert.equal(d.api.lastSessionSummary([set(20,10,{countForVolume:false,countForPR:false}),set(40,10),set(40,10),set(35,9)],ex),'40 × 10, 40 × 10, 35 × 9 kg stack','warm-ups left out, label once');
  assert.match(d.api.lastSessionSummary([{completed:true,reps:10,unit:'bw',addedWeight:null}],{unit:'bw',loadMode:'bodyweight_added'}),/10 reps BW/,'bodyweight keeps the full summary');
+});
+test('Liftlog exercise instructions survive backups, routine files and merges; older data has none',()=>{
+ const d=lift(),s=d.api.state,ex=(id,name,instructions)=>({id,name,category:'Push',unit:'kg',loadMode:'total',equipmentKey:'',movementFamily:'vertical_push',archived:false,notes:'Seat 4',url:'',instructions});
+ s.exercises.push(ex('press','Press','# Setup\n1. Brace'),ex('press-b','Press B','Source steps'),ex('press-c','Press C',''));
+ const prepared=d.api.prepareBackup(JSON.parse(JSON.stringify(s)));
+ assert.equal(prepared.exercises.find(e=>e.id==='press').instructions,'# Setup\n1. Brace');
+ const old=JSON.parse(JSON.stringify(s));old.version=15;old.exercises.forEach(e=>delete e.instructions);
+ const migrated=d.api.prepareBackup(old);assert.equal(migrated.version,16);assert.ok(migrated.exercises.every(e=>e.instructions===''),'older data reads as no instructions');
+ const long=JSON.parse(JSON.stringify(s));long.exercises.find(e=>e.id==='press').instructions='x'.repeat(10001);
+ assert.throws(()=>d.api.prepareBackup(long),/instructions: expected at most 10000 characters/);
+ s.routines.push({id:'rp',name:'Press day',items:[{id:'rpi',exerciseId:'press',sets:3,repsMin:5,repsMax:8}]});
+ const file=JSON.parse(JSON.stringify(d.api.routinesPayload(s.exercises,s.routines.filter(r=>r.id==='rp'))));
+ assert.equal(file.exercises[0].instructions,'# Setup\n1. Brace','routine files carry instructions');
+ const other=lift();other.api.applyRoutineImport(other.api.planRoutineImport(file),null);
+ assert.equal(other.api.state.exercises.find(e=>e.name==='Press').instructions,'# Setup\n1. Brace','routine import keeps them');
+ assert.equal(d.api.mergeExerciseInto('press-b','press'),'');assert.equal(s.exercises.find(e=>e.id==='press').instructions,'# Setup\n1. Brace','the survivor keeps its own');
+ assert.equal(d.api.mergeExerciseInto('press','press-c'),'');assert.equal(s.exercises.find(e=>e.id==='press-c').instructions,'# Setup\n1. Brace','an empty survivor takes the source text');
+ assert.match(d.api.exerciseDetailHTML(s.exercises.find(e=>e.id==='press-c')),/<h3 id="detail-instructions">Instructions<\/h3><div class="md"><h3>Setup<\/h3><ol><li>Brace<\/li><\/ol><\/div>/);
 });

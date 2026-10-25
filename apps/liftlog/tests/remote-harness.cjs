@@ -20,7 +20,7 @@ function device(storage = new Map()) {
     confirmDlg=async()=>true; dialog=async()=>true;
     window.api={workoutHandoff,localStore,remoteEngine,beginWorkout,newWorkout, pauseTimer, timer, LiftlogComparisons,epley,relDays,nextLoadFor,buildWorkoutExercise,finishWorkout,currentRestSeconds,swapExercise,canSwap,warmupPlan,addWarmups,lastSessionSummary,workoutVolume,workoutDuration,sameProgressionContract,canonicalExerciseId,setWeight,addedSetWeight,save,flushSave,clearWorkoutData,prepareBackup,backupPayload,backupDataKey,remoteStartupSync,autoRemoteBackup,remoteBackup,remoteRestore,remotePublishLocal,remoteResumeSync,pauseRemoteSync,remoteSyncPaused,remoteStorageHTML,
       putRemoteBackup,installRemoteSnapshot,commitSnapshot,applyFullBackup,readRemoteBackup,s3Request,validateRemoteConfig,
-      testAndSaveRemoteConfig,saveRemoteConfig,clearRemoteConfig,readRemoteWork,scheduleRemoteBackup,remoteTestConnection,
+      routinesPayload,planRoutineImport,applyRoutineImport,mergeExerciseInto,exerciseDetailHTML,testAndSaveRemoteConfig,saveRemoteConfig,clearRemoteConfig,readRemoteWork,scheduleRemoteBackup,remoteTestConnection,
       get state(){return state},set state(v){state=v},get ui(){return ui},get saveFailed(){return localStore.failed},
       set existing(v){localStore.existing=v}, get generation(){return remoteEngine.generation},
       get rescue(){return localStorage.getItem(LS_REMOTE_RESTORE_KEY)},
