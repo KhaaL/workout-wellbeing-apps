@@ -6,7 +6,7 @@ const {pathToFileURL}=require('node:url');
 const {chromium}=require('playwright');
 const {confirmAction}=require('./shared/confirm-dialog.cjs');
 const root=path.resolve(__dirname,'..'),html=fs.readFileSync(path.join(root,'dist/tabata/index.html'),'utf8');
-const csp=fs.readFileSync(path.join(root,'dist/tabata/_headers'),'utf8').match(/Content-Security-Policy: (.*)/)[1];
+const csp=require('./shared/site-headers.cjs').csp('tabata');
 (async()=>{
   const browser=await chromium.launch({headless:true,...process.env.BROWSER_PATH?{executablePath:process.env.BROWSER_PATH}:{}});
   let server,release=1;

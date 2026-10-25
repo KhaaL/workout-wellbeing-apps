@@ -3,11 +3,14 @@
 Three standalone workout apps with one shared browser storage engine.
 
 See [STORAGE.md](STORAGE.md) for generic S3-compatible backup configuration.
-Builds produce three standalone app folders:
+`npm run build` produces one static site in `dist/`:
 
-- `dist/liftlog`
-- `dist/bike-cardio`
-- `dist/tabata`
+- `dist/index.html`: a home page that links to each app
+- `dist/liftlog/`, `dist/bike-cardio/`, `dist/tabata/`: one folder per app
+- `dist/_headers`, `dist/_redirects`, `dist/404.html`: site-wide host files
+
+Each app keeps its own address (`/liftlog/`, `/bike-cardio/`, `/tabata/`) and
+installs as its own home-screen app. See [Deploying](#deploying).
 
 ## Tabata timer
 
@@ -51,8 +54,7 @@ have separate namespaces. Its optional S3-compatible connection defaults to
 `tabata-backup.json`; enter deployment-specific values in this app's Settings.
 It never reads the other apps' device configuration.
 
-Build just this app with `npm run build:tabata`, then serve `dist/tabata` from
-HTTPS hosting or a local static server. For direct source previews, serve the
+`npm run build:tabata` builds the site; Tabata is served from `dist/tabata/`. For direct source previews, serve the
 repository root and open `apps/tabata/`: it loads canonical styles and scripts
 without a build. Source previews require the rest of the checkout, and offline
 installation is provided by the built app. `npm run test:tabata-browser` checks mobile
@@ -114,6 +116,33 @@ per minute. An abrupt termination without a lifecycle event can lose up to five
 seconds of the ongoing ride; finished rides and explicit edits save immediately.
 Backups at an already uploaded revision create no additional snapshot.
 
+## Deploying
+
+The site is plain static files. Any static host that serves HTTPS, reads a
+root `_headers` file (path rules with `*` wildcards) and a root `_redirects`
+file, and serves `404.html` for missing paths can host it as one project:
+
+| Setting | Value |
+|---|---|
+| Build command | `npm ci && npm run build` |
+| Output directory | `dist` |
+| Node.js | 22.13 or later |
+
+`dist/_headers` gives each app folder its own Content-Security-Policy with the
+hashes of that app's inline scripts and styles. The home page has an exact `/`
+rule. No rule covers the whole site: a host applies every matching rule, and a
+second policy on an app page would block its scripts. Each app's service worker
+is served with `Cache-Control: no-cache`. `dist/_redirects` adds the trailing
+slash (`/liftlog` → `/liftlog/`), which the apps' relative URLs need.
+
+Each app's manifest uses its folder as `id`, `start_url` and `scope`, and its
+service worker registers from that folder, so browsers offer a separate install
+per app. The home page has no manifest or service worker; one at `/` would
+control every app's pages.
+
+Cloud backups need the site's origin (no path) in the bucket's CORS rules; see
+[STORAGE.md](STORAGE.md). One origin covers all three apps.
+
 ## Source layout
 
 | Location | Purpose |
@@ -134,7 +163,8 @@ Backups at an already uploaded revision create no additional snapshot.
 | `packages/storage-ui/` | Shared storage summary, provider checks, backup browser and handoff presentation |
 | `packages/app-ui/` | Shared themes, controls, navigation, numeric adjustments, Markdown rendering and safe updates |
 | `apps/bike-cardio/history.js`, `apps/liftlog/comparisons.js` | Comparable workout interpretation |
-| `scripts/build.mjs` | Standalone Pages builds, security headers and offline cache versions |
+| `scripts/build.mjs` | Site build: home page, app folders, per-folder security headers, redirects and offline cache versions |
+| `site/` | Home page and site-wide 404 page sources |
 | `tests/` and `apps/liftlog/tests/` | Storage, workout and browser checks |
 
 ## Build and test
@@ -151,7 +181,7 @@ npx playwright install --only-shell chromium
 npm run test:browser
 ```
 
-`npm run build:liftlog` and `npm run build:bike` build one app. Outputs are
+`npm run build` always builds the whole site. App folders are
 recreated on each build to remove stale files. The build copies only runtime
 assets and fills each `/* name:start */ … /* name:end */` marker pair in the app's
 HTML and service worker with its shared or app-specific file. Source files keep
@@ -256,8 +286,11 @@ Bike build shows the pre-migration history. Export a new JSON backup before a
 rollback and convert newer records to the old format if that old build must
 use them. Liftlog's workout format is unchanged.
 
-Keep existing production addresses to retain device-local history. The two
-Pages projects use independent service-worker scopes and cache prefixes.
+Browsers keep device data per site address. Moving the apps to a new address
+starts each app empty there: download a full backup (or make a cloud backup) at
+the old address, then restore it at the new one. The three apps share one origin
+on the site. Their storage keys, theme keys, service-worker scopes and cache
+prefixes stay separate, and each app reacts only to its own storage events.
 Deployment credentials and personal workout data are not part of this package.
 
 ## Separate backup files

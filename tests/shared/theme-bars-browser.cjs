@@ -8,7 +8,7 @@ const themes=['system','light','dark','contrast','lamplight','forest','blossom',
   for(const app of ['liftlog','bike-cardio']){
    const html=fs.readFileSync(path.join(root,'dist',app,'index.html'),'utf8');
    const bootOnly=html.replace(/<script\b([^>]*)>[\s\S]*?<\/script>/g,(script,attributes)=>attributes.includes('id="theme-bootstrap"')?script:'');
-   const csp=fs.readFileSync(path.join(root,'dist',app,'_headers'),'utf8').match(/Content-Security-Policy: (.*)/)[1];
+   const csp=require('./site-headers.cjs').csp(app);
    let cold=true;const errors=[];
    const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block'}),page=await context.newPage();
    page.on('pageerror',e=>errors.push(e.message));

@@ -799,7 +799,8 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   $('clearHistory').addEventListener('click',async()=>{try{if(await storage.clearHistory()){records=storage.state.history;selected=null;showHistory();$('historyImportStatus').textContent='History cleared locally. Cloud sync is paused; review before updating the cloud.';}renderBackupControls();}catch(error){toast(error.message);}});
   window.addEventListener('online',()=>{renderStorageStatus();storage.remote.remoteStartupSync();});
   window.addEventListener('offline',renderStorageStatus);
-  window.addEventListener('storage',renderStorageStatus);
+  // Other apps on this site share localStorage; only this app's keys matter.
+  window.addEventListener('storage',event=>{if(!event.key||event.key.startsWith('bike-cardio.'))renderStorageStatus();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)save(true);storage.local.flush();if(document.hidden)storage.remote.flushScheduled();else storage.remote.remoteStartupSync();});
   document.addEventListener('visibilitychange',()=>{h10.visibilityChanged();H.breakSeries(session?.hr);power.visibilityChanged();PowerCore.breakSeries(session?.power);highSince=null;lastHighAt=null;if(!session||storage.handoff.held())return;if(document.hidden){handle(C.advance(session,Date.now(),{visible:false}));if(session&&session.config.mode==='sprint'&&session.status==='running'){C.pause(session,Date.now(),'Sprint cues need this app visible. Timing paused when you switched away.');save(true);}cancelVoice();release();}else{cancelVoice();tick();if(session?.status==='paused')openPause();else if(session){audio?.resume().catch(()=>{});lock();render();}}});
   window.addEventListener('pagehide',()=>{h10.disconnect();H.breakSeries(session?.hr);if(session){handle(C.advance(session,Date.now(),{visible:false}));save(true);}if(selected&&!$('summary').hidden)saveMetrics();});

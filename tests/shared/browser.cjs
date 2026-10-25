@@ -6,7 +6,7 @@ const path=require('node:path');
 const {chromium}=require('playwright');
 const root=path.resolve(__dirname,'../..');
 const html=fs.readFileSync(path.join(root,'dist/bike-cardio/index.html'),'utf8');
-const csp=fs.readFileSync(path.join(root,'dist/bike-cardio/_headers'),'utf8').match(/Content-Security-Policy: (.*)/)[1];
+const csp=require('./site-headers.cjs').csp('bike-cardio');
 (async()=>{
   const browser=await chromium.launch({headless:true,...process.env.BROWSER_PATH?{executablePath:process.env.BROWSER_PATH}:{}});
   try{

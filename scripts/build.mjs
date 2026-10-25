@@ -2,10 +2,13 @@ import {readFile,writeFile,mkdir,cp,readdir,rm} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {resolve,join} from 'node:path';
 const root=resolve(import.meta.dirname,'..');
-const selected=process.argv[2];
 const read=(...parts)=>readFile(join(root,...parts),'utf8');
 const concat=async(dir,names)=>(await Promise.all(names.map(name=>read(dir,name)))).join('\n');
-/* Source HTML and service workers hold an empty `/* name:start *\/ … /* name:end *\/`
+/* One site: the home page at /, each app in its own folder (/liftlog/,
+   /bike-cardio/, /tabata/) with its own manifest scope and service worker.
+   The host reads the root _headers and _redirects, so per-app policies are
+   written there as path rules that never overlap.
+   Source HTML and service workers hold an empty `/* name:start *\/ … /* name:end *\/`
    pair where each shared or extracted file goes. Only dist/ receives the code,
    so source files never carry a second copy of a module. Edit the canonical
    files; open or test the built app in dist/. */
@@ -33,8 +36,11 @@ function fill(text,name,content,label){
     throw new Error('Missing, duplicated or reversed markers: '+label+' ('+name+')');
   return text.slice(0,first)+start+'\n'+content+'\n'+end+text.slice(last+end.length);
 }
-for(const app of selected?[selected]:['liftlog','bike-cardio','tabata']){
-  if(!Object.hasOwn(appModules,app))throw new Error('Unknown app: '+app);
+const apps=['liftlog','bike-cardio','tabata'],headerRules=[];
+const hash=text=>createHash('sha256').update(text).digest('base64');
+const hashes=(html,tag)=>[...html.matchAll(new RegExp('<'+tag+'\\b[^>]*>([\\s\\S]*?)<\\/'+tag+'>','g'))].map(m=>"'sha256-"+hash(m[1])+"'");
+const security='  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n';
+for(const app of apps){
   const source=join(root,'apps',app),output=join(root,'dist',app),workerName=app==='liftlog'?'sw.js':'service-worker.js';
   let html=await readFile(join(source,'index.html'),'utf8');
   for(const [name,content] of Object.entries(shared)){
@@ -56,7 +62,7 @@ for(const app of selected?[selected]:['liftlog','bike-cardio','tabata']){
   const assets=app==='liftlog'
     ? ['index.html','manifest.webmanifest','sw.js','icons']
     : app==='tabata'?['index.html','manifest.webmanifest','service-worker.js','icon.svg','icon-180.png','icon-192.png','icon-512.png']
-    : ['index.html','manifest.webmanifest','service-worker.js','icon-32.png','icon-192.png','icon-512.png','apple-touch-icon-180.png','404.html','_redirects'];
+    : ['index.html','manifest.webmanifest','service-worker.js','icon-32.png','icon-192.png','icon-512.png','apple-touch-icon-180.png'];
   const releaseHash=createHash('sha256').update(html).update(worker);
   async function hashReleaseAsset(relative){
     if(relative==='index.html'||relative===workerName)return;
@@ -73,13 +79,9 @@ for(const app of selected?[selected]:['liftlog','bike-cardio','tabata']){
   await mkdir(output,{recursive:true});
   for(const asset of assets)if(asset!=='index.html'&&asset!==workerName)await cp(join(source,asset),join(output,asset),{recursive:true});
   await writeFile(join(output,'index.html'),html);
-  const hash=text=>createHash('sha256').update(text).digest('base64');
-  const scripts=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(m=>"'sha256-"+hash(m[1])+"'");
-  const styles=[...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)].map(m=>"'sha256-"+hash(m[1])+"'");
   // Endpoint is user-configured, so HTTPS destinations must be allowed. Bucket
   // authorization and CORS still govern access to private workout backups.
-  const headers=`/*\n  Content-Security-Policy: default-src 'self'; script-src 'self' ${scripts.join(' ')}; style-src 'self' ${styles.join(' ')}; style-src-attr 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: bluetooth=(self), screen-wake-lock=(self)\n\n/${workerName}\n  Cache-Control: no-cache\n`;
-  await writeFile(join(output,'_headers'),headers);
+  headerRules.push(`/${app}/*\n  Content-Security-Policy: default-src 'self'; script-src 'self' ${hashes(html,'script').join(' ')}; style-src 'self' ${hashes(html,'style').join(' ')}; style-src-attr 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'\n${security}  Permissions-Policy: bluetooth=(self), screen-wake-lock=(self)\n\n/${app}/${workerName}\n  Cache-Control: no-cache\n`);
   const shellHash=createHash('sha256');
   async function hashAssets(directory){
     for(const entry of (await readdir(directory,{withFileTypes:true})).sort((a,b)=>a.name.localeCompare(b.name))){
@@ -93,3 +95,14 @@ for(const app of selected?[selected]:['liftlog','bike-cardio','tabata']){
   await writeFile(join(output,workerName),worker.replace(/const CACHE = '[^']+';/,`const CACHE = '${app}-shell-${shellHash.digest('hex').slice(0,16)}';`));
   console.log(`Built ${app}: dist/${app}`);
 }
+// The home page and the site-wide files. `/` is an exact rule: a `/*` rule
+// would also match every app and the host would join both policies.
+const site=join(root,'dist');
+const home=fill(await read('site','index.html'),'app-ui-themes',await read('packages/app-ui','themes.css'),'site/index.html');
+await writeFile(join(site,'index.html'),home);
+await cp(join(root,'site','404.html'),join(site,'404.html'));
+const homeRule=`  Content-Security-Policy: default-src 'none'; style-src ${hashes(home,'style').join(' ')}; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'\n${security}  Permissions-Policy: bluetooth=(), screen-wake-lock=()\n`;
+await writeFile(join(site,'_headers'),['/\n'+homeRule,'/index.html\n'+homeRule,...headerRules].join('\n'));
+// Relative app URLs need the trailing slash.
+await writeFile(join(site,'_redirects'),apps.map(app=>`/${app} /${app}/ 301`).join('\n')+'\n');
+console.log('Built site: dist/ (home page, _headers, _redirects, 404.html)');

@@ -1,4 +1,5 @@
 {
+  "id": "./",
   "name": "Liftlog — Gym Workout Tracker",
   "short_name": "Liftlog",
   "description": "A quiet, local-first gym workout tracker. Log sets, time rests, review progress.",

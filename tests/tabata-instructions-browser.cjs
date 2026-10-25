@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const {chromium}=require('playwright');
 const root=path.resolve(__dirname,'..'),html=fs.readFileSync(path.join(root,'dist/tabata/index.html'),'utf8');
-const csp=fs.readFileSync(path.join(root,'dist/tabata/_headers'),'utf8').match(/Content-Security-Policy: (.*)/)[1];
+const csp=require('./shared/site-headers.cjs').csp('tabata');
 const steps='# Circuit\nTwo moves, alternate each round.\n\n1. **Burpees**\n   - chest to floor\n2. Jump squats\n\n[video](https://example.com/burpee) <img src=x onerror=alert(1)>';
 (async()=>{
   const browser=await chromium.launch({headless:true,...process.env.BROWSER_PATH?{executablePath:process.env.BROWSER_PATH}:{}});
