@@ -20,6 +20,8 @@ All scenarios use synthetic records, isolated storage and mocked cloud requests.
 | Location | Coverage |
 |---|---|
 | `tabata.test.cjs` | Tabata phase boundaries, delayed callbacks, zero rest, pause/resume, checkpoints, instructions, data version 2 and backup validation |
+| `foodlog.test.cjs` | Foodlog catalog import, merge and export round trip, frozen versions, totals with unknowns, day changes, search, day export, validation and storage versions |
+| `foodlog-browser.cjs` | Foodlog at phone width under its CSP: catalog import and targets, portions, quick-created foods, unknown fibre, edit and undo, day export, history, archiving, settings, backup restore and 320 px layouts |
 | `tabata-instructions-browser.cjs` | Tabata instructions at phone width: editor and Preview, run-screen pop-out over a running timer, focus return, close on finish, reload and blank text |
 | `tabata-browser.cjs` | Mobile layout, quick setups, wake-lock release/reacquisition, recovery, file/cloud backups, data isolation, CSP, safe updates, offline shell and direct HTTP/file source previews |
 | `workout-core.test.cjs` | Phase skipping, HR gates, custom targets/durations and comparable history series |

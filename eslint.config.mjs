@@ -16,7 +16,8 @@ export default [
   {files:['packages/**/*.js','apps/bike-cardio/*.js','apps/liftlog/*.js','apps/liftlog/screens/*.js','apps/*/controllers/*.js'],
     languageOptions:{sourceType:'script',globals:{...globals.browser,WorkoutStorage:'readonly',WorkoutCore:'readonly',HeartRateCore:'readonly',BikeTargets:'readonly',BikeHistorySchema:'readonly',BikeTrace:'readonly',PowerCore:'readonly',BikePlans:'readonly',BikePlanUI:'readonly',WorkoutMarkdown:'readonly'}},rules},
   {files:['apps/tabata/*.js'],languageOptions:{sourceType:'script',globals:{...globals.browser,TabataTimer:'readonly',TabataBellAudio:'readonly',TabataStorage:'readonly',WorkoutStorage:'readonly',WorkoutUI:'readonly',WorkoutUpdates:'readonly',WorkoutMarkdown:'readonly'}},rules},
-  {files:['apps/tabata/service-worker.js'],languageOptions:{globals:globals.serviceworker}},
+  {files:['apps/foodlog/*.js'],languageOptions:{sourceType:'script',globals:{...globals.browser,FoodCore:'readonly',FoodlogStorage:'readonly',WorkoutStorage:'readonly',WorkoutUI:'readonly',WorkoutUpdates:'readonly'}},rules},
+  {files:['apps/tabata/service-worker.js','apps/foodlog/service-worker.js'],languageOptions:{globals:globals.serviceworker}},
   {files:['packages/app-ui/update-worker.js'],languageOptions:{globals:globals.serviceworker}},
   {files:['scripts/*.mjs','eslint.config.mjs'],languageOptions:{globals:globals.node},rules}
 ];

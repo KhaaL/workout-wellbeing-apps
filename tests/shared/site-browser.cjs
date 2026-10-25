@@ -7,7 +7,7 @@ const path=require('node:path');
 const http=require('node:http');
 const {chromium}=require('playwright');
 const dist=path.resolve(__dirname,'../../dist');
-const apps=['liftlog','bike-cardio','tabata'];
+const apps=['liftlog','bike-cardio','tabata','foodlog'];
 const rules=fs.readFileSync(path.join(dist,'_headers'),'utf8').split(/\n\n+/).filter(Boolean).map(block=>{
   const [pattern,...lines]=block.trim().split('\n');return {pattern,headers:lines.map(line=>{const i=line.indexOf(':');return [line.slice(0,i).trim(),line.slice(i+1).trim()];})};
 });
@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     page.on('console',message=>{if(/Content Security Policy|Refused to/i.test(message.text()))errors.push(message.text());});
 
     await page.goto(origin+'/');
-    assert.equal(await page.title(),'Workout apps');
+    assert.equal(await page.title(),'Wellbeing apps');
     assert.deepEqual(await page.locator('.app').evaluateAll(links=>links.map(a=>new URL(a.href).pathname)),apps.map(app=>'/'+app+'/'));
     assert.equal(await page.locator('.app img').evaluateAll(images=>images.every(img=>img.complete&&img.naturalWidth>0)),true,'app icons load under the home policy');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'the home page fits 390 px');
@@ -58,15 +58,15 @@ const server=http.createServer((req,res)=>{
       scopes:(await navigator.serviceWorker.getRegistrations()).map(reg=>new URL(reg.scope).pathname).sort(),
       caches:(await caches.keys()).map(key=>key.replace(/-shell-.*/,'')).sort(),keys:Object.keys(localStorage)}));
     assert.equal(state.controlled,false,'no app worker controls the home page');
-    assert.deepEqual(state.scopes,['/bike-cardio/','/liftlog/','/tabata/']);
-    assert.deepEqual(state.caches,['bike-cardio','liftlog','tabata'],'one offline cache per app');
+    assert.deepEqual(state.scopes,['/bike-cardio/','/foodlog/','/liftlog/','/tabata/']);
+    assert.deepEqual(state.caches,['bike-cardio','foodlog','liftlog','tabata'],'one offline cache per app');
     assert.deepEqual(state.keys.filter(key=>!apps.some(app=>key.startsWith(app==='bike-cardio'?'bike-cardio.':app+'.'))),[],'every saved key carries its app prefix');
-    console.log('PASS three workers, three caches and app-prefixed storage share one origin');
+    console.log('PASS four workers, four caches and app-prefixed storage share one origin');
 
     await context.setOffline(true);
     for(const app of apps){
       await page.goto(origin+'/'+app+'/');
-      assert.match(await page.title(),{liftlog:/Liftlog/,'bike-cardio':/Bike|cardio|Zone/i,tabata:/Tabata/}[app],app+' opens offline');
+      assert.match(await page.title(),{liftlog:/Liftlog/,'bike-cardio':/Bike|cardio|Zone/i,tabata:/Tabata/,foodlog:/Foodlog/}[app],app+' opens offline');
     }
     await context.setOffline(false);
     console.log('PASS every app opens offline from its own cache');

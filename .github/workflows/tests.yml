@@ -89,6 +89,9 @@ jobs:
       - name: Tabata timer browser suite
         if: ${{ !cancelled() }}
         run: npm run test:tabata-browser
+      - name: Foodlog browser suite
+        if: ${{ !cancelled() }}
+        run: npm run test:foodlog-browser
       - name: Single-site hosting, worker scopes and offline suite
         if: ${{ !cancelled() }}
         run: npm run test:site-browser

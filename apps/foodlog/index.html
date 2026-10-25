@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="app-version" content="development">
+<meta name="description" content="A local-first food log: log meals from your own food catalog and see the day against your targets.">
+<title>Foodlog</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+/* app-ui-styles:start */
+/* app-ui-styles:end */
+*{box-sizing:border-box}body{margin:0}button{touch-action:manipulation;cursor:pointer}button:disabled{opacity:.5;cursor:default}
+.btn{border:1px solid var(--border-strong);padding:12px 16px;background:var(--surface);color:var(--text);min-height:48px;border-radius:var(--radius)}.btn-primary{background:var(--accent-strong);color:var(--on-accent);border-color:var(--accent-strong)}.btn-danger{color:var(--danger);border-color:var(--danger)}.btn-danger-solid{background:var(--danger-strong);color:var(--on-accent);border-color:var(--danger-strong)}
+main{max-width:640px;margin:auto;padding:16px 16px 32px}h1{font-size:var(--fs-xl);line-height:1.2;letter-spacing:-.02em;margin:4px 0 8px}h2{font-size:var(--fs-lg);margin:0}p{margin:8px 0}
+.muted,.hint{color:var(--muted);font-size:14px}.panel{padding:16px;margin-bottom:16px}.stack{display:grid;gap:12px}
+.field{display:grid;gap:6px;min-width:0;font-size:14px;font-weight:600}.field input,.field select,.field textarea{width:100%;padding:10px 12px;min-width:0;font-weight:400}.field textarea{resize:vertical}
+.check{display:flex;gap:12px;align-items:center;min-height:48px;font-size:15px}.check input{width:22px;height:22px;accent-color:var(--accent-strong);flex:none}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+summary{cursor:pointer;min-height:48px;display:flex;align-items:center;font-weight:650}summary::before{content:'＋';margin-right:10px;color:var(--muted)}details[open]>summary::before{content:'−'}
+.form-actions{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0}.form-actions>*{flex:1}
+.notice{padding:12px 16px;background:var(--warning-soft);color:var(--text);border:1px solid var(--warning);border-radius:var(--radius);font-size:14px;margin-bottom:16px}
+.tag{display:inline-block;font-size:12px;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--surface-2);color:var(--muted);margin-left:6px;vertical-align:1px}
+.day-nav{display:flex;align-items:center;gap:8px}.day-nav h1{flex:1;text-align:center;margin:0}.day-nav .btn{width:48px;padding:0;font-size:24px;line-height:1}
+#dayDate{text-align:center;margin:0 0 12px}
+.energy{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}.energy strong{font-size:28px;font-variant-numeric:tabular-nums}
+.target{display:grid;grid-template-columns:1fr auto;gap:2px 12px;margin-top:12px;font-size:15px}.target .bar{grid-column:1/-1;height:8px;border-radius:4px;background:var(--surface-2);overflow:hidden}
+.target .bar span{display:block;height:100%;background:var(--accent);border-radius:4px}.target[data-status=met] .bar span{background:var(--success)}.target[data-status=over] .bar span{background:var(--danger)}
+.target .state{grid-column:1/-1;font-size:13px;color:var(--muted)}.target[data-status=over] .state{color:var(--danger)}.target[data-status=met] .state{color:var(--success)}
+.target .value{font-variant-numeric:tabular-nums}
+table.nutrients{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}table.nutrients th{text-align:left;font-weight:400;color:var(--muted)}table.nutrients td{text-align:right;font-variant-numeric:tabular-nums}table.nutrients th,table.nutrients td{padding:6px 0;border-bottom:1px solid var(--border)}
+.meal-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.entries,.food-list,.day-list{list-style:none;margin:8px 0;padding:0}
+.row-btn{display:flex;width:100%;gap:12px;align-items:center;justify-content:space-between;text-align:left;padding:10px 4px;min-height:52px;background:none;border:0;border-bottom:1px solid var(--border);color:var(--text);font:inherit}
+.row-btn:hover{background:var(--surface-2)}.row-btn .main{min-width:0;display:grid;gap:2px}.row-btn .name{font-weight:600;overflow-wrap:anywhere}.row-btn .sub{font-size:13px;color:var(--muted)}.row-btn .side{flex:none;font-variant-numeric:tabular-nums;font-size:14px;text-align:right}
+.add-to{width:100%;margin-top:8px}
+.presets{display:flex;gap:8px;margin:4px 0 12px;flex-wrap:wrap}.presets button{flex:1;min-width:96px;padding:8px;font-size:13px}.presets button[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.preview{font-size:14px;color:var(--muted);margin:8px 0 12px}.preview strong{color:var(--text)}
+dialog.sheet{width:min(100vw - 16px,600px);max-height:calc(100dvh - 16px);padding:16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg);color:var(--text)}
+dialog.sheet::backdrop{background:rgb(0 0 0 / .55)}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.sheet-head .btn{flex:none}
+.nutrient-grid{border:1px solid var(--border);border-radius:var(--radius);padding:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-width:0;margin:0}.nutrient-grid legend{font-size:14px;font-weight:600;padding:0 4px}
+fieldset{min-width:0}.contents{display:contents}fieldset.plain{border:0;padding:0;margin:0}.portion-row{display:grid;grid-template-columns:minmax(0,1fr) 110px 48px;gap:8px;margin-bottom:8px;align-items:end}
+.target-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 96px 48px;gap:8px;margin-bottom:8px;align-items:end}
+.icon-only{padding:0;width:48px}
+.food-error{color:var(--danger);font-size:14px;min-height:0}
+dl.details{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:6px 12px;font-size:13px;margin:8px 0}dl.details dt{color:var(--muted);overflow-wrap:anywhere}dl.details dd{margin:0;overflow-wrap:anywhere}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}.chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}.chip[data-status=met]{color:var(--success);border-color:var(--success)}.chip[data-status=over]{color:var(--danger);border-color:var(--danger)}
+.toast{position:fixed;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);background:var(--text);color:var(--bg);border-radius:var(--radius);padding:8px 8px 8px 16px;z-index:60;box-shadow:var(--shadow-md);font-size:14px;display:flex;align-items:center;gap:12px}
+.toast[hidden]{display:none}.toast button{background:none;border:0;color:var(--bg);font-weight:700;text-decoration:underline;min-height:40px;padding:0 8px}
+html.setup-screen .toast{bottom:calc(var(--nav-h) + var(--action-h) + env(safe-area-inset-bottom) + 12px)}
+.settings-panel details{border-bottom:1px solid var(--border);padding:8px 0}.settings-panel details:last-child{border:0}.settings-panel .btn{font-size:14px}.status-line{font-size:14px;overflow-wrap:anywhere}
+.workout-actions button{font-size:18px;min-height:56px}
+@media(max-width:400px){.grid2{grid-template-columns:1fr}.nutrient-grid{gap:8px;padding:8px}.target-row{grid-template-columns:minmax(0,1fr) 96px 48px}.target-row .target-kind{grid-column:1/-1;grid-row:2}}
+</style>
+<script id="theme-bootstrap" data-app="foodlog">
+/* theme-bootstrap:start */
+/* theme-bootstrap:end */
+</script>
+</head>
+<body class="foodlog-app">
+<header class="app-header"><div class="header-inner"><nav class="main-nav" aria-label="Main navigation"><ul></ul></nav></div></header>
+<main>
+<p id="storageWarning" class="notice" role="status" hidden></p>
+
+<section id="today" aria-labelledby="dayTitle">
+<div class="day-nav"><button id="prevDay" class="btn" type="button" aria-label="Previous day">‹</button><h1 id="dayTitle">Today</h1><button id="nextDay" class="btn" type="button" aria-label="Next day">›</button></div>
+<p id="dayDate" class="hint"></p>
+<div id="dayTotals" class="panel"></div>
+<div id="meals"></div>
+<details id="dayNotesBox" class="panel"><summary>Day notes &amp; activity</summary><div class="stack">
+<label class="field">Notes<textarea id="dayNotes" rows="3" maxlength="2000"></textarea></label>
+<label class="field">Activity · one per line<textarea id="dayActivity" rows="2" maxlength="500"></textarea></label>
+</div></details>
+<div class="form-actions"><button id="exportDay" class="btn" type="button">Export day as JSON</button></div>
+<div class="workout-actions"><div class="actions-row"><button id="addFood" class="btn btn-primary" type="button">Add food</button></div></div>
+</section>
+
+<section id="foods" hidden aria-labelledby="foodsTitle">
+<h1 id="foodsTitle">Foods</h1>
+<p id="catalogInfo" class="hint"></p>
+<div class="form-actions"><button id="newFood" class="btn btn-primary" type="button">New food</button></div>
+<label class="field">Search foods<input id="foodSearch" type="search" autocomplete="off" spellcheck="false" placeholder="Name or brand"></label>
+<label class="check"><input id="showArchived" type="checkbox">Show archived foods</label>
+<ul id="foodList" class="food-list" aria-label="Foods"></ul>
+<details id="catalogBox" class="panel"><summary>Catalog file</summary><div class="stack">
+<p class="hint">Import a catalog JSON file (schema 1.x, a <code>products</code> list with <code>nutrition_per_100g</code>, <code>nutrition_per_100ml</code> or <code>nutrition_per_portion</code>). Foods merge by <code>id</code>: label values come from the file, while portions added here and archived foods stay. Export writes the same format, including foods added here.</p>
+<label class="field">Import catalog JSON<input id="importCatalog" type="file" accept=".json,application/json"></label>
+<button id="exportCatalog" class="btn" type="button">Export catalog JSON</button>
+</div></details>
+</section>
+
+<section id="history" hidden aria-labelledby="historyTitle">
+<h1 id="historyTitle">History</h1>
+<p id="historyEmpty" class="hint" hidden>No logged days yet.</p>
+<ul id="dayList" class="day-list" aria-label="Logged days"></ul>
+<button id="olderDays" class="btn" type="button" hidden>Show older days</button>
+</section>
+
+<section id="settings" hidden aria-labelledby="settingsTitle"><h1 id="settingsTitle">Settings</h1>
+<div class="panel settings-panel stack">
+<form id="targetsForm" class="stack"><h2>Daily targets</h2>
+<p class="hint">“At least” targets fill toward a goal; “at most” limits warn when passed. Sugars take no limit: labels give total sugars, including fruit and dairy.</p>
+<div id="targetRows"></div>
+<div class="form-actions"><button id="addTarget" class="btn" type="button">Add target</button><button class="btn btn-primary" type="submit">Save targets</button></div>
+<p id="targetsStatus" class="hint" role="status"></p>
+</form>
+<form id="mealsForm" class="stack"><h2>Meals</h2>
+<label class="field">Meals · one per line, in order<textarea id="mealNames" rows="5" maxlength="600"></textarea></label>
+<label class="field">New day starts at<input id="dayStart" type="time" required></label>
+<p class="hint">Logs before this time count toward the previous day.</p>
+<button class="btn btn-primary" type="submit">Save meals</button>
+<p id="mealsStatus" class="hint" role="status"></p>
+</form>
+<label class="field">Appearance<select id="themeChoice"></select></label>
+<details><summary>Backups &amp; cloud storage</summary><div class="stack">
+<p class="hint">Uses the shared workout storage engine. Foodlog has its own connection and backup path. Enter your S3-compatible storage details to enable cloud backups.</p>
+<button id="exportBackup" class="btn" type="button">Download full backup</button>
+<label class="field">Restore Foodlog backup<input id="importBackup" type="file" accept=".json,application/json"></label>
+<div id="recoveryCopies" class="stack"></div>
+<form id="cloudForm" class="stack">
+<label class="field">Endpoint<input id="cloudEndpoint" type="url" placeholder="https://storage.example.com" required autocapitalize="none" spellcheck="false"></label>
+<label class="field">Region<input id="cloudRegion" required autocapitalize="none" spellcheck="false"></label>
+<label class="field">Bucket<input id="cloudBucket" required autocapitalize="none" spellcheck="false"></label>
+<label class="field">Backup path<input id="cloudObject" value="foodlog-backup.json" required autocapitalize="none" spellcheck="false"></label>
+<label class="field">Access key ID<input id="cloudAccess" required autocomplete="off" autocapitalize="none" spellcheck="false"></label>
+<label class="field">Secret access key<input id="cloudSecret" type="password" autocomplete="off" placeholder="Leave blank to keep saved secret"></label>
+<label class="field">Backup mode<select id="cloudMode"><option value="immutable">Separate backup files</option><option value="conditional">Conditional sync</option></select></label>
+<label class="check"><input id="cloudPathStyle" type="checkbox" checked>Path-style addressing</label>
+<button id="saveCloud" class="btn" type="submit">Check &amp; save connection</button>
+</form>
+<p id="cloudStatus" class="status-line" role="status">Cloud storage is not configured.</p>
+<div id="cloudActions" class="stack" hidden><button id="cloudBackup" class="btn" type="button">Back up now</button><button id="cloudPause" class="btn" type="button">Pause cloud sync</button><button id="cloudResume" class="btn" type="button">Resume cloud sync…</button><button id="cloudKeepLocal" class="btn" type="button">Keep this device’s copy…</button><button id="cloudUseRemote" class="btn" type="button">Use cloud copy…</button><button id="cloudForget" class="btn btn-danger" type="button">Forget connection…</button></div>
+<div id="remoteTools"></div>
+</div></details>
+<details><summary>Offline app &amp; updates</summary><div id="updatesPanel"></div><p class="hint">Add this app to your home screen for a standalone food log. After its first online load, it works offline.</p></details>
+</div></section>
+</main>
+
+<dialog id="addDialog" class="sheet" aria-labelledby="addTitle">
+<div id="pickPane">
+<div class="sheet-head"><h2 id="addTitle">Add food</h2><button class="btn" type="button" data-close>Close</button></div>
+<div class="stack">
+<label class="field">Meal<select id="addMeal"></select></label>
+<label class="field">Search<input id="addSearch" type="search" autocomplete="off" spellcheck="false" placeholder="Name or brand"></label>
+</div>
+<ul id="addResults" class="food-list" aria-label="Matching foods"></ul>
+<button id="addNewFood" class="btn add-to" type="button">New food…</button>
+</div>
+<form id="amountPane" hidden>
+<div class="sheet-head"><h2 id="amountTitle">Amount</h2><button class="btn" type="button" data-close>Close</button></div>
+<p id="amountBasis" class="hint"></p>
+<div id="portionChips" class="presets" role="group" aria-label="Portions"></div>
+<label class="field"><span id="amountLabel">Amount · g</span><input id="amount" type="number" min="0.01" max="100000" step="any" inputmode="decimal" aria-label="Amount" data-stepper data-increment="5" required></label>
+<div id="amountPreview" class="preview" aria-live="polite"></div>
+<div class="grid2"><label class="field">Time<input id="entryTime" type="time" required></label><label class="field">Meal<select id="entryMeal"></select></label></div>
+<label class="field">Note (optional)<input id="entryNote" maxlength="300" placeholder="e.g. slice weight assumed"></label>
+<div class="form-actions"><button id="amountBack" class="btn" type="button">Back</button><button id="removeEntry" class="btn btn-danger" type="button" hidden>Remove</button><button id="saveEntry" class="btn btn-primary" type="submit">Add</button></div>
+</form>
+</dialog>
+
+<dialog id="foodDialog" class="sheet" aria-labelledby="foodFormTitle">
+<form id="foodForm" class="stack" novalidate>
+<div class="sheet-head"><h2 id="foodFormTitle">New food</h2><button class="btn" type="button" data-close>Cancel</button></div>
+<label class="field">Name<input id="foodName" maxlength="120" required autocomplete="off"></label>
+<label class="field">Brand (optional)<input id="foodBrand" maxlength="80" autocomplete="off"></label>
+<div class="grid2"><label class="field">Kind<select id="foodKind"></select></label><label class="field">Values per<select id="foodBasis"></select></label></div>
+<fieldset class="nutrient-grid"><legend>Per <span id="basisLegend">100 g</span> · blank means unknown</legend><div id="nutrientInputs" class="contents"></div></fieldset>
+<div class="grid2"><label class="field">Source<select id="foodSource"></select></label><label class="check"><input id="foodEstimate" type="checkbox">Values are estimates</label></div>
+<fieldset class="stack plain"><legend class="field">Portions</legend><div id="portionRows"></div><button id="addPortion" class="btn" type="button">Add portion</button><p id="servingNote" class="hint" hidden></p></fieldset>
+<label class="field">Note (optional)<textarea id="foodNote" rows="2" maxlength="500"></textarea></label>
+<p id="foodError" class="food-error" role="alert"></p>
+<button class="btn btn-primary" type="submit">Save food</button>
+</form>
+</dialog>
+
+<dialog id="foodSheet" class="sheet" aria-labelledby="sheetTitle">
+<div class="sheet-head"><h2 id="sheetTitle">Food</h2><button class="btn" type="button" data-close>Close</button></div>
+<div id="sheetBody"></div>
+<div class="form-actions"><button id="logFood" class="btn btn-primary" type="button">Log this food</button><button id="editFood" class="btn" type="button">Edit</button></div>
+<div class="form-actions"><button id="archiveFood" class="btn" type="button">Archive</button><button id="deleteFood" class="btn btn-danger" type="button">Delete</button></div>
+</dialog>
+
+<div id="toast" class="toast" role="status" hidden><span id="toastText"></span><button id="toastAction" type="button" hidden></button></div>
+<script>
+/* app-foundation:start */
+/* app-foundation:end */
+/* storage-engine:start */
+/* storage-engine:end */
+/* storage-ui:start */
+/* storage-ui:end */
+/* app-updates:start */
+/* app-updates:end */
+/* foodlog-core:start */
+/* foodlog-core:end */
+/* foodlog-storage-adapter:start */
+/* foodlog-storage-adapter:end */
+/* foodlog-app:start */
+/* foodlog-app:end */
+</script>
+</body>
+</html>

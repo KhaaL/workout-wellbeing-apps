@@ -27,7 +27,8 @@ const appModules={
     ['bluetooth.js','bike-bluetooth'],['plans.js','bike-plans'],['workout-core.js','bike-workout-core'],['history.js','bike-history']
   ],
   liftlog:[['controllers/exercises.js','liftlog-exercises-controller'],['controllers/routines.js','liftlog-routines-controller'],['controllers/workout.js','liftlog-workout-controller'],['storage-adapter.js','liftlog-storage-adapter'],['screens/settings.js','liftlog-settings-screen'],['comparisons.js','liftlog-comparisons']],
-  tabata:[['bell-audio.js','tabata-bell-audio'],['timer-core.js','tabata-timer-core'],['storage-adapter.js','tabata-storage-adapter'],['app.js','tabata-app']]
+  tabata:[['bell-audio.js','tabata-bell-audio'],['timer-core.js','tabata-timer-core'],['storage-adapter.js','tabata-storage-adapter'],['app.js','tabata-app']],
+  foodlog:[['food-core.js','foodlog-core'],['storage-adapter.js','foodlog-storage-adapter'],['app.js','foodlog-app']]
 };
 // Exactly one empty or filled marker pair, in order, or the build stops.
 function fill(text,name,content,label){
@@ -36,7 +37,7 @@ function fill(text,name,content,label){
     throw new Error('Missing, duplicated or reversed markers: '+label+' ('+name+')');
   return text.slice(0,first)+start+'\n'+content+'\n'+end+text.slice(last+end.length);
 }
-const apps=['liftlog','bike-cardio','tabata'],headerRules=[];
+const apps=['liftlog','bike-cardio','tabata','foodlog'],headerRules=[];
 const hash=text=>createHash('sha256').update(text).digest('base64');
 const hashes=(html,tag)=>[...html.matchAll(new RegExp('<'+tag+'\\b[^>]*>([\\s\\S]*?)<\\/'+tag+'>','g'))].map(m=>"'sha256-"+hash(m[1])+"'");
 const security='  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n';
@@ -44,8 +45,8 @@ for(const app of apps){
   const source=join(root,'apps',app),output=join(root,'dist',app),workerName=app==='liftlog'?'sw.js':'service-worker.js';
   let html=await readFile(join(source,'index.html'),'utf8');
   for(const [name,content] of Object.entries(shared)){
-    // Retain the existing apps' first-paint behavior; Tabata owns its theme key.
-    const injected=app==='tabata'&&name==='theme-bootstrap'?content.replaceAll('bike-cardio.ui.theme','tabata.ui.theme'):content;
+    // Retain the existing apps' first-paint behavior; Tabata and Foodlog own their theme keys.
+    const injected=(app==='tabata'||app==='foodlog')&&name==='theme-bootstrap'?content.replaceAll('bike-cardio.ui.theme',app+'.ui.theme'):content;
     html=fill(html,name,injected,app+'/index.html');
   }
   for(const [file,marker] of appModules[app])html=fill(html,marker,await readFile(join(source,file),'utf8'),app+'/'+file);
@@ -62,6 +63,7 @@ for(const app of apps){
   const assets=app==='liftlog'
     ? ['index.html','manifest.webmanifest','sw.js','icons']
     : app==='tabata'?['index.html','manifest.webmanifest','service-worker.js','icon.svg','icon-180.png','icon-192.png','icon-512.png']
+    : app==='foodlog'?['index.html','manifest.webmanifest','service-worker.js','icon.svg','icon-180.png','icon-192.png','icon-512.png','icon-maskable-512.png']
     : ['index.html','manifest.webmanifest','service-worker.js','icon-32.png','icon-192.png','icon-512.png','apple-touch-icon-180.png'];
   const releaseHash=createHash('sha256').update(html).update(worker);
   async function hashReleaseAsset(relative){

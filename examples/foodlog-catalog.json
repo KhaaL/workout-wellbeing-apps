@@ -1,0 +1,136 @@
+{
+  "schema_version": "1.0",
+  "revision": 3,
+  "updated": "2026-01-15",
+  "notes": "Synthetic example catalog for Foodlog. Products, brands and values are made up.",
+  "personal_budgets_per_day": {
+    "source": "Example targets",
+    "contribution": {
+      "protein_g": 100,
+      "fibre_g": 30
+    },
+    "limit": {
+      "saturated_fat_g": 25,
+      "salt_g": 6,
+      "sugar_g": 50
+    }
+  },
+  "products": [
+    {
+      "id": "example-oat-drink",
+      "name": "Oat Drink Original",
+      "brand": "Example Mills",
+      "package_ml": 1000,
+      "serving": {
+        "unit_volume_ml": 200,
+        "note": "One glass"
+      },
+      "nutrition_per_100ml": {
+        "energy_kj": 200,
+        "energy_kcal": 48,
+        "fat_g": 1.5,
+        "saturated_fat_g": 0.2,
+        "carbohydrate_g": 7,
+        "sugars_g": 3.4,
+        "fibre_g": 0.8,
+        "protein_g": 1,
+        "salt_g": 0.1
+      },
+      "micronutrients_per_100ml": {
+        "vitamin_d_ug": 1.1,
+        "calcium_mg": 120
+      },
+      "ingredients": "Water, oats 10%, rapeseed oil, calcium, salt, vitamin D2.",
+      "allergens_contains": ["gluten (oats)"],
+      "allergens_may_contain": []
+    },
+    {
+      "id": "example-crispbread",
+      "name": "Wholegrain Crispbread",
+      "brand": "Example Bakery",
+      "package_g": 250,
+      "serving": {
+        "unit_weight_g": null,
+        "note": "Weigh one piece once and fill in"
+      },
+      "nutrition_per_100g": {
+        "energy_kj": 1550,
+        "energy_kcal": 370,
+        "fat_g": 6,
+        "saturated_fat_g": 0.8,
+        "carbohydrate_g": 60,
+        "sugars_g": 2,
+        "fibre_g": 12,
+        "protein_g": 12,
+        "salt_g": 1
+      },
+      "wholegrain_pct": 60,
+      "allergens_contains": ["gluten (wheat)"],
+      "derived": {
+        "per_50g": {
+          "energy_kcal": 185,
+          "fibre_g": 6
+        },
+        "frequency_class": "everyday"
+      }
+    },
+    {
+      "id": "example-protein-powder",
+      "name": "Pea Protein Powder, Lemon",
+      "brand": "Example Nutrition",
+      "package_g": 300,
+      "serving": {
+        "powder_g": 20,
+        "water_ml": 500,
+        "label_use": "Mix 20 g powder with 500 ml water"
+      },
+      "nutrition_per_100g": {
+        "energy_kj": 1450,
+        "energy_kcal": 340,
+        "fat_g": 0,
+        "saturated_fat_g": 0,
+        "carbohydrate_g": 5,
+        "sugars_g": 0,
+        "fibre_g": 0,
+        "protein_g": 75,
+        "salt_g": 1.5
+      }
+    },
+    {
+      "id": "example-cottage-cheese",
+      "name": "Cottage Cheese 1.5%",
+      "brand": "Example Dairy",
+      "package_g": 500,
+      "nutrition_per_100g": {
+        "energy_kj": 320,
+        "energy_kcal": 76,
+        "fat_g": 1.5,
+        "saturated_fat_g": 1,
+        "carbohydrate_g": 2,
+        "sugars_g": 2,
+        "fibre_g": null,
+        "protein_g": 14,
+        "salt_g": 0.8
+      },
+      "allergens_contains": ["milk"]
+    },
+    {
+      "id": "example-peanut-butter",
+      "name": "Peanut Butter Crunchy",
+      "brand": "Example Pantry",
+      "package_g": 350,
+      "nutrition_per_100g": {
+        "energy_kj": 2600,
+        "energy_kcal": 625,
+        "fat_g": 50,
+        "saturated_fat_g": 6.5,
+        "carbohydrate_g": 13,
+        "sugars_g": 5,
+        "fibre_g": null,
+        "protein_g": 26,
+        "salt_g": 0.7
+      },
+      "allergens_contains": ["peanuts"]
+    }
+  ]
+}
