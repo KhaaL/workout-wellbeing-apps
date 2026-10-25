@@ -7929,7 +7929,8 @@ function init(){
   window.addEventListener('pagehide', () => { flushSave(); if (readRemoteWork()) autoRemoteBackup(); });
   window.addEventListener('online', ()=>{renderStorageStatus();remoteStartupSync();});
   window.addEventListener('offline',renderStorageStatus);
-  window.addEventListener('storage',renderStorageStatus);
+  // Other apps on this site share localStorage; only this app's keys matter.
+  window.addEventListener('storage',event=>{if(!event.key||event.key.startsWith('liftlog.'))renderStorageStatus();});
 
   updateSaveBanner();   /* init()'s own save() above may already have failed */
   refreshStorageState();

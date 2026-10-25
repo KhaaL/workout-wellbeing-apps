@@ -46,7 +46,7 @@ function verifySignature(url,headers,body,region=cfg.region){
       const calls=[],errors=[];let revision=0,ignoreWriteConditions=false,listingOverride=null;
       const context=await browser.newContext({viewport:{width:390,height:844},acceptDownloads:true,serviceWorkers:'block'}),page=await context.newPage();
       page.on('pageerror',error=>errors.push(error.message));
-      const html=fs.readFileSync(path.join(root,'dist',app,'index.html'),'utf8'),csp=fs.readFileSync(path.join(root,'dist',app,'_headers'),'utf8').match(/Content-Security-Policy: (.*)/)[1];
+      const html=fs.readFileSync(path.join(root,'dist',app,'index.html'),'utf8'),csp=require('./site-headers.cjs').csp(app);
       await context.route(origin+'/**',route=>route.fulfill({contentType:'text/html',body:html,headers:{'Content-Security-Policy':csp}}));
       await context.route('https://storage.test/**',async route=>{
         const req=route.request(),url=new URL(req.url()),method=req.method(),headers=await req.allHeaders();

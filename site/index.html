@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Liftlog, Bike cardio and Tabata: local-first workout apps that work offline.">
+<title>Workout apps</title>
+<link rel="icon" href="tabata/icon.svg" type="image/svg+xml">
+<!-- The home page links to the apps only. It has no manifest and no service
+     worker, so it never controls an app's pages or offers its own install. -->
+<style>
+/* app-ui-themes:start */
+/* app-ui-themes:end */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-ui);line-height:1.5}
+main{max-width:640px;margin:auto;padding:calc(env(safe-area-inset-top) + 32px) 16px calc(env(safe-area-inset-bottom) + 32px)}
+h1{font-size:var(--fs-xl);line-height:1.2;margin:0 0 8px}
+h2{font-size:var(--fs-lg);margin:32px 0 8px}
+p{margin:0 0 8px}
+.note{color:var(--muted);font-size:var(--fs-sm)}
+.apps{list-style:none;margin:24px 0 0;padding:0;display:grid;gap:12px}
+.app{display:flex;gap:16px;align-items:center;min-height:88px;padding:16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);color:inherit;text-decoration:none}
+.app:hover{border-color:var(--border-strong)}
+.app:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.app img{width:56px;height:56px;border-radius:14px;flex:none}
+.app strong{display:block;font-size:var(--fs-lg)}
+.app .note{display:block;margin:0}
+</style>
+</head>
+<body>
+<main>
+<h1>Workout apps</h1>
+<p class="note">Each app keeps its data on this device and works offline after its first visit.</p>
+<ul class="apps">
+<li><a class="app" href="liftlog/"><img src="liftlog/icons/icon-192.png" alt=""><span><strong>Liftlog</strong><span class="note">Gym workouts: log sets, time rests, review progress.</span></span></a></li>
+<li><a class="app" href="bike-cardio/"><img src="bike-cardio/icon-192.png" alt=""><span><strong>Bike cardio</strong><span class="note">Indoor cycling with live heart rate, Zone 2 and sprint intervals.</span></span></a></li>
+<li><a class="app" href="tabata/"><img src="tabata/icon-192.png" alt=""><span><strong>Tabata</strong><span class="note">A touch-friendly work and rest interval timer.</span></span></a></li>
+</ul>
+<h2>Install an app</h2>
+<p class="note">Open an app, then choose Install in a desktop browser or Add to Home Screen on a phone. Each app installs on its own, with its own icon and offline copy.</p>
+<p class="note">Apps on this site share one web address, but their data, settings, cloud connections and offline copies stay separate.</p>
+</main>
+</body>
+</html>

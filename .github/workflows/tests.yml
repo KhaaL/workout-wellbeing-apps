@@ -60,7 +60,7 @@ jobs:
         run: npm run lint
       - name: S3 CORS generation and rollback checks
         run: npm run test:s3-cors
-      - name: Build standalone apps and test storage
+      - name: Build the site and test storage
         run: npm test
       - name: Regression suite
         run: node apps/liftlog/tests/regression.cjs
@@ -89,6 +89,9 @@ jobs:
       - name: Tabata timer browser suite
         if: ${{ !cancelled() }}
         run: npm run test:tabata-browser
+      - name: Single-site hosting, worker scopes and offline suite
+        if: ${{ !cancelled() }}
+        run: npm run test:site-browser
       - name: Keep screenshots from a failed run
         if: ${{ failure() }}
         uses: actions/upload-artifact@v7

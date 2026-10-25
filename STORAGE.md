@@ -29,7 +29,10 @@ and are excluded from workout backups.
 
 Allow each app's exact origin with GET, PUT and DELETE; expose `ETag`; explicitly
 allow `authorization`, `content-type`, `x-amz-content-sha256`, `x-amz-date`,
-`if-match` and `if-none-match`. Origins have no path or trailing slash.
+`if-match` and `if-none-match`. Origins have no path or trailing slash. When the
+apps are served from one site (`https://apps.example.org/liftlog/` and so on),
+that site's single origin covers all three; the example below lists separate
+origins for apps on separate hosts.
 
 The helper requires explicit origins, preserves unrelated rules and saves
 rollback XML. Examples below use reserved domains and a placeholder bucket;

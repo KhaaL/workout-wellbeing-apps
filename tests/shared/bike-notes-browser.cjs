@@ -6,7 +6,7 @@ const {chromium}=require('playwright');
 const {navigate}=require('./ui-navigation.cjs');
 const root=path.resolve(__dirname,'../..');
 const html=fs.readFileSync(path.join(root,'dist/bike-cardio/index.html'),'utf8');
-const csp=fs.readFileSync(path.join(root,'dist/bike-cardio/_headers'),'utf8').match(/Content-Security-Policy: (.*)/)[1];
+const csp=require('./site-headers.cjs').csp('bike-cardio');
 const plan={...JSON.parse(fs.readFileSync(path.join(root,'examples','bike-plan-sprint.json'),'utf8')),
   notes:'**Baseline** ride.\nSame bike as last time.\n\n- fan on\n- [protocol](https://example.com/sprints)\n\n<img src=x onerror=alert(1)> [bad](javascript:alert(1))'};
 const ride=(id,startedAt,notes)=>({id,startedAt,endedAt:startedAt+1980000,config:{mode:'zone2',bike:'touchscreen'},activeMs:1980000,mainMs:1500000,outcome:'complete',effortsCompleted:0,metrics:{averageHR:'128',notes}});
