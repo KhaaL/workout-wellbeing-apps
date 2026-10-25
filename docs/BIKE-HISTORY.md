@@ -188,7 +188,7 @@ from the value. Omit, `null`, or `""` means unknown. Free text uses strings.
 | `fixedHRWatts` | Output at configured `comparisonHR`, W | 0..2500 |
 | `perceivedEffort` | Subjective effort, integer | 1..10 |
 | `resistance` | Console levels, free text e.g. `"8 → 7"` | 80 characters |
-| `notes` | Free text | 2000 characters |
+| `notes` | Free text; the app's Preview shows it as Markdown | 2000 characters |
 
 Version 3 adds the following fields **inside `metrics`**. Numeric values must be
 JSON **numbers**; omit or use `null` for unknown. They survive merge, full backups,

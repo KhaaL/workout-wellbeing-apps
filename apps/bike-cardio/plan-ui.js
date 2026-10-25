@@ -27,7 +27,7 @@ const BikePlanUI = {
     const rule = a => ['Next effort', a.cadenceAbove != null && `+${a.add} if cadence goes above ${a.cadenceAbove}`, a.cadenceBelow != null && `−${a.subtract} if it falls below ${a.cadenceBelow} before ${a.beforeSeconds} s`].filter(Boolean).join(' ');
     function preview(plan) {
       const phases = BikePlans.expand(plan.steps), parts = [el('h3', {textContent:plan.name}), el('p', {className:'small', textContent:summary(plan) + '. HR-gated phases run until HR is low enough.'})];
-      if (plan.notes) parts.push(el('p', {className:'small', textContent:plan.notes}));
+      if (plan.notes) parts.push(el('div', {className:'small', innerHTML:WorkoutMarkdown.render(plan.notes, {links:true})}));
       if (plan.conditions.length) parts.push(el('p', {className:'small', textContent:'Conditions: ' + plan.conditions.map(c => c.value ? `${c.label} ${c.value}` : c.label).join(', ') + '.'}));
       parts.push(table(plan));
       if (phases.some(p => p.adjust)) parts.push(el('p', {className:'small', textContent:'During each recovery the app asks for the resistance you used and how cadence went, then sets the next effort.'}));

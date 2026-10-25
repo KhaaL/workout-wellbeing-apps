@@ -19,7 +19,8 @@ All scenarios use synthetic records, isolated storage and mocked cloud requests.
 
 | Location | Coverage |
 |---|---|
-| `tabata.test.cjs` | Tabata phase boundaries, delayed callbacks, zero rest, pause/resume, checkpoints and backup validation |
+| `tabata.test.cjs` | Tabata phase boundaries, delayed callbacks, zero rest, pause/resume, checkpoints, instructions, data version 2 and backup validation |
+| `tabata-instructions-browser.cjs` | Tabata instructions at phone width: editor and Preview, run-screen pop-out over a running timer, focus return, close on finish, reload and blank text |
 | `tabata-browser.cjs` | Mobile layout, quick setups, wake-lock release/reacquisition, recovery, file/cloud backups, data isolation, CSP, safe updates, offline shell and direct HTTP/file source previews |
 | `workout-core.test.cjs` | Phase skipping, HR gates, custom targets/durations and comparable history series |
 | `bike-modules.test.cjs` | Canonical HR parsing, Bluetooth reconnects, stale notifications, visibility and manual fallback |
@@ -28,6 +29,8 @@ All scenarios use synthetic records, isolated storage and mocked cloud requests.
 | `shared/features-browser.cjs` | Two mobile profiles, held-source reload, paused receipt, comparison layout and selected/OS theme colour matrix |
 | `shared/storage.test.cjs` | Migration, save failures, restore, configuration transfer, stable comparison, history merge/clear, recovery, conflicts and independent uploads despite ignored write conditions |
 | `shared/bike-plans-browser.cjs` | Bike planned sessions at phone width: paste and check a plan, use it, confirm conditions, effort prompts and the cadence rule, effort table, conditions, baseline comparison, stale-input protection and plan deletion |
+| `shared/markdown.test.cjs` | Shared Markdown renderer: supported subset, escaping, hostile input, optional safe links and bounded rendering time |
+| `shared/bike-notes-browser.cjs` | Bike plan notes as Markdown in the plan preview and on setup, safe links only, and the ride notes Preview switch |
 | `shared/browser.cjs` | Bike UI, production CSP, history editing/merging, backup/restore, configuration transfer, persistence, reminders, cloud and mobile layout |
 | `shared/updates-browser.cjs` | Real local service-worker install/update, multiple-tab workout deferral, saved-workout protection, retained data and offline version |
 | `shared/updates.test.cjs` | Startup/foreground/reconnect update checks, throttling, delayed waiting-state notification and active-workout protection |

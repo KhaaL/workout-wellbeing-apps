@@ -25,6 +25,15 @@ workout time. Pause/Resume and End stay within reach; ending asks for confirmati
 and retains the session in history. Cancelling End leaves the timer paused.
 Setting changes apply to the next session. Timer and Settings are the only tabs.
 
+The setup's collapsed **Instructions** box holds optional Markdown (the same
+subset as Liftlog's exercise instructions, without links) with a Preview switch.
+When it has text, the run screen shows an **Instructions** button that opens it
+over the timer; the timer keeps running, and finishing closes the pop-out. The
+text is part of Tabata's settings and backups; sessions and history do not copy
+it. Tabata data is version 2 since instructions were added. Version 1 data
+upgrades on load, and older app releases refuse version 2 data instead of
+dropping the text.
+
 The timer uses elapsed time, so delayed callbacks catch up. Keep it visible for
 reliable cues: mobile browsers can suspend background pages and audio. Stay-awake
 uses the Screen Wake Lock API on HTTPS (or localhost), shows its current status,
@@ -123,7 +132,7 @@ Backups at an already uploaded revision create no additional snapshot.
 | `packages/storage-engine/handoff.js` | Paused transfer validation, source holds, reviewed receipt and recovery |
 | `packages/storage-engine/remote.js` | S3 signing, separate-file backups, conditional sync, retries and recovery |
 | `packages/storage-ui/` | Shared storage summary, provider checks, backup browser and handoff presentation |
-| `packages/app-ui/` | Shared themes, controls, navigation, numeric adjustments and safe updates |
+| `packages/app-ui/` | Shared themes, controls, navigation, numeric adjustments, Markdown rendering and safe updates |
 | `apps/bike-cardio/history.js`, `apps/liftlog/comparisons.js` | Comparable workout interpretation |
 | `scripts/build.mjs` | Standalone Pages builds, security headers and offline cache versions |
 | `tests/` and `apps/liftlog/tests/` | Storage, workout and browser checks |
@@ -344,6 +353,14 @@ The exercise sheet shows the instructions, and during a workout an
 **Instructions** button beside How to opens them over the session, with the rest
 timer still running. They live on the Library exercise only, so sessions do not
 store copies.
+
+All three apps render Markdown with one shared renderer,
+`packages/app-ui/markdown.js` (`WorkoutMarkdown`), bundled into every app with
+the shared foundation. It escapes all text first and emits a fixed set of tags.
+Notes allow `http`, `https` and `mailto` links, which open in a new tab without a
+referrer: Liftlog workout notes and Bike plan and ride notes. Instructions
+(Liftlog exercises, Tabata) show links as typed. Bike ride notes have the same
+Preview switch as the instruction editors.
 
 **Load suggestions** use the same words on Today, the routine sheet, the workout
 and History → Progress. Each shows a state (Ready; Reps met, check RIR; RIR not
