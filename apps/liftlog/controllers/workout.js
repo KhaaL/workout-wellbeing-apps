@@ -74,6 +74,8 @@ function beginWorkout(workout){
   if(context.workoutHandoff.held()){context.toast('Cancel the handoff before starting another workout');return;}
   if(context.appUpdates&&!context.appUpdates.canStart()){context.toast('App update in progress — wait before starting a workout');return;}
   context.state.activeWorkout = workout;
+  /* a suggestion menu opened on Today must not open on the workout card */
+  context.ui.cueMenuId = null;
   context.save();
   context.requestPersistence(false);   /* a user gesture, and the point data starts mattering */
   context.restoreTimer();
