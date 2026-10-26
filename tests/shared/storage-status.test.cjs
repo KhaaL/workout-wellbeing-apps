@@ -20,7 +20,16 @@ test('storage summary requires matching saved and cloud revisions, not a success
   assert.equal(summary(verified).id,'backed-up');
   assert.equal(summary({...verified,fileAt:200}).cloudAt,100);
   assert.equal(summary({}).configured,false);assert.equal(summary(verified).configured,true);
-  assert.equal(summary({}).detailsLabel,'Storage options');assert.equal(summary({detailsLabel:'Cloud backup settings'}).detailsLabel,'Cloud backup settings');
+  assert.equal(summary({}).detailsLabel,'Backup settings');assert.equal(summary({detailsLabel:'Cloud backup settings'}).detailsLabel,'Cloud backup settings');
+});
+test('cloud buttons follow the backup mode and pause state with one vocabulary',()=>{
+  const labels=(mode,paused)=>[...context.WorkoutStorage.cloudActions(mode,paused).map(item=>item.label)];
+  assert.deepEqual(labels('immutable',false),['Back up now','Pause cloud backups']);
+  assert.deepEqual(labels('immutable',true),['Resume backups…']);
+  assert.deepEqual(labels(undefined,false),labels('immutable',false),'an unset mode means separate files');
+  assert.deepEqual(labels('conditional',false),['Sync now','Pause cloud sync','Use cloud copy…']);
+  assert.deepEqual(labels('conditional',true),['Keep local copy & update cloud…','Resume automatic sync…','Use cloud copy…']);
+  for(const mode of ['immutable','conditional'])for(const paused of [false,true])assert.equal(context.WorkoutStorage.cloudActions(mode,paused).filter(item=>item.primary).length,1);
 });
 test('local saving failures override cloud success; holds, conflicts and pauses never offer an upload',()=>{
   for(const flag of ['failed','blocked'])assert.equal(summary({...verified,[flag]:true}).action,'download');

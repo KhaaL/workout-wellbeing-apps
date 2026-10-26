@@ -37,7 +37,7 @@ const root=path.resolve(__dirname,'../..');
         if(app==='bike-cardio')assert.equal(await page.locator('#start').evaluate(node=>{const r=node.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;}),true,'Bike Start stays in the viewport');
       }
       await page.setViewportSize({width:390,height:844});await navigate(page,'settings');
-      if(app==='liftlog')await page.getByText('Nord',{exact:true}).click();else await page.selectOption('#themeChoice','nord');
+      await page.selectOption('#themeChoice','nord');
       assert.equal(await page.locator('html').getAttribute('data-theme'),'nord');
       await page.reload();assert.equal(await page.locator('html').getAttribute('data-theme'),'nord',app+' remembers theme');
       await navigate(page,workout);

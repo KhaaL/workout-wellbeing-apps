@@ -13,3 +13,29 @@
   not infer or advertise the owner's infrastructure.
 - Generic setup instructions and capability-based compatibility support are
   appropriate when they do not describe an actual deployment.
+
+# Cross-app consistency
+
+- Shared flows live in `packages/`: storage status, backups and cloud
+  storage, the shared connection, earlier backups, troubleshooting, device
+  storage, appearance and updates. Apps mount these components and never
+  rebuild them. A change to a shared flow lands in every app in the same
+  change, with a browser test covering all apps.
+- Settings order: storage status; app preferences; Appearance; Backups &
+  cloud storage; app data files, if any; Move to another device (apps with
+  resumable sessions); App updates; Advanced & destructive actions.
+- One vocabulary: "Separate backup files", "Conditional sync", "Back up
+  now", "Pause cloud backups" (separate files) or "Pause cloud sync"
+  (conditional), "Download full backup", "Restore from file", "Check & save
+  connection", "Forget connection…", "App updates".
+- A setting with one value saves on change. A form whose fields are
+  validated together uses an explicit Save with a status line. Destructive
+  actions in Settings confirm first, keep a recovery copy and sit under
+  Advanced & destructive actions.
+- Markup: one h1 "Settings". Section titles use the names in the order
+  above. Developer diagnostics stay collapsed and sit outside preference
+  sections.
+- Removing a feature in one app removes it in every app.
+- Before finishing UI work in one app, check the same flow in the other
+  apps. Explain any new deviation from this order or vocabulary in the
+  PR description.

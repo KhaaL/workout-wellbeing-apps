@@ -190,8 +190,8 @@
   function renderCloud(){
     if(!storage)return;
     const remote=storage.remote,cfg=remote.loadRemoteConfig(),paused=remote.remoteSyncPaused();
-    $('cloudActions').hidden=!cfg;$('cloudBackup').hidden=paused;$('cloudPause').hidden=paused;$('cloudResume').hidden=!paused;
-    $('cloudUseRemote').textContent=remote.syncMode(cfg)==='immutable'?'Restore legacy backup locally…':'Use cloud copy…';
+    $('cloudActions').hidden=!cfg;
+    WorkoutStorage.applyCloudActions({backup:$('cloudBackup'),pause:$('cloudPause'),'publish-local':$('cloudKeepLocal'),resume:$('cloudResume'),restore:$('cloudUseRemote')},remote.syncMode(cfg),paused);
     for(const node of document.querySelectorAll('#cloudForm input,#cloudForm select,#cloudForm button,#cloudActions button'))node.disabled=cloudBusy||configBusy;
     WorkoutStorage.renderConnectionScope($('connectionScope'),remote,{confirm:WorkoutUI.confirm,onChange:()=>{loadCloud();renderCloud();}});
     renderRecovery();WorkoutStorage.renderRemoteTools($('remoteTools'),remote,downloadJSON,'tabata');

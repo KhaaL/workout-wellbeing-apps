@@ -226,7 +226,7 @@ const csp=require('./shared/site-headers.cjs').csp('tabata');
     // An update waits through a saved session, then preserves data and replaces the offline shell.
     await offline.setOffline(false);release=2;
     await offlinePage.getByRole('navigation').getByRole('button',{name:'Settings',exact:true}).click();
-    await offlinePage.getByText('Offline app & updates',{exact:true}).click();await offlinePage.click('#checkAppUpdate');
+    await offlinePage.getByText('App updates',{exact:true}).click();await offlinePage.click('#checkAppUpdate');
     await offlinePage.waitForFunction(async()=>!!(await navigator.serviceWorker.getRegistration()).waiting);
     assert.equal(await offlinePage.locator('#applyAppUpdate').isDisabled(),true,'Updates wait while a timer is active');
     assert.equal(await offlinePage.locator('meta[name="app-version"]').getAttribute('content'),'tabata-audit-1','Active timer retains its loaded version');

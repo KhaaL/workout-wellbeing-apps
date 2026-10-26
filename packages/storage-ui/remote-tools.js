@@ -1,8 +1,7 @@
 /* Shared storage tools presentation. Provider responses and keys stay inert text. */
-/* `parts` picks sections ('mode', 'checks', 'snapshots', and 'legacy' for the
-   former single-file restore) so an app can place them apart or leave one out;
-   the default renders all of them in order. */
-WorkoutStorage.renderRemoteTools = function(container, remote, download, layout='liftlog', parts=['mode','checks','snapshots','legacy']) {
+/* `parts` picks sections ('mode', 'checks', 'snapshots') so an app can place
+   them apart or leave one out; the default renders all of them in order. */
+WorkoutStorage.renderRemoteTools = function(container, remote, download, layout='liftlog', parts=['mode','checks','snapshots']) {
   const state=remote.remoteTools(),cfg=remote.loadRemoteConfig();
   container.replaceChildren();if(!cfg)return;
   const element=(tag,text,parent=container)=>{const node=document.createElement(tag);if(text!=null)node.textContent=text;parent.append(node);return node;};
@@ -14,7 +13,7 @@ WorkoutStorage.renderRemoteTools = function(container, remote, download, layout=
     node.disabled=state.busy||disabled;node.addEventListener('click',()=>run(action));return node;
   };
   const immutable=state.mode==='immutable',term=immutable?'cloud backups':'cloud sync';
-  if(parts.includes('mode'))paragraph(immutable?'Separate backups: each upload creates a new file. Devices keep their local copies until you explicitly restore a chosen backup. The former single backup remains available below.':'Conditional sync: the provider must enforce overwrite protection before multiple devices can safely update one backup.');
+  if(parts.includes('mode'))paragraph(immutable?'Separate backups: each upload creates a new file. Devices keep their local copies until you explicitly restore a chosen backup.':'Conditional sync: the provider must enforce overwrite protection before multiple devices can safely update one backup.');
   let controls;
   if(parts.includes('checks')){
     element('h3','Provider check');
@@ -43,7 +42,6 @@ WorkoutStorage.renderRemoteTools = function(container, remote, download, layout=
   paragraph('Newest first. Preview shows record counts. Restoring replaces this device’s data and pauses '+term+' until you review.');
   controls=actions(container);
   button('Browse cloud backups','browseSnapshots',()=>remote.remoteListSnapshots(),controls,!remote.remoteCryptoAvailable());
-  if(immutable&&parts.includes('legacy'))button('Restore legacy backup locally…','restoreLegacyBackup',()=>remote.remoteRestoreLegacy(),controls,state.active);
   if(state.snapshots?.offset)button('Newer backups','previousSnapshots',()=>remote.remoteListSnapshots('previous'),controls);
   if(state.snapshots?.token)button('Older backups','nextSnapshots',()=>remote.remoteListSnapshots(true),controls);
   const list=element('div');list.id='snapshotList';

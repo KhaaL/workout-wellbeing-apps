@@ -514,11 +514,11 @@
   function renderCloud(){
     if(!storage)return;
     const remote=storage.remote,cfg=remote.loadRemoteConfig(),paused=remote.remoteSyncPaused();
-    $('cloudActions').hidden=!cfg;$('cloudBackup').hidden=paused;$('cloudPause').hidden=paused;$('cloudResume').hidden=!paused;
-    $('cloudUseRemote').hidden=remote.syncMode(cfg)==='immutable';
+    $('cloudActions').hidden=!cfg;
+    WorkoutStorage.applyCloudActions({backup:$('cloudBackup'),pause:$('cloudPause'),'publish-local':$('cloudKeepLocal'),resume:$('cloudResume'),restore:$('cloudUseRemote')},remote.syncMode(cfg),paused);
     for(const node of document.querySelectorAll('#cloudForm input,#cloudForm select,#cloudForm button,#cloudActions button'))node.disabled=cloudBusy||configBusy;
     WorkoutStorage.renderConnectionScope($('connectionScope'),remote,{confirm:WorkoutUI.confirm,onChange:()=>{loadCloud();renderCloud();}});
-    renderRecovery();WorkoutStorage.renderRemoteTools($('remoteTools'),remote,downloadJSON,'foodlog',['mode','checks','snapshots']);
+    renderRecovery();WorkoutStorage.renderRemoteTools($('remoteTools'),remote,downloadJSON,'foodlog');
   }
   function loadCloud(){
     const cfg=storage.remote.loadRemoteConfig();if(!cfg)return;
