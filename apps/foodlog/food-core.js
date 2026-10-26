@@ -12,8 +12,13 @@ const FoodCore = (() => {
     ['sugars_g','Sugars','g'],['fibre_g','Fibre','g'],['fat_g','Fat','g'],['saturated_fat_g','Saturated fat','g'],['salt_g','Salt','g']
   ].map(([key,label,unit])=>({key,label,unit}));
   const KEYS = NUTRIENTS.map(n=>n.key);
-  // Labels give total sugars; a sugar limit means free sugars, so sugars take no target.
-  const TARGET_KEYS = KEYS.filter(key=>key!=='sugars_g'&&key!=='energy_kj');
+  /* Labels give total sugars, so a sugar limit applies to free sugars: the
+     sugars of foods marked as free sugars (honey, syrups, sweets). Each food
+     carries that mark; it is read live, so marking a food updates past days. */
+  const FREE = 'free_sugars_g';
+  // Vitamins and minerals offered when editing a food and as daily targets.
+  const COMMON_MICROS = ['vitamin_d_ug','vitamin_b12_ug','folate_ug','vitamin_c_mg','calcium_mg','iron_mg','iodine_ug','potassium_mg','magnesium_mg','zinc_mg'];
+  const TARGET_KEYS = [...KEYS.filter(key=>key!=='sugars_g'&&key!=='energy_kj'), FREE, ...COMMON_MICROS];
   const KINDS = {product:'Product',generic:'Everyday food',dish:'Dish'};
   const SOURCES = {label:'Label',typical:'Typical values',menu:'Menu'};
   const BASES = {g:'100 g',ml:'100 ml',portion:'portion'};
@@ -90,11 +95,13 @@ const FoodCore = (() => {
     if (!Object.hasOwn(KINDS, raw.kind)) fail(label + ' has an unknown kind.');
     if (!Object.hasOwn(BASES, raw.basis)) fail(label + ' has an unknown basis.');
     if (!Object.hasOwn(SOURCES, raw.source)) fail(label + ' has an unknown source.');
-    for (const flag of ['estimate','inFile','archived']) if (raw[flag] != null && typeof raw[flag] !== 'boolean') fail(label + ' has an invalid ' + flag + ' flag.');
+    for (const flag of ['estimate','inFile','archived','favourite']) if (raw[flag] != null && typeof raw[flag] !== 'boolean') fail(label + ' has an invalid ' + flag + ' flag.');
+    if (raw.freeSugars != null && !['yes','no'].includes(raw.freeSugars)) fail(label + ' has an invalid free sugars mark.');
     const out = {id:raw.id, name, brand:text(raw.brand, 80, 'Brand'), kind:raw.kind, basis:raw.basis, nutrients:nutrients(raw.nutrients, label),
       micros:micros(raw.micros, label), portions:portions(raw.portions, label), source:raw.source, estimate:!!raw.estimate, note:text(raw.note, 500, 'Food note')};
     const extra = details(raw.details); if (extra) out.details = extra;
-    if (raw.inFile) out.inFile = true; if (raw.archived) out.archived = true;
+    if (raw.inFile) out.inFile = true; if (raw.archived) out.archived = true; if (raw.favourite) out.favourite = true;
+    if (raw.freeSugars) out.freeSugars = raw.freeSugars;
     return out;
   }
   // The frozen part of a food: what a logged amount is computed from.
@@ -178,13 +185,17 @@ const FoodCore = (() => {
     for (const [key, value] of Object.entries(v.micros || {})) extra[key] = value * f;
     return {nutrients:out, micros:extra};
   }
-  // Known values add up; unknown ones are counted per nutrient instead.
+  // Known values add up; unknown ones are counted per nutrient instead. An item's
+  // free sugars are its sugars when its food is marked 'yes', 0 when 'no' (or
+  // when it has no sugars), and unknown otherwise.
   function total(items){
-    const sums = Object.fromEntries(KEYS.map(key=>[key, 0])), unknown = Object.fromEntries(KEYS.map(key=>[key, 0])), micro = {};
+    const sums = Object.fromEntries([...KEYS, FREE].map(key=>[key, 0])), unknown = Object.fromEntries([...KEYS, FREE].map(key=>[key, 0])), micro = {};
     let estimatedKcal = 0;
-    for (const {v, amount} of items){
-      const s = scaled(v, amount);
+    for (const {v, amount, free} of items){
+      const s = scaled(v, amount), sugars = s.nutrients.sugars_g;
       for (const key of KEYS) if (s.nutrients[key] == null) unknown[key]++; else sums[key] += s.nutrients[key];
+      const freeSugars = sugars === 0 || free === 'no' ? 0 : free === 'yes' ? sugars : null;
+      if (freeSugars == null) unknown[FREE]++; else sums[FREE] += freeSugars;
       for (const [key, value] of Object.entries(s.micros)) micro[key] = (micro[key] || 0) + value;
       if (v.estimate && s.nutrients.energy_kcal != null) estimatedKcal += s.nutrients.energy_kcal;
     }
@@ -208,6 +219,20 @@ const FoodCore = (() => {
   }
   const microUnit = key => key.endsWith('_ug') ? 'µg' : key.endsWith('_mg') ? 'mg' : 'g';
   const microLabel = key => { const name = key.replace(/_(g|mg|ug)$/, '').replace(/_/g, ' '); return name[0].toUpperCase() + name.slice(1); };
+  // Label and unit for any nutrient, free sugars or micronutrient key.
+  function describe(key){
+    const n = NUTRIENTS.find(x=>x.key === key);
+    if (n) return {label:n.label, unit:n.unit};
+    if (key === FREE) return {label:'Free sugars', unit:'g'};
+    return {label:microLabel(key).replace(/^Vitamin (\w)/, (m, c)=>'Vitamin ' + c.toUpperCase()), unit:microUnit(key)};
+  }
+  // Targets read nutrients, free sugars and micronutrients alike; a micronutrient no item lists is unknown for all.
+  function evaluateAll(targets, t){
+    return targets.map(target=>{
+      if (target.key in t.sums) return evaluate(target, t.sums, t.unknown);
+      return evaluate(target, {[target.key]:t.micros[target.key] ?? 0}, {[target.key]:target.key in t.microUnknown ? t.microUnknown[target.key] : t.count});
+    });
+  }
 
   /* Days. */
   const pad = n => String(n).padStart(2, '0');
@@ -229,13 +254,59 @@ const FoodCore = (() => {
   function day(s, date){
     // Untimed entries keep their logged order, ahead of timed ones.
     const entries = s.entries.filter(e=>e.date === date).sort((a, b)=>(a.time || '').localeCompare(b.time || ''));
-    const items = entries.map(e=>({entry:e, v:s.versions[e.version], amount:e.amount}));
+    const marks = new Map(s.foods.map(f=>[f.id, f.freeSugars]));
+    const items = entries.map(e=>({entry:e, v:s.versions[e.version], amount:e.amount, free:marks.get(foodIdOf(e.version))}));
     const meals = mealOrder(s.settings.meals, entries, s.days[date]?.meals).map(meal=>{const list = items.filter(i=>i.entry.meal === meal); return {meal, items:list, total:total(list)};});
     const sum = total(items);
-    return {date, meals, total:sum, targets:s.settings.targets.map(t=>evaluate(t, sum.sums, sum.unknown)), notes:s.days[date] || {}};
+    return {date, meals, total:sum, targets:evaluateAll(s.settings.targets, sum), notes:s.days[date] || {}};
   }
   function loggedDays(s){
     return [...new Set(s.entries.map(e=>e.date))].sort().reverse();
+  }
+  /* Meals from the days before `date` (up to 14 days back) to copy: the same meal
+     name first, newest first, then other meals. */
+  function recentMeals(s, date, meal){
+    const from = shiftDate(date, -14), groups = new Map();
+    for (const e of s.entries) if (e.date < date && e.date >= from){
+      const key = e.date + '\n' + e.meal;
+      if (!groups.has(key)) groups.set(key, {date:e.date, meal:e.meal, entries:[]});
+      groups.get(key).entries.push(e);
+    }
+    const same = m => m.meal.toLowerCase() === String(meal).toLowerCase();
+    return [...groups.values()].sort((a, b)=>same(b) - same(a) || b.date.localeCompare(a.date) || a.meal.localeCompare(b.meal))
+      .map(g=>({...g, total:total(g.entries.map(e=>({v:s.versions[e.version], amount:e.amount})))}));
+  }
+  /* Copies a meal into another day and meal. A food still in the catalog with the
+     same unit is logged at its current values; otherwise the original values are reused. */
+  function copyMeal(s, source, toDate, toMeal, newId){
+    if (!validDate(toDate)) fail('Invalid date.');
+    const copied = [], versions = {...s.versions};
+    for (const e of source.entries){
+      const f = s.foods.find(x=>x.id === foodIdOf(e.version));
+      let key = e.version;
+      if (f && f.basis === s.versions[e.version]?.basis){ const v = versionOf(f); versions[v.key] ||= v.value; key = v.key; }
+      copied.push(entry({id:newId(), date:toDate, time:e.time, meal:toMeal, version:key, amount:e.amount, portion:e.portion, note:e.note}, versions));
+    }
+    if (s.entries.length + copied.length > LIMITS.entries) fail('The log holds at most ' + LIMITS.entries + ' items.');
+    s.versions = versions; s.entries.push(...copied);
+    return copied;
+  }
+  /* The 7 days ending at `end`, against the 7 before: averages per day with food
+     logged, days on target, and days where some item lacked the value. */
+  function trends(s, end){
+    const keys = ['energy_kcal', ...s.settings.targets.map(t=>t.key).filter(key=>key !== 'energy_kcal')];
+    function window(last){
+      const days = [];
+      for (let i = 6; i >= 0; i--){ const date = shiftDate(last, -i); if (s.entries.some(e=>e.date === date)) days.push(day(s, date)); }
+      const value = (d, key) => key in d.total.sums ? d.total.sums[key] : d.total.micros[key] ?? 0;
+      const missing = (d, key) => key in d.total.unknown ? d.total.unknown[key] : key in d.total.microUnknown ? d.total.microUnknown[key] : d.total.count;
+      return {days:days.length, from:shiftDate(last, -6), to:last,
+        rows:keys.map(key=>({key, average:days.length ? days.reduce((sum, d)=>sum + value(d, key), 0) / days.length : null,
+          // A limit counts as kept only when every item's value is known; unknown values could pass it.
+          onTarget:days.filter(d=>d.targets.some(t=>t.key === key && (t.status === 'met' || (t.status === 'under' && !t.missing)))).length,
+          partial:days.filter(d=>missing(d, key) > 0).length}))};
+    }
+    return {current:window(end), previous:window(shiftDate(end, -7)), targets:s.settings.targets};
   }
 
   /* Search: accents fold away, so "jordnotssmor" finds Jordnötssmör. */
@@ -252,8 +323,8 @@ const FoodCore = (() => {
     }
     return s.foods.filter(f=>(archived || !f.archived) && words.every(w=>fold(f.name + ' ' + f.brand).includes(w)))
       .map(f=>({food:f, use:use.get(f.id) || {count:0, last:'', meal:''}}))
-      // Latest use in this meal first, then the most used, then by name; '' sorts last.
-      .sort((a, b)=>b.use.meal.localeCompare(a.use.meal) || b.use.count - a.use.count || a.food.name.localeCompare(b.food.name))
+      // Latest use in this meal first, then favourites, then the most used, then by name; '' sorts last.
+      .sort((a, b)=>b.use.meal.localeCompare(a.use.meal) || !!b.food.favourite - !!a.food.favourite || b.use.count - a.use.count || a.food.name.localeCompare(b.food.name))
       .map(r=>r.food);
   }
   function usage(s, foodId){ return s.entries.filter(e=>foodIdOf(e.version) === foodId).length; }
@@ -294,10 +365,10 @@ const FoodCore = (() => {
     const merged = [...portions(own.portions, String(p.name)), ...filePortions.filter(fp=>!(own.portions || []).some(op=>String(op.label).toLowerCase() === fp.label))];
     const out = food({id:p.id, name:p.name, brand:p.brand ?? '', kind:own.kind ?? 'product', basis, nutrients:p['nutrition_per_' + TABLE[basis]],
       micros:p['micronutrients_per_' + TABLE[basis]], portions:merged.slice(0, LIMITS.portions), source:own.source ?? 'label', estimate:own.estimate ?? false,
-      note:own.note ?? '', archived:own.archived ?? false, details:extra, inFile:true});
+      note:own.note ?? '', archived:own.archived ?? false, favourite:own.favourite ?? false, freeSugars:own.free_sugars ?? null, details:extra, inFile:true});
     return {food:out, dropped};
   }
-  const labelFields = f => stable({name:f.name, brand:f.brand, kind:f.kind, basis:f.basis, nutrients:f.nutrients, micros:f.micros, source:f.source, estimate:f.estimate, note:f.note, details:f.details || null});
+  const labelFields = f => stable({name:f.name, brand:f.brand, kind:f.kind, basis:f.basis, nutrients:f.nutrients, micros:f.micros, source:f.source, estimate:f.estimate, note:f.note, freeSugars:f.freeSugars || null, details:f.details || null});
   // Returns the merged food list and a report; the caller confirms before applying.
   function importCatalog(raw, s){
     if (!isObject(raw) || !Array.isArray(raw.products)) fail('Not a catalog file: it needs a products list.');
@@ -319,15 +390,19 @@ const FoodCore = (() => {
       if (!sameBasis && current.portions.length) report.portionsReset.push(incoming.name);
       const local = sameBasis ? current.portions : [];
       const merged = {...incoming, portions:[...local, ...incoming.portions.filter(p=>!local.some(l=>l.label.toLowerCase() === p.label.toLowerCase()))].slice(0, LIMITS.portions)};
-      if (current.archived) merged.archived = true;
+      // Archiving and favourites are choices made here; a free sugars mark from the file wins, else the local one stays.
+      if (current.archived) merged.archived = true; if (current.favourite) merged.favourite = true;
+      if (!merged.freeSugars && current.freeSugars) merged.freeSugars = current.freeSugars;
       const index = foods.findIndex(f=>f.id === incoming.id);
       (labelFields(current) === labelFields(merged) && stable(current.portions) === stable(merged.portions) ? report.unchanged : report.updated).push(incoming.name);
       foods[index] = merged;
     }
     for (const f of foods) if (f.inFile && !seen.has(f.id)) { delete f.inFile; report.notInFile.push(f.name); }
     const budgets = isObject(raw.personal_budgets_per_day) ? raw.personal_budgets_per_day : null, targets = [], ignored = [];
-    if (budgets) for (const [group, kind] of [['contribution','min'],['limit','max']]) for (const [key, value] of Object.entries(isObject(budgets[group]) ? budgets[group] : {})){
-      if (TARGET_KEYS.includes(key) && typeof value === 'number' && value > 0) targets.push({key, kind, value}); else ignored.push(key);
+    // A sugar limit (sugar_g) limits free sugars.
+    if (budgets) for (const [group, kind] of [['contribution','min'],['limit','max']]) for (const [raw, value] of Object.entries(isObject(budgets[group]) ? budgets[group] : {})){
+      const key = kind === 'max' && raw === 'sugar_g' ? FREE : raw;
+      if (TARGET_KEYS.includes(key) && typeof value === 'number' && value > 0 && !targets.some(t=>t.key === key)) targets.push({key, kind, value}); else ignored.push(raw);
     }
     const extra = Object.fromEntries(Object.entries(raw).filter(([key])=>!['schema_version','revision','updated','notes','products'].includes(key)));
     if (JSON.stringify(extra).length > LIMITS.details * 2) fail('The catalog file header is too large.');
@@ -339,16 +414,20 @@ const FoodCore = (() => {
     const c = s.settings.catalog || {schemaVersion:'1.0', revision:null, updated:'', notes:'', extra:{}};
     const out = {schema_version:c.schemaVersion || '1.0', revision:c.revision ?? 0, updated:c.updated || localDate(new Date(now)), notes:c.notes || '', ...c.extra};
     const old = isObject(c.extra?.personal_budgets_per_day) ? c.extra.personal_budgets_per_day : {};
-    // Targets set here replace the file's values for nutrients Foodlog tracks; other keys (such as a sugar limit) stay.
-    const keep = group => Object.fromEntries(Object.entries(isObject(old[group]) ? old[group] : {}).filter(([key])=>!TARGET_KEYS.includes(key)));
-    const pick = kind => Object.fromEntries(s.settings.targets.filter(t=>t.kind === kind).map(t=>[t.key, t.value]));
+    // Targets set here replace the file's values for nutrients Foodlog tracks; other keys stay.
+    // A free sugars limit is written back under the file's own sugar_g key when it has one.
+    const alias = kind => key => kind === 'max' && key === FREE && isObject(old.limit) && 'sugar_g' in old.limit ? 'sugar_g' : key;
+    const freeTarget = s.settings.targets.some(t=>t.key === FREE);
+    const keep = group => Object.fromEntries(Object.entries(isObject(old[group]) ? old[group] : {}).filter(([key])=>!TARGET_KEYS.includes(key) && !(key === 'sugar_g' && freeTarget)));
+    const pick = kind => Object.fromEntries(s.settings.targets.filter(t=>t.kind === kind).map(t=>[alias(kind)(t.key), t.value]));
     out.personal_budgets_per_day = {...old, contribution:{...keep('contribution'), ...pick('min')}, limit:{...keep('limit'), ...pick('max')}};
     out.exported_by = 'Foodlog'; out.exported_at = new Date(now).toISOString();
     out.products = s.foods.map(f=>{
       const p = {id:f.id, name:f.name, ...(f.brand ? {brand:f.brand} : {}), ...(f.details || {})};
       p['nutrition_per_' + TABLE[f.basis]] = {...f.nutrients};
       if (Object.keys(f.micros).length) p['micronutrients_per_' + TABLE[f.basis]] = {...f.micros};
-      p.foodlog = {kind:f.kind, source:f.source, estimate:f.estimate, portions:f.portions, ...(f.note ? {note:f.note} : {}), ...(f.archived ? {archived:true} : {})};
+      p.foodlog = {kind:f.kind, source:f.source, estimate:f.estimate, portions:f.portions, ...(f.note ? {note:f.note} : {}), ...(f.archived ? {archived:true} : {}),
+        ...(f.favourite ? {favourite:true} : {}), ...(f.freeSugars ? {free_sugars:f.freeSugars} : {})};
       return p;
     });
     return out;
@@ -363,7 +442,8 @@ const FoodCore = (() => {
   function exportDay(s, date){
     const d = day(s, date), targets = {};
     for (const t of s.settings.targets) targets[t.kind === 'max' ? t.key + '_max' : t.key] = t.value;
-    const sumBlock = (sums, unknown) => Object.fromEntries(shown.map(key=>[key, one(sums[key])]).concat(shown.filter(key=>unknown[key]).length ? [['unknown_items', Object.fromEntries(shown.filter(key=>unknown[key]).map(key=>[key, unknown[key]]))]] : []));
+    const totals = [...shown, FREE];
+    const sumBlock = (sums, unknown) => Object.fromEntries(totals.map(key=>[key, one(sums[key])]).concat(totals.filter(key=>unknown[key]).length ? [['unknown_items', Object.fromEntries(totals.filter(key=>unknown[key]).map(key=>[key, unknown[key]]))]] : []));
     return {
       date, notes:d.notes.notes || '', activity:(d.notes.activity || '').split('\n').map(line=>line.trim()).filter(Boolean), targets,
       meals:d.meals.filter(m=>m.items.length).map(m=>({meal:m.meal, items:m.items.map(({entry:e, v, amount})=>{
@@ -526,8 +606,8 @@ const FoodCore = (() => {
     return {catalog:exportCatalog(s, Date.parse(date + 'T12:00:00Z')), day:exportDay(s, date)};
   }
 
-  return {NUTRIENTS, KEYS, TARGET_KEYS, KINDS, SOURCES, BASES, UNITS, LIMITS, DEFAULT_MEALS,
-    food, settings, state, versionOf, scaled, total, evaluate, round, format, microUnit, microLabel,
-    dayFor, shiftDate, localDate, localTime, day, loggedDays, fold, search, usage, prune, log, updateEntry, foodIdOf,
+  return {NUTRIENTS, KEYS, TARGET_KEYS, FREE, COMMON_MICROS, KINDS, SOURCES, BASES, UNITS, LIMITS, DEFAULT_MEALS,
+    food, settings, state, versionOf, scaled, total, evaluate, round, format, microUnit, microLabel, describe,
+    dayFor, shiftDate, localDate, localTime, day, loggedDays, recentMeals, copyMeal, trends, fold, search, usage, prune, log, updateEntry, foodIdOf,
     importCatalog, exportCatalog, exportDay, planDayImport, applyDayImport, samples, hash};
 })();

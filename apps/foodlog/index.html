@@ -36,7 +36,7 @@ table.nutrients{width:100%;border-collapse:collapse;font-size:14px;margin-top:8p
 .entries,.food-list,.day-list{list-style:none;margin:8px 0;padding:0}
 .row-btn{display:flex;width:100%;gap:12px;align-items:center;justify-content:space-between;text-align:left;padding:10px 4px;min-height:52px;background:none;border:0;border-bottom:1px solid var(--border);color:var(--text);font:inherit}
 .row-btn:hover{background:var(--surface-2)}.row-btn .main{min-width:0;display:grid;gap:2px}.row-btn .name{font-weight:600;overflow-wrap:anywhere}.row-btn .sub{font-size:13px;color:var(--muted)}.row-btn .side{flex:none;font-variant-numeric:tabular-nums;font-size:14px;text-align:right}
-.add-to{width:100%;margin-top:8px}
+.add-to{width:100%;margin-top:8px}.meal-actions{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:8px;margin-top:8px}
 .presets{display:flex;gap:8px;margin:4px 0 12px;flex-wrap:wrap}.presets button{flex:1;min-width:96px;padding:8px;font-size:13px}.presets button[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .preview{font-size:14px;color:var(--muted);margin:8px 0 12px}.preview strong{color:var(--text)}
 dialog.sheet{width:min(100vw - 16px,600px);max-height:calc(100dvh - 16px);padding:16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg);color:var(--text)}
@@ -50,6 +50,8 @@ pre.code{overflow:auto;max-height:45vh;font-family:var(--font-mono);font-size:12
 table.fields{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}table.fields tr{display:block;padding:6px 0;border-bottom:1px solid var(--border)}table.fields td{display:block;padding:0}table.fields td:first-child{font-weight:600;margin-bottom:2px}
 .import-list{list-style:none;padding:0;margin:4px 0 12px;font-size:14px}.import-list li{padding:6px 0;border-bottom:1px solid var(--border)}.import-list .sub{display:block;color:var(--muted);font-size:13px}
 #formatBody h3,#importBody h3{font-size:var(--fs-base);margin:16px 0 4px}
+.trend-list{list-style:none;padding:0;margin:8px 0 0}.trend-list li{padding:8px 0;border-bottom:1px solid var(--border);font-size:14px}.trend-list li:last-child{border:0}.trend-list strong{display:block;font-size:15px}
+.sugar-row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}.sugar-row .choices{display:flex;gap:8px}.sugar-row .choices .btn{min-width:88px}.sugar-row .btn[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .food-error{color:var(--danger);font-size:14px;min-height:0}
 dl.details{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:6px 12px;font-size:13px;margin:8px 0}dl.details dt{color:var(--muted);overflow-wrap:anywhere}dl.details dd{margin:0;overflow-wrap:anywhere}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}.chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}.chip[data-status=met]{color:var(--success);border-color:var(--success)}.chip[data-status=over]{color:var(--danger);border-color:var(--danger)}
@@ -90,6 +92,7 @@ html.setup-screen .toast{bottom:calc(var(--nav-h) + var(--action-h) + env(safe-a
 <p id="catalogInfo" class="hint"></p>
 <div class="form-actions"><button id="newFood" class="btn btn-primary" type="button">New food</button></div>
 <label class="field">Search foods<input id="foodSearch" type="search" autocomplete="off" spellcheck="false" placeholder="Name or brand"></label>
+<label class="check"><input id="showFavourites" type="checkbox">Favourites only</label>
 <label class="check"><input id="showArchived" type="checkbox">Show archived foods</label>
 <ul id="foodList" class="food-list" aria-label="Foods"></ul>
 <details id="catalogBox" class="panel"><summary>Catalog file</summary><div class="stack">
@@ -103,6 +106,7 @@ html.setup-screen .toast{bottom:calc(var(--nav-h) + var(--action-h) + env(safe-a
 <section id="history" hidden aria-labelledby="historyTitle">
 <h1 id="historyTitle">History</h1>
 <p id="historyEmpty" class="hint" hidden>No logged days yet.</p>
+<section id="trends" class="panel" aria-labelledby="trendsTitle" hidden><h2 id="trendsTitle">Last 7 days</h2><p id="trendsSummary" class="hint"></p><ul id="trendRows" class="trend-list"></ul></section>
 <ul id="dayList" class="day-list" aria-label="Logged days"></ul>
 <button id="olderDays" class="btn" type="button" hidden>Show older days</button>
 </section>
@@ -179,6 +183,8 @@ html.setup-screen .toast{bottom:calc(var(--nav-h) + var(--action-h) + env(safe-a
 <fieldset class="nutrient-grid"><legend>Per <span id="basisLegend">100 g</span> · blank means unknown</legend><div id="nutrientInputs" class="contents"></div></fieldset>
 <div class="grid2"><label class="field">Source<select id="foodSource"></select></label><label class="check"><input id="foodEstimate" type="checkbox">Values are estimates</label></div>
 <fieldset class="stack plain"><legend class="field">Portions</legend><div id="portionRows"></div><button id="addPortion" class="btn" type="button">Add portion</button><p id="servingNote" class="hint" hidden></p></fieldset>
+<label class="field">Sugars count as free sugars<select id="foodFreeSugars"><option value="">Not set</option><option value="yes">Yes: added sugar, honey, syrup, juice</option><option value="no">No: sugars in fruit, milk or none</option></select></label>
+<fieldset class="stack plain"><legend class="field">Vitamins &amp; minerals</legend><div id="microRows"></div><button id="addMicro" class="btn" type="button">Add vitamin or mineral</button></fieldset>
 <label class="field">Note (optional)<textarea id="foodNote" rows="2" maxlength="500"></textarea></label>
 <p id="foodError" class="food-error" role="alert"></p>
 <button class="btn btn-primary" type="submit">Save food</button>
@@ -189,7 +195,20 @@ html.setup-screen .toast{bottom:calc(var(--nav-h) + var(--action-h) + env(safe-a
 <div class="sheet-head"><h2 id="sheetTitle">Food</h2><button class="btn" type="button" data-close>Close</button></div>
 <div id="sheetBody"></div>
 <div class="form-actions"><button id="logFood" class="btn btn-primary" type="button">Log this food</button><button id="editFood" class="btn" type="button">Edit</button></div>
+<div class="form-actions"><button id="favouriteFood" class="btn" type="button" aria-pressed="false">Add to favourites</button></div>
 <div class="form-actions"><button id="archiveFood" class="btn" type="button">Archive</button><button id="deleteFood" class="btn btn-danger" type="button">Delete</button></div>
+</dialog>
+
+<dialog id="copyDialog" class="sheet" aria-labelledby="copyTitle">
+<div class="sheet-head"><h2 id="copyTitle">Copy a meal</h2><button class="btn" type="button" data-close>Close</button></div>
+<p id="copyHint" class="hint"></p>
+<ul id="copyList" class="food-list" aria-label="Recent meals"></ul>
+</dialog>
+
+<dialog id="sugarDialog" class="sheet" aria-labelledby="sugarTitle">
+<div class="sheet-head"><h2 id="sugarTitle">Which sugars are free?</h2><button class="btn" type="button" data-close>Done</button></div>
+<p class="hint">Free sugars are added sugars plus honey, syrups and juices. Sugars inside fruit and milk are not free. The mark applies to every day with this food.</p>
+<ul id="sugarList" class="import-list"></ul>
 </dialog>
 
 <dialog id="importDialog" class="sheet" aria-labelledby="importTitle">

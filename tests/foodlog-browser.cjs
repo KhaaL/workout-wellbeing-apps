@@ -32,11 +32,11 @@ const catalog=path.join(root,'examples/foodlog-catalog.json');
     // The import summary and the targets question follow each other in the shared dialog.
     await page.setInputFiles('#importCatalog',catalog);await page.getByRole('button',{name:'Import',exact:true}).click();
     await page.getByRole('button',{name:'Use targets',exact:true}).waitFor();
-    assert.match(await page.textContent('#dlg-body'),/Set protein at least 100 g, fibre at least 30 g, saturated fat at most 25 g, salt at most 6 g\..*sugar limit is not applied/);
+    assert.match(await page.textContent('#dlg-body'),/Set protein at least 100 g, fibre at least 30 g, saturated fat at most 25 g, salt at most 6 g, free sugars at most 50 g\. The sugar limit applies to free sugars/);
     await page.locator('#dlg-actions button').last().click();await page.locator('#dlg').waitFor({state:'hidden'});
     assert.match(await page.textContent('#catalogInfo'),/revision 3, dated 2026-01-15.*5 foods from the file, 0 added here/);
     assert.equal(await page.locator('#foodList .row-btn').count(),5);
-    assert.deepEqual((await saved()).settings.targets.map(t=>t.key),['protein_g','fibre_g','saturated_fat_g','salt_g']);
+    assert.deepEqual((await saved()).settings.targets.map(t=>t.key),['protein_g','fibre_g','saturated_fat_g','salt_g','free_sugars_g']);
     console.log('PASS the catalog file imports after a summary, and its targets apply without the sugar limit');
 
     await page.getByRole('button',{name:/Wholegrain Crispbread/}).click();
@@ -154,7 +154,7 @@ const catalog=path.join(root,'examples/foodlog-catalog.json');
     assert.match(await importer.textContent(),/This day already has 5 logged items\./);
     await importer.getByRole('button',{name:'Replace the day',exact:true}).click();await importer.waitFor({state:'hidden'});
     assert.equal(await rows().count(),5,'replacing does not double the day');
-    assert.equal((await saved()).version,2);
+    assert.equal((await saved()).version,3);
     console.log('PASS a day file previews every item, imports to its date, undoes, and replaces an existing day');
 
     await page.setViewportSize({width:320,height:640});

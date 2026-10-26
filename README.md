@@ -27,19 +27,34 @@ never counted as 0, and totals say how many items lacked it.
   same format, including foods added in the app and every field Foodlog does not
   use. See [Foodlog catalog and exports](docs/FOODLOG.md).
 - **Logging:** Today groups the day by meal. **Add food** searches the catalog,
-  ignoring accents, with this meal's recent foods first. Portion buttons and a
+  ignoring accents, with this meal's recent foods first, then favourites (★,
+  set on the food page). Portion buttons and a
   stepper set the amount, and a live preview shows its nutrients. A food that
   is missing can be created from the same dialog. Logs before the day change
-  time (default 04:00) count toward the previous day.
+  time (default 04:00) count toward the previous day. **Copy a meal…** on each
+  meal copies one from the last 14 days, same meal first, keeping amounts,
+  times and notes; a food still in the catalog logs at its current values.
 - **Frozen values:** logging stores a frozen copy of the food's values, shared
   by all entries of that version. Correcting a label later leaves logged days
   unchanged.
 - **Totals:** energy, the share of energy from estimated items, and bars for
   daily targets. "At least" targets (such as protein and fibre) fill toward a
   goal; "at most" limits (such as salt and saturated fat) warn when passed.
-  Sugars are shown as total sugars without a limit, because labels do not
-  separate free sugars from fruit and dairy sugars.
-- **History and export:** History lists logged days with their totals. **Export
+  Targets can also cover free sugars and vitamins or minerals (vitamin D,
+  calcium, iron and others).
+- **Free sugars:** labels give total sugars, so each food is marked: its sugars
+  count as free (added sugar, honey, syrup, juice) or not (fruit, milk). Free
+  sugars add up the marked foods; a food with sugars and no mark leaves the
+  total unknown. **Mark which sugars are free…** lists the day's unmarked
+  foods. Marks apply to every day with that food. A catalog file's `sugar_g`
+  limit becomes the free sugars limit.
+- **Vitamins and minerals:** foods can list them (edited in the food form or
+  imported). Today's **Vitamins & minerals** shows each total with how many
+  items list it.
+- **History and export:** History starts with the last 7 days: the average per
+  day with food logged for energy and each target, days on target (a limit
+  counts only when every value is known), and the week before. Logged days
+  follow with their totals. **Export
   day as JSON** writes a food-log file with meals, items, nutrition, subtotals
   and day totals.
 - **Day import:** **Import day file…** reads the same shape, from Foodlog or
@@ -55,9 +70,9 @@ never counted as 0, and totals say how many items lacked it.
 Foodlog uses the shared local saving, recovery, backup files, cloud backups and
 updates, with its own `foodlog.v1` namespace and `foodlog-backup.json` default
 object. Capacity is 5,000 foods and 20,000 logged items (about five years at ten
-items a day). Foodlog data is version 2: entries may have no time and a day may
-keep its own meal order, both from imported files. Version 1 data loads
-unchanged, and older releases refuse version 2 data.
+items a day). Foodlog data is version 3: entries may have no time, a day may
+keep its own meal order, and foods carry favourites and free sugars marks.
+Version 1 and 2 data load unchanged, and older releases refuse version 3 data.
 
 ## Tabata timer
 

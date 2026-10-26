@@ -2,14 +2,15 @@
 /* exported FoodlogStorage */
 const FoodlogStorage = (() => {
   // Version 2 allows entries without a time and days with their own meal order
-  // (imported day files). Version 1 apps would refuse such entries, so the
-  // version says so up front; version 1 data loads unchanged.
-  const namespace='foodlog.v1',key='foodlog.state.v1',VERSION=2;
+  // (imported day files). Version 3 adds favourites, free sugars marks and
+  // targets for free sugars and micronutrients; earlier apps would drop or
+  // refuse them, so the version says so up front. Older data loads unchanged.
+  const namespace='foodlog.v1',key='foodlog.state.v1',VERSION=3;
   const limits={foods:FoodCore.LIMITS.foods,entries:FoodCore.LIMITS.entries};
   function prepare(raw){
     WorkoutStorage.enforceLimits(raw,limits);
     if(raw?.app==='foodlog'&&Number.isSafeInteger(raw.version)&&raw.version>VERSION)throw new Error('This backup is from a newer Foodlog version. Update the app, then try again.');
-    if(!raw||raw.app!=='foodlog'||![1,VERSION].includes(raw.version)||!Number.isSafeInteger(raw.updatedAt)||raw.updatedAt<0)throw new Error('Not a valid Foodlog backup.');
+    if(!raw||raw.app!=='foodlog'||![1,2,VERSION].includes(raw.version)||!Number.isSafeInteger(raw.updatedAt)||raw.updatedAt<0)throw new Error('Not a valid Foodlog backup.');
     return {app:'foodlog',version:VERSION,updatedAt:raw.updatedAt,...FoodCore.state(raw)};
   }
   function create(options){
