@@ -48,7 +48,8 @@ const config={endpoint:'https://storage.test',region:'test',bucket:'test',object
         assert.equal(await options.getByRole('button',{name:'Restore legacy backup locally…',exact:true}).count(),0);
         assert.equal(await page.locator('[data-settings-section="cloud-troubleshooting"]').evaluate(node=>node.open),false);
         assert.deepEqual(await page.locator('[data-field="syncMode"] option').evaluateAll(nodes=>nodes.map(node=>node.value)),['immutable','conditional']);
-        assert.doesNotMatch(await page.locator('section[aria-label="Data"]').textContent(),/MinIO|\bR2\b|amazonaws/);
+        // Settings text names no storage host; examples use reserved example domains.
+        assert.doesNotMatch(await page.locator('section[aria-label="Data"]').textContent(),/[a-z0-9-]+\.(com|net|org|io|dev|cloud)\b/i);
         assert.equal(await page.locator('[data-settings-section="handoff"]').evaluate(node=>node.open),false,'handoff stays collapsed without a workout');
         assert.equal(await status.getByRole('button',{name:'Backup settings',exact:true}).count(),1);
       }
