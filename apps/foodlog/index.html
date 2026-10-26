@@ -45,7 +45,11 @@ dialog.sheet::backdrop{background:rgb(0 0 0 / .55)}
 .nutrient-grid{border:1px solid var(--border);border-radius:var(--radius);padding:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-width:0;margin:0}.nutrient-grid legend{font-size:14px;font-weight:600;padding:0 4px}
 fieldset{min-width:0}.contents{display:contents}fieldset.plain{border:0;padding:0;margin:0}.portion-row{display:grid;grid-template-columns:minmax(0,1fr) 110px 48px;gap:8px;margin-bottom:8px;align-items:end}
 .target-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 96px 48px;gap:8px;margin-bottom:8px;align-items:end}
-.icon-only{padding:0;width:48px}
+.icon-only{padding:0;width:48px}.link-btn{background:none;border:0;padding:8px 0;color:var(--accent);text-decoration:underline;font:inherit;min-height:40px;cursor:pointer}
+pre.code{overflow:auto;max-height:45vh;font-family:var(--font-mono);font-size:12px;line-height:1.45;background:var(--surface-2);padding:12px;border-radius:var(--radius);margin:8px 0 16px}
+table.fields{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}table.fields tr{display:block;padding:6px 0;border-bottom:1px solid var(--border)}table.fields td{display:block;padding:0}table.fields td:first-child{font-weight:600;margin-bottom:2px}
+.import-list{list-style:none;padding:0;margin:4px 0 12px;font-size:14px}.import-list li{padding:6px 0;border-bottom:1px solid var(--border)}.import-list .sub{display:block;color:var(--muted);font-size:13px}
+#formatBody h3,#importBody h3{font-size:var(--fs-base);margin:16px 0 4px}
 .food-error{color:var(--danger);font-size:14px;min-height:0}
 dl.details{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:6px 12px;font-size:13px;margin:8px 0}dl.details dt{color:var(--muted);overflow-wrap:anywhere}dl.details dd{margin:0;overflow-wrap:anywhere}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}.chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}.chip[data-status=met]{color:var(--success);border-color:var(--success)}.chip[data-status=over]{color:var(--danger);border-color:var(--danger)}
@@ -75,7 +79,9 @@ html.setup-screen .toast{bottom:calc(var(--nav-h) + var(--action-h) + env(safe-a
 <label class="field">Notes<textarea id="dayNotes" rows="3" maxlength="2000"></textarea></label>
 <label class="field">Activity · one per line<textarea id="dayActivity" rows="2" maxlength="500"></textarea></label>
 </div></details>
-<div class="form-actions"><button id="exportDay" class="btn" type="button">Export day as JSON</button></div>
+<div class="form-actions"><button id="exportDay" class="btn" type="button">Export day as JSON</button><button id="importDayButton" class="btn" type="button">Import day file…</button></div>
+<input id="importDay" type="file" accept=".json,application/json" hidden>
+<p class="hint"><button id="dayFormat" class="link-btn" type="button">Day file format &amp; sample</button></p>
 <div class="workout-actions"><div class="actions-row"><button id="addFood" class="btn btn-primary" type="button">Add food</button></div></div>
 </section>
 
@@ -90,6 +96,7 @@ html.setup-screen .toast{bottom:calc(var(--nav-h) + var(--action-h) + env(safe-a
 <p class="hint">Import a catalog JSON file (schema 1.x, a <code>products</code> list with <code>nutrition_per_100g</code>, <code>nutrition_per_100ml</code> or <code>nutrition_per_portion</code>). Foods merge by <code>id</code>: label values come from the file, while portions added here and archived foods stay. Export writes the same format, including foods added here.</p>
 <label class="field">Import catalog JSON<input id="importCatalog" type="file" accept=".json,application/json"></label>
 <button id="exportCatalog" class="btn" type="button">Export catalog JSON</button>
+<button id="catalogFormat" class="btn" type="button">Catalog format &amp; sample</button>
 </div></details>
 </section>
 
@@ -157,7 +164,7 @@ html.setup-screen .toast{bottom:calc(var(--nav-h) + var(--action-h) + env(safe-a
 <div id="portionChips" class="presets" role="group" aria-label="Portions"></div>
 <label class="field"><span id="amountLabel">Amount · g</span><input id="amount" type="number" min="0.01" max="100000" step="any" inputmode="decimal" aria-label="Amount" data-stepper data-increment="5" required></label>
 <div id="amountPreview" class="preview" aria-live="polite"></div>
-<div class="grid2"><label class="field">Time<input id="entryTime" type="time" required></label><label class="field">Meal<select id="entryMeal"></select></label></div>
+<div class="grid2"><label class="field">Time (optional)<input id="entryTime" type="time"></label><label class="field">Meal<select id="entryMeal"></select></label></div>
 <label class="field">Note (optional)<input id="entryNote" maxlength="300" placeholder="e.g. slice weight assumed"></label>
 <div class="form-actions"><button id="amountBack" class="btn" type="button">Back</button><button id="removeEntry" class="btn btn-danger" type="button" hidden>Remove</button><button id="saveEntry" class="btn btn-primary" type="submit">Add</button></div>
 </form>
@@ -183,6 +190,18 @@ html.setup-screen .toast{bottom:calc(var(--nav-h) + var(--action-h) + env(safe-a
 <div id="sheetBody"></div>
 <div class="form-actions"><button id="logFood" class="btn btn-primary" type="button">Log this food</button><button id="editFood" class="btn" type="button">Edit</button></div>
 <div class="form-actions"><button id="archiveFood" class="btn" type="button">Archive</button><button id="deleteFood" class="btn btn-danger" type="button">Delete</button></div>
+</dialog>
+
+<dialog id="importDialog" class="sheet" aria-labelledby="importTitle">
+<div class="sheet-head"><h2 id="importTitle">Import day file</h2></div>
+<div id="importBody"></div>
+<div id="importActions" class="form-actions"></div>
+</dialog>
+
+<dialog id="formatDialog" class="sheet" aria-labelledby="formatTitle">
+<div class="sheet-head"><h2 id="formatTitle">File formats &amp; samples</h2><button class="btn" type="button" data-close>Close</button></div>
+<div id="formatBody"></div>
+<div class="form-actions"><button id="sampleDay" class="btn" type="button">Download sample day file</button><button id="sampleCatalog" class="btn" type="button">Download sample catalog file</button></div>
 </dialog>
 
 <div id="toast" class="toast" role="status" hidden><span id="toastText"></span><button id="toastAction" type="button" hidden></button></div>

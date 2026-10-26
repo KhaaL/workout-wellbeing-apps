@@ -123,9 +123,44 @@ const catalog=path.join(root,'examples/foodlog-catalog.json');
     assert.equal((await saved()).entries.length,2);assert.equal(await rows().count(),2,'the log survives a reload');
     console.log('PASS full backups download and restore; data survives a reload');
 
+    // The format help shows the day file fields and a sample built by the real export; the sample downloads and imports.
+    await nav('today');await page.click('#dayFormat');const help=page.locator('#formatDialog');await help.waitFor();
+    assert.match(await help.locator('#formatBody').textContent(),/Day file.*items\[\]\.food_id.*"food_id": "sample-cottage-cheese".*Catalog file.*"schema_version": "1\.0"/s);
+    const sampleEvent=page.waitForEvent('download');await page.click('#sampleDay');const sampleFile=await sampleEvent;
+    assert.equal(sampleFile.suggestedFilename(),'foodlog-sample-day-2026-01-19.json');
+    const samplePath=await sampleFile.path(),sampleDay=JSON.parse(fs.readFileSync(samplePath,'utf8'));
+    assert.deepEqual(sampleDay.meals.map(m=>m.meal),['Breakfast','Lunch','Snack']);
+    const catalogEvent=page.waitForEvent('download');await page.click('#sampleCatalog');assert.equal((await catalogEvent).suggestedFilename(),'foodlog-sample-catalog.json');
+    await help.locator('[data-close]').click();
+    console.log('PASS the format help shows both files with samples, and both samples download');
+
+    const importer=page.locator('#importDialog');
+    await page.setInputFiles('#importDay',samplePath);await importer.waitFor();
+    assert.equal(await page.textContent('#importTitle'),'Import Yesterday · '+await page.evaluate(()=>new Date('2026-01-19T12:00:00').toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short',year:'numeric'}))+'?');
+    const preview=await importer.textContent();
+    assert.match(preview,/5 items in 3 meals: 3 from your catalog, 2 new foods\./);
+    assert.match(preview,/Example Dairy Cottage Cheese 1\.5% · 100 g · 07:30→ Example Dairy Cottage Cheese 1\.5% \(catalog, by name\)/);
+    assert.match(preview,/Example Mills Oat Drink · 200 ml · 15:00→ Example Mills Oat Drink Original \(catalog, by matching values\)/);
+    assert.match(preview,/Teriyaki rice bowl · 1 portion · 12:15→ new food/);
+    assert.match(preview,/Items add up to 1,032 kcal and 55\.2 g protein\. The file’s day total says 1,032 kcal and 55\.2 g\./);
+    assert.match(preview,/Not imported: targets\./);
+    await importer.getByRole('button',{name:'Import day',exact:true}).click();await importer.waitFor({state:'hidden'});
+    assert.equal(await page.textContent('#dayTitle'),'Yesterday');assert.equal(await rows().count(),5);
+    assert.match(await rows().first().textContent(),/Example Dairy Cottage Cheese 1\.5%.*100 g · 07:30/);
+    await page.click('#toastAction');assert.equal(await rows().count(),0,'undo removes the imported day');
+    assert.equal((await saved()).foods.some(f=>f.name==='Teriyaki rice bowl'),false,'undo removes the new foods too');
+    await page.setInputFiles('#importDay',samplePath);await importer.getByRole('button',{name:'Import day',exact:true}).click();await importer.waitFor({state:'hidden'});
+    await page.setInputFiles('#importDay',samplePath);await importer.waitFor();
+    assert.match(await importer.textContent(),/This day already has 5 logged items\./);
+    await importer.getByRole('button',{name:'Replace the day',exact:true}).click();await importer.waitFor({state:'hidden'});
+    assert.equal(await rows().count(),5,'replacing does not double the day');
+    assert.equal((await saved()).version,2);
+    console.log('PASS a day file previews every item, imports to its date, undoes, and replaces an existing day');
+
     await page.setViewportSize({width:320,height:640});
     for(const view of ['today','foods','history','settings']){await nav(view);await fits(view);}
     await nav('today');await page.click('#addFood');await page.locator('#addResults .row-btn').first().click();await fits('Amount dialog');await page.locator('#amountPane [data-close]').click();
+    await page.click('#dayFormat');await fits('Format help');await page.locator('#formatDialog [data-close]').click();
     await nav('foods');await page.click('#newFood');await fits('Food form');
     console.log('PASS every screen and dialog fits 320 px');
     assert.deepEqual(errors,[]);await context.close();

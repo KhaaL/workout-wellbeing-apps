@@ -152,7 +152,7 @@
     $('addNewFood').textContent=query?'New food “'+query+'”…':'New food…';
   }
   function lastUse(foodId){
-    let last=null;for(const e of S().entries)if(F.foodIdOf(e.version)===foodId&&(!last||e.date+e.time>last.date+last.time))last=e;
+    const at=e=>e.date+(e.time||'');let last=null;for(const e of S().entries)if(F.foodIdOf(e.version)===foodId&&(!last||at(e)>at(last)))last=e;
     return last;
   }
   function chooseFood(f){
@@ -178,7 +178,7 @@
     $('amountBasis').textContent='Values per '+F.BASES[v.basis]+(v.estimate?' · estimate':'')+(editingEntryId?' · as logged':'');
     $('amountLabel').textContent='Amount · '+unit;$('amount').setAttribute('aria-label','Amount in '+(unit==='g'?'grams':unit==='ml'?'millilitres':'portions'));
     $('amount').dataset.increment=v.basis==='portion'?'0.5':v.basis==='ml'?'25':'5';
-    $('amount').value=String(values.amount);$('entryTime').value=values.time;$('entryNote').value=values.note;
+    $('amount').value=String(values.amount);$('entryTime').value=values.time||'';$('entryNote').value=values.note;
     mealOptions($('entryMeal'),values.meal);$('entryMeal').value=values.meal;
     const chips=$('portionChips');chips.replaceChildren();chips.hidden=!portions.length;
     for(const p of portions){
@@ -464,6 +464,101 @@
   $('addFood').addEventListener('click',()=>openAdd());
   for(const id of ['dayNotes','dayActivity'])$(id).addEventListener('change',saveDayNotes);
   $('exportDay').addEventListener('click',()=>downloadJSON(F.exportDay(S(),viewDate),'food_log_'+viewDate+'.json'));
+
+  /* Day file import: a preview lists every item's outcome, then the file is added to the day or replaces it. */
+  const howText={id:'catalog, by id',name:'catalog, by name',values:'catalog, by matching values'};
+  const parts=()=>({foods:S().foods,versions:S().versions,entries:S().entries,days:S().days});
+  function importAmount(it){return it.food.basis==='portion'?(it.amount===1?'1 portion':F.round(it.amount,'g')+' portions'):F.round(it.amount,'g')+' '+F.UNITS[it.food.basis];}
+  function importChoice(p){
+    return new Promise(resolve=>{
+      const body=$('importBody'),actions=$('importActions'),dialog=$('importDialog');let settled=false;
+      const finish=value=>{if(settled)return;settled=true;if(dialog.open)dialog.close();resolve(value);};
+      body.replaceChildren();actions.replaceChildren();
+      $('importTitle').textContent='Import '+dayName(p.date)+' · '+longDate(p.date)+'?';
+      const items=p.meals.flatMap(m=>m.items),linked=items.filter(i=>howText[i.how]).length;
+      body.append(el('p',{textContent:plural(p.items,'item')+' in '+plural(p.meals.length,'meal')+': '+linked+' from your catalog, '+plural(p.newFoods.length,'new food')+(p.skipped.length?', '+p.skipped.length+' skipped':'')+'.'}));
+      if(p.existing)body.append(el('p',{className:'notice',textContent:'This day already has '+plural(p.existing,'logged item')+'. Add the file to them, or replace them.'}));
+      const [kcal,protein]=p.check;
+      if(p.items){
+        const agree=kcal.file==null||(Math.abs(kcal.items-kcal.file)<=Math.max(kcal.file*0.01,1)&&(protein.file==null||Math.abs(protein.items-protein.file)<=Math.max(protein.file*0.01,0.5)));
+        body.append(el('p',{className:agree?'hint':'notice',textContent:'Items add up to '+fmt('energy_kcal',kcal.items)+' and '+fmt('protein_g',protein.items)+' protein.'+(kcal.file==null?'':' The file’s day total says '+fmt('energy_kcal',kcal.file)+(protein.file==null?'':' and '+fmt('protein_g',protein.file))+(agree?'.':'; check the file.'))}));
+      }
+      for(const m of p.meals){
+        body.append(el('h3',{textContent:m.meal}));
+        const list=el('ul',{className:'import-list'});
+        for(const it of m.items){
+          const target=howText[it.how]?named(it.food)+' ('+howText[it.how]+')':it.how==='again'?'the new food above':'new food'+(it.food.estimate?' (estimate)':'');
+          const extra=(it.differs?'; the file’s values differ from the catalog, so the day keeps the file’s':'')+(it.filled.length?'; the file fills '+it.filled.map(k=>info[k].label.toLowerCase()).join(', '):'');
+          list.append(el('li',{},it.name+' · '+importAmount(it)+(it.time?' · '+it.time:''),el('span',{className:'sub',textContent:'→ '+target+extra})));
+        }
+        body.append(list);
+      }
+      if(p.skipped.length){body.append(el('h3',{textContent:'Skipped'}));const list=el('ul',{className:'import-list'});for(const x of p.skipped)list.append(el('li',{},[x.meal,x.item].filter(Boolean).join(' · ')||'Meal',el('span',{className:'sub',textContent:x.reason})));body.append(list);}
+      const notes=[];
+      if(p.ignored.length)notes.push('Not imported: '+p.ignored.join(', ')+'.');
+      if(p.shortened)notes.push('Notes or activity were shortened to fit.');
+      if(items.some(i=>!i.time))notes.push('Items without a time keep the file’s order.');
+      if(notes.length)body.append(el('p',{className:'hint',textContent:notes.join(' ')}));
+      const button=(label,value,cls='btn')=>{const b=el('button',{type:'button',className:cls,textContent:label});b.addEventListener('click',()=>finish(value));actions.append(b);return b;};
+      button('Cancel',null);
+      if(p.items&&p.existing){button('Add to the day','add');button('Replace the day','replace','btn btn-danger-solid');}
+      else if(p.items)button('Import day','replace','btn btn-primary');
+      dialog.addEventListener('close',()=>finish(null),{once:true});
+      // Focus Cancel without scrolling, so the summary at the top stays in view.
+      dialog.showModal();actions.querySelector('button').focus({preventScroll:true});dialog.scrollTop=0;
+    });
+  }
+  $('importDayButton').addEventListener('click',()=>$('importDay').click());
+  $('importDay').addEventListener('change',async event=>{
+    try{
+      const raw=await readJSON(event.target);if(!raw)return;
+      const taken=new Set(S().foods.map(f=>f.id));
+      const foodId=name=>{const base=F.fold(name).replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60)||'food';for(;;){const id=base+'-'+Math.random().toString(16).slice(2,6);if(!taken.has(id)){taken.add(id);return id;}}};
+      const plan=F.planDayImport(raw,S(),foodId),before=JSON.stringify(parts());
+      const mode=await importChoice(plan);if(!mode)return;
+      if(before!==JSON.stringify(parts()))throw new Error('The log changed during review. Import cancelled.');
+      F.applyDayImport(S(),plan,mode,()=>newId('e-'));const ok=save(),after=JSON.stringify(parts());
+      viewDate=plan.date;followToday=plan.date===today();navigate('today',false);
+      toast((ok?'Imported ':'Imported in memory only: ')+plural(plan.items,'item')+' for '+longDate(plan.date)+'.',{label:'Undo',run:()=>{
+        if(JSON.stringify(parts())!==after){toast('The log changed after the import, so it cannot be undone.');return;}
+        Object.assign(S(),JSON.parse(before));save();render();toast('Import undone.');
+      }});
+    }catch(error){toast(error.message);}
+  });
+
+  /* File formats and samples: the samples come from the same builders as real exports. */
+  function formatHelp(section){
+    const files=F.samples(F.shiftDate(today(),-1)),body=$('formatBody');
+    const code=obj=>el('pre',{className:'code',tabIndex:0},el('code',{textContent:JSON.stringify(obj,null,2)}));
+    const rows=list=>{const tbody=el('tbody');for(const [field,use] of list)tbody.append(el('tr',{},el('td',{},el('code',{textContent:field})),el('td',{textContent:use})));return el('table',{className:'fields'},tbody);};
+    body.replaceChildren(
+      el('h3',{id:'format-day',textContent:'Day file'}),
+      el('p',{className:'hint',textContent:'Import day file reads Foodlog’s own day export, or a file with the same shape. Each item links to a catalog food by food_id, else by exact name (brand and name, ignoring case and accents), else by values that match a food within 2% for that amount. Otherwise a new food is added from the item’s values. A preview lists every item before anything changes.'}),
+      rows([['date','Required: the day, as YYYY-MM-DD.'],['notes','Optional text; the first 2,000 characters are kept.'],['activity','Optional list of lines, or one text; the first 500 characters are kept.'],
+        ['meals[]','Required. The day keeps this order. A name matching your meal list (ignoring case) uses your spelling.'],['meals[].items[]','Required: what was eaten.'],
+        ['items[].item','Required name, at most 120 characters.'],['items[].food_id','Optional catalog id. Foodlog’s day export writes it.'],
+        ['items[].amount_g, amount_ml or amount','Required: grams, millilitres, or a count such as "1 portion". Grams and millilitres count as equal.'],
+        ['items[].nutrition','Values eaten for this amount: energy_kcal, protein_g, carbohydrate_g, sugars_g, fibre_g, fat_g, saturated_fat_g, salt_g (energy_kj optional). null or missing means unknown.'],
+        ['items[].time','Optional HH:MM, or meals[].time for the whole meal. Without one the item has no time.'],
+        ['items[].portion, assumption','Optional portion label (40 characters) and note (300 characters).'],
+        ['items[].source','Optional. For a new food, “menu” or “restaurant” marks menu values; “typical” or “estimate” marks estimates.'],
+        ['day_total_eaten','Optional. The preview compares its energy and protein with the items.'],['targets, subtotal, day_summary, timing','Not imported.']]),
+      code(files.day),
+      el('h3',{id:'format-catalog',textContent:'Catalog file'}),
+      el('p',{className:'hint',textContent:'Catalog import reads schema 1.x and merges foods by id: label values come from the file, while portions added here and archived foods stay. Fields Foodlog does not use are kept and written back on export.'}),
+      rows([['schema_version','Required, 1.x.'],['revision','Optional number. Importing a lower revision than before asks first.'],
+        ['personal_budgets_per_day','Optional. contribution keys become “at least” targets and limit keys “at most” targets; sugar limits are skipped.'],
+        ['products[].id, name, brand','Id (letters, digits, . - _) and name required; brand optional.'],
+        ['products[].nutrition_per_100g, _100ml or _portion','Exactly one table, with the nutrition keys above. null means unknown.'],
+        ['products[].serving','unit_weight_g, powder_g or unit_volume_ml become portions.'],['products[].foodlog','Written by Foodlog: kind, source, estimate, portions, note, archived.'],
+        ['Other fields','Kept per food and written back on export.']]),
+      code(files.catalog));
+    if(!$('formatDialog').open)$('formatDialog').showModal();
+    if(section==='catalog')$('format-catalog').scrollIntoView({block:'start'});else $('formatDialog').scrollTop=0;
+  }
+  $('dayFormat').addEventListener('click',()=>formatHelp('day'));$('catalogFormat').addEventListener('click',()=>formatHelp('catalog'));
+  $('sampleDay').addEventListener('click',()=>{const date=F.shiftDate(today(),-1);downloadJSON(F.samples(date).day,'foodlog-sample-day-'+date+'.json');toast('Sample day file downloaded.');});
+  $('sampleCatalog').addEventListener('click',()=>{downloadJSON(F.samples(F.shiftDate(today(),-1)).catalog,'foodlog-sample-catalog.json');toast('Sample catalog file downloaded.');});
   updates=WorkoutUpdates.create({workerUrl:'service-worker.js',isActive:()=>false,flush:()=>storage.save(false),onChange:state=>{if(updates)WorkoutUpdates.render($('updatesPanel'),updates,state);}});
   WorkoutUpdates.render($('updatesPanel'),updates);
   document.addEventListener('visibilitychange',()=>{if(document.hidden){storage.local.flush();return;}if(followToday&&viewDate!==today()){viewDate=today();if(view==='today')renderToday();}storage.remote.remoteStartupSync();});
