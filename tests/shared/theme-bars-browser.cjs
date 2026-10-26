@@ -5,7 +5,7 @@ const themes=['system','light','dark','contrast','lamplight','forest','blossom',
 (async()=>{
  const browser=await chromium.launch({headless:true,...process.env.BROWSER_PATH?{executablePath:process.env.BROWSER_PATH}:{}});
  try{
-  for(const app of ['liftlog','bike-cardio']){
+  for(const app of ['liftlog','bike-cardio','tabata','foodlog']){
    const html=fs.readFileSync(path.join(root,'dist',app,'index.html'),'utf8');
    const bootOnly=html.replace(/<script\b([^>]*)>[\s\S]*?<\/script>/g,(script,attributes)=>attributes.includes('id="theme-bootstrap"')?script:'');
    const csp=require('./site-headers.cjs').csp(app);
@@ -30,7 +30,7 @@ const themes=['system','light','dark','contrast','lamplight','forest','blossom',
    for(const os of ['light','dark']){
     await page.emulateMedia({colorScheme:os});
     for(const theme of themes){
-     await page.evaluate(({app,theme})=>localStorage.setItem(app==='liftlog'?'liftlog.v1':'bike-cardio.ui.theme',app==='liftlog'?JSON.stringify({version:14,settings:{theme},exercises:[],routines:[],workouts:[],activeWorkout:null}):theme),{app,theme});
+     await page.evaluate(({app,theme})=>localStorage.setItem(app==='liftlog'?'liftlog.v1':app+'.ui.theme',app==='liftlog'?JSON.stringify({version:14,settings:{theme},exercises:[],routines:[],workouts:[],activeWorkout:null}):theme),{app,theme});
      cold=true;await page.reload();await check(theme,os,'before app startup');
     }
    }

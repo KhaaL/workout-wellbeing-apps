@@ -431,13 +431,19 @@ sentence, the backup and pause actions, and earlier cloud backups. After setup,
 (provider check, diagnostics, last error) stay collapsed. **Move workout to
 another device** is collapsed unless a workout is active or held.
 
-Both apps apply saved appearance in the document head before the main app starts.
+Every app applies saved appearance in the document head before the main app starts.
 The page canvas and body use the same explicit theme background, and the body
 fills the viewport. Browser color hints and resolved light/dark schemes follow
 the appearance on startup and theme changes. Native Android system-bar rendering
 is controlled by the browser and must be checked on an installed app.
 
-Both apps use the same themes, common controls and navigation. Contrast,
+An installed app on Android also takes its system-bar colour from the manifest
+`theme_color` and `background_color`. A manifest cannot follow the phone's dark
+mode, so every app ships the same dark `#0d1824`; a white manifest colour shows a
+white navigation bar under a dark theme. Chrome applies a changed manifest to an
+installed app on a later launch; reinstalling applies it at once.
+
+Every app uses the same themes, common controls and navigation. Contrast,
 Lamplight, Forest, Blossom, Ink and Iron each have a light and a dark palette and follow
 the device setting, like System. Dracula, Gruvbox, Nord, Solarized and Monokai are
 dark only. Phones use labeled
