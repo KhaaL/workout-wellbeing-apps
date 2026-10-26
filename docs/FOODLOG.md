@@ -82,6 +82,7 @@ from the file, such as a sugar limit.
       "items": [
         {
           "item": "Example Dairy Cottage Cheese 1.5%",
+          "food_id": "example-cottage-cheese",
           "time": "08:00",
           "amount_g": 30,
           "source": "Foodlog catalog (file revision 3), label values",
@@ -101,10 +102,54 @@ from the file, such as a sugar limit.
 Amounts use `amount_g` or `amount_ml`, or `amount` ("1.5 portions") for
 per-portion foods. Items with estimated values carry `"estimate": true`.
 Unknown values are `null`, and `unknown_items` counts them per nutrient.
+`food_id` names the catalog food; `time` is left out for an item without one.
+
+## Day import
+
+**Import day file…** on Today reads the day export shape, whether Foodlog or
+another tool wrote it. **Day file format & sample** shows the fields and a
+sample day; the sample is made by the export code, so it always imports.
+
+| Field | Use |
+|---|---|
+| `date` | Required, `YYYY-MM-DD`. The items land on this day. |
+| `notes`, `activity` | Optional. Kept up to 2,000 and 500 characters; activity may be a list of lines. |
+| `meals[].meal` | Required name, at most 40 characters. A name matching the meal list (ignoring case) uses the list's spelling. The day keeps the file's meal order. |
+| `meals[].time`, `items[].time` | Optional `HH:MM`. Without one, an item has no time and keeps the file's order. |
+| `items[].item` | Required name, at most 120 characters. |
+| `items[].food_id` | Optional catalog id. |
+| `items[].amount_g`, `amount_ml`, `amount` | Required: grams, millilitres, or a count such as `"1 portion"`. Grams and millilitres count as equal. |
+| `items[].nutrition` | Values eaten for this amount, with the nutrition keys above. `null` or missing means unknown. |
+| `items[].portion`, `items[].assumption` | Optional portion label and entry note. |
+| `items[].source` | Optional. For a new food, "menu" or "restaurant" marks menu values; "typical" or "estimate" marks estimates. |
+| `day_total_eaten` | Optional. The preview compares its energy and protein with the items. |
+| `targets`, `subtotal`, `day_summary`, `timing` | Not imported. |
+
+Each item links to a catalog food, in this order:
+
+1. `food_id`, when that food exists and its unit fits (grams and millilitres
+   are interchangeable; portions are not).
+2. Exact name: the food's name, or brand and name, ignoring case and accents.
+3. Values: energy, protein and at least two more nutrients match the food's
+   values for that amount within 2% (0.05 g or 1 kcal for small values). When
+   several foods match, the one sharing most words with the item name wins;
+   a tie links none.
+4. Otherwise a new food is added from the item's values, per 100 g, per 100 ml
+   or per portion, with its source taken from the item's `source` text. A
+   repeated item in the same file reuses that new food.
+
+A linked item keeps the catalog's values when the file agrees, and the file
+fills values the catalog lacks (such as a missing fibre value). When the file
+disagrees, the day keeps the file's values, and the preview says so. The
+preview lists every item, skipped items with their reason, and ignored fields.
+A day that already has items offers **Add to the day** or **Replace the day**;
+the toast's Undo reverses the import while nothing else has changed.
 
 ## Storage
 
 Foodlog saves through the shared storage engine under `foodlog.v1` (data key
 `foodlog.state.v1`). Backups and cloud copies hold foods, frozen versions,
 entries, day notes and settings. Limits: 5,000 foods, 20,000 logged items,
-20,000 frozen versions and 20,000 days with notes.
+20,000 frozen versions and 20,000 days with notes. A day file holds at most 20
+meals and 300 items. Data version 2 allows entries without a time and a meal
+order per day; version 1 data loads unchanged.

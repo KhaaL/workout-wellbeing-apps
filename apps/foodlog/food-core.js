@@ -18,7 +18,7 @@ const FoodCore = (() => {
   const SOURCES = {label:'Label',typical:'Typical values',menu:'Menu'};
   const BASES = {g:'100 g',ml:'100 ml',portion:'portion'};
   const UNITS = {g:'g',ml:'ml',portion:'portion'};
-  const LIMITS = {foods:5000,entries:20000,versions:20000,days:20000,portions:12,micros:20,meals:12,targets:12,details:16384};
+  const LIMITS = {foods:5000,entries:20000,versions:20000,days:20000,portions:12,micros:20,meals:12,targets:12,details:16384,dayMeals:20,dayItems:300};
   const DEFAULT_MEALS = ['Breakfast','Lunch','Dinner','Snack'];
   const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/, MICRO = /^[a-z][a-z0-9_]{0,40}_(g|mg|ug)$/, DATE = /^\d{4}-\d{2}-\d{2}$/, TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
   const MODELLED = ['id','name','brand','nutrition_per_100g','nutrition_per_100ml','nutrition_per_portion','micronutrients_per_100g','micronutrients_per_100ml','micronutrients_per_portion','foodlog'];
@@ -111,9 +111,11 @@ const FoodCore = (() => {
   function entry(raw, versions){
     if (!isObject(raw) || typeof raw.id !== 'string' || !raw.id || raw.id.length > 100) fail('Invalid log entry.');
     if (!validDate(raw.date)) fail('Invalid entry date.');
-    if (typeof raw.time !== 'string' || !TIME.test(raw.time)) fail('Invalid entry time.');
+    // A time is optional: an imported day file may give none.
+    const time = raw.time ?? '';
+    if (time !== '' && (typeof time !== 'string' || !TIME.test(time))) fail('Invalid entry time.');
     if (!Object.hasOwn(versions, raw.version)) fail('A log entry refers to a missing food version.');
-    const out = {id:raw.id, date:raw.date, time:raw.time, meal:text(raw.meal, 40, 'Meal', true), version:raw.version, amount:number(raw.amount, 'Amount', 0.01, 100000)};
+    const out = {id:raw.id, date:raw.date, ...(time ? {time} : {}), meal:text(raw.meal, 40, 'Meal', true), version:raw.version, amount:number(raw.amount, 'Amount', 0.01, 100000)};
     const portion = text(raw.portion, 40, 'Portion'), note = text(raw.note, 300, 'Entry note');
     if (portion) out.portion = portion; if (note) out.note = note;
     return out;
@@ -148,7 +150,11 @@ const FoodCore = (() => {
     for (const [date, day] of Object.entries(raw)){
       if (!validDate(date) || !isObject(day)) fail('Invalid day notes.');
       const notes = text(day.notes, 2000, 'Day notes'), activity = text(day.activity, 500, 'Activity');
-      if (notes || activity) out[date] = {...(notes ? {notes} : {}), ...(activity ? {activity} : {})};
+      // An imported day keeps the meal order of its file.
+      if (day.meals != null && (!Array.isArray(day.meals) || day.meals.length > LIMITS.dayMeals)) fail('Invalid meal order for ' + date + '.');
+      const meals = (day.meals || []).map(m=>text(m, 40, 'Meal', true));
+      if (new Set(meals.map(m=>m.toLowerCase())).size !== meals.length) fail('Invalid meal order for ' + date + '.');
+      if (notes || activity || meals.length) out[date] = {...(notes ? {notes} : {}), ...(activity ? {activity} : {}), ...(meals.length ? {meals} : {})};
     }
     return out;
   }
@@ -214,14 +220,17 @@ const FoodCore = (() => {
     return localDate(d);
   }
   function shiftDate(date, days){ const d = new Date(date + 'T12:00:00'); d.setDate(d.getDate() + days); return localDate(d); }
-  function mealOrder(meals, entries){
-    const extra = [...new Set(entries.map(e=>e.meal))].filter(m=>!meals.includes(m));
-    return [...meals, ...extra];
+  // The day's own order (from an imported file) first, then the meal list, then any other meal.
+  function mealOrder(meals, entries, first = []){
+    const order = [...first, ...meals.filter(m=>!first.includes(m))];
+    const extra = [...new Set(entries.map(e=>e.meal))].filter(m=>!order.includes(m));
+    return [...order, ...extra];
   }
   function day(s, date){
-    const entries = s.entries.filter(e=>e.date === date).sort((a, b)=>a.time.localeCompare(b.time));
+    // Untimed entries keep their logged order, ahead of timed ones.
+    const entries = s.entries.filter(e=>e.date === date).sort((a, b)=>(a.time || '').localeCompare(b.time || ''));
     const items = entries.map(e=>({entry:e, v:s.versions[e.version], amount:e.amount}));
-    const meals = mealOrder(s.settings.meals, entries).map(meal=>{const list = items.filter(i=>i.entry.meal === meal); return {meal, items:list, total:total(list)};});
+    const meals = mealOrder(s.settings.meals, entries, s.days[date]?.meals).map(meal=>{const list = items.filter(i=>i.entry.meal === meal); return {meal, items:list, total:total(list)};});
     const sum = total(items);
     return {date, meals, total:sum, targets:s.settings.targets.map(t=>evaluate(t, sum.sums, sum.unknown)), notes:s.days[date] || {}};
   }
@@ -236,8 +245,9 @@ const FoodCore = (() => {
     const words = fold(query).split(/\s+/).filter(Boolean), use = new Map();
     for (const e of s.entries){
       const id = foodIdOf(e.version), u = use.get(id) || {count:0, last:'', meal:''};
-      u.count++; if (e.date + e.time > u.last) u.last = e.date + e.time;
-      if (e.meal === meal && e.date + e.time > u.meal) u.meal = e.date + e.time;
+      const at = e.date + (e.time || '');
+      u.count++; if (at > u.last) u.last = at;
+      if (e.meal === meal && at > u.meal) u.meal = at;
       use.set(id, u);
     }
     return s.foods.filter(f=>(archived || !f.archived) && words.every(w=>fold(f.name + ' ' + f.brand).includes(w)))
@@ -357,7 +367,8 @@ const FoodCore = (() => {
     return {
       date, notes:d.notes.notes || '', activity:(d.notes.activity || '').split('\n').map(line=>line.trim()).filter(Boolean), targets,
       meals:d.meals.filter(m=>m.items.length).map(m=>({meal:m.meal, items:m.items.map(({entry:e, v, amount})=>{
-        const n = scaled(v, amount).nutrients, item = {item:v.brand ? v.brand + ' ' + v.name : v.name, time:e.time};
+        const n = scaled(v, amount).nutrients, item = {item:v.brand ? v.brand + ' ' + v.name : v.name, food_id:foodIdOf(e.version)};
+        if (e.time) item.time = e.time;
         if (v.basis === 'portion') item.amount = amount + (amount === 1 ? ' portion' : ' portions'); else item['amount_' + v.basis] = two(amount);
         if (e.portion) item.portion = e.portion;
         item.source = sourceText(v, s); if (v.estimate) item.estimate = true;
@@ -371,8 +382,152 @@ const FoodCore = (() => {
     };
   }
 
+  /* Day file import: the food-log shape above, from Foodlog or written
+     elsewhere. Every item becomes an entry pointing to a catalog food: by
+     food_id, else by exact name, else by matching values (the item's nutrients
+     equal a food's values for that amount within 2%), else a new food made
+     from the item's values. Nothing changes until applyDayImport. */
+  const UNIT = Object.fromEntries(NUTRIENTS.map(n=>[n.key, n.unit]));
+  const near = (a, b, key) => Math.abs(a - b) <= Math.max(0.02 * Math.max(Math.abs(a), Math.abs(b)), UNIT[key] === 'g' ? 0.05 : 1);
+  // Grams and millilitres are interchangeable (1 g = 1 ml), as day files often assume.
+  const compatible = (foodBasis, basis) => foodBasis === basis || (foodBasis !== 'portion' && basis !== 'portion');
+  function itemAmount(item){
+    for (const basis of ['g','ml']) if (item['amount_' + basis] != null) return {basis, amount:number(item['amount_' + basis], 'amount_' + basis, 0.01, 100000)};
+    if (typeof item.amount === 'number') return {basis:'portion', amount:number(item.amount, 'amount', 0.01, 100000)};
+    const m = typeof item.amount === 'string' && item.amount.trim().match(/^(\d+(?:[.,]\d+)?)\s*(g|ml|portions?)?$/i);
+    if (!m) fail('needs amount_g, amount_ml or an amount such as "1 portion"');
+    const unit = (m[2] || 'portion').toLowerCase();
+    return {basis:unit === 'g' || unit === 'ml' ? unit : 'portion', amount:number(Number(m[1].replace(',', '.')), 'amount', 0.01, 100000)};
+  }
+  function eatenValues(item){
+    if (item.nutrition == null) return null;
+    if (!isObject(item.nutrition)) fail('nutrition must be an object');
+    return Object.fromEntries(KEYS.map(key=>[key, item.nutrition[key] == null ? null : number(item.nutrition[key], key, 0, 100000)]));
+  }
+  // How many values both sides know, or -1 when one of them disagrees.
+  function compare(f, eaten, amount){
+    const expected = scaled({basis:f.basis, nutrients:f.nutrients}, amount).nutrients;
+    let known = 0;
+    for (const key of KEYS){
+      if (expected[key] == null || eaten[key] == null) continue;
+      if (!near(expected[key], eaten[key], key)) return -1;
+      known++;
+    }
+    return known;
+  }
+  const valueMatch = (f, eaten, amount) => f.nutrients.energy_kcal != null && eaten.energy_kcal != null && f.nutrients.protein_g != null && eaten.protein_g != null && compare(f, eaten, amount) >= 4;
+  const perBasis = (eaten, basis, amount) => Object.fromEntries(KEYS.map(key=>[key, eaten[key] == null ? null : Math.round(eaten[key] / factor(basis, amount) * 1e4) / 1e4]));
+  const words = value => new Set(fold(value).split(/[^a-z0-9]+/).filter(Boolean));
+  function planDayImport(raw, s, newId){
+    if (!isObject(raw) || !Array.isArray(raw.meals)) fail('Not a day file: it needs a date and a meals list.');
+    if (!validDate(raw.date)) fail('The day file needs a date written as YYYY-MM-DD.');
+    if (raw.meals.length > LIMITS.dayMeals) fail('A day file holds at most ' + LIMITS.dayMeals + ' meals.');
+    if (raw.meals.reduce((n, m)=>n + (Array.isArray(m?.items) ? m.items.length : 0), 0) > LIMITS.dayItems) fail('A day file holds at most ' + LIMITS.dayItems + ' items.');
+    const date = raw.date, known = new Map(s.settings.meals.map(m=>[m.toLowerCase(), m])), created = [], meals = [], skipped = [];
+    function plan(item, mealTime){
+      if (!isObject(item)) fail('not an object');
+      const name = text(item.item, 120, 'Item name', true), {basis, amount} = itemAmount(item), eaten = eatenValues(item);
+      const source = typeof item.source === 'string' ? item.source.trim().slice(0, 200) : '';
+      const extra = {time:typeof item.time === 'string' && TIME.test(item.time) ? item.time : mealTime, amount,
+        note:typeof item.assumption === 'string' ? item.assumption.trim().slice(0, 300) : '', portion:typeof item.portion === 'string' ? item.portion.trim().slice(0, 40) : ''};
+      let match = null, how = '';
+      if (typeof item.food_id === 'string'){ const f = s.foods.find(x=>x.id === item.food_id); if (f && compatible(f.basis, basis)){ match = f; how = 'id'; } }
+      if (!match){
+        const target = fold(name), named = s.foods.filter(f=>compatible(f.basis, basis) && (fold(f.name) === target || fold((f.brand ? f.brand + ' ' : '') + f.name) === target));
+        if (named.length === 1){ match = named[0]; how = 'name'; }
+      }
+      if (!match && eaten){
+        const found = s.foods.filter(f=>compatible(f.basis, basis) && valueMatch(f, eaten, amount));
+        // Several foods with the same values: the one sharing most words with the item name, if it is the only one.
+        const theirs = words(name), score = f => [...words((f.brand ? f.brand + ' ' : '') + f.name)].filter(w=>theirs.has(w)).length;
+        const best = Math.max(0, ...found.map(score)), top = found.filter(f=>score(f) === best);
+        if (top.length === 1){ match = top[0]; how = 'values'; }
+      }
+      if (match){
+        // The day keeps the values it was eaten with: the catalog's when they agree (the file
+        // filling values the catalog lacks), else the file's own.
+        const differs = !!eaten && compare(match, eaten, amount) < 0, fromFile = eaten ? perBasis(eaten, match.basis, amount) : {};
+        const filled = differs || !eaten ? [] : KEYS.filter(key=>match.nutrients[key] == null && eaten[key] != null);
+        const nutrients = differs ? fromFile : {...match.nutrients, ...Object.fromEntries(filled.map(key=>[key, fromFile[key]]))};
+        return {name, food:match, how, differs, filled, version:versionOf({...match, nutrients}), ...extra};
+      }
+      if (!eaten) fail('has no nutrition values and matches no catalog food');
+      const again = created.find(f=>f.basis === basis && fold(f.name) === fold(name) && compare(f, eaten, amount) >= 0);
+      if (again) return {name, food:again, how:'again', differs:false, filled:[], version:versionOf(again), ...extra};
+      const kind = /menu|restaurant/i.test(source) ? 'menu' : /estimate|typical/i.test(source) ? 'typical' : 'label';
+      const added = food({id:newId(name), name, brand:'', kind:basis === 'portion' ? 'dish' : 'generic', basis, nutrients:perBasis(eaten, basis, amount),
+        source:kind, estimate:kind === 'typical' || /estimate/i.test(source), note:('Added from the day file for ' + date + (source ? ': ' + source : '')).slice(0, 500)});
+      created.push(added);
+      return {name, food:added, how:'new', differs:false, filled:[], version:versionOf(added), ...extra};
+    }
+    for (const m of raw.meals){
+      let meal;
+      try { if (!isObject(m)) fail('x'); meal = text(m.meal, 40, 'Meal', true); }
+      catch { skipped.push({meal:'', item:'', reason:'a meal needs a name of at most 40 characters'}); continue; }
+      meal = known.get(meal.toLowerCase()) || meal;
+      let block = meals.find(b=>b.meal.toLowerCase() === meal.toLowerCase());
+      if (!block){ block = {meal, items:[]}; meals.push(block); }
+      const mealTime = typeof m.time === 'string' && TIME.test(m.time) ? m.time : '';
+      for (const item of Array.isArray(m.items) ? m.items : []){
+        try { block.items.push(plan(item, mealTime)); }
+        catch (error) { skipped.push({meal, item:String(item?.item ?? '').slice(0, 80), reason:error.message}); }
+      }
+    }
+    const items = meals.flatMap(b=>b.items), sum = total(items.map(i=>({v:i.version.value, amount:i.amount})));
+    const fileTotal = isObject(raw.day_total_eaten) ? raw.day_total_eaten : null;
+    const check = ['energy_kcal','protein_g'].map(key=>({key, items:sum.sums[key], file:typeof fileTotal?.[key] === 'number' ? fileTotal[key] : null}));
+    const activity = Array.isArray(raw.activity) ? raw.activity.filter(a=>typeof a === 'string').join('\n') : typeof raw.activity === 'string' ? raw.activity : '';
+    const notes = typeof raw.notes === 'string' ? raw.notes.trim() : '';
+    return {date, meals:meals.filter(b=>b.items.length), newFoods:created, skipped, check, items:items.length,
+      notes:notes.slice(0, 2000), activity:activity.trim().slice(0, 500), shortened:notes.length > 2000 || activity.trim().length > 500,
+      ignored:['targets','day_summary'].filter(key=>raw[key] != null).concat(raw.meals.some(m=>isObject(m) && m.timing != null) ? ['timing'] : []),
+      existing:s.entries.filter(e=>e.date === date).length};
+  }
+  // Applies a plan in one step: 'replace' clears the day first, 'add' keeps it.
+  function applyDayImport(s, p, mode, newId){
+    const next = {foods:[...s.foods], versions:{...s.versions}, entries:mode === 'replace' ? s.entries.filter(e=>e.date !== p.date) : [...s.entries], days:{...s.days}};
+    for (const f of p.newFoods) if (!next.foods.some(x=>x.id === f.id)) next.foods.push(f);
+    if (next.foods.length > LIMITS.foods) fail('The catalog holds at most ' + LIMITS.foods + ' foods.');
+    for (const block of p.meals) for (const it of block.items){
+      next.versions[it.version.key] ||= it.version.value;
+      next.entries.push(entry({id:newId(), date:p.date, time:it.time, meal:block.meal, version:it.version.key, amount:it.amount, portion:it.portion, note:it.note}, next.versions));
+    }
+    if (next.entries.length > LIMITS.entries) fail('The log holds at most ' + LIMITS.entries + ' items.');
+    const before = mode === 'replace' ? {} : next.days[p.date] || {}, order = [...(before.meals || [])];
+    for (const block of p.meals) if (!order.some(m=>m.toLowerCase() === block.meal.toLowerCase())) order.push(block.meal);
+    const notes = before.notes || p.notes, activity = before.activity || p.activity;
+    next.days[p.date] = {...(notes ? {notes} : {}), ...(activity ? {activity} : {}), ...(order.length ? {meals:order.slice(0, LIMITS.dayMeals)} : {})};
+    Object.assign(s, next);
+    return prune(s);
+  }
+
+  /* Sample files for the format help, built with the same functions as real
+     exports, so they always import. Values are made up. */
+  function samples(date){
+    const s = {settings:settings({targets:[{key:'protein_g',kind:'min',value:100},{key:'fibre_g',kind:'min',value:30},{key:'saturated_fat_g',kind:'max',value:25},{key:'salt_g',kind:'max',value:6}]}),
+      foods:[], versions:{}, entries:[], days:{}};
+    s.settings.catalog = {schemaVersion:'1.0', revision:1, updated:date, notes:'Sample catalog with made-up values.', importedAt:null, extra:{}};
+    const add = raw => { const f = food({brand:'', micros:{}, portions:[], estimate:false, ...raw}); s.foods.push(f); return f; };
+    const cheese = add({id:'sample-cottage-cheese', name:'Cottage Cheese 1.5%', brand:'Example Dairy', kind:'product', basis:'g', source:'label',
+      nutrients:{energy_kcal:76, energy_kj:320, protein_g:14, carbohydrate_g:2, sugars_g:2, fibre_g:null, fat_g:1.5, saturated_fat_g:1, salt_g:0.8}});
+    const bread = add({id:'sample-crispbread', name:'Wholegrain Crispbread', brand:'Example Bakery', kind:'product', basis:'g', source:'label', portions:[{label:'1 piece', amount:12}],
+      nutrients:{energy_kcal:370, energy_kj:1550, protein_g:12, carbohydrate_g:60, sugars_g:2, fibre_g:12, fat_g:6, saturated_fat_g:0.8, salt_g:1}});
+    const drink = add({id:'sample-oat-drink', name:'Oat Drink', brand:'Example Mills', kind:'product', basis:'ml', source:'label', portions:[{label:'1 glass', amount:200}], micros:{vitamin_d_ug:1.1},
+      nutrients:{energy_kcal:48, energy_kj:200, protein_g:1, carbohydrate_g:7, sugars_g:3.4, fibre_g:0.8, fat_g:1.5, saturated_fat_g:0.2, salt_g:0.1}});
+    const egg = add({id:'sample-boiled-egg', name:'Boiled egg', kind:'generic', basis:'g', source:'typical', estimate:true, portions:[{label:'1 egg', amount:50}],
+      nutrients:{energy_kcal:143, protein_g:12.6, carbohydrate_g:0.7, sugars_g:0.4, fibre_g:0, fat_g:9.5, saturated_fat_g:3.1, salt_g:0.3}});
+    const bowl = add({id:'sample-rice-bowl', name:'Teriyaki rice bowl', kind:'dish', basis:'portion', source:'menu',
+      nutrients:{energy_kcal:700, protein_g:30, carbohydrate_g:105, sugars_g:30, fibre_g:null, fat_g:16, saturated_fat_g:4, salt_g:5}});
+    let n = 0;
+    const eat = (f, meal, amount, extra = {}) => log(s, f, {date, meal, amount, ...extra}, 'sample-' + (++n));
+    eat(cheese, 'Breakfast', 100, {time:'07:30'});eat(bread, 'Breakfast', 24, {time:'07:30'});eat(egg, 'Breakfast', 50, {time:'07:30', portion:'1 egg', note:'medium egg assumed'});
+    eat(bowl, 'Lunch', 1, {time:'12:15', note:'fibre not on the menu'});eat(drink, 'Snack', 200, {time:'15:00', portion:'1 glass'});
+    s.days[date] = {notes:'Sample day with made-up values.', activity:'30 min walk'};
+    return {catalog:exportCatalog(s, Date.parse(date + 'T12:00:00Z')), day:exportDay(s, date)};
+  }
+
   return {NUTRIENTS, KEYS, TARGET_KEYS, KINDS, SOURCES, BASES, UNITS, LIMITS, DEFAULT_MEALS,
     food, settings, state, versionOf, scaled, total, evaluate, round, format, microUnit, microLabel,
     dayFor, shiftDate, localDate, localTime, day, loggedDays, fold, search, usage, prune, log, updateEntry, foodIdOf,
-    importCatalog, exportCatalog, exportDay, hash};
+    importCatalog, exportCatalog, exportDay, planDayImport, applyDayImport, samples, hash};
 })();

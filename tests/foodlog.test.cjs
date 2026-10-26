@@ -143,8 +143,79 @@ test('validation rejects hostile or malformed foods, entries and settings',()=>{
 test('the storage adapter accepts its own version, refuses newer data and enforces limits',()=>{
   const s=imported();log(s,'example-crispbread',20);
   const raw={app:'foodlog',version:1,updatedAt:5,...plain(s)};
-  assert.equal(Store.prepare(raw).entries.length,1);
-  assert.throws(()=>Store.prepare({...raw,version:2}),/newer Foodlog version/);
+  assert.equal(Store.prepare(raw).entries.length,1);assert.equal(Store.prepare(raw).version,2,'version 1 data loads as version 2');
+  const untimed={...raw,version:2,entries:[{...raw.entries[0],time:undefined}],days:{'2026-01-20':{meals:['Snack','Breakfast']}}};
+  assert.equal(Store.prepare(untimed).entries[0].time,undefined,'version 2 allows entries without a time');
+  assert.deepEqual(plain(Store.prepare(untimed).days['2026-01-20'].meals),['Snack','Breakfast']);
+  assert.throws(()=>Store.prepare({...raw,version:3}),/newer Foodlog version/);
   for(const bad of [{...raw,app:'tabata'},{...raw,version:0},{...raw,updatedAt:-1}])assert.throws(()=>Store.prepare(bad),/Not a valid Foodlog backup/);
   assert.throws(()=>Store.prepare({...raw,entries:Array.from({length:F.LIMITS.entries+1},(_,i)=>({...raw.entries[0],id:'x'+i}))}),/entries count limit/);
+});
+
+// A day file shaped like a typical review log: staple items without ids, typical-value items, a menu dish,
+// an amount in grams for a 100 ml food, a repeated item, assistant fields to ignore and one bad item.
+function reviewDay(){
+  const item=(name,amount,n,extra={})=>({item:name,...amount,source:extra.source||'catalog rev 3',nutrition:n,...extra.more});
+  const per=(base,factor)=>Object.fromEntries(Object.entries(base).map(([k,v])=>[k,v==null?null:Math.round(v*factor*100)/100]));
+  const cheese={energy_kcal:76,protein_g:14,carbohydrate_g:2,sugars_g:2,fibre_g:null,fat_g:1.5,saturated_fat_g:1,salt_g:0.8};
+  const peanut={energy_kcal:625,protein_g:26,carbohydrate_g:13,sugars_g:5,fibre_g:null,fat_g:50,saturated_fat_g:6.5,salt_g:0.7};
+  const oat={energy_kcal:48,protein_g:1,carbohydrate_g:7,sugars_g:3.4,fibre_g:0.8,fat_g:1.5,saturated_fat_g:0.2,salt_g:0.1};
+  const honey={energy_kcal:30.4,protein_g:0.03,carbohydrate_g:8.2,sugars_g:8.2,fibre_g:0,fat_g:0,saturated_fat_g:0,salt_g:0};
+  return {date:'2026-01-21',notes:'Rough day.',activity:['Gym','Walk'],targets:{protein_g:'100 (anchor)',salt_g_max:6},
+    meals:[
+      {meal:'breakfast',timing:'before training',items:[
+        item('Example Dairy Cottage Cheese, 30 g',{amount_g:30},per(cheese,0.3)),
+        item('Peanut butter',{amount_g:15},{...per(peanut,0.15),fibre_g:1.2}),
+        item('Honey',{amount_g:10},honey,{source:'typical values, estimate',more:{assumption:'about 10 g'}})]},
+      {meal:'Post-workout',items:[item('Oat drink',{amount_g:125},per(oat,1.25)),{item:'Broken',amount_g:-5,nutrition:{}}]},
+      {meal:'Lunch',items:[item('Teriyaki bowl',{amount:'1 portion'},{energy_kcal:726,protein_g:31.3,carbohydrate_g:112,sugars_g:42,fibre_g:4,fat_g:18.6,saturated_fat_g:4.2,salt_g:6.2},{source:'restaurant menu values'})]},
+      {meal:'Bedtime',items:[item('Honey',{amount_g:7},per({energy_kcal:304,protein_g:0.3,carbohydrate_g:82,sugars_g:82,fibre_g:0,fat_g:0,saturated_fat_g:0,salt_g:0},0.07),{source:'typical values, estimate'})]}],
+    day_total_eaten:{energy_kcal:1000,protein_g:50},day_summary:{salt:'over'}};
+}
+let ids=0;const nextId=name=>F.fold(name).replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')+'-'+(++ids);
+
+test('a review-style day file links staples by values, adds other foods once and keeps the meal order',()=>{
+  const s=imported(),p=F.planDayImport(reviewDay(),s,nextId),how=p.meals.map(m=>[m.meal,m.items.map(i=>i.how)]);
+  assert.deepEqual(plain(how),[['Breakfast',['values','values','new']],['Post-workout',['values']],['Lunch',['new']],['Bedtime',['again']]]);
+  assert.equal(p.meals[0].items[0].food.id,'example-cottage-cheese');assert.equal(p.meals[1].items[0].food.id,'example-oat-drink','grams count as millilitres');
+  assert.deepEqual(plain(p.meals[0].items[1].filled),['fibre_g'],'the file fills the fibre the catalog lacks');
+  assert.equal(p.newFoods.length,2);const [honey,bowl]=p.newFoods;
+  assert.deepEqual([honey.basis,honey.source,honey.estimate,honey.nutrients.energy_kcal],['g','typical',true,304]);
+  assert.deepEqual([bowl.basis,bowl.kind,bowl.source,bowl.estimate,bowl.nutrients.salt_g],['portion','dish','menu',false,6.2]);
+  assert.deepEqual(plain(p.skipped.map(x=>x.item)),['Broken']);assert.deepEqual(plain(p.ignored),['targets','day_summary','timing']);
+  assert.equal(p.meals[0].meal,'Breakfast','a meal name matching the list uses its spelling');
+  F.applyDayImport(s,p,'replace',()=>'e'+(++ids));
+  const d=F.day(s,'2026-01-21');
+  assert.deepEqual(plain(d.meals.map(m=>m.meal)),['Breakfast','Post-workout','Lunch','Bedtime','Dinner','Snack']);
+  assert.equal(d.total.count,6);assert.equal(d.total.unknown.fibre_g,1,'only the cottage cheese lacks fibre now');
+  assert.equal(s.entries.find(e=>e.note==='about 10 g').time,undefined,'no time is invented');
+  assert.equal(s.days['2026-01-21'].notes,'Rough day.');assert.equal(s.days['2026-01-21'].activity,'Gym\nWalk');
+  assert.ok(F.state(plain(s)),'the result stays valid');
+});
+
+test('day imports link by food_id and name, keep differing file values, and add to or replace a day',()=>{
+  const s=imported();log(s,'example-crispbread',20,{date:'2026-01-21'});
+  const raw={date:'2026-01-21',meals:[{meal:'Snack',time:'15:00',items:[
+    {item:'Anything',food_id:'example-oat-drink',amount_ml:200,nutrition:{energy_kcal:96,protein_g:2}},
+    {item:'Example Pantry Peanut Butter Crunchy',amount_g:20,nutrition:{energy_kcal:200,protein_g:9}},
+    {item:'Mystery',amount_g:10}]}]};
+  const p=F.planDayImport(raw,s,nextId),[byId,byName]=p.meals[0].items;
+  assert.deepEqual([byId.how,byId.differs,byName.how,byName.differs],['id',false,'name',true]);
+  assert.equal(byName.version.value.nutrients.energy_kcal,1000,'the day keeps the file’s values per 100 g');
+  assert.match(p.skipped[0].reason,/no nutrition values/);assert.equal(p.existing,1);
+  const copy=plain(s);F.applyDayImport(copy,p,'add',()=>'a'+(++ids));assert.equal(copy.entries.filter(e=>e.date==='2026-01-21').length,3);
+  F.applyDayImport(s,p,'replace',()=>'r'+(++ids));assert.equal(s.entries.filter(e=>e.date==='2026-01-21').length,2);
+  assert.ok(s.entries.every(e=>e.date!=='2026-01-21'||e.time==='15:00'),'a meal time applies to its items');
+  assert.equal(by(s,'example-pantry-peanut-butter'),undefined);
+  for(const bad of [{},{date:'2026-02-30',meals:[]},{date:'2026-01-21'},{date:'2026-01-21',meals:Array.from({length:21},()=>({meal:'m',items:[]}))}])assert.throws(()=>F.planDayImport(bad,s,nextId));
+});
+
+test('the sample files import: the day links to the sample catalog and round-trips its totals',()=>{
+  const files=F.samples('2026-01-19'),s=empty(),r=F.importCatalog(files.catalog,s);s.foods=r.foods;
+  assert.equal(r.report.added.length,5);assert.deepEqual(plain(r.report.skipped),[]);
+  const p=F.planDayImport(files.day,s,nextId);
+  assert.deepEqual(plain(p.meals.flatMap(m=>m.items.map(i=>i.how))),['id','id','id','id','id']);assert.equal(p.newFoods.length,0);
+  F.applyDayImport(s,p,'replace',()=>'s'+(++ids));
+  assert.equal(JSON.stringify(F.exportDay(s,'2026-01-19').day_total_eaten),JSON.stringify(files.day.day_total_eaten),'export → import → export keeps the totals');
+  const fresh=empty(),q=F.planDayImport(files.day,fresh,nextId);assert.equal(q.newFoods.length,5,'without the catalog, each item becomes a food');
 });

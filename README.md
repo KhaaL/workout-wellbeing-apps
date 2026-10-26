@@ -42,11 +42,22 @@ never counted as 0, and totals say how many items lacked it.
 - **History and export:** History lists logged days with their totals. **Export
   day as JSON** writes a food-log file with meals, items, nutrition, subtotals
   and day totals.
+- **Day import:** **Import day file…** reads the same shape, from Foodlog or
+  written elsewhere. Each item links to a catalog food by `food_id`, by exact
+  name, or by values that match a food within 2% for that amount; anything
+  else becomes a new food from the item's values. A preview lists every item's
+  outcome and compares the items with the file's day total before anything
+  changes. A day that already has items can be added to or replaced, and Undo
+  reverses the import. **Day file format & sample** (and **Catalog format &
+  sample** in Foods) describes both files and downloads samples built by the
+  same export code, so they always import.
 
 Foodlog uses the shared local saving, recovery, backup files, cloud backups and
 updates, with its own `foodlog.v1` namespace and `foodlog-backup.json` default
 object. Capacity is 5,000 foods and 20,000 logged items (about five years at ten
-items a day).
+items a day). Foodlog data is version 2: entries may have no time and a day may
+keep its own meal order, both from imported files. Version 1 data loads
+unchanged, and older releases refuse version 2 data.
 
 ## Tabata timer
 
