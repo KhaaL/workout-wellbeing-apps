@@ -2,8 +2,9 @@
 (() => {
   'use strict';
   const F=FoodCore,$=id=>document.getElementById(id);
-  const info=Object.fromEntries(F.NUTRIENTS.map(n=>[n.key,n]));
-  const fmt=(key,value)=>F.format(value,info[key].unit);
+  // Label and unit for nutrients, free sugars and micronutrients alike.
+  const info=key=>F.describe(key);
+  const fmt=(key,value)=>F.format(value,info(key).unit);
   const named=f=>f.brand?f.brand+' '+f.name:f.name;
   const plural=(n,word)=>n+' '+word+(n===1?'':'s');
   const el=(tag,props={},...children)=>{const node=Object.assign(document.createElement(tag),props);node.append(...children.filter(c=>c!=null&&c!==false));return node;};
@@ -63,7 +64,7 @@
     box.append(el('div',{className:'energy'},el('strong',{textContent:fmt('energy_kcal',t.sums.energy_kcal)}),el('span',{className:'hint',textContent:facts.join(' · ')})));
     if(!d.targets.length)box.append(el('p',{className:'hint',textContent:'No daily targets yet. Set them in Settings, or import a catalog file with budgets.'}));
     for(const target of d.targets){
-      const n=info[target.key],row=el('div',{className:'target'}),fill=el('span');
+      const n=info(target.key),row=el('div',{className:'target'}),fill=el('span');
       row.dataset.status=target.status;fill.style.width=Math.min(100,Math.round(target.share*100))+'%';
       row.append(el('span',{textContent:n.label+(target.kind==='min'?' · at least':' · at most')}),
         el('span',{className:'value',textContent:F.round(target.current,n.unit)+' / '+fmt(target.key,target.value)}),
@@ -71,17 +72,29 @@
       row.setAttribute('aria-label',n.label+': '+fmt(target.key,target.current)+' of '+(target.kind==='min'?'at least ':'at most ')+fmt(target.key,target.value)+'. '+targetState(target)+'.');
       box.append(row);
     }
+    // Foods with sugars that are not yet marked free or not free, on this day.
+    const unmarked=[...new Map(d.meals.flatMap(m=>m.items).filter(i=>!i.free&&(F.scaled(i.v,i.amount).nutrients.sugars_g??1)>0)
+      .map(i=>S().foods.find(f=>f.id===F.foodIdOf(i.entry.version))).filter(Boolean).map(f=>[f.id,f])).values()];
+    const sugarButton=()=>{const b=el('button',{type:'button',className:'link-btn',textContent:'Mark which sugars are free ('+plural(unmarked.length,'food')+')…'});b.addEventListener('click',()=>openSugars(unmarked));return b;};
+    if(unmarked.length&&d.targets.some(x=>x.key===F.FREE))box.append(el('p',{},sugarButton()));
     const table=el('table',{className:'nutrients'}),body=el('tbody');
-    for(const n of F.NUTRIENTS){
-      if(n.key==='energy_kj')continue;
-      const missing=t.unknown[n.key];
-      body.append(el('tr',{},el('th',{scope:'row',textContent:n.key==='sugars_g'?'Sugars (total, incl. fruit and dairy)':n.label}),
-        el('td',{textContent:(missing?'at least ':'')+fmt(n.key,t.sums[n.key])+(missing?' ('+plural(missing,'item')+' unknown)':'')})));
+    for(const key of [...F.KEYS.filter(k=>k!=='energy_kj'),F.FREE].sort((a,b)=>(a===F.FREE?F.KEYS.indexOf('sugars_g')+0.5:F.KEYS.indexOf(a))-(b===F.FREE?F.KEYS.indexOf('sugars_g')+0.5:F.KEYS.indexOf(b)))){
+      const missing=t.unknown[key];
+      body.append(el('tr',{},el('th',{scope:'row',textContent:key==='sugars_g'?'Sugars (total, incl. fruit and dairy)':info(key).label}),
+        el('td',{textContent:(missing?'at least ':'')+fmt(key,t.sums[key])+(missing?' ('+plural(missing,'item')+' unknown)':'')})));
     }
-    for(const [key,value] of Object.entries(t.micros))body.append(el('tr',{},el('th',{scope:'row',textContent:F.microLabel(key)}),
-      el('td',{textContent:F.format(value,F.microUnit(key))+(t.microUnknown[key]?' (not listed for '+plural(t.microUnknown[key],'item')+')':'')})));
     table.append(body);
-    box.append(el('details',{},el('summary',{textContent:'All nutrients'}),table));
+    const all=el('details',{},el('summary',{textContent:'All nutrients'}),table);
+    if(unmarked.length)all.append(el('p',{},sugarButton()));
+    box.append(all);
+    // Vitamins and minerals: only foods that list a value count, so coverage is shown with each total.
+    const micros=Object.entries(t.micros);
+    if(micros.length){
+      const list=el('table',{className:'nutrients'}),rows=el('tbody');
+      for(const [key,value] of micros)rows.append(el('tr',{},el('th',{scope:'row',textContent:info(key).label}),
+        el('td',{textContent:fmt(key,value)+' · listed for '+(t.count-t.microUnknown[key])+' of '+plural(t.count,'item')})));
+      list.append(rows);box.append(el('details',{},el('summary',{textContent:'Vitamins & minerals'}),list));
+    }
   }
   function renderMeals(d){
     const box=$('meals');box.replaceChildren();
@@ -100,7 +113,9 @@
         }
         section.append(list);
       }
-      const add=el('button',{type:'button',className:'btn add-to',textContent:'Add to '+m.meal});add.addEventListener('click',()=>openAdd(m.meal));section.append(add);
+      const add=el('button',{type:'button',className:'btn',textContent:'Add to '+m.meal}),copy=el('button',{type:'button',className:'btn',textContent:'Copy a meal…'});
+      add.addEventListener('click',()=>openAdd(m.meal));copy.addEventListener('click',()=>openCopy(m.meal));copy.setAttribute('aria-label','Copy a meal into '+m.meal);
+      section.append(el('div',{className:'meal-actions'},add,copy));
       box.append(section);
     }
   }
@@ -133,7 +148,7 @@
     return 'per '+F.BASES[f.basis]+': '+(unknown?'values unknown':fmt('energy_kcal',f.nutrients.energy_kcal)+' · '+fmt('protein_g',f.nutrients.protein_g)+' protein');
   }
   function foodTags(f){
-    const tags=[];if(f.estimate)tags.push('est.');if(f.archived)tags.push('archived');if(!f.inFile&&S().settings.catalog)tags.push('not in file');
+    const tags=[];if(f.favourite)tags.push('★');if(f.estimate)tags.push('est.');if(f.archived)tags.push('archived');if(!f.inFile&&S().settings.catalog)tags.push('not in file');
     return tags.map(text=>el('span',{className:'tag',textContent:text}));
   }
   function openAdd(meal){
@@ -195,7 +210,7 @@
     if(!Number.isFinite(amount)||amount<=0){$('amountPreview').textContent='Enter an amount.';return;}
     const n=F.scaled(amountVersion,amount).nutrients,preview=$('amountPreview');preview.replaceChildren(el('strong',{textContent:fmt('energy_kcal',n.energy_kcal)}));
     for(const key of ['protein_g','carbohydrate_g','fat_g','saturated_fat_g','fibre_g','salt_g'])
-      preview.append(' · '+(n[key]==null?info[key].label.toLowerCase()+' unknown':fmt(key,n[key])+' '+info[key].label.toLowerCase()));
+      preview.append(' · '+(n[key]==null?info(key).label.toLowerCase()+' unknown':fmt(key,n[key])+' '+info(key).label.toLowerCase()));
   }
   $('amount').addEventListener('input',()=>{const chip=[...$('portionChips').children].find(c=>c.dataset.label===selectedPortion);if(!chip||Number(chip.dataset.amount)!==$('amount').valueAsNumber)selectedPortion='';renderPreview();});
   $('amountPane').addEventListener('submit',event=>{
@@ -243,6 +258,7 @@
   function basisChanged(){
     const basis=$('foodBasis').value;$('basisLegend').textContent=basis==='portion'?'1 portion':'100 '+basis;
     for(const node of $('portionRows').querySelectorAll('.portion-unit'))node.textContent=basis==='portion'?'Portions':'Amount · '+basis;
+    for(const node of $('microRows').querySelectorAll('.micro-unit'))node.textContent=basis==='portion'?'Per portion':'Per 100 '+basis;
   }
   function openFoodForm(f,{name='',then=null}={}){
     editingFoodId=f?.id||null;foodThen=then;$('foodError').textContent='';
@@ -252,7 +268,18 @@
     for(const [key,input] of nutrientInputs)input.value=f?.nutrients[key]==null?'':String(f.nutrients[key]);
     $('portionRows').replaceChildren(...(f?.portions||[]).map(portionRow));
     const serving=f?.details?.serving?.note;$('servingNote').hidden=!serving;$('servingNote').textContent=serving?'From the catalog file: '+serving:'';
+    $('foodFreeSugars').value=f?.freeSugars||'';
+    $('microRows').replaceChildren(...Object.entries(f?.micros||{}).map(([key,value])=>microRow(key,value)));
     basisChanged();$('foodDialog').showModal();$('foodName').focus();
+  }
+  // A vitamin or mineral row: the common list plus any other key the food already has.
+  function microRow(key='',value=''){
+    const keys=[...new Set([...F.COMMON_MICROS,...(key?[key]:[])])];
+    const select=el('select',{},...keys.map(k=>el('option',{value:k,textContent:info(k).label+' · '+info(k).unit})));if(key)select.value=key;
+    const amount=el('input',{type:'number',min:'0',max:'100000',step:'any',inputMode:'decimal',value:String(value)}),remove=el('button',{type:'button',className:'btn icon-only',textContent:'×'});
+    remove.setAttribute('aria-label','Remove vitamin or mineral');
+    const basis=$('foodBasis').value,row=el('div',{className:'portion-row'},el('label',{className:'field'},'Vitamin or mineral',select),el('label',{className:'field'},el('span',{className:'micro-unit',textContent:basis==='portion'?'Per portion':'Per 100 '+basis}),amount),remove);
+    remove.addEventListener('click',()=>row.remove());return row;
   }
   function slug(name){
     const base=F.fold(name).replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60)||'food';
@@ -268,13 +295,19 @@
     try{
       const nutrients=Object.fromEntries(nutrientInputs.map(([key,input])=>{
         const value=input.value.trim();if(value==='')return [key,null];
-        const number=Number(value);if(!Number.isFinite(number))throw new Error(info[key].label+' must be a number.');return [key,number];
+        const number=Number(value);if(!Number.isFinite(number))throw new Error(info(key).label+' must be a number.');return [key,number];
       }));
       const portions=[...$('portionRows').children].map(row=>{const [label,amount]=row.querySelectorAll('input');return {label:label.value.trim(),amount:amount.value.trim()};})
         .filter(p=>p.label||p.amount).map(p=>({label:p.label,amount:Number(p.amount)}));
+      const micros={};
+      for(const row of $('microRows').children){
+        const key=row.querySelector('select').value,value=row.querySelector('input').value.trim();if(value==='')continue;
+        if(key in micros)throw new Error(info(key).label+' is listed twice.');
+        const number=Number(value);if(!Number.isFinite(number))throw new Error(info(key).label+' must be a number.');micros[key]=number;
+      }
       const food=F.food({id:current?.id||slug($('foodName').value),name:$('foodName').value,brand:$('foodBrand').value,kind:$('foodKind').value,basis,nutrients,
-        micros:current&&current.basis===basis?current.micros:{},portions,source:$('foodSource').value,estimate:$('foodEstimate').checked,note:$('foodNote').value,
-        details:current?.details,inFile:current?.inFile,archived:current?.archived});
+        micros,portions,source:$('foodSource').value,estimate:$('foodEstimate').checked,note:$('foodNote').value,freeSugars:$('foodFreeSugars').value||null,
+        details:current?.details,inFile:current?.inFile,archived:current?.archived,favourite:current?.favourite});
       if(current)S().foods[S().foods.indexOf(current)]=food;else S().foods.push(food);
       save();$('foodDialog').close();
       if(foodThen==='log')chooseFood(food);
@@ -285,7 +318,7 @@
   /* Foods screen and food sheet. */
   function renderFoods(){
     const list=$('foodList'),c=S().settings.catalog,foods=S().foods;
-    const found=F.search(S(),{query:$('foodSearch').value.trim(),archived:$('showArchived').checked}).sort((a,b)=>a.name.localeCompare(b.name));
+    const found=F.search(S(),{query:$('foodSearch').value.trim(),archived:$('showArchived').checked}).filter(f=>!$('showFavourites').checked||f.favourite).sort((a,b)=>a.name.localeCompare(b.name));
     const fromFile=foods.filter(f=>f.inFile).length;
     $('catalogInfo').textContent=c?'Catalog file revision '+(c.revision??'unknown')+(c.updated?', dated '+c.updated:'')+(c.importedAt?', imported '+new Date(c.importedAt).toLocaleDateString():'')+'. '+plural(fromFile,'food')+' from the file, '+(foods.length-fromFile)+' added here.'
       :plural(foods.length,'food')+'. Import a catalog file below, or add foods here.';
@@ -309,10 +342,10 @@
     const f=S().foods.find(x=>x.id===id);if(!f)return;sheetFoodId=id;
     const body=$('sheetBody'),c=S().settings.catalog;body.replaceChildren();
     $('sheetTitle').textContent=f.name;
-    body.append(el('p',{className:'hint',textContent:[f.brand,F.KINDS[f.kind],F.SOURCES[f.source]+(f.estimate?', estimate':''),f.inFile?'in the catalog file':c?'not in the catalog file':null,f.archived?'archived':null,'logged '+plural(F.usage(S(),f.id),'time')].filter(Boolean).join(' · ')}));
+    body.append(el('p',{className:'hint',textContent:[f.brand,F.KINDS[f.kind],F.SOURCES[f.source]+(f.estimate?', estimate':''),f.inFile?'in the catalog file':c?'not in the catalog file':null,f.archived?'archived':null,f.favourite?'★ favourite':null,f.freeSugars==='yes'?'sugars count as free sugars':f.freeSugars==='no'?'sugars are not free sugars':null,'logged '+plural(F.usage(S(),f.id),'time')].filter(Boolean).join(' · ')}));
     const table=el('table',{className:'nutrients'},el('caption',{className:'hint',textContent:'Per '+(f.basis==='portion'?'1 portion':F.BASES[f.basis])}));
     const tbody=el('tbody');for(const n of F.NUTRIENTS)tbody.append(el('tr',{},el('th',{scope:'row',textContent:n.label}),el('td',{textContent:f.nutrients[n.key]==null?'unknown':fmt(n.key,f.nutrients[n.key])})));
-    for(const [key,value] of Object.entries(f.micros))tbody.append(el('tr',{},el('th',{scope:'row',textContent:F.microLabel(key)}),el('td',{textContent:F.format(value,F.microUnit(key))})));
+    for(const [key,value] of Object.entries(f.micros))tbody.append(el('tr',{},el('th',{scope:'row',textContent:info(key).label}),el('td',{textContent:fmt(key,value)})));
     table.append(tbody);body.append(table);
     body.append(el('p',{textContent:f.portions.length?'Portions: '+f.portions.map(p=>p.label+' ('+F.round(p.amount,'g')+(f.basis==='portion'?'':' '+f.basis)+')').join(', ')+'.':'No portions yet. Edit the food to add one, such as the weight of one piece.'}));
     if(f.details?.serving?.note)body.append(el('p',{className:'hint',textContent:'From the catalog file: '+f.details.serving.note}));
@@ -322,11 +355,18 @@
     for(const [key,label] of [['allergens_contains','Contains'],['allergens_may_contain','May contain']])if(Array.isArray(d[key])&&d[key].length)body.append(el('p',{className:'hint',textContent:label+': '+d[key].join(', ')+'.'}));
     const rows=flatten(d,'',[]);
     if(rows.length){const list=el('dl',{className:'details'});for(const [key,value] of rows)list.append(el('dt',{textContent:key}),el('dd',{textContent:value}));body.append(el('details',{},el('summary',{textContent:'All catalog file fields'}),list));}
-    $('archiveFood').textContent=f.archived?'Unarchive':'Archive';
+    $('archiveFood').textContent=f.archived?'Unarchive':'Archive';$('favouriteFood').textContent=f.favourite?'Remove from favourites':'Add to favourites';$('favouriteFood').setAttribute('aria-pressed',String(!!f.favourite));
     if(!$('foodSheet').open)$('foodSheet').showModal();
   }
   $('logFood').addEventListener('click',()=>{const f=S().foods.find(x=>x.id===sheetFoodId);if(!f)return;$('foodSheet').close();if(view!=='today')navigate('today');mealOptions($('addMeal'));$('addMeal').value=defaultMeal();chooseFood(f);});
   $('editFood').addEventListener('click',()=>{const f=S().foods.find(x=>x.id===sheetFoodId);if(f)openFoodForm(f);});
+  // Favourites come right after this meal's recent foods when adding.
+  $('favouriteFood').addEventListener('click',()=>{
+    const f=S().foods.find(x=>x.id===sheetFoodId);if(!f)return;
+    if(f.favourite)delete f.favourite;else f.favourite=true;save();renderFoods();openSheet(f.id);toast(f.favourite?'Added to favourites.':'Removed from favourites.');
+  });
+  $('showFavourites').addEventListener('change',renderFoods);
+  $('addMicro').addEventListener('click',()=>{const row=microRow();$('microRows').append(row);row.querySelector('select').focus();});
   $('archiveFood').addEventListener('click',()=>{
     const f=S().foods.find(x=>x.id===sheetFoodId);if(!f)return;
     if(f.archived)delete f.archived;else f.archived=true;save();renderFoods();openSheet(f.id);toast(f.archived?'Archived. It no longer appears when adding food.':'Unarchived.');
@@ -341,7 +381,7 @@
 
   /* Catalog file. */
   const listed=(names,limit=3)=>names.slice(0,limit).join(', ')+(names.length>limit?' and '+(names.length-limit)+' more':'');
-  const describeTargets=targets=>targets.map(t=>info[t.key].label.toLowerCase()+(t.kind==='min'?' at least ':' at most ')+fmt(t.key,t.value)).join(', ');
+  const describeTargets=targets=>targets.map(t=>info(t.key).label.toLowerCase()+(t.kind==='min'?' at least ':' at most ')+fmt(t.key,t.value)).join(', ');
   $('importCatalog').addEventListener('change',async event=>{
     try{
       const raw=await readJSON(event.target);if(!raw)return;
@@ -356,7 +396,7 @@
       if(before!==JSON.stringify(S().foods))throw new Error('Foods changed during review. Import cancelled.');
       S().foods=result.foods;S().settings={...S().settings,catalog:{...result.catalog,importedAt:Date.now()}};save();renderFoods();
       if(result.targets?.length&&JSON.stringify(result.targets)!==JSON.stringify(S().settings.targets)){
-        const sugar=result.ignoredTargets.some(key=>/sugar/.test(key))?' The sugar limit is not applied: labels give total sugars, including fruit and dairy.':'';
+        const sugar=result.targets.some(t=>t.key===F.FREE)?' The sugar limit applies to free sugars: mark which foods’ sugars are free from Today.':'';
         if(await WorkoutUI.confirm('Use the file’s daily targets?','Set '+describeTargets(result.targets)+'.'+sugar,'Use targets')){S().settings.targets=result.targets;save();fillSettings();}
       }
       toast('Catalog imported: '+r.added.length+' new, '+r.updated.length+' updated.');
@@ -365,11 +405,26 @@
   $('exportCatalog').addEventListener('click',()=>{const c=S().settings.catalog;downloadJSON(F.exportCatalog(S(),Date.now()),'foodlog-catalog'+(c?.revision!=null?'-rev'+c.revision:'')+'.json');});
 
   /* History. */
+  /* 7-day trends: averages per day with food logged, days on target, and the week before for comparison. */
+  function renderTrends(){
+    const t=F.trends(S(),today()),c=t.current,p=t.previous,box=$('trendRows');box.replaceChildren();
+    $('trends').hidden=!c.days;if(!c.days)return;
+    $('trendsSummary').textContent=plural(c.days,'day')+' with food logged, '+longDate(c.from)+' to '+longDate(c.to)+'. Averages count only those days'+(p.days?'; the week before had '+plural(p.days,'day')+'.':'.');
+    for(const row of c.rows){
+      const target=t.targets.find(x=>x.key===row.key),before=p.rows.find(x=>x.key===row.key);
+      const facts=[];
+      if(target)facts.push((target.kind==='min'?'at least ':'at most ')+fmt(row.key,target.value)+': on target '+row.onTarget+' of '+plural(c.days,'day'));
+      if(before.average!=null)facts.push('week before '+fmt(row.key,before.average));
+      if(row.partial)facts.push('unknown for some items on '+plural(row.partial,'day'));
+      box.append(el('li',{},el('strong',{textContent:info(row.key).label+' · '+fmt(row.key,row.average)+' a day'}),facts.join(' · ')));
+    }
+  }
   function renderHistory(){
+    renderTrends();
     const days=F.loggedDays(S()),list=$('dayList');list.replaceChildren();$('historyEmpty').hidden=!!days.length;
     for(const date of days.slice(0,historyLimit)){
       const d=F.day(S(),date),chips=el('span',{className:'chips'});
-      for(const t of d.targets){const chip=el('span',{className:'chip',textContent:info[t.key].label+' '+fmt(t.key,t.current)+(t.status==='met'?' ✓':t.status==='over'?' over':'')});chip.dataset.status=t.status;chips.append(chip);}
+      for(const t of d.targets){const chip=el('span',{className:'chip',textContent:info(t.key).label+' '+fmt(t.key,t.current)+(t.status==='met'?' ✓':t.status==='over'?' over':'')});chip.dataset.status=t.status;chips.append(chip);}
       const button=el('button',{type:'button',className:'row-btn'},el('span',{className:'main'},el('span',{className:'name',textContent:dayName(date)+' · '+longDate(date)}),
         el('span',{className:'sub',textContent:fmt('energy_kcal',d.total.sums.energy_kcal)+' · '+plural(d.total.count,'item')}),d.targets.length&&chips));
       button.addEventListener('click',()=>{viewDate=date;followToday=date===today();navigate('today',false);});list.append(el('li',{},button));
@@ -378,9 +433,47 @@
   }
   $('olderDays').addEventListener('click',()=>{historyLimit+=60;renderHistory();});
 
+  /* Copy a meal from the last 14 days: the same meal first. Foods still in the catalog log at today's values. */
+  function openCopy(meal){
+    const list=$('copyList'),meals=F.recentMeals(S(),viewDate,meal).slice(0,12);list.replaceChildren();
+    $('copyTitle').textContent='Copy into '+meal;
+    $('copyHint').textContent=meals.length?'Meals from the 14 days before '+longDate(viewDate)+'. Copied items keep their amounts, portions and notes.':'No meals in the 14 days before '+longDate(viewDate)+'.';
+    for(const source of meals){
+      const names=source.entries.map(e=>named(S().versions[e.version])),button=el('button',{type:'button',className:'row-btn'},
+        el('span',{className:'main'},el('span',{className:'name',textContent:dayName(source.date)+' · '+source.meal}),el('span',{className:'sub',textContent:names.slice(0,4).join(', ')+(names.length>4?' and '+(names.length-4)+' more':'')})),
+        el('span',{className:'side',textContent:fmt('energy_kcal',source.total.sums.energy_kcal)}));
+      button.addEventListener('click',()=>{
+        try{
+          const copied=F.copyMeal(S(),source,viewDate,meal,()=>newId('e-')),ids=new Set(copied.map(e=>e.id)),ok=save();
+          $('copyDialog').close();renderToday();
+          toast((ok?'Copied ':'Copied in memory only: ')+plural(copied.length,'item')+' into '+meal+'.',{label:'Undo',run:()=>{S().entries=S().entries.filter(e=>!ids.has(e.id));F.prune(S());save();render();}});
+        }catch(error){toast(error.message);}
+      });
+      list.append(el('li',{},button));
+    }
+    $('copyDialog').showModal();(list.querySelector('button')||$('copyDialog').querySelector('[data-close]')).focus();
+  }
+
+  /* Mark foods' sugars as free or not; totals on every day follow the mark. */
+  function openSugars(foods){
+    const list=$('sugarList');list.replaceChildren();
+    for(const f of foods){
+      const row=el('div',{className:'sugar-row'},el('span',{},named(f),el('span',{className:'sub',textContent:'Sugars '+fmt('sugars_g',f.nutrients.sugars_g)+' per '+(f.basis==='portion'?'portion':F.BASES[f.basis])})));
+      const choices=el('span',{className:'choices'});
+      for(const [value,label] of [['yes','Free'],['no','Not free']]){
+        const b=el('button',{type:'button',className:'btn',textContent:label});b.setAttribute('aria-label',label+': '+named(f));
+        const sync=()=>b.setAttribute('aria-pressed',String(f.freeSugars===value));sync();
+        b.addEventListener('click',()=>{f.freeSugars=value;save();for(const other of choices.children)other.setAttribute('aria-pressed',String(other===b));renderToday();});
+        choices.append(b);
+      }
+      row.append(choices);list.append(el('li',{},row));
+    }
+    $('sugarDialog').showModal();list.querySelector('button')?.focus();
+  }
+
   /* Settings. */
   function targetRow(t){
-    const key=el('select',{},...F.TARGET_KEYS.map(k=>el('option',{value:k,textContent:info[k].label+(k==='energy_kcal'?' (kcal)':'')}))),kind=el('select',{},el('option',{value:'min',textContent:'at least'}),el('option',{value:'max',textContent:'at most'}));
+    const key=el('select',{},...F.TARGET_KEYS.map(k=>el('option',{value:k,textContent:info(k).label+(k==='energy_kcal'?' (kcal)':'')}))),kind=el('select',{},el('option',{value:'min',textContent:'at least'}),el('option',{value:'max',textContent:'at most'}));
     const value=el('input',{type:'number',min:'0.1',max:'100000',step:'any',inputMode:'decimal',required:true,value:t.value==null?'':String(t.value)}),remove=el('button',{type:'button',className:'btn icon-only',textContent:'×'});
     key.value=t.key;kind.value=t.kind;remove.setAttribute('aria-label','Remove target');
     const row=el('div',{className:'target-row'},el('label',{className:'field'},'Nutrient',key),el('label',{className:'field target-kind'},'Type',kind),el('label',{className:'field'},'Amount',value),remove);
@@ -488,7 +581,7 @@
         const list=el('ul',{className:'import-list'});
         for(const it of m.items){
           const target=howText[it.how]?named(it.food)+' ('+howText[it.how]+')':it.how==='again'?'the new food above':'new food'+(it.food.estimate?' (estimate)':'');
-          const extra=(it.differs?'; the file’s values differ from the catalog, so the day keeps the file’s':'')+(it.filled.length?'; the file fills '+it.filled.map(k=>info[k].label.toLowerCase()).join(', '):'');
+          const extra=(it.differs?'; the file’s values differ from the catalog, so the day keeps the file’s':'')+(it.filled.length?'; the file fills '+it.filled.map(k=>info(k).label.toLowerCase()).join(', '):'');
           list.append(el('li',{},it.name+' · '+importAmount(it)+(it.time?' · '+it.time:''),el('span',{className:'sub',textContent:'→ '+target+extra})));
         }
         body.append(list);

@@ -23,7 +23,7 @@ example is in [examples/foodlog-catalog.json](../examples/foodlog-catalog.json).
 |---|---|
 | `schema_version` | Must start with `1`. Other versions are refused. |
 | `revision` | Optional number. Importing a lower revision than the last import asks first. |
-| `personal_budgets_per_day` | Optional. `contribution` keys become "at least" targets, `limit` keys "at most" targets. Import asks before applying them. Sugar keys are skipped: labels give total sugars, so a free-sugar limit cannot be checked. |
+| `personal_budgets_per_day` | Optional. `contribution` keys become "at least" targets, `limit` keys "at most" targets. Import asks before applying them. A `sugar_g` limit becomes the free sugars limit, and export writes it back under `sugar_g`. |
 | Other top-level fields | Kept and written back on export. |
 
 ### Products
@@ -36,7 +36,7 @@ example is in [examples/foodlog-catalog.json](../examples/foodlog-catalog.json).
 | `nutrition_per_100g`, `nutrition_per_100ml` or `nutrition_per_portion` | Required, exactly one decides the basis. Keys: `energy_kcal`, `energy_kj`, `protein_g`, `carbohydrate_g`, `sugars_g`, `fibre_g`, `fat_g`, `saturated_fat_g`, `salt_g`. Each is a number from 0 to 10,000, or `null` for unknown. A missing `energy_kcal` is computed from `energy_kj`. |
 | `micronutrients_per_100g` / `_100ml` / `_portion` | Optional, matching the basis. Up to 20 keys ending in `_g`, `_mg` or `_ug`. |
 | `serving.unit_weight_g`, `serving.powder_g`, `serving.unit_volume_ml` | A number adds a portion ("1 piece" or "1 serving"). `null` adds none; weigh one piece in the app to add it. |
-| `foodlog` | Written by Foodlog's export: `kind` (`product`, `generic`, `dish`), `source` (`label`, `typical`, `menu`), `estimate`, `portions` (`[{label, amount}]` in the basis unit, at most 12), `note`, `archived`. |
+| `foodlog` | Written by Foodlog's export: `kind` (`product`, `generic`, `dish`), `source` (`label`, `typical`, `menu`), `estimate`, `portions` (`[{label, amount}]` in the basis unit, at most 12), `note`, `archived`, `favourite`, `free_sugars` (`yes` or `no`). Favourites and archiving set in Foodlog survive an import; a file's `free_sugars` mark replaces the local one. |
 | Everything else | Kept as the food's details (at most 16,384 characters), shown under **All catalog file fields**, and written back on export. Foodlog never recomputes these fields. |
 
 A product that fails these rules is skipped and named in the import summary;
@@ -152,4 +152,14 @@ Foodlog saves through the shared storage engine under `foodlog.v1` (data key
 entries, day notes and settings. Limits: 5,000 foods, 20,000 logged items,
 20,000 frozen versions and 20,000 days with notes. A day file holds at most 20
 meals and 300 items. Data version 2 allows entries without a time and a meal
-order per day; version 1 data loads unchanged.
+order per day; version 3 adds favourites, free sugars marks and targets for
+free sugars and vitamins or minerals. Version 1 and 2 data load unchanged.
+
+## Free sugars
+
+Labels give total sugars, which include fruit and milk sugars. Each food can be
+marked: its sugars count as free sugars (`yes`) or not (`no`). An item's free
+sugars are its sugars for a `yes` food, 0 for a `no` food or a food without
+sugars, and unknown otherwise. The mark is read live, so marking a food
+updates every day it was eaten. Day exports include `free_sugars_g` in the
+subtotals and day total.
