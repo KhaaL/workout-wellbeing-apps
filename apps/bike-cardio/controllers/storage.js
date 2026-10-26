@@ -5,12 +5,12 @@ const BikeStorageController = {
   function renderBackupControls(){
     context.renderStorageStatus();
     if(context.currentView!=='settings'&&context.currentView!=='summary')return;
-    const cfg=context.storage.remote.loadRemoteConfig(),paused=context.storage.remote.remoteSyncPaused();context.$('cloudActions').hidden=!cfg;context.$('cloudBackup').hidden=paused;context.$('cloudPause').hidden=paused;context.$('cloudResume').hidden=!paused;
+    const cfg=context.storage.remote.loadRemoteConfig(),paused=context.storage.remote.remoteSyncPaused();context.$('cloudActions').hidden=!cfg;
+    WorkoutStorage.applyCloudActions({backup:context.$('cloudBackup'),pause:context.$('cloudPause'),'publish-local':context.$('cloudKeepLocal'),resume:context.$('cloudResume'),restore:context.$('cloudUseRemote')},context.storage.remote.syncMode(cfg),paused);
     context.$('backupStatus').textContent=context.storage.local.blocked?context.storage.local.warning:context.storage.local.failed?'Changes are in memory only. Download a full backup before closing.':`${context.storage.state.history.length} saved sessions. Full backups include settings and any saved ride.`;
     const info=context.storage.backupInfo();context.$('backupAge').textContent=info.at?`Last backup: ${context.dateLabel(info.at)} (${info.where}). ${info.rides} rides added or edited since then.${info.stale?' Download a fresh full backup.':''}`:'No full backup recorded on this device.';
-    context.$('cloudUseRemote').textContent=context.storage.remote.syncMode(cfg)==='immutable'?'Restore legacy backup locally':'Use cloud copy';
     WorkoutStorage.renderConnectionScope(context.$('connectionScope'),context.storage.remote,{className:'small',buttonClass:'secondary',confirm:WorkoutUI.confirm,onChange:()=>{loadCloudFields();renderBackupControls();}});
-    const work=context.storage.remote.readRemoteWork();context.$('cloudDetails').textContent=cfg?`Bucket: ${cfg.bucket}. Last sync: ${cfg.lastBackupAt?context.dateLabel(cfg.lastBackupAt):'never'}. Backed-up revision: ${cfg.lastUploadedModifiedAt||'none'}.${work?.pending?' Changes are waiting to sync.':''}${paused?' Cloud sync is paused.':''}`:'';
+    const work=context.storage.remote.readRemoteWork();context.$('cloudDetails').textContent=cfg?`Bucket: ${cfg.bucket}. Last cloud backup: ${cfg.lastBackupAt?context.dateLabel(cfg.lastBackupAt):'never'}. Backed-up revision: ${cfg.lastUploadedModifiedAt||'none'}.${work?.pending?' Changes are waiting to upload.':''}${paused?(context.storage.remote.syncMode(cfg)==='conditional'?' Cloud sync is paused.':' Cloud backups are paused.'):''}`:'';
     document.querySelectorAll('#cloudActions button,#saveCloud,#cloudForm input,#cloudForm select,#importCloudConfig').forEach(button=>button.disabled=context.cloudBusy||context.configBusy);
     if(!context.storage.remote.remoteCryptoAvailable()){
       context.$('saveCloud').disabled=true;for(const id of ['cloudTest','cloudBackup','cloudResume','cloudKeepLocal','cloudUseRemote'])context.$(id).disabled=true;
@@ -57,7 +57,7 @@ const BikeStorageController = {
     if(fromUser)context.toast(context.persistenceState==='persistent'?'Persistent storage granted.':'Persistence was not granted. Keep a full backup.');
   }
   function maybeRemindBackup(){if(context.backupReminded||!context.storage.backupInfo().stale)return;context.backupReminded=true;context.toast('Your backup needs refreshing. Download a full backup under Backups & cloud storage.');}
-  function loadCloudFields(){const cfg=context.storage.remote.loadRemoteConfig();if(!cfg)return;for(const [id,name]of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId']])context.$(id).value=cfg[name]||(name==='objectKey'?context.storage.remote.defaultObjectKey:'');context.$('cloudMode').value=cfg.syncMode||'auto';context.$('cloudPathStyle').checked=cfg.pathStyle;}
+  function loadCloudFields(){const cfg=context.storage.remote.loadRemoteConfig();if(!cfg)return;for(const [id,name]of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId']])context.$(id).value=cfg[name]||(name==='objectKey'?context.storage.remote.defaultObjectKey:'');context.$('cloudMode').value=context.storage.remote.syncMode(cfg);context.$('cloudPathStyle').checked=cfg.pathStyle;}
     return {renderBackupControls,readJSONUpload,renderRecoveryCopies,renderStorageDiagnostics,refreshStorageDiagnostics,requestPersistence,maybeRemindBackup,loadCloudFields};
   }
 };

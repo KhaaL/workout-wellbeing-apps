@@ -120,12 +120,12 @@ function verifySignature(url,headers,body,region=cfg.region){
       assert.ok(calls.filter(call=>call.method==='PUT'||call.method==='DELETE').every(call=>call.key.includes('.checks/')));
       await openTools();await page.setViewportSize({width:320,height:720});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
       await page.screenshot({path:'/tmp/'+app+'-remote-tools.png',fullPage:true});assert.deepEqual(errors,[]);
-      // Exercise generic automatic backup mode through each app's real form.
+      // Save separate backup files through each app's real form.
       ignoreWriteConditions=true;calls.length=0;
-      if(app==='bike-cardio'){await page.fill('#cloudRegion','test');await page.selectOption('#cloudMode','auto');await page.click('#saveCloud');}
+      if(app==='bike-cardio'){await page.fill('#cloudRegion','test');await page.selectOption('#cloudMode','immutable');await page.click('#saveCloud');}
       else{await openTools();await page.fill('[data-bind="remote"][data-field="region"]','test');await page.selectOption('[data-bind="remote"][data-field="syncMode"]','immutable');await page.locator('form[data-form="remote-config"] button[type="submit"]').click();}
       // The backup mode belongs to the connection, which every app on the site shares.
-      await page.waitForFunction(({mode})=>JSON.parse(localStorage.getItem('wellbeing.connection.v1')).syncMode===mode,{mode:app==='bike-cardio'?'auto':'immutable'});
+      await page.waitForFunction(({mode})=>JSON.parse(localStorage.getItem('wellbeing.connection.v1')).syncMode===mode,{mode:'immutable'});
       await openTools();
       const testConnection=async()=>{const before=calls.length;await page.locator(app==='bike-cardio'?'#cloudTest':'[data-action="remote-test"]').click();await page.waitForFunction(app=>!document.querySelector(app==='bike-cardio'?'#cloudTest':'[data-action="remote-test"]').disabled,app);assert.equal(calls.length,before+1);assert.equal(calls.at(-1).method,'GET');assert.ok(new URL(calls.at(-1).url).searchParams.has('list-type'));};
       await testConnection();assert.match(await page.locator(app==='bike-cardio'?'#toast':'#toast-region').textContent(),/Backup listing readable — write permission unverified/);

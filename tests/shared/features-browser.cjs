@@ -22,7 +22,7 @@ const root=path.resolve(__dirname,'../..');
    for(const colour of ['light','dark']){
     await source.emulateMedia({colorScheme:colour});await navigate(source,'settings');
     for(const theme of ['light','dark','nord','system']){
-     if(app==='liftlog')await source.locator('label:has(input[name=theme][value='+theme+'])').click();else await source.selectOption('#themeChoice',theme);
+     await source.selectOption('#themeChoice',theme);
      assert.equal(await source.evaluate(()=>{const nodes=document.querySelectorAll('meta[name="theme-color"]');return nodes.length===1&&nodes[0].content===getComputedStyle(document.documentElement).getPropertyValue('--surface').trim()&&!document.documentElement.hasAttribute('data-statusbar');}),true,app+' bar policy '+colour+'/'+theme);
     }
    }

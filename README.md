@@ -393,12 +393,14 @@ retain both versions even when a provider ignores write conditions. To reconcile
 download a full local backup,
 browse cloud backups, preview and restore the desired copy. Bike can also merge
 a downloaded backup’s ride history through **Merge history**; Liftlog has its own
-history import. Restores stay paused until you choose **Resume backups** in
-Liftlog or **Review & resume sync** in Bike. Either saves a new backup file from
-this device and resumes automatic uploads. Liftlog's resume dialog also offers
-**Restore latest cloud backup**, which restores the newest backup file and then
-resumes. In Bike and Tabata, **Restore legacy backup locally** recovers the former
-single-object backup with the same local recovery safeguards.
+history import. Restores stay paused until you choose **Resume backups…**, which
+saves a new backup file from this device and resumes automatic uploads. Every
+app shows the same cloud buttons: **Back up now** and **Pause cloud backups**
+for separate files; **Sync now**, **Pause cloud sync** and **Use cloud copy…**
+for conditional sync. Liftlog's resume dialog also offers **Restore latest cloud
+backup**, which restores the newest backup file and then resumes. The former
+single-object backup has no restore button; browse earlier cloud backups
+instead.
 
 This mode needs bucket-list permission to browse files, and GET/PUT with exposed
 ETag. Every device must be able to reach the configured endpoint. Browsers
@@ -409,15 +411,14 @@ probe cleanup additionally needs DELETE; ordinary backups do not.
 
 ## Shared interface
 
-Settings begins with the same storage summary in both apps: saved on this device,
-upload pending, backed up, cloud backups or cloud sync paused, offline, or needs
-attention. Local save failures take priority over cloud success. **Backed up**
+Settings in Liftlog and Bike begins with the same storage summary: saved on
+this device, upload pending, backed up, cloud backups or cloud sync paused,
+offline, or needs attention. Local save failures take priority over cloud success. **Backed up**
 requires a confirmed cloud backup of the current revision, with no pending
 changes. Connection tests alone cannot produce it. The summary shows the last
 cloud backup and backup download separately, with a relevant next action and a
-button that opens the storage settings (**Cloud backup settings** in Liftlog,
-**Storage options** in Bike). A paused summary names the recorded cause and
-time. With separate backups, **Resume backups** opens the resume confirmation.
+**Backup settings** button that opens the storage settings. A paused summary
+names the recorded cause and time. With separate backups, **Resume backups** opens the resume confirmation.
 With conditional sync, **Choose a copy** opens the existing choices; it does not
 resume or replace data. Saving the connection again with new credentials keeps
 the backup history; a different endpoint, region, bucket, object key, path
@@ -446,7 +447,7 @@ Desktop keeps the same destinations in the header. Liftlog's Today destination i
 now labeled Workout; existing view identities and keyboard shortcuts remain.
 
 Bike's Workout screen contains the upcoming plan and optional ride adjustments.
-Settings holds appearance, default targets/durations, sound, storage and updates.
+Settings holds default targets/durations, sound, appearance, storage and updates.
 Ride adjustments do not change defaults; saved defaults do not rewrite a running
 ride's recorded plan. Bike's theme is stored as a device preference, outside workout
 backups. Liftlog keeps its existing theme setting and backup compatibility.

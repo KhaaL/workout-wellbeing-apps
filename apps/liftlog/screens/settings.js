@@ -97,7 +97,7 @@ const LiftlogSettings = (() => {
       const cfg = loadRemoteConfig(),separate = remoteEngine.syncMode(cfg) === 'immutable';
       if (!remoteCryptoAvailable())
         return '<div class="setting-block"><p class="error-text">Cloud backup needs the Web Crypto API, only available in a secure context (https:// or localhost). It is unavailable here.</p></div>';
-      const busy = ui.remoteBusy ? ' disabled' : '';
+      const busy = ui.remoteBusy ? ' disabled' : '', CLOUD_ICONS = {backup:IC.up, restore:IC.down};
       const paused = remoteSyncPaused();
       let html = '<div class="setting-block">';
       if (!cfg){
@@ -107,14 +107,11 @@ const LiftlogSettings = (() => {
           ? 'Separate backup files. Every backup is a new file; other devices change only when you restore one there.'
           : 'Conditional sync. One shared file; sync can replace this device’s data with a newer cloud copy.') + '</p>' +
           '<div class="form-actions">' +
-          /* In separate mode both resume paths upload a new file, so one button. */
-          (paused
-            ? '<button type="button" class="btn btn-primary" data-action="remote-publish-local"' + busy + '>' + (separate ? 'Resume backups…' : 'Keep local copy & update cloud…') + '</button>' +
-              (separate ? '' : '<button type="button" class="btn" data-action="remote-resume"' + busy + '>Resume automatic sync…</button>')
-            : '<button type="button" class="btn btn-primary" data-action="remote-backup"' + busy + '>' + IC.up + '<span>' + (separate ? 'Back up now' : 'Sync now') + '</span></button>' +
-              '<button type="button" class="btn" data-action="remote-pause">' + (separate ? 'Pause cloud backups' : 'Pause cloud sync') + '</button>') +
-          /* Separate mode restores through the earlier-backups list below. */
-          (separate ? '' : '<button type="button" class="btn" data-action="remote-restore"' + busy + '>' + IC.down + '<span>Use cloud copy…</span></button>') +
+          /* Shared with every app: separate mode resumes with one upload and
+             restores through the earlier-backups list below. */
+          WorkoutStorage.cloudActions(separate ? 'immutable' : 'conditional', paused).map(item =>
+            '<button type="button" class="btn' + (item.primary ? ' btn-primary' : '') + '" data-action="remote-' + item.id + '"' + (item.id === 'pause' ? '' : busy) + '>' +
+              (CLOUD_ICONS[item.id] ? CLOUD_ICONS[item.id] + '<span>' + item.label + '</span>' : item.label) + '</button>').join('') +
           '</div>' +
           '<div id="remote-snapshots" class="remote-tools mt-3"></div>';
       }
@@ -138,7 +135,7 @@ const LiftlogSettings = (() => {
           '</div>' +
           '<p class="hint mt-1">HTTPS address with no path or query. Plain HTTP works only from a local file or localhost.</p>' +
           '<div class="form-row mt-2">' +
-            '<label class="field flex-2"><span class="cap">Object key / path · this app</span><input type="text" data-bind="remote" data-field="objectKey" placeholder="' + REMOTE_OBJECT_KEY_DEFAULT + '" value="' + esc(d.objectKey) + '"></label>' +
+            '<label class="field flex-2"><span class="cap">Backup path · this app</span><input type="text" data-bind="remote" data-field="objectKey" placeholder="' + REMOTE_OBJECT_KEY_DEFAULT + '" value="' + esc(d.objectKey) + '"></label>' +
             '<label class="field"><span class="cap">Access key ID</span><input type="text" data-bind="remote" data-field="accessKeyId" required value="' + esc(d.accessKeyId) + '"></label>' +
             '<label class="field"><span class="cap">Secret access key</span><input type="password" data-bind="remote" data-field="secretAccessKey" placeholder="' + (cfg ? '•••••••• (leave blank to keep)' : '') + '" value="' + esc(d.secretAccessKey) + '"' + (!cfg ? ' required' : '') + '></label>' +
           '</div>' +
@@ -149,7 +146,7 @@ const LiftlogSettings = (() => {
           '</div>' +
           (ui.remoteError ? '<p class="error-text mt-2" role="alert">' + esc(ui.remoteError) + '</p>' : '') +
           '<div class="form-actions mt-3">' +
-            '<button type="submit" class="btn btn-primary"' + busy + '>' + (ui.remoteBusy ? 'Testing connection…' : 'Save connection') + '</button>' +
+            '<button type="submit" class="btn btn-primary"' + busy + '>' + (ui.remoteBusy ? 'Testing connection…' : 'Check &amp; save connection') + '</button>' +
             '<label class="file-btn"><span>' + IC.up + ' Load config file</span><input type="file" accept=".json,application/json" data-change="load-remote-config" aria-label="Load cloud backup connection from a JSON file"></label>' +
             /* the counterpart to Load, so setting up a second device does not mean retyping the form */
             (cfg ? '<button type="button" class="btn" data-action="remote-export-config">' + IC.down + '<span>Save config file</span></button>' : '') +
@@ -160,7 +157,7 @@ const LiftlogSettings = (() => {
         '</form>' +
         (cfg ? '<div class="form-actions mt-3">' +
           '<button type="button" class="btn" data-action="remote-test"' + busy + '>Test read access</button>' +
-          '<button type="button" class="btn btn-danger" data-action="remote-forget">Forget connection</button>' +
+          '<button type="button" class="btn btn-danger" data-action="remote-forget">Forget connection…</button>' +
         '</div>' : '') +
       '</div>';
       html += settingsDisclosure('cloud-connection', 'Connection', cfg ? 'Endpoint, bucket, keys and config file' : 'Required before the first backup', form,
@@ -190,14 +187,6 @@ const LiftlogSettings = (() => {
       return '<div class="view-head"><div><h1>Settings</h1><p class="view-sub">Preferences, data<span class="keyboard-only">, shortcuts</span></p></div></div>' +
       '<div id="storage-summary"></div>' +
       '<section class="panel" aria-label="Preferences">' +
-        '<div class="setting-block">' +
-          '<h3>Appearance</h3><p class="desc">Theme follows your system by default. Color themes apply instantly and are remembered on this device.</p>' +
-          '<div class="radio-row" role="radiogroup" aria-label="Theme">' +
-            THEMES.map(t =>
-              '<label class="radio-pill"><input type="radio" name="theme" value="' + t.id + '" data-change="theme"' + (s.theme === t.id ? ' checked' : '') + '><span>' + t.label + '</span></label>').join('') +
-          '</div>' +
-          systemBarDiagnostics() +
-        '</div>' +
         '<div class="setting-block">' +
           '<h3>Weight unit</h3><p class="desc">Planned weights and the active workout are converted; logged history keeps the unit it was logged in.</p>' +
           '<div class="radio-row" role="radiogroup" aria-label="Unit">' +
@@ -241,6 +230,12 @@ const LiftlogSettings = (() => {
               (s.vibrate ? ' checked' : '') + (navigator.vibrate ? '' : ' disabled') + '><span class="track" aria-hidden="true"></span></span>' +
           '</div>' +
         '</div>' +
+        '<div class="setting-block">' +
+          '<h3>Appearance</h3><p class="desc">Theme follows your system by default. Color themes apply instantly and are remembered on this device.</p>' +
+          '<label class="field theme-field"><span class="cap">Theme</span><select id="themeChoice" data-change="theme">' +
+            THEMES.map(t => '<option value="' + t.id + '"' + (s.theme === t.id ? ' selected' : '') + '>' + t.label + '</option>').join('') +
+          '</select></label>' +
+        '</div>' +
       '</section>' +
       '<section class="panel mt-4" aria-label="Data">' +
         /* Whole-state backup first, in both the places it can be written — a file
@@ -256,16 +251,12 @@ const LiftlogSettings = (() => {
           '<p class="' + (backupIsStale() ? 'error-text' : 'hint') + '">Last backup: ' + sinceLabel(backup.at) +
             (backup.where ? ', to ' + (backup.where === 'remote storage' ? 'the cloud' : backup.where) : '') + '.</p>' +
           '<div class="form-actions mt-2">' +
-            '<button type="button" class="btn" data-action="export">' + IC.down + '<span>Download backup</span></button>' +
+            '<button type="button" class="btn" data-action="export">' + IC.down + '<span>Download full backup</span></button>' +
             '<label class="file-btn"><span>' + IC.up + ' Restore from file</span><input type="file" accept=".json,application/json" data-change="import-all" aria-label="Restore from a backup file"></label>' +
           '</div>' +
         '</div>' +
         deviceStorageHTML() +
         settingsDisclosure('storage', 'Cloud backup', cloudSummaryText(), remoteStorageHTML()) +
-        settingsDisclosure('handoff', 'Move workout to another device', 'Continue a paused workout elsewhere',
-          '<div id="handoff-tools" class="setting-block handoff-tools"></div>',
-          {defaultOpen:!!state.activeWorkout || !!workoutHandoff.held()}) +
-    settingsDisclosure('app-updates','App updates','Loaded version and safe update controls','<div id="app-update-controls"></div>')+
         settingsDisclosure('transfer', 'Transfer routines & history', 'Import or export either data set',
         '<div class="setting-block">' +
           '<div class="block-head">' +
@@ -296,6 +287,11 @@ const LiftlogSettings = (() => {
           '</div>' +
           historyImportSummaryHTML() +
         '</div>') +
+        settingsDisclosure('handoff', 'Move workout to another device', 'Continue a paused workout elsewhere',
+          '<div id="handoff-tools" class="setting-block handoff-tools"></div>',
+          {defaultOpen:!!state.activeWorkout || !!workoutHandoff.held()}) +
+        settingsDisclosure('app-updates', 'App updates', 'Loaded version and safe update controls',
+          '<div id="app-update-controls"></div><div class="setting-block">' + systemBarDiagnostics() + '</div>') +
         settingsDisclosure('danger', 'Advanced & destructive actions', 'Clear workout history',
         '<div class="setting-block">' +
           '<h3 class="danger-heading">Workout data</h3>' +

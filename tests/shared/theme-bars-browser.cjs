@@ -36,12 +36,12 @@ const themes=['system','light','dark','contrast','lamplight','forest','blossom',
    }
    cold=false;await page.reload();await page.locator('.nav-btn[data-view="settings"]').click();
    for(const theme of [...themes.slice(1),'system']){
-    if(app==='liftlog')await page.locator('label:has(input[name=theme][value='+theme+'])').click();else await page.selectOption('#themeChoice',theme);
+    await page.selectOption('#themeChoice',theme);
     await check(theme,'dark','theme change');
    }
    await page.emulateMedia({colorScheme:'light'});await page.waitForFunction(()=>getComputedStyle(document.documentElement).colorScheme==='light');await check('system','light','OS change');
    // An adaptive theme swaps to its own light palette when the device changes.
-   const pick=theme=>app==='liftlog'?page.locator('label:has(input[name=theme][value='+theme+'])').click():page.selectOption('#themeChoice',theme);
+   const pick=theme=>page.selectOption('#themeChoice',theme);
    const bg=()=>page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
    await pick('forest');await check('forest','light','adaptive theme');assert.equal(await bg(),'#f2f4ef');
    await page.emulateMedia({colorScheme:'dark'});await page.waitForFunction(()=>getComputedStyle(document.documentElement).colorScheme==='dark');

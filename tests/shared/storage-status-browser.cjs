@@ -48,9 +48,10 @@ const config={endpoint:'https://storage.test',region:'test',bucket:'test',object
         assert.equal(await options.getByRole('button',{name:'Restore legacy backup locally…',exact:true}).count(),0);
         assert.equal(await page.locator('[data-settings-section="cloud-troubleshooting"]').evaluate(node=>node.open),false);
         assert.deepEqual(await page.locator('[data-field="syncMode"] option').evaluateAll(nodes=>nodes.map(node=>node.value)),['immutable','conditional']);
-        assert.doesNotMatch(await page.locator('section[aria-label="Data"]').textContent(),/MinIO|\bR2\b|amazonaws/);
+        // Settings text names no storage host; examples use reserved example domains.
+        assert.doesNotMatch(await page.locator('section[aria-label="Data"]').textContent(),/[a-z0-9-]+\.(com|net|org|io|dev|cloud)\b/i);
         assert.equal(await page.locator('[data-settings-section="handoff"]').evaluate(node=>node.open),false,'handoff stays collapsed without a workout');
-        assert.equal(await status.getByRole('button',{name:'Cloud backup settings',exact:true}).count(),1);
+        assert.equal(await status.getByRole('button',{name:'Backup settings',exact:true}).count(),1);
       }
       await page.evaluate(()=>{testAPI.remote.pauseRemoteSync('review',{code:'import'});testAPI.refresh();});await expectState('paused');
       assert.match(await status.textContent(),/Cloud backups paused.*Paused when you chose a backup file to restore\..*Paused \d/);
@@ -72,7 +73,7 @@ const config={endpoint:'https://storage.test',region:'test',bucket:'test',object
         Storage.prototype.setItem=function(key,value){if(key==='liftlog.v1'||key==='bike-cardio.state.v1')throw new DOMException('Full','QuotaExceededError');return window.originalSetItem.call(this,key,value);};
         testAPI.change();testAPI.refresh();
       });await expectState('attention');assert.match(await status.textContent(),/only be in memory/);
-      assert.equal(await status.getByRole('button',{name:'Download backup',exact:true}).isVisible(),true);
+      assert.equal(await status.getByRole('button',{name:'Download full backup',exact:true}).isVisible(),true);
       for(const width of [320,390,1440]){
         await page.setViewportSize({width,height:844});
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,app+' storage fits '+width);

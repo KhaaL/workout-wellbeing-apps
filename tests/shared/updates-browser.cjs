@@ -26,7 +26,7 @@ const server=http.createServer((req,res)=>{
       const url=address+'/'+app+'/';await page.goto(url);await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
       const openUpdates=async p=>{
         if(app==='bike-cardio'){
-          await navigateUI(p,'settings');const panel=p.locator('details').filter({has:p.locator('summary',{hasText:'Install & offline use'})}).last();if(!await panel.evaluate(node=>node.open))await panel.locator('summary').first().click();
+          await navigateUI(p,'settings');const panel=p.locator('details').filter({has:p.locator('summary',{hasText:'App updates'})}).last();if(!await panel.evaluate(node=>node.open))await panel.locator('summary').first().click();
         }else{
           await p.locator('.nav-btn[data-view="settings"]').click();const panel=p.locator('details[data-settings-section="app-updates"]');if(!await panel.evaluate(node=>node.open))await panel.locator('summary').first().click();
         }

@@ -112,7 +112,6 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
 <section id="settings" hidden>
   <h1>Settings</h1>
   <div id="storage-summary"></div>
-  <section class="card"><h2>Appearance</h2><label class="field">Theme<select id="themeChoice"></select></label></section>
   <details id="defaultTargets" class="card"><summary>Default targets &amp; durations</summary><p class="small">New rides start with these defaults. A running ride keeps its recorded plan.</p><div id="defaultTargetFields" class="grid"></div>
     <details id="zoneCalculator"><summary>Calculate heart-rate targets</summary><p class="small">Fills the six heart-rate fields above from your measured numbers. Review them, then save the defaults. Zone 2 is 60 to 70% of maximum HR or of heart-rate reserve, or 81 to 89% of threshold HR.</p>
       <div class="grid"><label class="field">Based on<select id="zoneMethod"><option value="max">Maximum HR</option><option value="reserve">Heart-rate reserve</option><option value="threshold">Threshold HR</option></select></label>
@@ -122,9 +121,10 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
       <button id="fillTargets" class="secondary">Fill heart-rate targets</button><p id="zoneError" class="notice" role="alert" hidden></p><ol id="zoneList" class="small" hidden></ol></details>
     <p id="defaultTargetError" class="notice" role="alert" hidden></p><button id="saveDefaults" class="secondary">Save workout defaults</button></details>
   <div class="card stack"><label class="check"><input type="checkbox" id="voice" checked>Voice cues</label><label class="check"><input type="checkbox" id="beeps" checked>Beeps</label><button id="testSound" class="secondary">Test sound</button><p class="small">If a watch records your rides too, start its indoor cycling recording before riding. Mount your phone where it is easy to read.</p></div>
+  <section class="card"><h2>Appearance</h2><label class="field">Theme<select id="themeChoice"></select></label></section>
   <details id="storage-options" class="card"><summary>Backups &amp; cloud storage</summary>
     <p class="small">Your rides save on this device. A full JSON backup can restore your history and settings. Cloud backup is optional and uses your own S3-compatible storage.</p>
-    <div class="stack"><button id="exportBackup" class="secondary">Download full backup</button><label class="field">Restore a full backup<input id="importBackup" type="file" accept=".json,application/json"></label></div>
+    <div class="stack"><button id="exportBackup" class="secondary">Download full backup</button><label class="field">Restore from file<input id="importBackup" type="file" accept=".json,application/json"></label></div>
     <p id="backupStatus" class="small" role="status"></p>
     <p id="backupAge" class="small" role="status"></p>
     <details><summary>Device storage</summary><p id="storageDiagnostics" class="small" role="status">Checking device storage…</p><button id="requestPersistence" class="secondary" hidden>Request persistent storage</button></details>
@@ -132,25 +132,26 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
     <p class="small">One cloud connection serves every app on this site: enter your S3-compatible storage details once. Each app backs up to its own path.</p>
     <div id="connectionScope" class="stack"></div>
     <form id="cloudForm" class="stack">
-      <label class="field">Backup mode<select id="cloudMode"><option value="auto">Automatic (separate backup files)</option><option value="immutable">Separate backup files — explicit restore</option><option value="conditional">Conditional sync — overwrite protection required</option></select></label>
-      <label class="field">Storage endpoint<input id="cloudEndpoint" type="url" required placeholder="https://your-s3-server.example"></label>
+      <label class="field">Backup mode<select id="cloudMode"><option value="immutable">Separate backup files (recommended)</option><option value="conditional">Conditional sync (one shared file)</option></select></label>
+      <p class="small">Separate files never replace another device’s data. Conditional sync needs a provider that enforces overwrite protection.</p>
+      <label class="field">Endpoint URL<input id="cloudEndpoint" type="url" required placeholder="https://your-s3-server.example"></label>
       <div class="grid"><label class="field">Region<input id="cloudRegion" required placeholder="Provider region"></label><label class="field">Bucket<input id="cloudBucket" required></label></div>
-      <label class="field">Backup object path · this app<input id="cloudObject" value="bike-cardio-backup.json" required></label>
+      <label class="field">Backup path · this app<input id="cloudObject" value="bike-cardio-backup.json" required></label>
       <label class="field">Access key ID<input id="cloudAccess" required autocomplete="off"></label>
       <label class="field">Secret access key<input id="cloudSecret" type="password" autocomplete="off" placeholder="Leave blank to keep the saved secret"></label>
-      <label class="check"><input id="cloudPathStyle" type="checkbox" checked>Use path-style addressing</label>
-      <p class="small">Credentials are saved in this browser and excluded from workout backups. Use a private bucket. The connection is shared by every app on this site; the backup object path is this app’s.</p>
+      <label class="check"><input id="cloudPathStyle" type="checkbox" checked>Path-style addressing</label>
+      <p class="small">Credentials are saved in this browser and excluded from workout backups. Use a private bucket. The connection is shared by every app on this site; the backup path is this app’s.</p>
       <button type="submit" id="saveCloud" class="secondary">Check &amp; save connection</button>
     </form>
-    <label class="field">Load connection configuration<input id="importCloudConfig" type="file" accept=".json,application/json"></label>
+    <label class="field">Load config file<input id="importCloudConfig" type="file" accept=".json,application/json"></label>
     <p id="cloudConfigStatus" class="small" role="status"></p>
     <p id="cloudStatus" class="small" role="status" aria-live="polite">Cloud backup is not configured.</p>
     <p id="cloudDetails" class="small" role="status"></p>
-    <div id="cloudActions" class="stack" hidden><button id="cloudTest" class="secondary">Test connection</button><button id="exportCloudConfig" class="secondary">Download connection configuration</button><button id="cloudBackup" class="secondary">Back up now</button><button id="cloudPause" class="secondary">Pause cloud sync</button><button id="cloudResume" class="secondary">Review &amp; resume sync</button><button id="cloudKeepLocal" class="secondary">Keep local copy &amp; update cloud</button><button id="cloudUseRemote" class="secondary">Use cloud copy</button><button id="cloudForget" class="text-button">Forget cloud connection</button></div>
-    <details id="storageTools" hidden><summary>Provider checks &amp; cloud snapshots</summary><div id="remoteTools"></div></details>
+    <div id="cloudActions" class="stack" hidden><button id="cloudBackup" class="secondary">Back up now</button><button id="cloudPause" class="secondary">Pause cloud backups</button><button id="cloudKeepLocal" class="secondary">Resume backups…</button><button id="cloudResume" class="secondary">Resume automatic sync…</button><button id="cloudUseRemote" class="secondary">Use cloud copy…</button><button id="cloudTest" class="secondary">Test read access</button><button id="exportCloudConfig" class="secondary">Save config file</button><button id="cloudForget" class="text-button">Forget connection…</button></div>
+    <details id="storageTools" hidden><summary>Troubleshooting &amp; earlier backups</summary><div id="remoteTools"></div></details>
   </details>
   <div id="handoffTools" class="card handoff-tools"></div>
-  <details><summary>Install &amp; offline use</summary><p class="small">When opened from an HTTPS website, use Chrome’s menu → Add to home screen / Install app. Open once online before using it offline. A downloaded HTML file also works for manual HR without a network. Strap support needs an HTTPS page in Android Chrome.</p><p id="offlineStatus" class="status"></p><div id="appUpdateControls"></div></details>
+  <details><summary>App updates</summary><p class="small">When opened from an HTTPS website, use Chrome’s menu → Add to home screen / Install app. Open once online before using it offline. A downloaded HTML file also works for manual HR without a network. Strap support needs an HTTPS page in Android Chrome.</p><p id="offlineStatus" class="status"></p><div id="appUpdateControls"></div></details>
 </section>
 <section id="run" hidden>
   <header class="row run-header"><div><span id="workoutLabel" class="eyebrow"></span><h1 id="phaseTitle" class="phase-title"></h1><span id="screenStatus" class="status" role="status">Screen stay-awake: checking</span></div></header>
@@ -221,7 +222,7 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
     <div class="dialog-actions"><button type="submit" class="primary">Save changes</button><button id="cancelEdit" type="button" class="secondary">Cancel</button></div>
   </form>
 </dialog>
-<dialog id="configExportDialog" aria-labelledby="configExportTitle"><h2 id="configExportTitle">Download connection configuration</h2><p>Save your endpoint, region, bucket, object path and access key ID for another device. The secret key is excluded by default.</p><p class="small">A file containing the secret key grants access to your bucket. Keep it private.</p><div class="dialog-actions"><button id="exportConfigSafe" class="primary">Download without secret key</button><button id="exportConfigSecret" class="secondary danger">Include secret key…</button><button id="cancelConfigExport" class="secondary">Cancel</button></div></dialog>
+<dialog id="configExportDialog" aria-labelledby="configExportTitle"><h2 id="configExportTitle">Save config file</h2><p>Save your endpoint, region, bucket, object path and access key ID for another device. The secret key is excluded by default.</p><p class="small">A file containing the secret key grants access to your bucket. Keep it private.</p><div class="dialog-actions"><button id="exportConfigSafe" class="primary">Download without secret key</button><button id="exportConfigSecret" class="secondary danger">Include secret key…</button><button id="cancelConfigExport" class="secondary">Cancel</button></div></dialog>
 <div id="toast" class="toast" role="status" hidden></div>
 <script>
 /* app-foundation:start */
@@ -774,7 +775,7 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
     try{
       const draft=storage.configDraft(await readJSONUpload(file));
       for(const [id,name]of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId'],['cloudSecret','secretAccessKey']])$(id).value=draft[name];
-      $('cloudMode').value=draft.syncMode||'auto';$('cloudPathStyle').checked=draft.pathStyle;
+      $('cloudMode').value=storage.remote.syncMode(draft);$('cloudPathStyle').checked=draft.pathStyle;
       $('cloudConfigStatus').textContent='Configuration loaded for review. '+(draft.secretAccessKey?'':'Enter the secret key if needed. ')+'Choose Check & save connection to apply it.';
     }catch(error){$('cloudConfigStatus').textContent=error.message;}
   });

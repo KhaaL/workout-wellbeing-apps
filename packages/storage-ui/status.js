@@ -8,7 +8,7 @@ WorkoutStorage.pauseReasons = {
   'history-import':()=>'Paused when you imported workout history from a file.',
   review:()=>'Paused when a choice between the local and cloud copies did not finish.',
   snapshot:()=>'Paused when you chose a cloud backup to restore.',
-  provider:()=>'Paused by the storage provider check. Its results are in Storage options.',
+  provider:()=>'Paused by the storage provider check. Its results are under Troubleshooting.',
   handoff:()=>'Paused when you prepared a workout handoff to another device.',
   'handoff-received':()=>'Paused when this device received a workout from another device.',
   'handoff-cancelled':()=>'Paused when you cancelled a workout handoff.',
@@ -17,9 +17,9 @@ WorkoutStorage.pauseReasons = {
 WorkoutStorage.storageSummary = function(input){
   const cloudAt=Number(input.cloudAt)||null,fileAt=Number(input.fileAt)||null;
   const conditional=input.mode==='conditional',term=conditional?'Cloud sync':'Cloud backups';
-  const base={cloudAt,fileAt,pausedAt:null,configured:!!input.configured,detailsLabel:input.detailsLabel||'Storage options',action:'download',actionLabel:'Download backup',tone:'neutral',detail:'Your data is saved on this device.'};
+  const base={cloudAt,fileAt,pausedAt:null,configured:!!input.configured,detailsLabel:input.detailsLabel||'Backup settings',action:'download',actionLabel:'Download full backup',tone:'neutral',detail:'Your data is saved on this device.'};
   const state=(id,title,detail,action=base.action,actionLabel=base.actionLabel,tone=base.tone)=>({...base,id,title,detail,action,actionLabel,tone});
-  if(input.failed||input.blocked)return state('attention','Needs attention','Changes may only be in memory. Keep this page open and download a backup.','download','Download backup','danger');
+  if(input.failed||input.blocked)return state('attention','Needs attention','Changes may only be in memory. Keep this page open and download a backup.','download','Download full backup','danger');
   if(input.localPending)return state('saving','Saving on this device…','Keep this page open until saving finishes.',null,null);
   if(input.held)return state('paused',term+' paused','A workout is held for transfer. Finish or cancel the handoff before resuming '+term.toLowerCase()+'.','handoff','Review handoff','warning');
   if(!input.configured)return state('local','Saved on this device','Cloud backup is not set up. Download a backup to keep a copy off this device.','configure','Set up cloud backup');
@@ -31,7 +31,7 @@ WorkoutStorage.storageSummary = function(input){
     const detail=(reason?reason+' ':'')+(conditional?'Your data stays on this device. Nothing syncs until you choose which copy to keep.':'Your data stays on this device. Nothing uploads until you resume backups.');
     return {...state('paused',term+' paused',detail,conditional?'review':'resume',conditional?'Choose a copy':'Resume backups…','warning'),pausedAt};
   }
-  if(input.online===false)return state('offline','Offline',input.pending?'Your changes are saved here. Uploads will retry when a connection is available.':'Your local data is available. Cloud storage cannot be checked while offline.','download','Download backup','warning');
+  if(input.online===false)return state('offline','Offline',input.pending?'Your changes are saved here. Uploads will retry when a connection is available.':'Your local data is available. Cloud storage cannot be checked while offline.','download','Download full backup','warning');
   if(input.busy||input.status==='checking')return state('checking','Checking cloud storage…','Your data remains on this device while the storage request completes.',null,null);
   if(input.status==='error'||input.status==='warning'){
     const hints={credentials:'Check the access key and matching secret in connection settings.',permissions:'Check that your storage key has permission for this operation.',bucket:'Check the bucket name in connection settings.',region:'Check the region and endpoint in connection settings.',clock:'Check this device’s date and time.',
@@ -40,8 +40,28 @@ WorkoutStorage.storageSummary = function(input){
     return state('attention','Needs attention',hints[category]||'Cloud backup did not finish. Your local data is kept. Review the connection details and retry.',configuration?'configure':'retry',configuration?'Review connection':input.mode==='conditional'?'Retry sync':'Retry backup','danger');
   }
   const backed=cloudAt&&input.cloudRevision!=null&&input.revision!=null&&Number(input.cloudRevision)===Number(input.revision)&&!input.pending;
-  if(backed)return state('backed-up','Backed up','The current saved data has a verified cloud backup.','download','Download backup','success');
+  if(backed)return state('backed-up','Backed up','The current saved data has a verified cloud backup.','download','Download full backup','success');
   return state('pending','Upload pending',conditional?(input.active?'Your workout is saved here. A cloud comparison may wait until the workout finishes.':'Your data is saved here. Sync compares both copies; a newer cloud copy may replace local data.'):'Your data is saved here. Changes are waiting for a verified cloud backup.','backup',conditional?'Sync now':'Back up now');
+};
+/* The cloud buttons every app shows, in order. Separate files never replace
+   local data, so a paused app resumes with one confirmed upload. Conditional
+   sync shares one file, so a paused app chooses which copy to keep. */
+WorkoutStorage.cloudActions = function(mode,paused){
+  if(mode!=='conditional')return paused
+    ?[{id:'publish-local',label:'Resume backups…',primary:true}]
+    :[{id:'backup',label:'Back up now',primary:true},{id:'pause',label:'Pause cloud backups'}];
+  return (paused
+    ?[{id:'publish-local',label:'Keep local copy & update cloud…',primary:true},{id:'resume',label:'Resume automatic sync…'}]
+    :[{id:'backup',label:'Sync now',primary:true},{id:'pause',label:'Pause cloud sync'}]
+  ).concat({id:'restore',label:'Use cloud copy…'});
+};
+/* Shows the cloudActions buttons by id ({backup:element,…}) and hides the rest. */
+WorkoutStorage.applyCloudActions = function(buttons,mode,paused){
+  const shown=new Map(WorkoutStorage.cloudActions(mode,paused).map(item=>[item.id,item]));
+  for(const [id,node] of Object.entries(buttons)){
+    if(!node)continue;const item=shown.get(id);node.hidden=!item;
+    if(item){const label=node.querySelector('span')||node;label.textContent=item.label;}
+  }
 };
 WorkoutStorage.renderStorageSummary = function(container,input,actions){
   if(!container)return;
@@ -59,7 +79,7 @@ WorkoutStorage.renderStorageSummary = function(container,input,actions){
   const buttons=container.querySelector('.shared-actions'),focused=document.activeElement?.closest('.storage-summary')===container?document.activeElement.dataset.storageAction:null;buttons.replaceChildren();
   function button(id,label,primary){const b=document.createElement('button');b.type='button';b.className='btn'+(primary?' btn-primary':'');b.dataset.storageAction=id;b.textContent=label;b.addEventListener('click',()=>Promise.resolve().then(()=>actions[id]?.()).catch(error=>actions.error?.(error)));buttons.append(b);}
   if(model.action)button(model.action,model.actionLabel,true);
-  if(model.action&&model.action!=='download')button('download','Download backup',false);
+  if(model.action&&model.action!=='download')button('download','Download full backup',false);
   // Setting up or reviewing the connection already opens the same section.
   if(model.action!=='configure')button('details',model.detailsLabel,false);
   if(focused)(buttons.querySelector('[data-storage-action="'+focused+'"]')||buttons.lastElementChild)?.focus();
