@@ -29,15 +29,18 @@ const cfg={endpoint:'https://storage.test',region:'test',syncMode:'conditional',
  await page.waitForFunction(()=>window.testAPI.state.workouts[0].notes==='chosen local');
  assert.equal(await page.evaluate(()=>window.testAPI.remoteSyncPaused()),true);
  assert.match(await page.locator('#storage-summary').textContent(),/Cloud sync paused/);
- assert.equal(await page.locator('[data-action="remote-backup"]').count(),0);
- assert.equal(await page.locator('[data-action="remote-publish-local"]').count(),1);
+ // The shared panel keeps every cloud button and hides the ones this state does not offer.
+ const shown=id=>page.evaluate(id=>{const node=document.getElementById(id);return !!node&&!node.hidden;},id);
+ assert.equal(await shown('cloudBackup'),false);
+ assert.equal(await shown('cloudKeepLocal'),true);
  await page.reload();await fake(fixture(Date.now()+100000,'cloud'));await page.evaluate(()=>window.testAPI.navigate('settings'));
  assert.equal(await page.evaluate(()=>window.testAPI.state.workouts[0].notes),'chosen local');
  await page.evaluate(()=>{document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('online'));});
  assert.equal(await page.evaluate(()=>window.fakeS3.calls.length),0);
  console.log('PASS local recovery and pause controls persist through reload and online recovery');
- await page.locator('details[data-settings-section="storage"] > summary').click();
- await page.locator('[data-action="remote-resume"]').click();
+ // A recovery copy opens Backups & cloud storage by itself; open it either way.
+ await page.locator('details[data-settings-section="storage"]').evaluate(node=>{node.open=true;});
+ await page.locator('#cloudResume').click();
  // A newer cloud must be explained, and cancellation leaves the chosen local data.
  await page.getByRole('button',{name:'Use cloud copy & resume',exact:true}).waitFor();
  assert.match(await page.locator('dialog[open]').textContent(),/cloud copy will replace/i);
@@ -46,16 +49,16 @@ const cfg={endpoint:'https://storage.test',region:'test',syncMode:'conditional',
  assert.equal(await page.evaluate(()=>window.testAPI.state.workouts[0].notes),'chosen local');
  assert.equal(await page.evaluate(()=>window.testAPI.remoteSyncPaused()),true);
  console.log('PASS reviewed resume warns before cloud replacement; cancellation preserves local recovery');
- await page.locator('[data-action="remote-publish-local"]').click();
+ await page.locator('#cloudKeepLocal').click();
  await page.getByRole('button',{name:'Keep local & update cloud',exact:true}).click();
  await page.waitForFunction(()=>!window.testAPI.ui.remoteBusy);
  assert.equal(await page.evaluate(()=>window.fakeS3.cloud.workouts[0].notes),'chosen local');
  assert.equal(await page.evaluate(()=>window.fakeS3.snapshots[0].workouts[0].notes),'cloud');
  assert.equal(await page.evaluate(()=>window.testAPI.remoteSyncPaused()),false);
- assert.equal(await page.locator('[data-action="remote-pause"]').count(),1);
- await page.locator('[data-action="remote-pause"]').click();
+ assert.equal(await shown('cloudPause'),true);
+ await page.locator('#cloudPause').click();
  assert.equal(await page.evaluate(()=>window.testAPI.remoteSyncPaused()),true);
- assert.equal(await page.locator('[data-action="remote-resume"]').count(),1);
+ await page.waitForFunction(()=>!document.getElementById('cloudResume').hidden);
  assert.ok(await page.evaluate(()=>!!JSON.parse(localStorage.getItem('wellbeing.connection.v1')).secretAccessKey),'pausing keeps the shared credentials');
  console.log('PASS explicit local publication uses snapshots; pause retains credentials and exposes reviewed choices');
  assert.deepEqual(errors,[]);await context.close();

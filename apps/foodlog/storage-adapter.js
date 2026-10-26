@@ -26,21 +26,15 @@ const FoodlogStorage = (() => {
       setRevision:(candidate,value)=>{candidate.updatedAt=value;},summarizeBackup:raw=>({records:raw.entries.length,recordLabel:'logged items',hasActive:false}),
       hasData:()=>!!(local.existing||state.foods.length||state.entries.length||state.updatedAt),isActive:()=>false,
       toast:options.toast,confirm:options.confirm,onStatus:options.onRemoteStatus,onBusy:options.onBusy,onRefresh:options.onRefresh,onRestore:options.onRestore});
-    async function configure(candidate){
-      if(!remote.remoteCryptoAvailable())throw new Error('Cloud storage needs HTTPS and Web Crypto.');
-      remote.invalidateRemote();remote.validateRemoteConfig(candidate);
-      await remote.coordinateRemote(async ctx=>{await remote.readRemoteBackup(candidate,ctx);remote.assertRemote(ctx);remote.saveRemoteConfig(candidate,ctx);},candidate,true);
-      options.toast('Read check passed. Backups verify write permission.');remote.remoteStartupSync();
-    }
     async function restore(raw){
       const expected=JSON.stringify(state),candidate=prepare(raw);
       if(!await options.confirm('Restore Foodlog backup?','Replace this device’s foods, log and settings? A recovery copy will be kept and cloud sync paused.','Restore backup',true))return false;
       if(expected!==JSON.stringify(state))throw new Error('Data changed during review. Restore cancelled.');
-      remote.pauseRemoteSync('Local backup restored');
+      remote.pauseRemoteSync('Local backup restored',{code:'import'});
       candidate.updatedAt=Math.max(Date.now(),state.updatedAt+1,candidate.updatedAt+1);
       return remote.commitSnapshot(candidate);
     }
-    return {get state(){return state;},local,remote,backup,configure,restore,save:(remote=true)=>local.save({immediate:true,remote})};
+    return {get state(){return state;},local,remote,backup,restore,save:(remote=true)=>local.save({immediate:true,remote})};
   }
   return {create,prepare};
 })();

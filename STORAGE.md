@@ -88,10 +88,10 @@ of applying an empty rule set.
 ## Verify and use backups
 
 1. Save the connection in each app with its own object path.
-2. Test the connection (Liftlog: **Test read access** under Connection). It
-   checks reading and listing only; it does not verify writes.
-3. Run the provider check (Liftlog: under Troubleshooting) for upload,
-   read-back and compatibility results.
+2. Test the connection with **Test read access** under Connection. It checks
+   reading and listing only; it does not verify writes.
+3. Run the provider check under Troubleshooting for upload, read-back and
+   compatibility results.
 4. Review local data, resume backups if paused, then use Back up now.
 5. Browse earlier cloud backups and confirm the uploaded backup exists.
 

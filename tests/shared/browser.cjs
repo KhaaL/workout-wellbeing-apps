@@ -31,8 +31,8 @@ const csp=require('./site-headers.cjs').csp('bike-cardio');
     await page.click('#historyBack');await page.click('#again');
     await navigateUI(page,'settings');await page.locator('summary').filter({hasText:'Backups & cloud storage'}).click();
     const downloadWait=page.waitForEvent('download');await page.click('#exportBackup');const download=await downloadWait;
-    const backup=JSON.parse(fs.readFileSync(await download.path(),'utf8'));assert.equal(backup.history[0].metrics.mainAverageHR,'115.5');assert.equal(backup.app,'bike-cardio');assert.match(await page.locator('#backupAge').textContent(),/downloaded file/);assert.match(await page.locator('#storageDiagnostics').textContent(),/Ride data:/);
-    await page.locator('summary').filter({hasText:'Device storage'}).click();await page.click('#requestPersistence');await page.waitForFunction(()=>document.getElementById('storageDiagnostics').textContent.includes('Persistent storage granted'));assert.equal(await page.evaluate(()=>window.persistenceCalls),1);
+    const backup=JSON.parse(fs.readFileSync(await download.path(),'utf8'));assert.equal(backup.history[0].metrics.mainAverageHR,'115.5');assert.equal(backup.app,'bike-cardio');assert.match(await page.locator('#backupAge').textContent(),/downloaded file/);assert.match(await page.locator('#storageDiagnostics').textContent(),/Bike Cardio’s data takes/);
+    await page.click('#requestPersistence');await page.waitForFunction(()=>document.getElementById('persistenceStatus').textContent.startsWith('Persistent:'));assert.equal(await page.evaluate(()=>window.persistenceCalls),1);
     const restored=structuredClone(backup);restored.history[0].metrics.notes='restored';await confirmAction(page,()=>page.setInputFiles('#importBackup',{name:'backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(restored))}));
     await page.waitForFunction(()=>JSON.parse(localStorage.getItem('bike-cardio.state.v1')).history[0].metrics.notes==='restored');
     assert.equal(await page.locator('#downloadRecovery').isVisible(),true);
@@ -50,6 +50,8 @@ const csp=require('./site-headers.cjs').csp('bike-cardio');
     await page.fill('#cloudEndpoint','https://storage.test');await page.fill('#cloudRegion','test');await page.fill('#cloudBucket','test');await page.fill('#cloudAccess','fake');await page.fill('#cloudSecret','synthetic');await page.selectOption('#cloudMode','conditional');await page.click('#saveCloud');
     await page.waitForFunction(()=>localStorage.getItem('bike-cardio.v1.remote')!==null);
     // Configuration export excludes the secret by default and loading never applies it.
+    // A saved connection folds away; its config file tools sit under Connection.
+    await page.locator('#cloudConnection > summary').click();
     const configDownloadWait=page.waitForEvent('download');await page.click('#exportCloudConfig');await page.click('#exportConfigSafe');
     const configDownload=await configDownloadWait,connection=JSON.parse(fs.readFileSync(await configDownload.path(),'utf8'));
     assert.equal(connection.kind,'remote-config');assert.equal(connection.secretAccessKey,undefined);
@@ -61,7 +63,7 @@ const csp=require('./site-headers.cjs').csp('bike-cardio');
     assert.match(await page.locator('#cloudConfigStatus').textContent(),/review/);
     await page.click('#cloudTest');await page.waitForFunction(()=>document.getElementById('toast').textContent.includes('write permission unverified'));
     assert.equal(await page.evaluate(()=>window.fakeCloud.calls.some(c=>c.method==='PUT')),false);
-    assert.match(await page.locator('#cloudDetails').textContent(),/Bucket: test/);
+    assert.match(await page.locator('#cloudDescription').textContent(),/^test · /);
     // Import deliberately keeps sync paused. Explicit publication resumes it.
     await confirmAction(page,()=>page.click('#cloudKeepLocal'));await page.waitForFunction(()=>window.fakeCloud.cloud!==null);
     assert.equal(await page.evaluate(()=>window.fakeCloud.cloud.history[0].metrics.notes),'restored');

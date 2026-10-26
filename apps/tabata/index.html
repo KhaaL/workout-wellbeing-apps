@@ -67,6 +67,7 @@ main{max-width:640px;margin:auto;padding:24px 20px 32px}h1{font-size:var(--fs-xl
 </section>
 <section id="complete" hidden aria-labelledby="completeTitle"><div class="panel complete-panel"><div class="complete-mark" aria-hidden="true">✓</div><p class="eyebrow">Session finished</p><h1 id="completeTitle">Nicely done.</h1><p id="completeSummary"></p><p id="completeSaveStatus" class="hint" role="status"></p></div><div class="form-actions"><button id="again" class="btn btn-primary" type="button">Go again</button><button id="editSetup" class="btn" type="button">Change setup</button></div></section>
 <section id="settings" hidden aria-labelledby="settingsTitle"><p class="eyebrow">Tabata</p><h1 id="settingsTitle">Settings</h1>
+<div id="storage-summary"></div>
 <div class="panel settings-panel stack">
 <form id="presetForm" class="stack"><h2>Quick presets</h2><p class="hint">Choose any work and rest preset independently on the timer. Values are in seconds.</p><fieldset class="preset-settings"><legend>Work presets · seconds</legend><div class="preset-grid"><label class="field">Preset 1<input id="workPreset1" aria-label="Work preset 1 · seconds" type="number" min="1" max="3600" step="1" inputmode="numeric" required></label><label class="field">Preset 2<input id="workPreset2" aria-label="Work preset 2 · seconds" type="number" min="1" max="3600" step="1" inputmode="numeric" required></label><label class="field">Preset 3<input id="workPreset3" aria-label="Work preset 3 · seconds" type="number" min="1" max="3600" step="1" inputmode="numeric" required></label></div></fieldset><fieldset class="preset-settings"><legend>Rest presets · seconds</legend><div class="preset-grid"><label class="field">Preset 1<input id="restPreset1" aria-label="Rest preset 1 · seconds" type="number" min="0" max="3600" step="1" inputmode="numeric" required></label><label class="field">Preset 2<input id="restPreset2" aria-label="Rest preset 2 · seconds" type="number" min="0" max="3600" step="1" inputmode="numeric" required></label><label class="field">Preset 3<input id="restPreset3" aria-label="Rest preset 3 · seconds" type="number" min="0" max="3600" step="1" inputmode="numeric" required></label></div></fieldset><div class="form-actions"><button class="btn" type="submit">Save presets</button><button id="resetPresets" class="btn" type="button">Reset presets</button></div><p id="presetStatus" class="hint" role="status"></p></form>
 <label class="field">Get ready · seconds<input id="prepare" type="number" min="0" max="60" step="1" inputmode="numeric" data-stepper required></label>
@@ -76,28 +77,7 @@ main{max-width:640px;margin:auto;padding:24px 20px 32px}h1{font-size:var(--fs-xl
 <p id="settingsNote" class="hint">Changes apply to the next timer.</p>
 <h2>Appearance</h2>
 <label class="field">Theme<select id="themeChoice"></select></label>
-<details><summary>Backups &amp; cloud storage</summary><div class="stack">
-<p class="hint">One cloud connection serves every app on this site: enter your S3-compatible storage details once. Each app backs up to its own path.</p>
-<div id="connectionScope" class="stack"></div>
-<button id="exportBackup" class="btn" type="button">Download full backup</button>
-<label class="field">Restore from file<input id="importBackup" type="file" accept=".json,application/json"></label>
-<div id="recoveryCopies" class="stack recovery"></div>
-<form id="cloudForm" class="stack">
-<label class="field">Backup mode<select id="cloudMode"><option value="immutable">Separate backup files (recommended)</option><option value="conditional">Conditional sync (one shared file)</option></select></label>
-<p class="hint">Separate files never replace another device’s data. Conditional sync needs a provider that enforces overwrite protection.</p>
-<label class="field">Endpoint URL<input id="cloudEndpoint" type="url" placeholder="https://storage.example.com" required autocapitalize="none" spellcheck="false"></label>
-<label class="field">Region<input id="cloudRegion" required autocapitalize="none" spellcheck="false"></label>
-<label class="field">Bucket<input id="cloudBucket" required autocapitalize="none" spellcheck="false"></label>
-<label class="field">Backup path · this app<input id="cloudObject" value="tabata-backup.json" required autocapitalize="none" spellcheck="false"></label>
-<label class="field">Access key ID<input id="cloudAccess" required autocomplete="off" autocapitalize="none" spellcheck="false"></label>
-<label class="field">Secret access key<input id="cloudSecret" type="password" autocomplete="off" placeholder="Leave blank to keep saved secret"></label>
-<label class="check"><input id="cloudPathStyle" type="checkbox" checked>Path-style addressing</label>
-<button id="saveCloud" class="btn" type="submit">Check &amp; save connection</button>
-</form>
-<p id="cloudStatus" class="status-line" role="status">Cloud storage is not configured.</p>
-<div id="cloudActions" class="stack" hidden><button id="cloudBackup" class="btn" type="button">Back up now</button><button id="cloudPause" class="btn" type="button">Pause cloud backups</button><button id="cloudKeepLocal" class="btn" type="button">Resume backups…</button><button id="cloudResume" class="btn" type="button">Resume automatic sync…</button><button id="cloudUseRemote" class="btn" type="button">Use cloud copy…</button><button id="cloudForget" class="btn btn-danger" type="button">Forget connection…</button></div>
-<div id="remoteTools"></div>
-</div></details>
+<details id="storage-options"><summary>Backups &amp; cloud storage</summary><div id="storagePanel"></div></details>
 <details><summary>App updates</summary><div id="updatesPanel"></div><p id="updatesHint" class="hint">Add this app to your home screen for a standalone timer. After its first online load, it works offline. Updates wait until your session has ended.</p></details>
 </div></section>
 </main>
@@ -131,6 +111,7 @@ main{max-width:640px;margin:auto;padding:24px 20px 32px}h1{font-size:var(--fs-xl
 <script data-source-only src="../../packages/storage-ui/handoff.js"></script>
 <script data-source-only src="../../packages/storage-ui/status.js"></script>
 <script data-source-only src="../../packages/storage-ui/connection.js"></script>
+<script data-source-only src="../../packages/storage-ui/panel.js"></script>
 <script data-source-only src="../../packages/app-ui/updates.js"></script>
 <script data-source-only src="bell-audio.js"></script>
 <script data-source-only src="timer-core.js"></script>
