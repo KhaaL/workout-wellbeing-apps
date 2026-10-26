@@ -18,6 +18,7 @@ const LS_REMOTE_KEY = app.namespace + ".remote";
 const SHARED_KEY = WorkoutStorage.SHARED_CONNECTION_KEY;
 const CONNECTION_FIELDS = ['endpoint','region','bucket','pathStyle','accessKeyId','secretAccessKey','syncMode'];
 const REMOTE_OBJECT_KEY_DEFAULT = app.objectKey;
+const APP_ID = app.namespace.split('.')[0];
 const LS_REMOTE_RESTORE_KEY = app.recoveryKey;
 const REMOTE_BACKUP_DELAY = 3000;
 let remoteBackupTimer = 0;
@@ -658,6 +659,54 @@ async function remoteStartupSync(){
     } catch(e){ retryRemoteError(e,ctx); }
   },cfg).catch(() => {});
 }
+/* Saves a connection after one read proves the endpoint, keys and bucket;
+   the first real backup proves writing. Backup history belongs to the
+   destination: new credentials keep it, another bucket, path or mode clears it. */
+async function configure(candidate){
+  if(!remoteCryptoAvailable())throw new Error('Cloud storage needs HTTPS and Web Crypto.');
+  invalidateRemote();validateRemoteConfig(candidate);
+  await coordinateRemote(async ctx=>{
+    await readRemoteBackup(candidate,ctx);assertRemote(ctx);
+    const previous=loadRemoteConfig(),same=previous&&remoteDestination(previous)===remoteDestination(candidate);
+    candidate.lastBackupAt=same?previous.lastBackupAt??null:null;
+    candidate.lastUploadedModifiedAt=same?previous.lastUploadedModifiedAt??null:null;
+    if(same&&previous.lastBackupMode)candidate.lastBackupMode=previous.lastBackupMode;else delete candidate.lastBackupMode;
+    saveRemoteConfig(candidate,ctx);
+  },candidate,true);
+  remoteStartupSync();
+}
+/* A connection file sets up another device without retyping. It carries
+   the secret only when asked, and names the app whose backup path it holds. */
+function configPayload(includeSecret=false){
+  const cfg=loadRemoteConfig();if(!cfg)throw new Error('Cloud storage is not configured.');
+  const result={app:APP_ID,kind:'remote-config',version:1,exportedAt:new Date().toISOString(),
+    endpoint:cfg.endpoint,region:cfg.region,bucket:cfg.bucket,objectKey:cfg.objectKey||REMOTE_OBJECT_KEY_DEFAULT,
+    syncMode:syncMode(cfg),pathStyle:!!cfg.pathStyle,accessKeyId:cfg.accessKeyId};
+  if(includeSecret)result.secretAccessKey=cfg.secretAccessKey;
+  return result;
+}
+/* Any app's connection file loads into a draft for review. Its backup path
+   applies only when the file came from this app: another app's path is that
+   app's own. */
+function configDraft(raw){
+  WorkoutStorage.enforceLimits(raw,{},64*1024);
+  if(!raw||typeof raw!=='object'||raw.kind!=='remote-config')throw new Error('Expected a connection config file.');
+  const draft={};
+  for(const name of ['endpoint','bucket','accessKeyId']){
+    if(typeof raw[name]!=='string'||!raw[name].trim())throw new Error('Missing configuration field: '+name);
+    draft[name]=raw[name].trim();
+  }
+  draft.endpoint=draft.endpoint.replace(/\/+$/,'');
+  if(raw.region!=null&&typeof raw.region!=='string')throw new Error('Invalid region.');
+  if(raw.pathStyle!=null&&typeof raw.pathStyle!=='boolean')throw new Error('Path-style addressing must be true or false.');
+  if(raw.secretAccessKey!=null&&typeof raw.secretAccessKey!=='string')throw new Error('Invalid secret access key.');
+  const own=raw.app===APP_ID&&typeof raw.objectKey==='string'&&raw.objectKey.trim();
+  draft.region=(raw.region||'').trim();draft.objectKey=own?raw.objectKey.trim():loadRemoteConfig()?.objectKey||REMOTE_OBJECT_KEY_DEFAULT;
+  draft.syncMode=syncMode(raw);draft.pathStyle=raw.pathStyle===true;draft.secretAccessKey=(raw.secretAccessKey||'').trim();
+  // A file without a region still loads; Check & save asks for one.
+  validateRemoteConfig({...draft,region:draft.region||'unset'});
+  return draft;
+}
 function remoteTestConnection(){
   const cfg = loadRemoteConfig(); if (!cfg) return;
   return remoteRunAction(() => coordinateRemote(async ctx => {
@@ -897,5 +946,5 @@ async function remoteRestoreSnapshot(key,legacy=false,options={}){
     toolsChanged();return true;
   });
 }
-return {remoteUploadHandoff,remoteReadHandoff,syncMode,remoteRestoreLegacy,appendRemoteBackup,remoteCheckProvider,remoteListSnapshots,remotePreviewSnapshot,remoteDownloadSnapshot,remoteRestoreSnapshot,remoteRestoreLatest,remoteTools,diagnosticsPayload,remoteSyncPaused,remotePauseInfo,pauseRemoteSync,pauseRemoteSyncAction,resumeReviewedSync,enforceBackupLimits,remoteDestination,remoteIdentity,invalidateRemote,assertRemote,coordinateRemote,readRemoteWork,writeRemoteWork,validateRemoteConfig,loadRemoteConfig,saveRemoteConfig,clearRemoteConfig,connectionScope,sharedConnection,useSharedConnection,get defaultObjectKey(){return REMOTE_OBJECT_KEY_DEFAULT;},remoteCryptoAvailable,toHex,sha256Hex,hmacRaw,signingKey,amzNow,uriEncode,remoteUrl,s3Request,remoteRunAction,scheduleRemoteBackup,armRemoteRetry,retryRemoteError,readRemoteBackup,preserveBeforeRemoteRestore,commitSnapshot,installRemoteSnapshot,markRemoteSuccess,reconcileRemote,putRemoteBackup,autoRemoteBackup,remoteBackup,reviewedRemoteDirection,remoteReviewChoice,remoteRestore,remotePublishLocal,remoteResumeSync,preserveRemoteSnapshot,remoteStartupSync,remoteTestConnection,get generation(){return remoteGeneration;},get queue(){return remoteQueue;},get controllers(){return remoteControllers;},flushScheduled(){if(remoteBackupTimer){clearTimeout(remoteBackupTimer);remoteBackupTimer=0;return autoRemoteBackup();}}};
+return {remoteUploadHandoff,remoteReadHandoff,syncMode,remoteRestoreLegacy,appendRemoteBackup,remoteCheckProvider,remoteListSnapshots,remotePreviewSnapshot,remoteDownloadSnapshot,remoteRestoreSnapshot,remoteRestoreLatest,remoteTools,diagnosticsPayload,remoteSyncPaused,remotePauseInfo,pauseRemoteSync,pauseRemoteSyncAction,resumeReviewedSync,enforceBackupLimits,remoteDestination,remoteIdentity,invalidateRemote,assertRemote,coordinateRemote,readRemoteWork,writeRemoteWork,validateRemoteConfig,loadRemoteConfig,saveRemoteConfig,clearRemoteConfig,connectionScope,sharedConnection,useSharedConnection,get defaultObjectKey(){return REMOTE_OBJECT_KEY_DEFAULT;},remoteCryptoAvailable,toHex,sha256Hex,hmacRaw,signingKey,amzNow,uriEncode,remoteUrl,s3Request,remoteRunAction,scheduleRemoteBackup,armRemoteRetry,retryRemoteError,readRemoteBackup,preserveBeforeRemoteRestore,commitSnapshot,installRemoteSnapshot,markRemoteSuccess,reconcileRemote,putRemoteBackup,autoRemoteBackup,remoteBackup,reviewedRemoteDirection,remoteReviewChoice,remoteRestore,remotePublishLocal,remoteResumeSync,preserveRemoteSnapshot,remoteStartupSync,remoteTestConnection,configure,configPayload,configDraft,get generation(){return remoteGeneration;},get queue(){return remoteQueue;},get controllers(){return remoteControllers;},flushScheduled(){if(remoteBackupTimer){clearTimeout(remoteBackupTimer);remoteBackupTimer=0;return autoRemoteBackup();}}};
 };

@@ -215,14 +215,14 @@ Cloud backups need the site's origin (no path) in the bucket's CORS rules; see
 | `apps/tabata/` | Tabata timer composition, timing core, storage adapter and offline shell |
 | `apps/foodlog/` | Foodlog model (`food-core.js`), storage adapter, screens and offline shell |
 | `apps/bike-cardio/index.html` | Bike interface and app composition |
-| `apps/bike-cardio/controllers/storage.js` | Backup controls, recovery copies and device-storage diagnostics |
+| `apps/bike-cardio/controllers/storage.js` | Bike's settings for the shared storage panel, backup reminders and persistence requests |
 | `apps/bike-cardio/targets.js`, `workout-core.js` | Target validation, plans, timing and active-session migration |
 | `apps/bike-cardio/heart-rate.js`, `bluetooth.js` | HR packet interpretation, measured coverage and H10 connection lifecycle |
 | `apps/bike-cardio/storage-adapter.js` | Bike schema, legacy migration and engine adapter |
 | `packages/storage-engine/local.js` | Saving, failure reporting, recovery and durable replacement |
 | `packages/storage-engine/handoff.js` | Paused transfer validation, source holds, reviewed receipt and recovery |
 | `packages/storage-engine/remote.js` | S3 signing, separate-file backups, conditional sync, retries and recovery |
-| `packages/storage-ui/` | Shared storage summary, provider checks, backup browser and handoff presentation |
+| `packages/storage-ui/` | Shared storage summary, Backups & cloud storage panel, provider checks, backup browser and handoff presentation |
 | `packages/app-ui/` | Shared themes, controls, navigation, numeric adjustments, Markdown rendering and safe updates |
 | `apps/bike-cardio/history.js`, `apps/liftlog/comparisons.js` | Comparable workout interpretation |
 | `scripts/build.mjs` | Site build: home page, app folders, per-folder security headers, redirects and offline cache versions |
@@ -411,9 +411,9 @@ probe cleanup additionally needs DELETE; ordinary backups do not.
 
 ## Shared interface
 
-Settings in Liftlog and Bike begins with the same storage summary: saved on
-this device, upload pending, backed up, cloud backups or cloud sync paused,
-offline, or needs attention. Local save failures take priority over cloud success. **Backed up**
+Settings in every app begins with the same storage summary: saved on this
+device, upload pending, backed up, cloud backups or cloud sync paused, offline,
+or needs attention. Local save failures take priority over cloud success. **Backed up**
 requires a confirmed cloud backup of the current revision, with no pending
 changes. Connection tests alone cannot produce it. The summary shows the last
 cloud backup and backup download separately, with a relevant next action and a
@@ -425,11 +425,28 @@ the backup history; a different endpoint, region, bucket, object key, path
 style or mode hides it. Every app's Settings says that the connection is shared
 and names this app's backup path.
 
-Liftlog's **Cloud backup** section shows the bucket, the backup mode in one
-sentence, the backup and pause actions, and earlier cloud backups. After setup,
-**Connection** (form, config file, read test, forget) and **Troubleshooting**
-(provider check, diagnostics, last error) stay collapsed. **Move workout to
-another device** is collapsed unless a workout is active or held.
+**Backups & cloud storage** is one shared panel
+(`WorkoutStorage.createStoragePanel`) in all four apps, in this order:
+
+1. Recovery copies, when present: the previous local copy (download, restore,
+   discard) and unreadable saved data (download, discard). Liftlog opens the
+   section by itself while either exists.
+2. **Backup file**: what a full backup holds, the last backup, **Download full
+   backup** and **Restore from file**.
+3. **Device storage**: the app's data size and whether the browser may clear it,
+   with **Request persistent storage** where asking can help.
+4. **Cloud backup**: the bucket, the backup mode in one sentence, the mode's
+   buttons and earlier cloud backups.
+5. **Connection**: the shared connection form, **Check & save connection**,
+   **Load config file**, **Save config file**, **Test read access** and
+   **Forget connection…**. It stays collapsed after setup.
+6. **Troubleshooting**: provider check, diagnostics and the last error,
+   collapsed.
+
+A config file from any app loads into the form for review; only a file from the
+same app sets this app's backup path. Loading never saves: **Check & save
+connection** applies it after a read check. **Move workout to another device**
+is collapsed unless a workout is active or held.
 
 Both apps apply saved appearance in the document head before the main app starts.
 The page canvas and body use the same explicit theme background, and the body

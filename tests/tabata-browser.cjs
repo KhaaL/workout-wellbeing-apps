@@ -93,7 +93,7 @@ const csp=require('./shared/site-headers.cjs').csp('tabata');
     const restored={...backup,settings:{...backup.settings,rounds:3}};
     await confirmAction(page,()=>page.setInputFiles('#importBackup',{name:'tabata.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(restored))}));
     assert.equal((await saved()).settings.rounds,3);assert.equal(await page.evaluate(()=>localStorage.getItem('tabata.v1.remote-paused')!==null),true);
-    assert.equal(await page.getByRole('button',{name:'Download pre-restore copy'}).isVisible(),true);
+    assert.equal(await page.locator('#downloadRecovery').isVisible(),true);
     await page.evaluate(()=>{
       window.cloud={objects:{},calls:[]};
       window.fetch=async(url,options={})=>{

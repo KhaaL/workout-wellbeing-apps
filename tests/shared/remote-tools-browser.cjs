@@ -70,15 +70,11 @@ function verifySignature(url,headers,body,region=cfg.region){
         objects.set(key,{raw:req.postData(),etag:'"'+(++revision)+'"'});return respond(200);
       });
       await page.addInitScript(({state,stateKey,namespace,cfg})=>{if(!localStorage.getItem(stateKey)){localStorage.setItem(stateKey,JSON.stringify(state));localStorage.setItem(namespace+'.remote',JSON.stringify(cfg));localStorage.setItem(namespace+'.remote-paused','{}');}},{state,stateKey,namespace,cfg});
+      // Both apps mount the shared panel: Connection (read test) and Troubleshooting (provider check) are nested sections.
       const openTools=async()=>{
-        if(app==='bike-cardio'){
-          await navigateUI(page,'settings');const backups=page.locator('details').filter({has:page.locator('summary',{hasText:'Backups & cloud storage'})}).first();
-          if(!await backups.evaluate(node=>node.open))await backups.locator('summary').first().click();
-          if(!await page.locator('#storageTools').evaluate(node=>node.open))await page.locator('#storageTools > summary').click();
-        }else{
-          await page.locator('.nav-btn[data-view="settings"]').click();
-          // Cloud backup holds Connection (read test) and Troubleshooting (provider check) as nested sections.
-          for(const id of ['storage','cloud-connection','cloud-troubleshooting']){const section=page.locator('details[data-settings-section="'+id+'"]');if(!await section.evaluate(node=>node.open))await section.locator('summary').first().click();}
+        await navigateUI(page,'settings');
+        for(const selector of [app==='bike-cardio'?'#storage-options':'details[data-settings-section="storage"]','#cloudConnection','#storageTools']){
+          const section=page.locator(selector);if(!await section.evaluate(node=>node.open))await section.locator('summary').first().click();
         }
       };
       const acceptRestore=async accept=>{
@@ -122,14 +118,13 @@ function verifySignature(url,headers,body,region=cfg.region){
       await page.screenshot({path:'/tmp/'+app+'-remote-tools.png',fullPage:true});assert.deepEqual(errors,[]);
       // Save separate backup files through each app's real form.
       ignoreWriteConditions=true;calls.length=0;
-      if(app==='bike-cardio'){await page.fill('#cloudRegion','test');await page.selectOption('#cloudMode','immutable');await page.click('#saveCloud');}
-      else{await openTools();await page.fill('[data-bind="remote"][data-field="region"]','test');await page.selectOption('[data-bind="remote"][data-field="syncMode"]','immutable');await page.locator('form[data-form="remote-config"] button[type="submit"]').click();}
+      await openTools();await page.fill('#cloudRegion','test');await page.selectOption('#cloudMode','immutable');await page.click('#saveCloud');
       // The backup mode belongs to the connection, which every app on the site shares.
       await page.waitForFunction(({mode})=>JSON.parse(localStorage.getItem('wellbeing.connection.v1')).syncMode===mode,{mode:'immutable'});
       await openTools();
-      const testConnection=async()=>{const before=calls.length;await page.locator(app==='bike-cardio'?'#cloudTest':'[data-action="remote-test"]').click();await page.waitForFunction(app=>!document.querySelector(app==='bike-cardio'?'#cloudTest':'[data-action="remote-test"]').disabled,app);assert.equal(calls.length,before+1);assert.equal(calls.at(-1).method,'GET');assert.ok(new URL(calls.at(-1).url).searchParams.has('list-type'));};
+      const testConnection=async()=>{const before=calls.length;await page.locator('#cloudTest').click();await page.waitForFunction(()=>!document.querySelector('#cloudTest').disabled);assert.equal(calls.length,before+1);assert.equal(calls.at(-1).method,'GET');assert.ok(new URL(calls.at(-1).url).searchParams.has('list-type'));};
       await testConnection();assert.match(await page.locator(app==='bike-cardio'?'#toast':'#toast-region').textContent(),/Backup listing readable — write permission unverified/);
-      if(app==='liftlog'){assert.equal(await page.locator('[data-settings-section="storage"]').getByRole('button',{name:'Resume backups…',exact:true}).count(),1);assert.equal(await page.locator('#storage-summary').getByRole('button',{name:'Resume backups…',exact:true}).count(),1);assert.equal(await page.locator('[data-action="remote-resume"]').count(),0,'separate backups show one resume button');assert.doesNotMatch(await page.locator('[data-settings-section="storage"]').textContent(),/Sync now reconciles/);}
+      if(app==='liftlog'){assert.equal(await page.locator('[data-settings-section="storage"]').getByRole('button',{name:'Resume backups…',exact:true}).count(),1);assert.equal(await page.locator('#storage-summary').getByRole('button',{name:'Resume backups…',exact:true}).count(),1);assert.equal(await page.locator('#cloudResume').evaluate(node=>node.hidden),true,'separate backups show one resume button');assert.doesNotMatch(await page.locator('[data-settings-section="storage"]').textContent(),/Sync now reconciles/);}
       listingOverride={status:200,body:'<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>'};
       await testConnection();assert.match(await page.locator(app==='bike-cardio'?'#toast':'#toast-region').textContent(),/no separate backups yet/);
       listingOverride={status:200,body:'<not-a-list />'};
@@ -141,7 +136,7 @@ function verifySignature(url,headers,body,region=cfg.region){
       const report=await page.evaluate(namespace=>JSON.parse(localStorage.getItem(namespace+'.provider-check')).report,namespace);assert.equal(report.mode,'immutable');assert.equal(report.compatible,true);
       const rootBefore=objects.get(cfg.objectKey).raw;
       if(app==='bike-cardio'){await confirmAction(page,()=>page.click('#cloudKeepLocal'));}
-      else{await page.locator('[data-action="remote-publish-local"]').click();await page.getByRole('button',{name:'Resume backups',exact:true}).click();}
+      else{await page.locator('#cloudKeepLocal').click();await page.getByRole('button',{name:'Resume backups',exact:true}).click();}
       await page.waitForFunction(namespace=>localStorage.getItem(namespace+'.remote-paused')===null,namespace);
       assert.ok(calls.some(call=>call.method==='PUT'&&call.key.startsWith(cfg.objectKey+'.snapshots/')));assert.equal(objects.get(cfg.objectKey).raw,rootBefore);
       assert.ok(calls.filter(call=>call.method==='PUT').every(call=>call.key.includes('.checks/')||call.key.includes('.snapshots/')));assert.deepEqual(errors,[]);

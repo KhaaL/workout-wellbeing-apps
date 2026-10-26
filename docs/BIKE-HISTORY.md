@@ -2,8 +2,8 @@
 
 Use **History → Merge history from a Bike Cardio JSON file**. Download a full
 backup first. Merge adds rides, keeps existing rides/settings/saved workouts,
-saves a recovery copy, and pauses cloud uploads for review. **Settings → Restore
-a full backup** instead replaces local data after confirmation.
+saves a recovery copy, and pauses cloud uploads for review. **Settings → Backups &
+cloud storage → Restore from file** instead replaces local data after confirmation.
 
 - [TypeScript contract](../apps/bike-cardio/history-types.d.ts)
 - Runtime validators: `apps/bike-cardio/storage-adapter.js` and `history-schema.js`

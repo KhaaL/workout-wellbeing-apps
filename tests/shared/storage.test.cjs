@@ -112,11 +112,13 @@ test('a stale browser tab cannot silently overwrite another tab’s saved histor
 
 test('connection files default to excluding secrets and import only into a validated draft',()=>{
   const d=setup();d.bike.remote.saveRemoteConfig({...cfg,objectKey:'rides.json'});
-  const before=d.map.get('bike-cardio.v1.remote'),safe=d.bike.configPayload();
-  assert.equal(safe.kind,'remote-config');assert.equal(safe.secretAccessKey,undefined);
-  const draft=d.bike.configDraft(safe);assert.equal(draft.secretAccessKey,'');assert.equal(draft.objectKey,'rides.json');
-  assert.equal(d.bike.configPayload(true).secretAccessKey,'synthetic');assert.equal(d.map.get('bike-cardio.v1.remote'),before);
-  for(const bad of [{...safe,app:'liftlog'},{...safe,pathStyle:'false'},{...safe,endpoint:'https://storage.test/bucket'},{...safe,objectKey:'../backup'}])assert.throws(()=>d.bike.configDraft(bad));
+  const before=d.map.get('bike-cardio.v1.remote'),remote=d.bike.remote,safe=remote.configPayload();
+  assert.equal(safe.kind,'remote-config');assert.equal(safe.app,'bike-cardio');assert.equal(safe.secretAccessKey,undefined);
+  const draft=remote.configDraft(safe);assert.equal(draft.secretAccessKey,'');assert.equal(draft.objectKey,'rides.json');
+  assert.equal(remote.configPayload(true).secretAccessKey,'synthetic');assert.equal(d.map.get('bike-cardio.v1.remote'),before);
+  // Another app's file sets up the connection and leaves this app's path alone.
+  assert.equal(remote.configDraft({...safe,app:'liftlog',objectKey:'liftlog.json'}).objectKey,'rides.json');
+  for(const bad of [{...safe,kind:'backup'},{...safe,pathStyle:'false'},{...safe,endpoint:'https://storage.test/bucket'},{...safe,objectKey:'../backup'}])assert.throws(()=>remote.configDraft(bad));
 });
 test('file-backup bookkeeping does not change ride revisions, pending sync or workout backups',()=>{
   const d=setup();d.bike.write('bike-cardio.history.v1',[legacyRecord()]);
@@ -293,7 +295,7 @@ test('Automatic separate-file mode retains both devices’ independent backups d
   assert.equal(backups.length,2);assert.equal(new Set(backups.map(([key])=>key)).size,2);
   assert.deepEqual(backups.map(([,entry])=>JSON.parse(entry.raw).history[0].id).sort(),['old','second']);
   assert.equal(store.objects.get('bike-cardio-backup.json').raw,original);assert.ok(store.calls.every(c=>c.key.includes('.snapshots/')));
-  assert.equal(first.bike.remote.readRemoteWork().pending,false);assert.equal(first.bike.configPayload().syncMode,'immutable');
+  assert.equal(first.bike.remote.readRemoteWork().pending,false);assert.equal(first.bike.remote.configPayload().syncMode,'immutable');
   await assert.rejects(first.bike.remote.s3Request(automatic,'PUT','{}',{headers:{'if-none-match':'*'}}),/newly generated/);
 });
 test('Provider checks report unsupported conditions without blocking separate backups; explicit legacy restore stays paused',async()=>{

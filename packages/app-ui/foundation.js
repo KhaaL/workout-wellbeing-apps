@@ -131,7 +131,7 @@ const WorkoutUI = (() => {
       function onClose(){if(!dlg.open)finish(null);}
       function onCancel(event){event.preventDefault();finish(null);}
       dlg.addEventListener('close',onClose);dlg.addEventListener('cancel',onCancel);
-      for(const option of buttons){const button=document.createElement('button');button.type='button';button.className='btn '+(option.cls||'');button.textContent=option.label;button.autofocus=!!option.autofocus;button.addEventListener('click',()=>finish(option.value));actions.append(button);}
+      for(const option of buttons){const button=document.createElement('button');button.type='button';button.className='btn '+(option.cls||'');button.textContent=option.label;if(option.id)button.id=option.id;button.autofocus=!!option.autofocus;button.addEventListener('click',()=>finish(option.value));actions.append(button);}
       dlg.showModal();(actions.querySelector('[autofocus]')||actions.querySelector('button'))?.focus();
     });
   }

@@ -262,12 +262,13 @@ const fixture = () => ({
     }
     const rescued=await newPage({raw:'{broken'});
     await rescued.evaluate(()=>window.testAPI.navigate('settings'));
-    assert.equal(await rescued.getByRole('button',{name:'Download rescued data'}).count(),1);
+    // Unread data opens Backups & cloud storage, where the shared panel lists it first.
+    assert.equal(await rescued.locator('#downloadUnreadable').isVisible(),true);
     const downloadPromise=rescued.waitForEvent('download');
-    await rescued.getByRole('button',{name:'Download rescued data'}).click();
+    await rescued.locator('#downloadUnreadable').click();
     const download=await downloadPromise;
-    assert.match(download.suggestedFilename(),/^liftlog-rescued-data-.*\.txt$/);
-    await rescued.getByRole('button',{name:'Discard rescued data…'}).click();
+    assert.match(download.suggestedFilename(),/^liftlog-unreadable-.*\.txt$/);
+    await rescued.locator('#discardUnreadable').click();
     await rescued.getByRole('dialog',{name:'Discard rescued data?'}).getByRole('button',{name:'Discard',exact:true}).click();
     await rescued.waitForFunction(()=>localStorage.getItem('liftlog.v1.unreadable')===null);
     assert.equal(await rescued.evaluate(()=>localStorage.getItem('liftlog.v1.unreadable')),null);
