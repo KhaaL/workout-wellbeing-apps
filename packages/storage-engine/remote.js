@@ -165,7 +165,6 @@ function validateRemoteConfig(cfg){
   if (typeof cfg.pathStyle !== 'boolean' || !/^[a-z0-9-]+$/.test(cfg.region || '')) throw new Error('Addressing style and region are required');
   const key = cfg.objectKey || REMOTE_OBJECT_KEY_DEFAULT;
   if (new TextEncoder().encode(key).length > 1024 || /[\u0000-\u001f\u007f\\]/.test(key) || key.split('/').some(x => !x || ['.','..'].includes(x) || /^(\.|%2e){1,2}$/i.test(x))) throw new Error('Invalid object path (empty or dot segments)');
-  if (/\.r2\.cloudflarestorage\.com$/.test(u.hostname) && (!cfg.pathStyle || cfg.region !== 'auto' || !/^[a-f0-9]{32}\.r2\.cloudflarestorage\.com$/.test(u.hostname))) throw new Error('R2 requires the account endpoint, path-style and region auto');
   return cfg;
 }
 

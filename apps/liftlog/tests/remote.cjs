@@ -119,9 +119,10 @@ await test('existing backups and recovery copy roundtrip; credentials excluded',
  const before=d.api.backupDataKey(d.api.state);assert.equal(d.api.commitSnapshot(d.api.prepareBackup(fixture(500,'other'))),true);const rescued=d.api.prepareBackup(JSON.parse(d.api.rescue));assert.equal(d.api.backupDataKey(rescued),before);assert.equal(d.api.commitSnapshot(rescued),true);
  assert.equal(JSON.stringify(d.api.backupPayload()).includes(cfg.secretAccessKey),false);
 });
-await test('destination validation rejects unsafe endpoints and paths; R2 requires account/path/auto',async()=>{
+await test('destination validation rejects unsafe endpoints and paths',async()=>{
  const d=setup();for(const patch of [{endpoint:'https://user:pass@storage.test'},{endpoint:'https://storage.test?q=a'},{endpoint:'https://storage.test#x'},{endpoint:'https://storage.test/../'},{endpoint:'http://storage.test'},{bucket:'bad/bucket'},{objectKey:'a/../b'},{objectKey:'a/%2e%2e/b'},{pathStyle:'yes'},{region:'bad/region'}])assert.throws(()=>d.api.validateRemoteConfig({...cfg,...patch}));
- const r2={...cfg,endpoint:'https://'+'a'.repeat(32)+'.r2.cloudflarestorage.com',region:'auto'};assert.doesNotThrow(()=>d.api.validateRemoteConfig(r2));assert.throws(()=>d.api.validateRemoteConfig({...r2,pathStyle:false}));
+ // Rules come from the S3 interface only; no endpoint gets provider-specific checks.
+ const account={...cfg,endpoint:'https://'+'a'.repeat(32)+'.storage.example.com',region:'auto'};assert.doesNotThrow(()=>d.api.validateRemoteConfig(account));assert.doesNotThrow(()=>d.api.validateRemoteConfig({...account,pathStyle:false}));
 });
 await test('409 retries reread and snapshot failure never updates current object',async()=>{
  const d=setup(200,'local'),s=new S3(fixture());s.attach(d);const fetch=d.ctx.fetch;let once=true;
