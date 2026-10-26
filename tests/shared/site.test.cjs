@@ -42,6 +42,18 @@ test('apps install separately inside their own folders',()=>{
   }
   assert.equal(ids.size,Object.keys(apps).length);
 });
+// An installed app's system bars take their colour from the manifest, which
+// cannot follow the phone's dark mode. Every app ships the same dark colours and
+// lets the page's color-scheme and theme-color follow the theme once it runs.
+test('every app ships the same system-bar colour hints',()=>{
+  const hints=Object.keys(apps).map(app=>{
+    const manifest=JSON.parse(read(app+'/manifest.webmanifest')),html=read(app+'/index.html');
+    assert.match(html,/<meta name="color-scheme" content="light dark">/,app+' declares both colour schemes');
+    return [manifest.theme_color,manifest.background_color,html.match(/<meta name="theme-color" content="([^"]+)">/)?.[1]];
+  });
+  for(const [index,hint] of hints.entries())assert.deepEqual(hint,hints[0],Object.keys(apps)[index]+' matches Liftlog');
+  assert.deepEqual(hints[0],['#0d1824','#0d1824','#fbfbf9']);
+});
 test('the home page links every app and installs nothing itself',()=>{
   const home=read('index.html');
   for(const app of Object.keys(apps))assert.match(home,new RegExp('href="'+app+'/"'),app+' link');
