@@ -33,21 +33,21 @@ const config={endpoint:'https://storage.test',region:'test',bucket:'test',object
       // Before setup the banner offers setup only; a second button to the same section is noise.
       assert.doesNotMatch(await status.textContent(),/No verified cloud backup yet/);assert.equal(await status.locator('[data-storage-action="details"]').count(),0);
       await status.getByRole('button',{name:'Set up cloud backup',exact:true}).click();
-      const endpoint=page.locator(lift?'[data-field="endpoint"]':'#cloudEndpoint');await endpoint.fill('https://draft.test');
+      const endpoint=page.locator('#cloudEndpoint');await endpoint.fill('https://draft.test');
       await page.evaluate(()=>window.dispatchEvent(new Event('offline')));
       assert.equal(await endpoint.inputValue(),'https://draft.test');assert.equal(await endpoint.evaluate(node=>node===document.activeElement),true,'status updates preserve config input focus');
       await page.evaluate(cfg=>{testAPI.remote.saveRemoteConfig(cfg);testAPI.refresh();},config);await expectState('pending');
       await status.getByRole('button',{name:'Back up now',exact:true}).click();await expectState('backed-up');
       assert.match(await status.textContent(),/Last verified cloud backup:/);assert(calls>=2,'backup is uploaded and read back');
       if(lift){
-        // Liftlog: the banner is the only status; Cloud backup keeps 4 buttons in view and repeats the banner title.
+        // Liftlog: the banner is the only status, and the section summary repeats its title.
         await options.evaluate(node=>{node.open=true;});
         assert.equal(await page.locator('#remote-status').count(),0);
         assert.equal(await options.locator('> summary small').textContent(),'Backed up');
-        assert.equal(await options.locator('> .setting-block').first().locator('button:visible').count(),3);
+        assert.equal(await page.locator('#cloudActions button:visible').count(),2);
         assert.equal(await options.getByRole('button',{name:'Restore legacy backup locally…',exact:true}).count(),0);
-        assert.equal(await page.locator('[data-settings-section="cloud-troubleshooting"]').evaluate(node=>node.open),false);
-        assert.deepEqual(await page.locator('[data-field="syncMode"] option').evaluateAll(nodes=>nodes.map(node=>node.value)),['immutable','conditional']);
+        assert.equal(await page.locator('#storageTools').evaluate(node=>node.open),false);
+        assert.deepEqual(await page.locator('#cloudMode option').evaluateAll(nodes=>nodes.map(node=>node.value)),['immutable','conditional']);
         // Settings text names no storage host; examples use reserved example domains.
         assert.doesNotMatch(await page.locator('section[aria-label="Data"]').textContent(),/[a-z0-9-]+\.(com|net|org|io|dev|cloud)\b/i);
         assert.equal(await page.locator('[data-settings-section="handoff"]').evaluate(node=>node.open),false,'handoff stays collapsed without a workout');

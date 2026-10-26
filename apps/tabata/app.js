@@ -5,7 +5,7 @@
   const format=ms=>{const s=Math.ceil(ms/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
   const names={prepare:'Get ready',work:'Work',rest:'Rest',complete:'Complete'};
   let storage=null,shell=null,updates=null,view='setup',lastPhase='',lastCue='',lastCheckpoint=0,lastSavedPhase='',toastTimer=0;
-  let wake=null,wakePending=false,audio=null,bellBuffer=null,bellDecode=null,cloudBusy=false,configBusy=false,lastResult=null;
+  let wake=null,wakePending=false,audio=null,bellBuffer=null,bellDecode=null,cloudBusy=false,remoteStatus='',panel=null,lastResult=null;
   const bellSources=new Set();
   function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,6000);}
   function localStatus(){
@@ -18,9 +18,9 @@
     a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   storage=TabataStorage.create({toast,confirm:WorkoutUI.confirm,onLocalStatus:localStatus,
-    onRemoteStatus:(status,message)=>{$('cloudStatus').textContent=message||'Cloud storage is not configured.';},
-    onBusy:busy=>{cloudBusy=busy;renderCloud();},onRefresh:()=>renderCloud(),
-    onRestore:()=>{fillSetup();fillSettings();navigate(storage.state.active?'run':view==='run'?'setup':view);renderCloud();localStatus();}});
+    onRemoteStatus:status=>{remoteStatus=status;renderStorage();},
+    onBusy:busy=>{cloudBusy=busy;panel?.setBusy(busy);renderStatus();},onRefresh:()=>renderStorage(),
+    onRestore:()=>{fillSetup();fillSettings();navigate(storage.state.active?'run':view==='run'?'setup':view);renderStorage();localStatus();}});
   function active(){return storage.state.active;}
   function fillSetup(){
     for(const key of ['work','rest','rounds'])$(key).value=storage.state.settings[key];
@@ -63,7 +63,7 @@
     for(const id of ['setup','run','complete','settings'])$(id).hidden=id!==target;
     const onWorkout=target==='run';document.documentElement.classList.toggle('setup-screen',target==='setup');
     document.documentElement.classList.toggle('session-active',!!active());shell?.update(target==='run'||target==='complete'?'setup':target,!!active(),onWorkout);
-    if(target==='settings')renderCloud();if(target==='run')renderTimer();
+    if(target==='settings')renderStorage();if(target==='run')renderTimer();
     updates?.refresh();window.scrollTo(0,0);
   }
   async function readyAudio(){
@@ -179,28 +179,26 @@
     else{storage.state.active=C.resume(active(),Date.now());primeAudio();lastPhase='';lastCue='';}
     checkpoint();requestWake();renderTimer();
   }
-  function renderRecovery(){
-    const container=$('recoveryCopies');container.replaceChildren();
-    for(const [suffix,label] of [['before-remote-restore','Download pre-restore copy'],['unreadable','Download unreadable data']]){
-      let raw;try{raw=localStorage.getItem('tabata.v1.'+suffix);}catch(error){}if(!raw)continue;
-      const button=document.createElement('button');button.className='btn';button.type='button';button.textContent=label;
-      button.addEventListener('click',()=>downloadJSON(raw,'tabata-'+suffix+'.json'));container.append(button);
-    }
+  // Settings: the shared status card and Backups & cloud storage panel.
+  function exportBackup(){checkpoint();downloadJSON(storage.backup(),'tabata-backup-'+new Date().toISOString().slice(0,10)+'.json');if(!WorkoutStorage.recordFileBackup('tabata.v1'))toast('Backup downloaded; its date could not be saved.');renderStorage();}
+  function openStorage(target){
+    $('storage-options').open=true;
+    const node=panel.open(target)||$('storage-options').querySelector('summary');node.scrollIntoView({block:'nearest'});node.focus();
   }
-  function renderCloud(){
+  function renderStatus(){
     if(!storage)return;
-    const remote=storage.remote,cfg=remote.loadRemoteConfig(),paused=remote.remoteSyncPaused();
-    $('cloudActions').hidden=!cfg;
-    WorkoutStorage.applyCloudActions({backup:$('cloudBackup'),pause:$('cloudPause'),'publish-local':$('cloudKeepLocal'),resume:$('cloudResume'),restore:$('cloudUseRemote')},remote.syncMode(cfg),paused);
-    for(const node of document.querySelectorAll('#cloudForm input,#cloudForm select,#cloudForm button,#cloudActions button'))node.disabled=cloudBusy||configBusy;
-    WorkoutStorage.renderConnectionScope($('connectionScope'),remote,{confirm:WorkoutUI.confirm,onChange:()=>{loadCloud();renderCloud();}});
-    renderRecovery();WorkoutStorage.renderRemoteTools($('remoteTools'),remote,downloadJSON,'tabata');
+    WorkoutStorage.renderStorageSummary($('storage-summary'),WorkoutStorage.summaryInput({local:storage.local,remote:storage.remote,status:remoteStatus,busy:cloudBusy||panel?.saving,
+      revision:storage.state.updatedAt,fileAt:WorkoutStorage.fileBackupAt('tabata.v1'),active:active()}),
+    {download:exportBackup,details:()=>openStorage(),configure:()=>openStorage('configure'),backup:()=>storage.remote.remoteBackup(),retry:()=>storage.remote.remoteBackup(),
+      review:()=>openStorage('review'),resume:async()=>{await storage.remote.remotePublishLocal();renderStorage();},error:error=>toast(error.message)});
   }
-  function loadCloud(){
-    const cfg=storage.remote.loadRemoteConfig();if(!cfg)return;
-    for(const [field,name] of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId']])$(field).value=cfg[name]||(name==='objectKey'?storage.remote.defaultObjectKey:'');
-    $('cloudPathStyle').checked=cfg.pathStyle;$('cloudMode').value=storage.remote.syncMode(cfg);
-  }
+  function renderStorage(){if(!storage||!panel)return;panel.refresh();renderStatus();}
+  const persistence=WorkoutStorage.createPersistence({askedKey:'tabata.v1.persist-asked',onChange:()=>panel?.refresh()});
+  panel=WorkoutStorage.createStoragePanel({appName:'Tabata',namespace:'tabata.v1',remote:storage.remote,persistence,confirm:WorkoutUI.confirm,toast,download:downloadJSON,onChange:renderStatus,
+    backup:{contents:'presets, settings and session history',size:()=>new Blob([JSON.stringify(storage.state)]).size,download:exportBackup,restore:raw=>storage.restore(raw),
+      fileAt:()=>WorkoutStorage.fileBackupAt('tabata.v1'),hasData:()=>storage.state.history.length>0},
+    recovery:{restore:raw=>storage.restore(raw),describe:raw=>Array.isArray(raw.history)?'It holds '+raw.history.length+' sessions.':''}});
+  panel.mount($('storagePanel'));persistence.refresh();
   shell=WorkoutUI.createShell({name:'Tabata',items:[{id:'setup',label:'Timer',icon:'workout'},{id:'settings',label:'Settings',icon:'settings'}],onNavigate:navigate});
   const themeSelect=$('themeChoice');
   for(const theme of WorkoutUI.themes){const option=document.createElement('option');option.value=theme.id;option.textContent=theme.label;themeSelect.append(option);}
@@ -209,7 +207,7 @@
   themeSelect.addEventListener('change',()=>{WorkoutUI.applyTheme(themeSelect.value);try{localStorage.setItem('tabata.ui.theme',themeSelect.value);}catch(error){toast('Theme changed for this visit. Device storage is unavailable.');}});
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>WorkoutUI.applyTheme(themeSelect.value));
   WorkoutUI.attachSteppers($('setupForm'));WorkoutUI.attachSteppers($('settings'));
-  fillSetup();fillSettings();loadCloud();localStatus();
+  fillSetup();fillSettings();localStatus();
   for(const key of ['work','rest','rounds']){$(key).addEventListener('input',renderPlan);$(key).addEventListener('change',saveSetup);}
   $('presetForm').addEventListener('submit',event=>{
     event.preventDefault();if(!$('presetForm').reportValidity())return;
@@ -251,16 +249,6 @@
     if(await WorkoutUI.confirm('End this timer?','Your progress will be saved as an ended session.','End timer',true))finish('ended');
   });
   $('again').addEventListener('click',()=>{if(lastResult)start(lastResult.config);});$('editSetup').addEventListener('click',()=>{document.title='Tabata · Interval timer';navigate('setup');});
-  $('exportBackup').addEventListener('click',()=>{checkpoint();downloadJSON(storage.backup(),'tabata-backup.json');});
-  $('importBackup').addEventListener('change',async event=>{try{const file=event.target.files[0];if(!file)return;if(file.size>8*1024*1024)throw new Error('Backup exceeds 8 MiB.');if(await storage.restore(JSON.parse(await file.text())))toast('Backup restored. Cloud sync is paused.');}catch(error){toast(error.message);}finally{event.target.value='';}});
-  $('cloudForm').addEventListener('submit',async event=>{
-    event.preventDefault();configBusy=true;renderCloud();
-    try{const cfg={endpoint:$('cloudEndpoint').value.trim(),region:$('cloudRegion').value.trim(),bucket:$('cloudBucket').value.trim(),objectKey:$('cloudObject').value.trim(),accessKeyId:$('cloudAccess').value.trim(),secretAccessKey:$('cloudSecret').value||storage.remote.loadRemoteConfig()?.secretAccessKey,pathStyle:$('cloudPathStyle').checked,syncMode:$('cloudMode').value};
-      if(!cfg.secretAccessKey)throw new Error('Enter the secret access key.');await storage.configure(cfg);$('cloudSecret').value='';
-    }catch(error){toast(error.message);}finally{configBusy=false;renderCloud();}
-  });
-  for(const [id,method] of [['cloudBackup','remoteBackup'],['cloudPause','pauseRemoteSyncAction'],['cloudResume','remoteResumeSync'],['cloudKeepLocal','remotePublishLocal'],['cloudUseRemote','remoteRestore']])$(id).addEventListener('click',async()=>{try{await storage.remote[method]();}catch(error){toast(error.message);}renderCloud();});
-  $('cloudForget').addEventListener('click',async()=>{const text=WorkoutStorage.forgetConnectionText(storage.remote);if(await WorkoutUI.confirm(text.title,text.body,'Forget connection',true)){storage.remote.clearRemoteConfig();$('cloudForm').reset();$('cloudSecret').value='';loadCloud();renderCloud();}});
   if(document.documentElement.hasAttribute('data-source-preview')){
     // Source previews load external modules; only the built app has an offline shell.
     updates={canStart:()=>true,refresh:()=>{}};
@@ -275,7 +263,7 @@
   window.addEventListener('pageshow',()=>{renderTimer();requestWake();});
   window.addEventListener('online',()=>storage.remote.remoteStartupSync());
   // Another app on this site saved or forgot the shared connection.
-  window.addEventListener('storage',event=>{if(event.key===WorkoutStorage.SHARED_CONNECTION_KEY){loadCloud();renderCloud();}});
+  window.addEventListener('storage',event=>{if(event.key===WorkoutStorage.SHARED_CONNECTION_KEY){panel.reload();renderStatus();}});
   setInterval(()=>{if(active())renderTimer();},100);
   if(active()){$('recovered').hidden=false;storage.save(false);navigate('run');requestWake();}else navigate('setup');
   storage.remote.remoteStartupSync();

@@ -132,10 +132,9 @@ await test('409 retries reread and snapshot failure never updates current object
  fail.ctx.fetch=(u,o)=>u.includes('.snapshots/')?new Response('',{status:403}):real(u,o);await fail.api.remoteBackup();
  assert.equal(server.obj.workouts[0].notes,'base');assert.equal(server.calls.filter(x=>x.method==='PUT').length,0);
 });
-await test('recovery download contains exact previous backup; oversized files rejected before reading',async()=>{
- const d=setup();d.api.commitSnapshot(d.api.prepareBackup(fixture(500,'other')));let downloaded;
- d.api.download=(blob)=>{downloaded=blob;};d.api.actions['remote-rescue-download']();
- assert.equal(await downloaded.text(),d.api.rescue);assert.equal(d.api.prepareBackup(JSON.parse(await downloaded.text())).workouts[0].notes,'base');
+await test('recovery copy holds the exact previous backup; oversized files rejected before reading',async()=>{
+ const d=setup();d.api.commitSnapshot(d.api.prepareBackup(fixture(500,'other')));
+ assert.equal(d.api.prepareBackup(JSON.parse(d.api.rescue)).workouts[0].notes,'base');
  d.api.readJSONFile({size:9*1024*1024},()=>{throw Error('must not read');});assert.match(d.messages.at(-1),/exceeds 8 MiB/);
  const huge=d.api.backupPayload();huge.workouts[0].notes='x'.repeat(8*1024*1024);d.storage.set('liftlog.v1',JSON.stringify(huge));const re=device(d.storage);assert.equal(re.api.state.workouts[0].notes.length,8*1024*1024);assert.equal(re.storage.has('liftlog.v1.unreadable'),false);
 });
@@ -156,7 +155,7 @@ await test('older local recovery survives auto backup/startup/online/reload with
  await d.api.autoRemoteBackup();await d.api.remoteStartupSync();await d.api.remoteBackup();assert.equal(s.calls.length,0);
  const re=device(d.storage);s.attach(re);await re.api.remoteStartupSync();await re.api.autoRemoteBackup();assert.equal(s.calls.length,0);
  assert.equal(re.api.state.workouts[0].notes,'chosen file');assert.equal(config(re).secretAccessKey,cfg.secretAccessKey);
- assert.match(re.api.remoteStorageHTML(),/Keep local copy &amp; update cloud|Keep local copy & update cloud/);
+ assert.equal(re.api.remoteSyncPaused(),true,'Settings then offers Keep local copy & update cloud');
 });
 await test('pause aborts pending GET and invalidates queued operations; local restore wins',async()=>{
  const d=setup(300,'before'),s=new S3(fixture(500,'cloud'));s.attach(d);const g=gate();s.afterGet=()=>g.promise;
@@ -268,10 +267,14 @@ await test('re-saving the same destination keeps verified backup history; anothe
  const moved=config(other);
  assert.equal(moved.bucket,'other');assert.equal(moved.lastBackupAt,null);assert.equal(moved.lastUploadedModifiedAt,null);assert.equal(moved.lastBackupMode,undefined);
 });
-await test('settings offer two backup modes and show a saved automatic mode as separate files',async()=>{
- const d=setup();d.api.saveRemoteConfig({...cfg,syncMode:'auto'});const html=d.api.remoteStorageHTML();
- assert.match(html,/<option value="immutable" selected>Separate backup files/);assert.doesNotMatch(html,/value="auto"/);
- assert.equal((html.match(/<option /g)||[]).length,2);assert.doesNotMatch(html,/id="remote-status"/);
+await test('a saved automatic mode exports as separate files; connection files from any app load for review',async()=>{
+ const d=setup();d.api.saveRemoteConfig({...cfg,syncMode:'auto'});const engine=d.api.remoteEngine,path=engine.loadRemoteConfig().objectKey||engine.defaultObjectKey;
+ const file=engine.configPayload();assert.equal(file.syncMode,'immutable');assert.equal(file.app,'liftlog');assert.equal(file.secretAccessKey,undefined);
+ assert.equal(engine.configDraft({...file,objectKey:'mine.json'}).objectKey,'mine.json');
+ assert.equal(engine.configDraft({...file,app:'bike-cardio',objectKey:'rides.json'}).objectKey,path,'another app’s path stays that app’s');
+ const old=engine.configDraft({app:'liftlog',kind:'remote-config',schemaVersion:1,source:'liftlog-web',endpoint:cfg.endpoint,region:cfg.region,bucket:cfg.bucket,objectKey:'old.json',syncMode:'conditional',pathStyle:true,accessKeyId:'fake',secretAccessKey:'s'});
+ assert.equal(old.syncMode,'conditional');assert.equal(old.secretAccessKey,'s');assert.equal(old.objectKey,'old.json');
+ assert.equal(engine.loadRemoteConfig().bucket,cfg.bucket,'loading a file never saves it');
 });
 console.log(`${passed} remote data-management tests passed`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

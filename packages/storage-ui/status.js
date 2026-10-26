@@ -63,6 +63,18 @@ WorkoutStorage.applyCloudActions = function(buttons,mode,paused){
     if(item){const label=node.querySelector('span')||node;label.textContent=item.label;}
   }
 };
+/* The status card's input from the shared engine. Apps pass what only they
+   know: the remote status, busy flag, saved revision and a held workout. */
+WorkoutStorage.summaryInput = function({local,remote,status,busy,revision,fileAt,active,held}){
+  const cfg=remote.loadRemoteConfig();
+  return {failed:local.failed,blocked:local.blocked,localPending:local.pending,configured:!!cfg,paused:remote.remoteSyncPaused(),pause:remote.remotePauseInfo(),
+    held:!!held,online:navigator.onLine,status,errorCategory:remote.diagnosticsPayload().lastError?.category,busy:!!busy,pending:!!remote.readRemoteWork()?.pending,
+    revision,cloudAt:cfg?.lastBackupAt,cloudRevision:cfg?.lastUploadedModifiedAt,fileAt,active:!!active,mode:remote.syncMode(cfg)};
+};
+/* When a full backup file was last downloaded on this device. Device-only:
+   it never changes the data revision or enters a backup. */
+WorkoutStorage.fileBackupAt = function(namespace){try{return Number(localStorage.getItem(namespace+'.last-file-backup'))||null;}catch(e){return null;}};
+WorkoutStorage.recordFileBackup = function(namespace){try{localStorage.setItem(namespace+'.last-file-backup',String(Date.now()));return true;}catch(e){return false;}};
 WorkoutStorage.renderStorageSummary = function(container,input,actions){
   if(!container)return;
   const model=WorkoutStorage.storageSummary(input),signature=JSON.stringify(model);

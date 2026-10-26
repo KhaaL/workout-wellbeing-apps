@@ -1862,115 +1862,13 @@ function updateSaveBanner(){
    the first workout started in this browser (a real gesture, which is when a
    grant is most likely), and only asked again if the user presses the button
    in Settings. */
-/* There are four answers here, not two, and the difference decides what the
-   user should do:
-
-   - unavailable: StorageManager is exposed only in a secure context, so a copy
-     opened from file:// or over plain http:// on a LAN — both supported ways to
-     run this app — has no API to ask with. This used to leave Settings saying
-     "checking…" for the rest of the session.
-   - declined: the browser refuses durability rather than deciding from
-     engagement. Brave does this, which is why asking it again never helped;
-     offering a button that cannot succeed is worse than saying so.
-   - best-effort: not granted, but askable.
-   - persistent: granted.
-
-   Every path ends in one of the four, including a rejected promise. */
+/* WorkoutStorage.createPersistence holds the four answers (unavailable,
+   declined, best-effort, persistent) and when each may be asked again. */
 const LS_PERSIST_ASKED = 'liftlog.v1.persist-asked';
-const STORAGE_STATES = ['checking','unavailable','declined','best-effort','persistent'];
-let storageState = 'checking';
-let storageEstimate = null;    /* {usage, quota} when the browser reports it */
-let storageIsBrave = false;    /* Brave is the common case of "declined" */
-
-function storageManager(){
-  const s = navigator.storage;
-  return (s && typeof s.persist === 'function' && typeof s.persisted === 'function') ? s : null;
-}
-/* Re-renders only when the answer actually changed, so it can never loop with
-   the render it triggers. A refusal is sticky: persisted() keeps answering
-   false afterwards, and that must not read as "not asked yet" again. */
-function setStorageState(next){
-  if (!STORAGE_STATES.includes(next) || next === storageState) return;
-  if (storageState === 'declined' && next === 'best-effort') return;
-  storageState = next;
-  if (ui.view === 'settings') render();
-}
-function persistAsked(){
-  try{ return localStorage.getItem(LS_PERSIST_ASKED) === '1'; }
-  catch(e){ return false; }
-}
-/* Running from the home screen / as an installed app, which is what earns
-   durability in browsers that will not grant it to a plain tab. */
-function installedAsApp(){
-  try{
-    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
-           navigator.standalone === true;
-  }catch(e){ return false; }
-}
-/* Reads the current state without asking for anything. */
-function refreshStorageState(){
-  const sm = storageManager();
-  if (!sm){ setStorageState('unavailable'); return; }
-  sm.persisted()
-    .then(p => { if (p) setStorageState('persistent'); else checkStoragePermission(); })
-    .catch(() => setStorageState('unavailable'));
-  if (typeof sm.estimate === 'function') sm.estimate().then(est => {
-    if (!est) return;
-    const changed = !storageEstimate || storageEstimate.usage !== est.usage;
-    storageEstimate = est;
-    if (changed && ui.view === 'settings') render();
-  }).catch(() => { /* nothing to report */ });
-  if (navigator.brave && typeof navigator.brave.isBrave === 'function'){
-    navigator.brave.isBrave().then(yes => {
-      if (!yes || storageIsBrave) return;
-      storageIsBrave = true;
-      if (ui.view === 'settings') render();
-    }).catch(() => { /* not Brave, or not telling */ });
-  }
-}
-/* "denied" is the browser saying it will not grant durability at all, which is
-   not the same as "not granted yet". Not every browser answers the query
-   (Safari throws on the name), so a refused persist() reaches the same state
-   by the other route. */
-function checkStoragePermission(){
-  let q = null;
-  try{
-    q = navigator.permissions && typeof navigator.permissions.query === 'function' &&
-        navigator.permissions.query({ name:'persistent-storage' });
-  }catch(e){ q = null; }
-  if (!q || typeof q.then !== 'function'){ setStorageState('best-effort'); return; }
-  q.then(res => setStorageState(res && res.state === 'denied' ? 'declined' : 'best-effort'))
-   .catch(() => setStorageState('best-effort'));
-}
-/* fromUser: pressed the button in Settings, where a previous refusal is
-   exactly what they are trying to undo. */
-function requestPersistence(fromUser){
-  const sm = storageManager();
-  if (!sm || storageState === 'persistent') return;
-  if (!fromUser && (persistAsked() || storageState === 'declined')) return;
-  try{ localStorage.setItem(LS_PERSIST_ASKED, '1'); }
-  catch(e){ /* the save banner already covers an unwritable store */ }
-  const granted = () => {
-    setStorageState('persistent');
-    if (fromUser) toast('Storage is now persistent');
-    render();
-  };
-  const refused = () => {
-    setStorageState('declined');
-    if (fromUser) toast('This browser will not make storage persistent — keep a backup');
-    render();
-  };
-  sm.persist().then(ok => {
-    if (ok){ granted(); return; }
-    /* A browser can grant later than it answers, so persisted() gets the last
-       word before this is called a refusal. */
-    sm.persisted().then(p => p ? granted() : refused()).catch(refused);
-  }).catch(() => {
-    setStorageState('unavailable');
-    if (fromUser) toast('This browser cannot make storage persistent');
-    render();
-  });
-}
+const persistence = WorkoutStorage.createPersistence({askedKey:LS_PERSIST_ASKED,onChange:()=>{if(ui.view==='settings')render();}});
+function refreshStorageState(){persistence.refresh();}
+/* fromUser: the Settings button, where undoing an earlier refusal is the point. */
+function requestPersistence(fromUser){return persistence.request(fromUser);}
 /* Stored data we cannot read is never overwritten in place: it is moved aside
    first so a bad parse or a downgrade can still be recovered by hand. */
 function rescueUnreadable(raw,why){return localStore.rescue(raw,why);}
@@ -2586,14 +2484,11 @@ function freshUI(){
     importSummary:null,         /* last history import result; survives navigation until dismissed */
     editWorkoutId:null,         /* history session currently being edited */
     focus:null,                 /* element id to focus after render */
-    remoteFormOpen:false,       /* Connection section open under Cloud backup in Settings */
-    remoteError:'',
     remoteBusy:false,           /* a remote backup/restore/test request is in flight */
     remoteStatus:'idle',        /* checking | pending | synced | error */
     remoteStatusText:'',
     settingsSections:{},        /* disclosure choices survive settings re-renders */
-    backupNagged:false,         /* the stale-backup reminder is shown once per page load */
-    remoteDraft:null            /* loaded/live config fields survive unrelated Settings renders */
+    backupNagged:false          /* the stale-backup reminder is shown once per page load */
   };
 }
 const ui = freshUI();
@@ -3869,8 +3764,8 @@ const remoteEngine = LiftlogStorage.createRemote({
   recoveryKey:LS_REMOTE_RESTORE_KEY,local:localStore,getState:()=>state,
   prepare:(...args)=>prepareBackup(...args),validate:(...args)=>validateBackup(...args),backup:()=>backupPayload(),
   onStatus:(...args)=>setRemoteStatus(...args),toast:(...args)=>toast(...args),confirm:(...args)=>confirmDlg(...args),choose:(...args)=>dialog(...args),
-  onBusy:value=>{ui.remoteBusy=value;render();},onRefresh:()=>render(),
-  onToolsChange:()=>renderRemoteTools(),
+  onBusy:value=>{ui.remoteBusy=value;storagePanel?.setBusy(value);render();},onRefresh:()=>render(),
+  onToolsChange:()=>storagePanel?.refresh(),
   onRestore:()=>{applyTheme();cancelRestBeep();if(state.activeWorkout)restoreTimer();else loadTimer(state.settings.defaultRest);resetUI();render();}
 });
 
@@ -3937,33 +3832,24 @@ async function deleteFinishedWorkout(id){
 }
 
 function renderHandoffTools(){WorkoutStorage.renderHandoff($('#handoff-tools'),workoutHandoff,(raw,name)=>downloadBlob(new Blob([raw],{type:'application/json'}),name),toast,{heading:false,fileButton:true});}
-/* Earlier backups sit with the backup actions; checks and diagnostics sit
-   under Troubleshooting. */
-function renderRemoteTools(){
-  const download=(raw,name)=>downloadBlob(new Blob([raw],{type:'application/json'}),name);
-  const snapshots=$('#remote-snapshots'),checks=$('#remote-troubleshooting');
-  if(snapshots)WorkoutStorage.renderRemoteTools(snapshots,remoteEngine,download,'liftlog',['snapshots']);
-  if(checks)WorkoutStorage.renderRemoteTools(checks,remoteEngine,download,'liftlog',['checks']);
-}
-
-function remoteDraftFromConfig(cfg){
-  return {
-    endpoint: cfg ? cfg.endpoint : '',
-    region: cfg ? cfg.region : '',
-    bucket: cfg ? cfg.bucket : '',
-    objectKey: cfg ? cfg.objectKey : '',
-    accessKeyId: cfg ? cfg.accessKeyId : '',
-    secretAccessKey: '',
-    syncMode:remoteEngine.syncMode(cfg),
-    pathStyle: cfg ? !!cfg.pathStyle : false
-  };
+/* Backups & cloud storage is the shared panel; Liftlog supplies its data. It
+   keeps one root element, so render() moves the same nodes back into place. */
+let storagePanel=null;
+function hasRescuedData(){try{return localStorage.getItem(LS_RESCUE_KEY)!=null||localStorage.getItem(LS_REMOTE_RESTORE_KEY)!=null;}catch(e){return false;}}
+function createStoragePanel(){
+  storagePanel=WorkoutStorage.createStoragePanel({appName:'Liftlog',namespace:'liftlog.v1',remote:remoteEngine,persistence,
+    confirm:(...args)=>confirmDlg(...args),toast:(...args)=>toast(...args),download:(raw,name)=>downloadBlob(new Blob([raw],{type:'application/json'}),name),
+    since:sinceLabel,onChange:()=>render(),
+    backup:{contents:'exercises, routines, history and preferences',download:exportData,restore:obj=>applyFullBackup(obj,'import'),
+      size:()=>{try{return new Blob([localStorage.getItem(LS_KEY)||'']).size;}catch(e){return 0;}},
+      info:()=>{const info=lastBackupInfo();return {at:info.at,where:info.where==='remote storage'?'cloud':info.where?'file':null,stale:backupIsStale()};}},
+    recovery:{restore:obj=>applyFullBackup(obj,'recovery'),
+      describe:obj=>Array.isArray(obj.workouts)?'It holds '+obj.workouts.length+' finished workout'+(obj.workouts.length===1?'':'s')+'.':''}});
 }
 function openStorageOptions(target){
   ui.settingsSections.storage=true;
-  if(target==='configure'&&!ui.remoteFormOpen){ui.remoteFormOpen=true;render();}
   const section=$('[data-settings-section="storage"]');if(!section)return;section.open=true;
-  const node=target==='configure'?section.querySelector('[data-field="endpoint"]'):
-    target==='review'?section.querySelector('[data-action="remote-resume"],[data-action="remote-publish-local"]'):section.querySelector('summary');
+  const node=storagePanel.open(target)||section.querySelector('summary');
   // Centered, so the choice buttons sit mid-screen and the recovery copy
   // above them does not fill the view.
   const focus=node||section.querySelector('summary');focus?.scrollIntoView({block:target==='review'?'center':'nearest'});focus?.focus();
@@ -4043,120 +3929,11 @@ function remoteResumeSync(...args){return remoteEngine.remoteResumeSync(...args)
 function preserveRemoteSnapshot(...args){return remoteEngine.preserveRemoteSnapshot(...args);}
 function remoteStartupSync(...args){return remoteEngine.remoteStartupSync(...args);}
 function remoteTestConnection(...args){return remoteEngine.remoteTestConnection(...args);}
-/* Save is gated on a live connection test: bad credentials or a typo'd
-   endpoint should never get silently persisted only to fail on the next
-   backup. The draft (ui.remoteDraft) is the source of truth for field
-   values rather than the form DOM, so it survives any re-render triggered
-   by something else on the Settings page while it's being filled in. */
-function saveRemoteConfigForm(form){
-  const d = ui.remoteDraft || remoteDraftFromConfig(loadRemoteConfig());
-  const existing = loadRemoteConfig();
-  const endpoint = (d.endpoint || '').trim().replace(/\/+$/, '');
-  const region = (d.region || '').trim(), bucket = (d.bucket || '').trim(), accessKeyId = (d.accessKeyId || '').trim();
-  if (!/^https?:\/\/.+/.test(endpoint)){
-    ui.remoteError = 'Endpoint must be a full http:// or https:// address, such as https://storage.example.com'; render(); return;
-  }
-  if (!region || !bucket || !accessKeyId){
-    ui.remoteError = 'Region, bucket and access key ID are required.'; render(); return;
-  }
-  const secretAccessKey = (d.secretAccessKey || '').trim() || (existing ? existing.secretAccessKey : '');
-  if (!secretAccessKey){ ui.remoteError = 'Secret access key is required.'; render(); return; }
-  testAndSaveRemoteConfig({
-    endpoint, region, bucket, accessKeyId, secretAccessKey,syncMode:d.syncMode==='conditional'?'conditional':'immutable',
-    objectKey: (d.objectKey || '').trim() || REMOTE_OBJECT_KEY_DEFAULT,
-    pathStyle: !!d.pathStyle,
-    lastBackupAt: existing ? existing.lastBackupAt : null,
-    lastUploadedModifiedAt: existing ? existing.lastUploadedModifiedAt : null
-  });
-}
-/* Check only readability/missing-object semantics. Write capability is verified
-   exclusively by an actual conditional backup, never by a GET. */
+/* The panel saves through remoteEngine.configure; tests drive it directly. */
 async function testAndSaveRemoteConfig(candidate){
-  invalidateRemote();
-  ui.remoteError = ''; ui.remoteBusy = true; render();
-  const generation = remoteEngine.generation;
-  try {
-    validateRemoteConfig(candidate);
-    await coordinateRemote(async ctx => {
-      await readRemoteBackup(candidate,ctx); assertRemote(ctx);
-      // Backup history belongs to the destination. New credentials or an
-      // unchanged re-save keep it; a different bucket, key or mode starts over.
-      const previous = loadRemoteConfig();
-      const same = previous && remoteEngine.remoteDestination(previous) === remoteEngine.remoteDestination(candidate);
-      candidate.lastBackupAt = same ? previous.lastBackupAt ?? null : null;
-      candidate.lastUploadedModifiedAt = same ? previous.lastUploadedModifiedAt ?? null : null;
-      if (same && previous.lastBackupMode) candidate.lastBackupMode = previous.lastBackupMode;
-      else delete candidate.lastBackupMode;
-      saveRemoteConfig(candidate,ctx);
-      ui.remoteFormOpen = false; ui.remoteDraft = null;
-      toast('Read check passed — configuration saved; write permission unverified');
-    }, candidate, true);
-    remoteStartupSync();
-  } catch(e){ if (generation === remoteEngine.generation) ui.remoteError = e.message; }
-  finally { ui.remoteBusy = false; render(); }
-}
-/* The config file this app reads, so it is also the config file it writes —
-   otherwise "Load config file" only ever accepts hand-written JSON. The secret
-   is optional in both directions: a file without one sets up everything except
-   the credential, which is then typed once on the receiving device. */
-function remoteConfigPayload(cfg, includeSecret){
-  const out = {
-    app:'liftlog', kind:'remote-config', schemaVersion:EXPORT_SCHEMA, source:'liftlog-web',
-    exportedAt:new Date().toISOString(),
-    endpoint:cfg.endpoint, region:cfg.region, bucket:cfg.bucket,
-    objectKey:cfg.objectKey || REMOTE_OBJECT_KEY_DEFAULT,
-    syncMode:remoteEngine.syncMode(cfg),pathStyle:!!cfg.pathStyle,
-    accessKeyId:cfg.accessKeyId
-  };
-  if (includeSecret) out.secretAccessKey = cfg.secretAccessKey;
-  return out;
-}
-/* Writing the secret to the Downloads folder is a real disclosure, so it is a
-   deliberate second choice rather than the default the first button gives you. */
-function exportRemoteConfig(){
-  const cfg = loadRemoteConfig();
-  if (!cfg) return;
-  dialog({ title:'Download configuration file?',
-    body:'The file carries the endpoint, region, bucket, object key and access key ID. ' +
-      'Including the secret access key makes it a complete credential: anyone who opens the file, ' +
-      'or anywhere it gets synced or mailed, can read and write that bucket.',
-    buttons:[
-      { label:'Cancel', value:'', cls:'', autofocus:true },
-      { label:'Without secret key', value:'safe', cls:'btn-primary' },
-      { label:'Include secret key', value:'full', cls:'btn-danger-solid' }
-    ]}).then(choice => {
-    if (!choice) return;
-    downloadJSON(remoteConfigPayload(cfg, choice === 'full'), dateStamp('liftlog-remote-config'));
-    toast(choice === 'full' ? 'Configuration downloaded — it contains your secret key'
-                            : 'Configuration downloaded without the secret key');
-  });
-}
-/* A loaded file lands in the same draft the form edits, so it is reviewable
-   before it is anything else, and a file missing its secret simply leaves that
-   one field empty for the user to fill. Saving still goes through the
-   connection test — a file is no more trustworthy than a typed form. */
-function loadRemoteConfigFile(file){
-  readJSONFile(file, obj => {
-    if (!obj || typeof obj !== 'object' || !obj.endpoint || !obj.bucket || !obj.accessKeyId){
-      toast('That file is missing required remote storage fields'); return;
-    }
-    const draft = {
-      endpoint:String(obj.endpoint).replace(/\/+$/, ''),
-      region:String(obj.region || 'us-east-1'),
-      bucket:String(obj.bucket),
-      objectKey:String(obj.objectKey || REMOTE_OBJECT_KEY_DEFAULT),
-      accessKeyId:String(obj.accessKeyId),
-      secretAccessKey:obj.secretAccessKey ? String(obj.secretAccessKey) : '',
-      syncMode:obj.syncMode==='conditional'?'conditional':'immutable',pathStyle:!!obj.pathStyle
-    };
-    ui.remoteDraft = draft; ui.remoteFormOpen = true; ui.remoteError = '';
-    if (!draft.secretAccessKey){
-      render(); toast('Loaded — paste the secret access key to finish');
-      return;
-    }
-    render();
-    testAndSaveRemoteConfig(Object.assign({ lastBackupAt:null }, draft));
-  });
+  const pending=remoteEngine.configure(candidate),generation=remoteEngine.generation;
+  try{await pending;}catch(e){if(generation===remoteEngine.generation)toast(e.message);}
+  finally{render();}
 }
 
 /* ---------- routines: export / import ---------- */
@@ -4806,6 +4583,7 @@ function render(){
   const keepFocus=!switched&&!ui.focus&&main.contains(document.activeElement)?document.activeElement.id:null;
   ui.prevView = ui.view;
   main.innerHTML = viewHTML();
+  storagePanel?.mount($('#storage-panel'));
   if(keepFocus&&document.getElementById(keepFocus))ui.focus=keepFocus;
   renderStorageStatus();
   renderComparisons();
@@ -4813,7 +4591,6 @@ function render(){
   appUpdates?.refresh();
   renderHandoffTools();
   if(workoutHandoff.held()){ui.overviewOpen=false;if(ui.view==='today'){const notice=document.createElement('p');notice.className='notice';notice.textContent='Workout held for handoff. Open Settings to download it or cancel the handoff on this device.';main.prepend(notice);main.querySelectorAll('button,input,textarea,select').forEach(node=>node.disabled=true);}}
-  renderRemoteTools();
   /* The action bar can only stay put if main reaches the bottom of the
      viewport — see html.session-active in the stylesheet. */
   document.documentElement.classList.toggle('session-active',
@@ -6948,18 +6725,12 @@ function htmlExerciseEditRow(e){
 /* ---------- SETTINGS ---------- */
 function settingsContext(){
   return {
-    state,ui,IC,THEMES,REST_MIN,
-    REST_MAX,LOAD_STEP_BOUNDS,REMOTE_OBJECT_KEY_DEFAULT,storageState,storageIsBrave,
-    storageEstimate,esc,installedAsApp,fmtBytes,storageSize,
-    rescuedDataRaw,remoteRestoreRescueInfo,unitLabel,fmtNum,fmtDate,
-    convertWeight,toLocalInput,loadRemoteConfig,remoteCryptoAvailable,remoteSyncPaused,
-    cloudSummaryText,workoutHandoff,remoteEngine,remoteDraftFromConfig,lastBackupInfo,backupIsStale,
-    sinceLabel,systemBarDiagnostics,historyExerciseIdentities,exerciseById,unresolvedHistoryExercises,
+    state,ui,IC,THEMES,REST_MIN,REST_MAX,LOAD_STEP_BOUNDS,esc,unitLabel,fmtNum,fmtDate,convertWeight,toLocalInput,
+    cloudSummaryText,storageAttention:hasRescuedData,workoutHandoff,systemBarDiagnostics,historyExerciseIdentities,exerciseById,unresolvedHistoryExercises,
     historyImportSummaryHTML,shortcutTable
   };
 }
 function viewSettings(){return LiftlogSettings.render(settingsContext());}
-function remoteStorageHTML(){return LiftlogSettings.remoteStorage(settingsContext());}
 
 /* One shortcut list renders both here and in the help dialog. */
 function shortcutTable(){
@@ -6967,43 +6738,6 @@ function shortcutTable(){
     SHORTCUTS.map(sc => '<tr><td>' + sc.keys.map(k => '<kbd>' + esc(k) + '</kbd>').join(' ') +
       '</td><td>' + esc(sc.text) + '</td></tr>').join('') +
     '</tbody></table>';
-}
-function fmtBytes(n){
-  if (n == null) return '–';
-  if (n < 1024) return n + ' B';
-  if (n < 1048576) return Math.round(n/102.4)/10 + ' KB';
-  return Math.round(n/104857.6)/10 + ' MB';
-}
-/* What was written, how much room there is, and whether the browser considers
-   itself free to throw it away — the three facts that decide whether a log is
-   actually safe in this browser. */
-function storageSize(){
-  try{
-    const bytes = new Blob([localStorage.getItem(LS_KEY) || '']).size;
-    return (bytes < 1024) ? bytes + ' B' : Math.round(bytes/102.4)/10 + ' KB';
-  }catch(e){ return '–'; }
-}
-function rescuedDataRaw(){
-  try{ return localStorage.getItem(LS_RESCUE_KEY); }
-  catch(e){ return null; }
-}
-function remoteRestoreRescueRaw(){
-  try{ return localStorage.getItem(LS_REMOTE_RESTORE_KEY); }
-  catch(e){ return null; }
-}
-/* Parsed once per stored copy: settings re-render often and the copy holds
-   the whole history. */
-let remoteRestoreRescueCache = {raw:null, info:null};
-function remoteRestoreRescueInfo(){
-  const raw = remoteRestoreRescueRaw();
-  if (raw == null) return null;
-  if (remoteRestoreRescueCache.raw !== raw){
-    let obj = null;
-    try{ obj = JSON.parse(raw); }catch(e){}
-    const at = Date.parse(obj?.exportedAt);
-    remoteRestoreRescueCache = {raw, info:{at:Number.isFinite(at) ? at : null, workouts:Array.isArray(obj?.workouts) ? obj.workouts.length : null}};
-  }
-  return remoteRestoreRescueCache.info;
 }
 function addBodyweightEntry(form){
   const date = form.elements.namedItem('bodyweight-date');
@@ -7220,44 +6954,6 @@ const actions = {
   },
 
   'export'(){ exportData(); },
-  'rescue-download'(){
-    const raw = rescuedDataRaw();
-    if (raw == null){ toast('No rescued data is available'); return; }
-    downloadBlob(new Blob([raw], {type:'text/plain'}), dateStamp('liftlog-rescued-data').replace(/\.json$/, '.txt'));
-    toast('Rescued data downloaded');
-  },
-  'rescue-discard'(){
-    confirmDlg('Discard rescued data?', 'This permanently removes the preserved unreadable copy. Download it first if you may need to recover it.', 'Discard', true)
-      .then(ok => {
-        if (!ok) return;
-        try{ localStorage.removeItem(LS_RESCUE_KEY); }
-        catch(e){ toast('Could not remove rescued data'); return; }
-        render(); toast('Rescued data discarded');
-      });
-  },
-  'remote-rescue-download'(){
-    const raw = remoteRestoreRescueRaw();
-    if (raw == null){ toast('No previous local copy is available'); return; }
-    downloadBlob(new Blob([raw], {type:'application/json'}), dateStamp('liftlog-before-remote-restore'));
-    toast('Previous local copy downloaded');
-  },
-  'remote-rescue-restore'(){
-    const raw = remoteRestoreRescueRaw();
-    if (raw == null){ toast('No previous local copy is available'); return; }
-    let obj;
-    try{ obj = JSON.parse(raw); }
-    catch(e){ toast('Previous local copy is not valid JSON'); return; }
-    applyFullBackup(obj, 'recovery');
-  },
-  'remote-rescue-discard'(){
-    confirmDlg('Discard previous local copy?', 'This removes the state preserved before the most recent restore or workout clear. Download it first if you may need it.', 'Discard', true)
-      .then(ok => {
-        if (!ok) return;
-        try{ localStorage.removeItem(LS_REMOTE_RESTORE_KEY); }
-        catch(e){ toast('Could not remove previous local copy'); return; }
-        render(); toast('Previous local copy discarded');
-      });
-  },
   'bodyweight-del'(d){
     const entry = (state.bodyweights || []).find(x => x.id === d.id); if (!entry) return;
     confirmDlg('Delete bodyweight entry?', fmtDate(entry.loggedAt) + ' · ' +
@@ -7268,24 +6964,8 @@ const actions = {
         clearStatsCache(); save(); render(); toast('Bodyweight entry deleted');
       });
   },
-  'request-persist'(){ requestPersistence(true); },
   'export-routines'(){ exportRoutines(); },
   'export-history'(){ exportHistory(); },
-  'remote-export-config'(){ exportRemoteConfig(); },
-  'remote-test'(){ remoteTestConnection(); },
-  'remote-backup'(){ remoteBackup(); },
-  'remote-restore'(){ remoteRestore(); },
-  'remote-pause'(){ pauseRemoteSyncAction(); },
-  'remote-resume'(){ remoteResumeSync(); },
-  'remote-publish-local'(){ remotePublishLocal(); },
-  'remote-forget'(){
-    const text = WorkoutStorage.forgetConnectionText(remoteEngine);
-    confirmDlg(text.title, text.body, 'Forget', true).then(ok => { if (!ok) return; clearRemoteConfig(); ui.remoteDraft = null; render(); toast('Remote configuration removed'); });
-  },
-  'remote-use-shared'(){
-    const text = WorkoutStorage.useSharedConnectionText;
-    confirmDlg(text.title, text.body, text.label).then(ok => { if (!ok) return; remoteEngine.useSharedConnection(); ui.remoteDraft = null; render(); toast('Using the shared connection'); });
-  },
 
   'clear-workouts'(){ clearWorkoutData(); },
   'help-open'(){ $('#help-dlg').showModal(); },
@@ -7608,7 +7288,6 @@ const binders = {
     it[t.dataset.field] = optional ? toNum(t.value) : (toNum(t.value) || 0);
   },
   edraft(t){ if (ui.exerciseDraft) ui.exerciseDraft[t.dataset.field] = t.value; },
-  remote(t){ if (ui.remoteDraft) ui.remoteDraft[t.dataset.field] = t.value; },
   hwo(t){ const w = editingWorkout(); if (w){ w[t.dataset.field] = t.value; save(); } },
   hex(t){ const ex = findHEx(t.dataset); if (ex){ ex[t.dataset.field] = t.value; save(); } },
   hset(t){ const s = findHSet(t.dataset); if (s){ s[t.dataset.field] = normalizeSetNumber(t.dataset.field, t.value); save(); } },
@@ -7717,11 +7396,8 @@ const changeHandlers = {
     setReps(t.dataset.id, normalizeSetNumber(ex && ex.unit === 'time' ? 'durationSeconds' : 'reps', t.value));
     if (ex) paintRepRange(ex);
   },
-  'import-all'(t){ withPickedFile(t, importData); },
   'import-routines'(t){ withPickedFile(t, importRoutines); },
-  'import-history'(t){ withPickedFile(t, importHistory); },
-  'load-remote-config'(t){ withPickedFile(t, loadRemoteConfigFile); },
-  'remote-pathstyle'(t){ if (ui.remoteDraft) ui.remoteDraft.pathStyle = t.checked; }
+  'import-history'(t){ withPickedFile(t, importHistory); }
 };
 const changeWorkoutTime=changeHandlers['workout-time'];
 changeHandlers['workout-time']=t=>{const w=editingWorkout();if(w)trackChange({kind:'workout',id:w.id},'Edited session time',()=>changeWorkoutTime(t),true);};
@@ -7741,7 +7417,6 @@ document.addEventListener('toggle', e => {
   const d = e.target;
   if (d && d.dataset && d.dataset.settingsSection)
     ui.settingsSections[d.dataset.settingsSection] = d.open;
-  if (d && d.dataset && d.dataset.settingsSection === 'cloud-connection') ui.remoteFormOpen = d.open;
   if (d && d.dataset && 'progressionAnalysis' in d.dataset)
     ui.progressionAnalysisOpen = d.open;
 }, true);
@@ -7768,7 +7443,6 @@ document.addEventListener('submit', e => {
     if (error){ ui.mergeExerciseError = error; render(); }
   }
   else if (kind === 'bodyweight-add'){ addBodyweightEntry(form); }
-  else if (kind === 'remote-config'){ saveRemoteConfigForm(form); }
 });
 
 
@@ -7900,6 +7574,7 @@ function init(){
   /* Existing undated backups cannot safely be ordered; reconciliation asks
      the user to choose. A fresh install can adopt a dated remote snapshot. */
   /* Undated existing data requires explicit conflict resolution, never invented age. */
+  createStoragePanel();
   appShell = WorkoutUI.createShell({name:'Liftlog',items:[{id:'today',label:'Workout',icon:'workout'},{id:'routines',label:'Routines',icon:'routines'},{id:'history',label:'History',icon:'history'},{id:'exercises',label:'Exercises',icon:'exercises'},{id:'settings',label:'Settings',icon:'settings'}],onNavigate:view=>navigate(view)});
   applyTheme();
   /* restoreTimer() reads activeWorkout.timer, and loadTimer() overwrites it —
@@ -7937,7 +7612,7 @@ function init(){
   // Other apps on this site share localStorage; only this app's keys matter.
   window.addEventListener('storage',event=>{
     // Another app on this site saved or forgot the shared connection.
-    if(event.key===WorkoutStorage.SHARED_CONNECTION_KEY){ui.remoteDraft=null;render();}
+    if(event.key===WorkoutStorage.SHARED_CONNECTION_KEY){storagePanel.reload();render();}
     else if(!event.key||event.key.startsWith('liftlog.'))renderStorageStatus();
   });
 

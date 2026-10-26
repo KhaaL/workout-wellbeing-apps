@@ -9,7 +9,7 @@
   const plural=(n,word)=>n+' '+word+(n===1?'':'s');
   const el=(tag,props={},...children)=>{const node=Object.assign(document.createElement(tag),props);node.append(...children.filter(c=>c!=null&&c!==false));return node;};
   const newId=prefix=>prefix+(globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));
-  let storage=null,shell=null,updates=null,view='today',viewDate='',followToday=true,toastTimer=0,cloudBusy=false,configBusy=false;
+  let storage=null,shell=null,updates=null,view='today',viewDate='',followToday=true,toastTimer=0,cloudBusy=false,remoteStatus='',panel=null;
   let historyLimit=60,sheetFoodId=null,editingEntryId=null,amountFood=null,selectedPortion='',editingFoodId=null,foodThen=null;
   const S=()=>storage.state;
 
@@ -35,9 +35,9 @@
   }
 
   storage=FoodlogStorage.create({toast,confirm:WorkoutUI.confirm,onLocalStatus:localStatus,
-    onRemoteStatus:(status,message)=>{$('cloudStatus').textContent=message||'Cloud storage is not configured.';},
-    onBusy:busy=>{cloudBusy=busy;renderCloud();},onRefresh:()=>renderCloud(),
-    onRestore:()=>{for(const id of ['addDialog','foodDialog','foodSheet'])if($(id).open)$(id).close();fillSettings();render();renderCloud();localStatus();}});
+    onRemoteStatus:status=>{remoteStatus=status;renderStorage();},
+    onBusy:busy=>{cloudBusy=busy;panel?.setBusy(busy);renderStatus();},onRefresh:()=>renderStorage(),
+    onRestore:()=>{for(const id of ['addDialog','foodDialog','foodSheet'])if($(id).open)$(id).close();fillSettings();render();renderStorage();localStatus();}});
 
   /* Days. */
   const today=()=>F.dayFor(Date.now(),S().settings.dayStart);
@@ -503,38 +503,26 @@
     }catch(error){$('mealsStatus').textContent=error.message;}
   });
 
-  /* Backups and cloud storage, as in Tabata. */
-  function renderRecovery(){
-    const container=$('recoveryCopies');container.replaceChildren();
-    for(const [suffix,label] of [['before-remote-restore','Download pre-restore copy'],['unreadable','Download unreadable data']]){
-      let raw;try{raw=localStorage.getItem('foodlog.v1.'+suffix);}catch{}if(!raw)continue;
-      const button=el('button',{className:'btn',type:'button',textContent:label});button.addEventListener('click',()=>downloadJSON(raw,'foodlog-'+suffix+'.json'));container.append(button);
-    }
+  /* Settings: the shared status card and Backups & cloud storage panel. */
+  function exportBackup(){storage.local.flush();downloadJSON(storage.backup(),'foodlog-backup-'+new Date().toISOString().slice(0,10)+'.json');if(!WorkoutStorage.recordFileBackup('foodlog.v1'))toast('Backup downloaded; its date could not be saved.');renderStorage();}
+  function openStorage(target){
+    $('storage-options').open=true;
+    const node=panel.open(target)||$('storage-options').querySelector('summary');node.scrollIntoView({block:'nearest'});node.focus();
   }
-  function renderCloud(){
+  function renderStatus(){
     if(!storage)return;
-    const remote=storage.remote,cfg=remote.loadRemoteConfig(),paused=remote.remoteSyncPaused();
-    $('cloudActions').hidden=!cfg;
-    WorkoutStorage.applyCloudActions({backup:$('cloudBackup'),pause:$('cloudPause'),'publish-local':$('cloudKeepLocal'),resume:$('cloudResume'),restore:$('cloudUseRemote')},remote.syncMode(cfg),paused);
-    for(const node of document.querySelectorAll('#cloudForm input,#cloudForm select,#cloudForm button,#cloudActions button'))node.disabled=cloudBusy||configBusy;
-    WorkoutStorage.renderConnectionScope($('connectionScope'),remote,{confirm:WorkoutUI.confirm,onChange:()=>{loadCloud();renderCloud();}});
-    renderRecovery();WorkoutStorage.renderRemoteTools($('remoteTools'),remote,downloadJSON,'foodlog');
+    WorkoutStorage.renderStorageSummary($('storage-summary'),WorkoutStorage.summaryInput({local:storage.local,remote:storage.remote,status:remoteStatus,busy:cloudBusy||panel?.saving,
+      revision:S().updatedAt,fileAt:WorkoutStorage.fileBackupAt('foodlog.v1')}),
+    {download:exportBackup,details:()=>openStorage(),configure:()=>openStorage('configure'),backup:()=>storage.remote.remoteBackup(),retry:()=>storage.remote.remoteBackup(),
+      review:()=>openStorage('review'),resume:async()=>{await storage.remote.remotePublishLocal();renderStorage();},error:error=>toast(error.message)});
   }
-  function loadCloud(){
-    const cfg=storage.remote.loadRemoteConfig();if(!cfg)return;
-    for(const [field,name] of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId']])$(field).value=cfg[name]||(name==='objectKey'?storage.remote.defaultObjectKey:'');
-    $('cloudPathStyle').checked=cfg.pathStyle;$('cloudMode').value=storage.remote.syncMode(cfg);
-  }
-  $('exportBackup').addEventListener('click',()=>{storage.local.flush();downloadJSON(storage.backup(),'foodlog-backup.json');});
-  $('importBackup').addEventListener('change',async event=>{try{const raw=await readJSON(event.target);if(raw&&await storage.restore(raw))toast('Backup restored. Cloud sync is paused.');}catch(error){toast(error.message);}});
-  $('cloudForm').addEventListener('submit',async event=>{
-    event.preventDefault();configBusy=true;renderCloud();
-    try{const cfg={endpoint:$('cloudEndpoint').value.trim(),region:$('cloudRegion').value.trim(),bucket:$('cloudBucket').value.trim(),objectKey:$('cloudObject').value.trim(),accessKeyId:$('cloudAccess').value.trim(),secretAccessKey:$('cloudSecret').value||storage.remote.loadRemoteConfig()?.secretAccessKey,pathStyle:$('cloudPathStyle').checked,syncMode:$('cloudMode').value};
-      if(!cfg.secretAccessKey)throw new Error('Enter the secret access key.');await storage.configure(cfg);$('cloudSecret').value='';
-    }catch(error){toast(error.message);}finally{configBusy=false;renderCloud();}
-  });
-  for(const [id,method] of [['cloudBackup','remoteBackup'],['cloudPause','pauseRemoteSyncAction'],['cloudResume','remoteResumeSync'],['cloudKeepLocal','remotePublishLocal'],['cloudUseRemote','remoteRestore']])$(id).addEventListener('click',async()=>{try{await storage.remote[method]();}catch(error){toast(error.message);}renderCloud();});
-  $('cloudForget').addEventListener('click',async()=>{const text=WorkoutStorage.forgetConnectionText(storage.remote);if(await WorkoutUI.confirm(text.title,text.body,'Forget connection',true)){storage.remote.clearRemoteConfig();$('cloudForm').reset();$('cloudSecret').value='';loadCloud();renderCloud();}});
+  function renderStorage(){if(!storage||!panel)return;panel.refresh();renderStatus();}
+  const persistence=WorkoutStorage.createPersistence({askedKey:'foodlog.v1.persist-asked',onChange:()=>panel?.refresh()});
+  panel=WorkoutStorage.createStoragePanel({appName:'Foodlog',namespace:'foodlog.v1',remote:storage.remote,persistence,confirm:WorkoutUI.confirm,toast,download:downloadJSON,onChange:renderStatus,
+    backup:{contents:'foods, logged items, day notes and settings',size:()=>new Blob([JSON.stringify(S())]).size,download:exportBackup,restore:raw=>storage.restore(raw),
+      fileAt:()=>WorkoutStorage.fileBackupAt('foodlog.v1'),hasData:()=>S().entries.length>0||S().foods.length>0},
+    recovery:{restore:raw=>storage.restore(raw),describe:raw=>Array.isArray(raw.entries)?'It holds '+raw.entries.length+' logged items.':''}});
+  panel.mount($('storagePanel'));persistence.refresh();
 
   /* Navigation. */
   function render(){if(view==='today')renderToday();else if(view==='foods')renderFoods();else if(view==='history')renderHistory();}
@@ -542,7 +530,7 @@
     if(target==='today'&&resetDay){viewDate=today();followToday=true;}
     view=target;for(const id of ['today','foods','history','settings'])$(id).hidden=id!==target;
     document.documentElement.classList.toggle('setup-screen',target==='today');shell.update(target,false,false);
-    if(target==='settings')renderCloud();render();updates?.refresh();window.scrollTo(0,0);
+    if(target==='settings')renderStorage();render();updates?.refresh();window.scrollTo(0,0);
   }
   shell=WorkoutUI.createShell({name:'Foodlog',items:[{id:'today',label:'Today',icon:'today'},{id:'foods',label:'Foods',icon:'foods'},{id:'history',label:'History',icon:'history'},{id:'settings',label:'Settings',icon:'settings'}],onNavigate:navigate});
   const themeSelect=$('themeChoice');
@@ -658,7 +646,7 @@
   window.addEventListener('pagehide',()=>storage.local.flush());
   window.addEventListener('online',()=>storage.remote.remoteStartupSync());
   // Another app on this site saved or forgot the shared connection.
-  window.addEventListener('storage',event=>{if(event.key===WorkoutStorage.SHARED_CONNECTION_KEY){loadCloud();renderCloud();}});
-  fillSettings();loadCloud();localStatus();navigate('today');
+  window.addEventListener('storage',event=>{if(event.key===WorkoutStorage.SHARED_CONNECTION_KEY){panel.reload();renderStatus();}});
+  fillSettings();localStatus();navigate('today');
   storage.remote.remoteStartupSync();
 })();

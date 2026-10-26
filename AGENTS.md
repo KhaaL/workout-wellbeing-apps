@@ -21,6 +21,9 @@
   storage, appearance and updates. Apps mount these components and never
   rebuild them. A change to a shared flow lands in every app in the same
   change, with a browser test covering all apps.
+- Backups & cloud storage is `WorkoutStorage.createStoragePanel` in
+  `packages/storage-ui/panel.js`. Apps pass data and wording (what a backup
+  holds, how to restore, the app name), never markup.
 - Settings order: storage status; app preferences; Appearance; Backups &
   cloud storage; app data files, if any; Move to another device (apps with
   resumable sessions); App updates; Advanced & destructive actions.

@@ -128,19 +128,6 @@ globalThis.BikeStorage = (() => {
       if(name==='settings'&&JSON.stringify(state.settings)===JSON.stringify(value))return !local.failed;
       state[name]=value;return local.save({immediate:options.immediate!==false,changed:[name],remote:options.remote!==false});
     }
-    async function configure(candidate){
-      if(!remote.remoteCryptoAvailable())fail('Cloud storage needs HTTPS and Web Crypto.');
-      remote.invalidateRemote();remote.validateRemoteConfig(candidate);
-      await remote.coordinateRemote(async ctx=>{
-        await remote.readRemoteBackup(candidate,ctx);remote.assertRemote(ctx);
-        // Backup history belongs to the destination; new credentials keep it.
-        const previous=remote.loadRemoteConfig(),same=previous&&remote.remoteDestination(previous)===remote.remoteDestination(candidate);
-        candidate.lastBackupAt=same?previous.lastBackupAt??null:null;candidate.lastUploadedModifiedAt=same?previous.lastUploadedModifiedAt??null:null;
-        if(same&&previous.lastBackupMode)candidate.lastBackupMode=previous.lastBackupMode;else delete candidate.lastBackupMode;
-        remote.saveRemoteConfig(candidate,ctx);
-      },candidate,true);
-      options.toast('Read check passed. Backup will verify write permission.');remote.remoteStartupSync();
-    }
     async function restore(raw){
       if(isActive())throw new Error('Finish or end the saved session before restoring a backup.');
       const expected=JSON.stringify(state),candidate=prepare(raw);
@@ -151,27 +138,6 @@ globalThis.BikeStorage = (() => {
       candidate.updatedAt=Math.max(Date.now(),state.updatedAt+1,candidate.updatedAt+1);
       if(!remote.commitSnapshot(candidate))throw new Error('Restore could not be saved. Previous data retained.');
       remote.scheduleRemoteBackup();return true;
-    }
-    function configPayload(includeSecret=false){
-      const cfg=remote.loadRemoteConfig();if(!cfg)fail('Cloud storage is not configured.');
-      const result={app:'bike-cardio',kind:'remote-config',version:1,exportedAt:new Date().toISOString(),
-        endpoint:cfg.endpoint,region:cfg.region,bucket:cfg.bucket,objectKey:cfg.objectKey||'bike-cardio-backup.json',
-        syncMode:remote.syncMode(cfg),pathStyle:cfg.pathStyle,accessKeyId:cfg.accessKeyId};
-      if(includeSecret)result.secretAccessKey=cfg.secretAccessKey;
-      return result;
-    }
-    function configDraft(raw){
-      WorkoutStorage.enforceLimits(raw);
-      if(!raw||raw.app!=='bike-cardio'||raw.kind!=='remote-config'||raw.version!==1)fail('Expected a Bike Cardio connection configuration file.');
-      const draft={};
-      for(const name of ['endpoint','region','bucket','objectKey','accessKeyId']){
-        if(typeof raw[name]!=='string'||!raw[name].trim())fail('Missing configuration field: '+name);
-        draft[name]=raw[name].trim();
-      }
-      if(typeof raw.pathStyle!=='boolean')fail('Path-style addressing must be true or false.');
-      if(raw.secretAccessKey!=null&&typeof raw.secretAccessKey!=='string')fail('Invalid secret access key.');
-      draft.syncMode=raw.syncMode||'auto';draft.pathStyle=raw.pathStyle;draft.secretAccessKey=raw.secretAccessKey?.trim()||'';
-      remote.validateRemoteConfig(draft);return draft;
     }
     function fileBackupAt(){try{return Number(localStorage.getItem(namespace+'.last-file-backup'))||null;}catch(error){return null;}}
     function backupInfo(){
@@ -251,7 +217,7 @@ globalThis.BikeStorage = (() => {
       setRevision:candidate=>{candidate.updatedAt=Math.max(Date.now(),state.updatedAt+1);},
       describe:workout=>`${workout.config.plan?.name||(workout.config.mode==='zone2'?'Zone 2':'Sprint')} workout: ${Math.round(workout.activeMs/60000)} active minutes, paused at ${C.phase(workout).title}.`,
       confirm:options.confirm,onChange:options.onHandoffChange,onReceived:options.onHandoffReceived,notify:options.toast});
-    return {get,write,local,remote,handoff,prepare,backup,restore,configure,configPayload,configDraft,backupInfo,fileBackupAt,recordFileBackup,
+    return {get,write,local,remote,handoff,prepare,backup,restore,backupInfo,fileBackupAt,recordFileBackup,
       historyPayload,mergeHistory,clearHistory,recoveryCopies,discardRecovery,get state(){return state;},
       recovery:()=>{try{
         const saved=localStorage.getItem(namespace+'.unreadable')||localStorage.getItem(namespace+'.before-remote-restore');if(saved)return saved;

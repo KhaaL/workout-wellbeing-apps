@@ -54,7 +54,8 @@ const SHARED='wellbeing.connection.v1';
     assert.ok(puts.some(k=>k.startsWith('apps/tabata-backup.json.snapshots/')),'Tabata backs up to its own path');
     console.log('PASS Foodlog uses the shared connection, and each app backs up to its own path');
 
-    await tabata.fill('#cloudBucket','apps-two');await tabata.fill('#cloudSecret','');await tabata.click('#saveCloud');
+    // A saved connection folds away under Connection.
+    await tabata.locator('#cloudConnection > summary').click();await tabata.fill('#cloudBucket','apps-two');await tabata.fill('#cloudSecret','');await tabata.click('#saveCloud');
     await foodlog.waitForFunction(()=>document.getElementById('cloudBucket').value==='apps-two'&&/^Shared connection: apps-two on/.test(document.querySelector('#connectionScope p').textContent),null,{timeout:10000});
     assert.equal((await shared(foodlog)).secretAccessKey,'synthetic','a blank secret keeps the saved one');
     console.log('PASS an open app follows a connection change made in another app');
@@ -62,11 +63,12 @@ const SHARED='wellbeing.connection.v1';
     const bike=await open('bike-cardio');
     await bike.waitForFunction(()=>/^Shared connection: apps-two on storage\.test\..*This app backs up to bike-cardio-backup\.json\.$/.test(document.querySelector('#connectionScope p')?.textContent||''));
     const liftlog=await open('liftlog');
-    await liftlog.waitForFunction(()=>/^Shared connection: apps-two on storage\.test\..*This app backs up to liftlog-backup\.json\.$/.test(document.getElementById('connection-scope')?.textContent||''));
+    await liftlog.waitForFunction(()=>/^Shared connection: apps-two on storage\.test\..*This app backs up to liftlog-backup\.json\.$/.test(document.querySelector('#connectionScope p')?.textContent||''));
     console.log('PASS Bike and Liftlog show the shared connection and their own paths');
 
     await foodlog.evaluate(()=>localStorage.setItem('foodlog.v1.remote',JSON.stringify({endpoint:'https://storage.test',region:'test',bucket:'food-only',accessKeyId:'other',secretAccessKey:'other',pathStyle:true,syncMode:'immutable',objectKey:'foodlog-backup.json'})));
     await foodlog.reload();await foodlog.locator('.nav-btn[data-view="settings"]').first().click();await foodlog.click('text=Backups & cloud storage');
+    await foodlog.locator('#cloudConnection > summary').click();
     assert.match(await scope(foodlog),/still uses its own connection.*food-only on storage\.test\. The other apps use apps-two on storage\.test\./);
     await confirmAction(foodlog,()=>foodlog.getByRole('button',{name:'Use the shared connection…'}).click());
     await foodlog.waitForFunction(()=>/^Shared connection: apps-two/.test(document.querySelector('#connectionScope p').textContent));

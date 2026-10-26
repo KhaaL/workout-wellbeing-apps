@@ -122,34 +122,7 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
     <p id="defaultTargetError" class="notice" role="alert" hidden></p><button id="saveDefaults" class="secondary">Save workout defaults</button></details>
   <div class="card stack"><label class="check"><input type="checkbox" id="voice" checked>Voice cues</label><label class="check"><input type="checkbox" id="beeps" checked>Beeps</label><button id="testSound" class="secondary">Test sound</button><p class="small">If a watch records your rides too, start its indoor cycling recording before riding. Mount your phone where it is easy to read.</p></div>
   <section class="card"><h2>Appearance</h2><label class="field">Theme<select id="themeChoice"></select></label></section>
-  <details id="storage-options" class="card"><summary>Backups &amp; cloud storage</summary>
-    <p class="small">Your rides save on this device. A full JSON backup can restore your history and settings. Cloud backup is optional and uses your own S3-compatible storage.</p>
-    <div class="stack"><button id="exportBackup" class="secondary">Download full backup</button><label class="field">Restore from file<input id="importBackup" type="file" accept=".json,application/json"></label></div>
-    <p id="backupStatus" class="small" role="status"></p>
-    <p id="backupAge" class="small" role="status"></p>
-    <details><summary>Device storage</summary><p id="storageDiagnostics" class="small" role="status">Checking device storage…</p><button id="requestPersistence" class="secondary" hidden>Request persistent storage</button></details>
-    <div id="recoveryCopies" class="stack"></div>
-    <p class="small">One cloud connection serves every app on this site: enter your S3-compatible storage details once. Each app backs up to its own path.</p>
-    <div id="connectionScope" class="stack"></div>
-    <form id="cloudForm" class="stack">
-      <label class="field">Backup mode<select id="cloudMode"><option value="immutable">Separate backup files (recommended)</option><option value="conditional">Conditional sync (one shared file)</option></select></label>
-      <p class="small">Separate files never replace another device’s data. Conditional sync needs a provider that enforces overwrite protection.</p>
-      <label class="field">Endpoint URL<input id="cloudEndpoint" type="url" required placeholder="https://your-s3-server.example"></label>
-      <div class="grid"><label class="field">Region<input id="cloudRegion" required placeholder="Provider region"></label><label class="field">Bucket<input id="cloudBucket" required></label></div>
-      <label class="field">Backup path · this app<input id="cloudObject" value="bike-cardio-backup.json" required></label>
-      <label class="field">Access key ID<input id="cloudAccess" required autocomplete="off"></label>
-      <label class="field">Secret access key<input id="cloudSecret" type="password" autocomplete="off" placeholder="Leave blank to keep the saved secret"></label>
-      <label class="check"><input id="cloudPathStyle" type="checkbox" checked>Path-style addressing</label>
-      <p class="small">Credentials are saved in this browser and excluded from workout backups. Use a private bucket. The connection is shared by every app on this site; the backup path is this app’s.</p>
-      <button type="submit" id="saveCloud" class="secondary">Check &amp; save connection</button>
-    </form>
-    <label class="field">Load config file<input id="importCloudConfig" type="file" accept=".json,application/json"></label>
-    <p id="cloudConfigStatus" class="small" role="status"></p>
-    <p id="cloudStatus" class="small" role="status" aria-live="polite">Cloud backup is not configured.</p>
-    <p id="cloudDetails" class="small" role="status"></p>
-    <div id="cloudActions" class="stack" hidden><button id="cloudBackup" class="secondary">Back up now</button><button id="cloudPause" class="secondary">Pause cloud backups</button><button id="cloudKeepLocal" class="secondary">Resume backups…</button><button id="cloudResume" class="secondary">Resume automatic sync…</button><button id="cloudUseRemote" class="secondary">Use cloud copy…</button><button id="cloudTest" class="secondary">Test read access</button><button id="exportCloudConfig" class="secondary">Save config file</button><button id="cloudForget" class="text-button">Forget connection…</button></div>
-    <details id="storageTools" hidden><summary>Troubleshooting &amp; earlier backups</summary><div id="remoteTools"></div></details>
-  </details>
+  <details id="storage-options" class="card"><summary>Backups &amp; cloud storage</summary><div id="storagePanel"></div></details>
   <div id="handoffTools" class="card handoff-tools"></div>
   <details><summary>App updates</summary><p class="small">When opened from an HTTPS website, use Chrome’s menu → Add to home screen / Install app. Open once online before using it offline. A downloaded HTML file also works for manual HR without a network. Strap support needs an HTTPS page in Android Chrome.</p><p id="offlineStatus" class="status"></p><div id="appUpdateControls"></div></details>
 </section>
@@ -222,7 +195,7 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
     <div class="dialog-actions"><button type="submit" class="primary">Save changes</button><button id="cancelEdit" type="button" class="secondary">Cancel</button></div>
   </form>
 </dialog>
-<dialog id="configExportDialog" aria-labelledby="configExportTitle"><h2 id="configExportTitle">Save config file</h2><p>Save your endpoint, region, bucket, object path and access key ID for another device. The secret key is excluded by default.</p><p class="small">A file containing the secret key grants access to your bucket. Keep it private.</p><div class="dialog-actions"><button id="exportConfigSafe" class="primary">Download without secret key</button><button id="exportConfigSecret" class="secondary danger">Include secret key…</button><button id="cancelConfigExport" class="secondary">Cancel</button></div></dialog>
+
 <div id="toast" class="toast" role="status" hidden></div>
 <script>
 /* app-foundation:start */
@@ -274,10 +247,9 @@ let storageControllerInstance;
   const $=id=>document.getElementById(id), C=WorkoutCore, H=HeartRateCore, KEYS={active:'bike-cardio.active.v1',history:'bike-cardio.history.v1',settings:'bike-cardio.settings.v1'};
   const fields=['averageHR','mainAverageHR','zoneMinutes','resistance','cadence','averageWatts','fixedHRWatts','perceivedEffort','notes'];
   let session=null,records=[],selected=null,historyReturn='setup',audio=null,wake=null,muted=false,storageOK=true,lastSaved=0,lastCloudCheckpoint=0,phaseKey='',interval=null,toastTimer=null,gateMode='',highSince=null,lastHighAt=null,lastHighWarning=-60000;
-  let cloudBusy=false,configBusy=false,backupReminded=false;
+  let cloudBusy=false,remoteStatus='',backupReminded=false;
   const targetFields=Object.keys(BikeTargets.defaults),durationFields=['warmupMinutes','mainMinutes','recoverySeconds','sprintCooldownMinutes','settleMinutes'];
   let targetsValid=true,appUpdates=null,shell=null,currentView='setup';
-  let persistenceState='checking',storageEstimate=null;
   const h10=new H10Connection({bluetooth:navigator.bluetooth,secure:window.isSecureContext,protocol:location.protocol,now:()=>Date.now(),visible:()=>!document.hidden,setTimeout:(fn,ms)=>setTimeout(fn,ms),clearTimeout:id=>clearTimeout(id),onChange:()=>{if(h10.state!=='connected')H.breakSeries(session?.hr);renderSensors();if(session)render();},onMeasurement:receiveHR});
   const power=new BikeSensorConnection({bluetooth:navigator.bluetooth,secure:window.isSecureContext,protocol:location.protocol,now:()=>Date.now(),visible:()=>!document.hidden,setTimeout:(fn,ms)=>setTimeout(fn,ms),clearTimeout:id=>clearTimeout(id),onChange:()=>{if(power.state!=='connected')PowerCore.breakSeries(session?.power);renderPower();},onMeasurement:receivePower});
   const fmt=ms=>{const s=Math.max(0,Math.ceil(ms/1000));return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;};
@@ -287,8 +259,8 @@ let storageControllerInstance;
   const dateLabel=ms=>new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(new Date(ms));
   const storage=BikeStorage.create({core:C,heart:H,isActive:()=>Boolean(session),
     onLocalStatus:status=>{if(status.failed||status.blocked)storageWarning(status.warning||'Changes are not being saved. Keep this page open and download a full backup.');else if(!status.warning){storageOK=true;$('storageNotice').hidden=true;}queueMicrotask(renderStorageStatus);},
-    onRemoteStatus:(status,text)=>{ $('cloudStatus').textContent=text||'Cloud backup is not configured.'; $('cloudStatus').dataset.status=status; renderBackupControls(); },
-    onBusy:busy=>{cloudBusy=busy;renderBackupControls();},
+    onRemoteStatus:status=>{remoteStatus=status;renderBackupControls();},
+    onBusy:busy=>{cloudBusy=busy;storageController().panel.setBusy(busy);renderStorageStatus();},
     toast,confirm:WorkoutUI.confirm,onRefresh:renderBackupControls,
     pauseForHandoff:()=>{let paused=session?session:C.restore(read(KEYS.active,null),Date.now());if(!paused)throw new Error('No recoverable workout.');C.pause(paused,Date.now(),'Paused for handoff. Review on the receiving device.');if(paused.status!=='paused')throw new Error('Workout has ended; save it before transferring.');H.breakSeries(paused.hr);write(KEYS.active,paused,{remote:false});if(session)session=paused;release();cancelVoice();},
     onHandoffChange:()=>{renderHandoff();updateRestore();},onHandoffReceived:()=>h10.disconnect(),
@@ -334,7 +306,7 @@ let storageControllerInstance;
   function downloadJSON(payload,name){const raw=typeof payload==='string'?payload:JSON.stringify(payload,null,2),url=URL.createObjectURL(new Blob([raw],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
   function openStorageOptions(target){
     $('storage-options').open=true;
-    const node=$(target)||$('storage-options').querySelector('summary');node.scrollIntoView({block:'nearest'});node.focus();
+    const node=storageController().panel.open(target)||$('storage-options').querySelector('summary');node.scrollIntoView({block:'nearest'});node.focus();
   }
   function renderStorageStatus(){
     if(currentView!=='settings')return;
@@ -342,12 +314,12 @@ let storageControllerInstance;
     WorkoutStorage.renderStorageSummary($('storage-summary'),{
       failed:storage.local.failed,blocked:storage.local.blocked,localPending:storage.local.pending,
       configured:!!cfg,paused:remote.remoteSyncPaused(),pause:remote.remotePauseInfo(),held:!!storage.handoff.held(),online:navigator.onLine,
-      status:$('cloudStatus').dataset.status,errorCategory:remote.diagnosticsPayload().lastError?.category,
-      busy:cloudBusy||configBusy,pending:!!remote.readRemoteWork()?.pending,revision:storage.state.updatedAt,
+      status:remoteStatus,errorCategory:remote.diagnosticsPayload().lastError?.category,
+      busy:cloudBusy||storageController().panel.saving,pending:!!remote.readRemoteWork()?.pending,revision:storage.state.updatedAt,
       cloudAt:cfg?.lastBackupAt,cloudRevision:cfg?.lastUploadedModifiedAt,fileAt:storage.fileBackupAt(),
       active:!!storage.state.active,mode:remote.syncMode(cfg)
-    },{download:exportFullBackup,details:()=>openStorageOptions(),configure:()=>openStorageOptions('cloudEndpoint'),
-      backup:()=>remote.remoteBackup(),retry:()=>remote.remoteBackup(),review:()=>openStorageOptions(remote.remoteSyncPaused()?'cloudResume':'cloudKeepLocal'),resume:async()=>{await remote.remotePublishLocal();renderBackupControls();},
+    },{download:exportFullBackup,details:()=>openStorageOptions(),configure:()=>openStorageOptions('configure'),
+      backup:()=>remote.remoteBackup(),retry:()=>remote.remoteBackup(),review:()=>openStorageOptions('review'),resume:async()=>{await remote.remotePublishLocal();renderBackupControls();},
       handoff:()=>{$('handoffTools').scrollIntoView({block:'nearest'});$('handoffTools').querySelector('button')?.focus();},error:error=>toast(error.message)});
   }
   function exportFullBackup(){if(selected&&!$('summary').hidden&&saveMetrics(true)===false&&!$('logForm').checkValidity())return;storage.local.flush();downloadJSON(storage.backup(),`bike-cardio-backup-${new Date().toISOString().slice(0,10)}.json`);if(!storage.recordFileBackup())toast('Backup downloaded; its date could not be saved.');renderBackupControls();}
@@ -355,26 +327,19 @@ function storageController(){
   return storageControllerInstance ||= BikeStorageController.create({
     get $(){return $;},
     get backupReminded(){return backupReminded;}, set backupReminded(value){backupReminded=value;},
-    get cloudBusy(){return cloudBusy;},
-    get configBusy(){return configBusy;},
     get currentView(){return currentView;},
     get dateLabel(){return dateLabel;},
     get downloadJSON(){return downloadJSON;},
-    get persistenceState(){return persistenceState;}, set persistenceState(value){persistenceState=value;},
+    get exportFullBackup(){return exportFullBackup;},
     get renderStorageStatus(){return renderStorageStatus;},
     get storage(){return storage;},
-    get storageEstimate(){return storageEstimate;}, set storageEstimate(value){storageEstimate=value;},
     get toast(){return toast;}
   });
 }
 function renderBackupControls(...args){return storageController().renderBackupControls(...args);}
 function readJSONUpload(...args){return storageController().readJSONUpload(...args);}
-function renderRecoveryCopies(...args){return storageController().renderRecoveryCopies(...args);}
-function renderStorageDiagnostics(...args){return storageController().renderStorageDiagnostics(...args);}
-function refreshStorageDiagnostics(...args){return storageController().refreshStorageDiagnostics(...args);}
 function requestPersistence(...args){return storageController().requestPersistence(...args);}
 function maybeRemindBackup(...args){return storageController().maybeRemindBackup(...args);}
-function loadCloudFields(...args){return storageController().loadCloudFields(...args);}
 
   function setBikeCue(value){document.querySelector(`input[name=bike][value=${value==='feel'?'feel':'levels'}]`).checked=true;}
   function applySavedSettings(config){const c=C.config(config||read(KEYS.settings,{}));if(config){selectedPlan=c.plan||null;planUI?.render();}document.querySelector(`input[name=mode][value=${c.mode}]`).checked=true;setBikeCue(c.bike);$('bikeId').value=c.bikeId;$('context').value=c.context;$('cooldown').value=c.cooldown;$('efforts').value=c.n;$('effortLength').value=c.eff;$('voice').checked=c.voice;$('beeps').checked=c.beeps;for(const name of targetFields)$(name).value=c.targets[name];for(const name of durationFields)$(name).value=c[name];renderPlan();}
@@ -756,42 +721,7 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   $('saveDefaults').addEventListener('click',saveDefaults);$('zoneMethod').addEventListener('change',showZoneMethod);$('fillTargets').addEventListener('click',fillTargetsFromProfile);
   $('openHistory').addEventListener('click',()=>{historyReturn='setup';showHistory();});$('summaryHistory').addEventListener('click',()=>{if(saveMetrics(true)===false&&!$('logForm').checkValidity())return;historyReturn='summary';showHistory();});$('historyBack').addEventListener('click',()=>{if(historyReturn==='summary'&&selected)showSummary(selected);else if(session){show('run');render();}else{show('setup');updateRestore();}});
   $('again').addEventListener('click',()=>{if(saveMetrics(true)===false&&!$('logForm').checkValidity())return;show('setup');updateRestore();});$('exportSummary').addEventListener('click',exportCSV);$('exportHistory').addEventListener('click',exportCSV);
-  for(const id of ['exportBackup','exportSummaryBackup'])$(id).addEventListener('click',exportFullBackup);
-  $('importBackup').addEventListener('change',async event=>{const file=event.target.files[0];event.target.value='';if(!file)return;try{if(file.size>8*1024*1024)throw new Error('Backup exceeds the 8 MiB limit.');await storage.restore(JSON.parse(await file.text()));}catch(error){toast(error.message);}});
-  $('cloudForm').addEventListener('submit',async event=>{
-    event.preventDefault();if(configBusy||cloudBusy)return;
-    const existing=storage.remote.loadRemoteConfig(),accessKeyId=$('cloudAccess').value.trim();
-    const secret=$('cloudSecret').value.trim()||(existing?.accessKeyId===accessKeyId?existing.secretAccessKey:'');
-    if(!secret){$('cloudConfigStatus').textContent='Enter the secret access key for this access key ID.';return;}
-    configBusy=true;renderBackupControls();$('cloudConfigStatus').textContent='Checking connection…';
-    try{
-      await storage.configure({endpoint:$('cloudEndpoint').value.trim().replace(/\/+$/,''),region:$('cloudRegion').value.trim(),bucket:$('cloudBucket').value.trim(),objectKey:$('cloudObject').value.trim(),accessKeyId,secretAccessKey:secret,syncMode:$('cloudMode').value,pathStyle:$('cloudPathStyle').checked});
-      $('cloudSecret').value='';$('cloudConfigStatus').textContent='Read check passed. Configuration saved; writing is verified by an actual backup.';
-    }catch(error){$('cloudConfigStatus').textContent=error.message;}
-    finally{configBusy=false;renderBackupControls();}
-  });
-  $('importCloudConfig').addEventListener('change',async event=>{
-    const file=event.target.files[0];event.target.value='';if(!file)return;
-    try{
-      const draft=storage.configDraft(await readJSONUpload(file));
-      for(const [id,name]of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId'],['cloudSecret','secretAccessKey']])$(id).value=draft[name];
-      $('cloudMode').value=storage.remote.syncMode(draft);$('cloudPathStyle').checked=draft.pathStyle;
-      $('cloudConfigStatus').textContent='Configuration loaded for review. '+(draft.secretAccessKey?'':'Enter the secret key if needed. ')+'Choose Check & save connection to apply it.';
-    }catch(error){$('cloudConfigStatus').textContent=error.message;}
-  });
-  $('exportCloudConfig').addEventListener('click',()=>$('configExportDialog').showModal());
-  $('cancelConfigExport').addEventListener('click',()=>$('configExportDialog').close());
-  for(const [id,includeSecret]of [['exportConfigSafe',false],['exportConfigSecret',true]])$(id).addEventListener('click',async()=>{
-    if(includeSecret&&!await WorkoutUI.confirm('Include the secret access key?','Anyone with this file can access your bucket.','Include secret key',true))return;
-    try{downloadJSON(storage.configPayload(includeSecret),`bike-cardio-connection-${new Date().toISOString().slice(0,10)}.json`);$('configExportDialog').close();}catch(error){toast(error.message);}
-  });
-  for(const [id,method]of [['cloudTest','remoteTestConnection'],['cloudBackup','remoteBackup'],['cloudPause','pauseRemoteSyncAction'],['cloudResume','remoteResumeSync'],['cloudKeepLocal','remotePublishLocal'],['cloudUseRemote','remoteRestore']])$(id).addEventListener('click',async()=>{try{await storage.remote[method]();renderBackupControls();}catch(error){toast(error.message);}});
-  $('cloudForget').addEventListener('click',async()=>{
-    const text=WorkoutStorage.forgetConnectionText(storage.remote);
-    if(!await WorkoutUI.confirm(text.title,text.body,'Forget connection',true))return;
-    storage.remote.clearRemoteConfig();$('cloudForm').reset();loadCloudFields();$('cloudConfigStatus').textContent='Connection forgotten.';renderBackupControls();
-  });
-  $('requestPersistence').addEventListener('click',()=>requestPersistence(true));
+  $('exportSummaryBackup').addEventListener('click',exportFullBackup);
   $('exportHistoryJSON').addEventListener('click',()=>downloadJSON(storage.historyPayload(),`bike-cardio-history-${new Date().toISOString().slice(0,10)}.json`));
   $('importHistory').addEventListener('change',async event=>{
     const file=event.target.files[0];event.target.value='';if(!file)return;
@@ -806,7 +736,7 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   // Other apps on this site share localStorage; only this app's keys matter.
   window.addEventListener('storage',event=>{
     // Another app on this site saved or forgot the shared connection.
-    if(event.key===WorkoutStorage.SHARED_CONNECTION_KEY){loadCloudFields();renderBackupControls();}
+    if(event.key===WorkoutStorage.SHARED_CONNECTION_KEY){storageController().panel.reload();renderBackupControls();}
     else if(!event.key||event.key.startsWith('bike-cardio.'))renderStorageStatus();
   });
   document.addEventListener('visibilitychange',()=>{if(document.hidden)save(true);storage.local.flush();if(document.hidden)storage.remote.flushScheduled();else storage.remote.remoteStartupSync();});
@@ -815,7 +745,7 @@ function loadCloudFields(...args){return storageController().loadCloudFields(...
   shell=WorkoutUI.createShell({name:'Bike Cardio',items:[{id:'setup',label:'Workout',icon:'workout'},{id:'history',label:'History',icon:'history'},{id:'settings',label:'Settings',icon:'settings'}],onNavigate:navigate});
   configureAppearance();WorkoutUI.attachSteppers($('setup'));WorkoutUI.attachSteppers($('effortLog'));buildDefaultFields();
   window.addEventListener('pagehide',()=>{save(true);storage.local.flush();});
-  records=read(KEYS.history,[]);applySavedSettings();planUI.render();storage.local.save({touch:false,remote:false,immediate:true});updateRestore();renderHandoff();renderSensors();loadCloudFields();renderBackupControls();refreshStorageDiagnostics();if(storage.local.warning)storageWarning(storage.local.warning);storage.remote.remoteStartupSync();setInterval(()=>{if(!session)renderSensors();},1000);
+  records=read(KEYS.history,[]);applySavedSettings();planUI.render();storage.local.save({touch:false,remote:false,immediate:true});updateRestore();renderHandoff();renderSensors();storageController().mount($('storagePanel'));renderBackupControls();if(storage.local.warning)storageWarning(storage.local.warning);storage.remote.remoteStartupSync();setInterval(()=>{if(!session)renderSensors();},1000);
   appUpdates=WorkoutUpdates.create({workerUrl:'./service-worker.js',isActive:()=>!!(session||read(KEYS.active,null)),flush:()=>{if(selected&&!$('summary').hidden&&saveMetrics()===false)return false;return storage.local.flush();},onChange:state=>{if(appUpdates)WorkoutUpdates.render($('appUpdateControls'),appUpdates,state,'bike');},onReady:()=>{$('offlineStatus').textContent='Offline app files are ready. Saved rides stay on this browser/device.';}});
   appUpdates.refresh();updateShell();
 
