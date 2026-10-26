@@ -9,6 +9,7 @@ const BikeStorageController = {
     context.$('backupStatus').textContent=context.storage.local.blocked?context.storage.local.warning:context.storage.local.failed?'Changes are in memory only. Download a full backup before closing.':`${context.storage.state.history.length} saved sessions. Full backups include settings and any saved ride.`;
     const info=context.storage.backupInfo();context.$('backupAge').textContent=info.at?`Last backup: ${context.dateLabel(info.at)} (${info.where}). ${info.rides} rides added or edited since then.${info.stale?' Download a fresh full backup.':''}`:'No full backup recorded on this device.';
     context.$('cloudUseRemote').textContent=context.storage.remote.syncMode(cfg)==='immutable'?'Restore legacy backup locally':'Use cloud copy';
+    WorkoutStorage.renderConnectionScope(context.$('connectionScope'),context.storage.remote,{className:'small',buttonClass:'secondary',confirm:WorkoutUI.confirm,onChange:()=>{loadCloudFields();renderBackupControls();}});
     const work=context.storage.remote.readRemoteWork();context.$('cloudDetails').textContent=cfg?`Bucket: ${cfg.bucket}. Last sync: ${cfg.lastBackupAt?context.dateLabel(cfg.lastBackupAt):'never'}. Backed-up revision: ${cfg.lastUploadedModifiedAt||'none'}.${work?.pending?' Changes are waiting to sync.':''}${paused?' Cloud sync is paused.':''}`:'';
     document.querySelectorAll('#cloudActions button,#saveCloud,#cloudForm input,#cloudForm select,#importCloudConfig').forEach(button=>button.disabled=context.cloudBusy||context.configBusy);
     if(!context.storage.remote.remoteCryptoAvailable()){
@@ -56,7 +57,7 @@ const BikeStorageController = {
     if(fromUser)context.toast(context.persistenceState==='persistent'?'Persistent storage granted.':'Persistence was not granted. Keep a full backup.');
   }
   function maybeRemindBackup(){if(context.backupReminded||!context.storage.backupInfo().stale)return;context.backupReminded=true;context.toast('Your backup needs refreshing. Download a full backup under Backups & cloud storage.');}
-  function loadCloudFields(){const cfg=context.storage.remote.loadRemoteConfig();if(!cfg)return;for(const [id,name]of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId']])context.$(id).value=cfg[name]||'';context.$('cloudMode').value=cfg.syncMode||'auto';context.$('cloudPathStyle').checked=cfg.pathStyle;}
+  function loadCloudFields(){const cfg=context.storage.remote.loadRemoteConfig();if(!cfg)return;for(const [id,name]of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId']])context.$(id).value=cfg[name]||(name==='objectKey'?context.storage.remote.defaultObjectKey:'');context.$('cloudMode').value=cfg.syncMode||'auto';context.$('cloudPathStyle').checked=cfg.pathStyle;}
     return {renderBackupControls,readJSONUpload,renderRecoveryCopies,renderStorageDiagnostics,refreshStorageDiagnostics,requestPersistence,maybeRemindBackup,loadCloudFields};
   }
 };

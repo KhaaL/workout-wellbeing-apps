@@ -9,7 +9,14 @@ WorkoutStorage.createRemote = function(app) {
   const localRevisionKey = () => JSON.stringify(app.state);
   const flushSave = () => app.local.flush();
   const uid = () => globalThis.crypto?.randomUUID?.() || Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
+/* All apps on one site share one cloud connection (endpoint, region, bucket,
+   addressing, credentials and backup mode) under SHARED_KEY. Each app keeps
+   its own record under LS_REMOTE_KEY: its backup path and backup history. An
+   app whose own record still holds a different connection (saved before the
+   connection was shared) keeps using it until the person switches. */
 const LS_REMOTE_KEY = app.namespace + ".remote";
+const SHARED_KEY = WorkoutStorage.SHARED_CONNECTION_KEY;
+const CONNECTION_FIELDS = ['endpoint','region','bucket','pathStyle','accessKeyId','secretAccessKey','syncMode'];
 const REMOTE_OBJECT_KEY_DEFAULT = app.objectKey;
 const LS_REMOTE_RESTORE_KEY = app.recoveryKey;
 const REMOTE_BACKUP_DELAY = 3000;
@@ -161,27 +168,93 @@ function validateRemoteConfig(cfg){
   return cfg;
 }
 
-function loadRemoteConfig(){
-  try{
-    const raw = localStorage.getItem(LS_REMOTE_KEY);
-    const cfg = raw ? JSON.parse(raw) : null;
-    return (cfg && cfg.endpoint && cfg.bucket && cfg.accessKeyId && cfg.secretAccessKey) ? cfg : null;
-  }catch(e){ return null; }
+const complete = cfg => !!(cfg && cfg.endpoint && cfg.bucket && cfg.accessKeyId && cfg.secretAccessKey);
+const pick = cfg => Object.fromEntries(CONNECTION_FIELDS.filter(key => cfg[key] !== undefined).map(key => [key, cfg[key]]));
+const omit = cfg => Object.fromEntries(Object.entries(cfg).filter(([key]) => !CONNECTION_FIELDS.includes(key)));
+const connectionKey = cfg => JSON.stringify([String(cfg.endpoint || '').replace(/\/+$/, ''),cfg.region,cfg.bucket,!!cfg.pathStyle,cfg.accessKeyId,cfg.secretAccessKey,syncMode(cfg)]);
+const HISTORY_FIELDS = ['lastBackupAt','lastUploadedModifiedAt','lastBackupMode'];
+/* This app's record, with the destination its backup history belongs to: the
+   shared connection can change in another app, and history for one bucket or
+   path must not describe another. */
+const appRecord = cfg => ({...omit(cfg), historyFor:remoteDestination(cfg)});
+function readRecord(key){
+  try { const value = JSON.parse(localStorage.getItem(key)); return value && typeof value === 'object' && !Array.isArray(value) ? value : null; }
+  catch(e){ return null; }
 }
+// Move a connection saved before sharing: it becomes the shared one, or is
+// dropped when it matches; a different one stays with this app.
+(function adoptSharedConnection(){
+  try {
+    const own = readRecord(LS_REMOTE_KEY);if (!complete(own)) return;
+    const shared = readRecord(SHARED_KEY);
+    if (complete(shared) && connectionKey(shared) !== connectionKey(own)) return;
+    if (!complete(shared)) localStorage.setItem(SHARED_KEY, JSON.stringify(pick(own)));
+    localStorage.setItem(LS_REMOTE_KEY, JSON.stringify(appRecord(own)));
+  } catch(e){}
+})();
+/* 'shared', 'own' (a different connection kept from before sharing) or 'none'. */
+function connectionScope(){
+  if (complete(readRecord(LS_REMOTE_KEY))) return 'own';
+  return complete(readRecord(SHARED_KEY)) ? 'shared' : 'none';
+}
+function sharedConnection(){
+  const shared = readRecord(SHARED_KEY);
+  return complete(shared) ? {endpoint:shared.endpoint, region:shared.region, bucket:shared.bucket, pathStyle:!!shared.pathStyle, syncMode:syncMode(shared)} : null;
+}
+function loadRemoteConfig(){
+  const own = readRecord(LS_REMOTE_KEY);
+  if (complete(own)) return own;
+  const shared = readRecord(SHARED_KEY);
+  if (!complete(shared)) return null;
+  const cfg = {...pick(shared), ...omit(own || {})};
+  if (cfg.historyFor !== undefined && cfg.historyFor !== remoteDestination(cfg)) for (const key of HISTORY_FIELDS) delete cfg[key];
+  delete cfg.historyFor;
+  return cfg;
+}
+/* Saving the same connection (after an upload, say) keeps it where it is.
+   Saving a different one writes the shared connection for every app. */
 function saveRemoteConfig(cfg, ctx){
   if (ctx) assertRemote(ctx);
   const previous = loadRemoteConfig();
   const changed = !previous || remoteIdentity(previous) !== remoteIdentity(cfg);
   if (changed){invalidateRemote();localStorage.removeItem(providerKey);snapshotPage=null;snapshotIndex=null;lastDiagnostic=null;providerMemory=null;}
-  localStorage.setItem(LS_REMOTE_KEY, JSON.stringify(cfg));
+  if (connectionScope() === 'own' && previous && connectionKey(previous) === connectionKey(cfg)) localStorage.setItem(LS_REMOTE_KEY, JSON.stringify(cfg));
+  else {
+    // An unchanged value is not rewritten, so other apps see no storage event.
+    const shared = JSON.stringify(pick(cfg));
+    if (localStorage.getItem(SHARED_KEY) !== shared) localStorage.setItem(SHARED_KEY, shared);
+    localStorage.setItem(LS_REMOTE_KEY, JSON.stringify(appRecord(cfg)));
+  }
   if (changed) localStorage.removeItem(REMOTE_WORK_KEY);
 }
+/* Drops this app's own connection. Backup history stays only when the
+   shared connection writes to the same destination. */
+function useSharedConnection(){
+  const own = readRecord(LS_REMOTE_KEY), shared = readRecord(SHARED_KEY);
+  if (!complete(own) || !complete(shared)) return false;
+  invalidateRemote();
+  localStorage.setItem(LS_REMOTE_KEY, JSON.stringify(appRecord(own)));
+  localStorage.removeItem(REMOTE_WORK_KEY);localStorage.removeItem(providerKey);snapshotPage=null;snapshotIndex=null;lastDiagnostic=null;providerMemory=null;
+  app.onRefresh?.();
+  return true;
+}
+/* Forgetting the shared connection ends cloud backups for every app on the
+   site; the other apps keep their backup paths and history. Forgetting an
+   app's own connection returns that app to the shared one. */
 function clearRemoteConfig(){
   invalidateRemote();
-  try{ localStorage.removeItem(LS_REMOTE_KEY); localStorage.removeItem(REMOTE_WORK_KEY);localStorage.removeItem(providerKey);snapshotPage=null;snapshotIndex=null;lastDiagnostic=null;providerMemory=null; }
+  try{
+    if (connectionScope() !== 'own') localStorage.removeItem(SHARED_KEY);
+    localStorage.removeItem(LS_REMOTE_KEY);localStorage.removeItem(REMOTE_WORK_KEY);localStorage.removeItem(providerKey);snapshotPage=null;snapshotIndex=null;lastDiagnostic=null;providerMemory=null;
+  }
   catch(e){ toast('Could not forget configuration — storage unavailable'); }
   setRemoteStatus('', '');
 }
+// Another app or tab changed the shared connection: stop requests made for the old one.
+globalThis.addEventListener?.('storage', event => {
+  if (event.key !== SHARED_KEY && event.key !== null) return;
+  invalidateRemote(); app.onRefresh?.();
+});
 /* The secret is never pre-filled (its input just carries a "leave blank to
    keep" placeholder when one is already stored), so a freshly opened draft
    always starts with an empty secret field. */
@@ -825,5 +898,5 @@ async function remoteRestoreSnapshot(key,legacy=false,options={}){
     toolsChanged();return true;
   });
 }
-return {remoteUploadHandoff,remoteReadHandoff,syncMode,remoteRestoreLegacy,appendRemoteBackup,remoteCheckProvider,remoteListSnapshots,remotePreviewSnapshot,remoteDownloadSnapshot,remoteRestoreSnapshot,remoteRestoreLatest,remoteTools,diagnosticsPayload,remoteSyncPaused,remotePauseInfo,pauseRemoteSync,pauseRemoteSyncAction,resumeReviewedSync,enforceBackupLimits,remoteDestination,remoteIdentity,invalidateRemote,assertRemote,coordinateRemote,readRemoteWork,writeRemoteWork,validateRemoteConfig,loadRemoteConfig,saveRemoteConfig,clearRemoteConfig,remoteCryptoAvailable,toHex,sha256Hex,hmacRaw,signingKey,amzNow,uriEncode,remoteUrl,s3Request,remoteRunAction,scheduleRemoteBackup,armRemoteRetry,retryRemoteError,readRemoteBackup,preserveBeforeRemoteRestore,commitSnapshot,installRemoteSnapshot,markRemoteSuccess,reconcileRemote,putRemoteBackup,autoRemoteBackup,remoteBackup,reviewedRemoteDirection,remoteReviewChoice,remoteRestore,remotePublishLocal,remoteResumeSync,preserveRemoteSnapshot,remoteStartupSync,remoteTestConnection,get generation(){return remoteGeneration;},get queue(){return remoteQueue;},get controllers(){return remoteControllers;},flushScheduled(){if(remoteBackupTimer){clearTimeout(remoteBackupTimer);remoteBackupTimer=0;return autoRemoteBackup();}}};
+return {remoteUploadHandoff,remoteReadHandoff,syncMode,remoteRestoreLegacy,appendRemoteBackup,remoteCheckProvider,remoteListSnapshots,remotePreviewSnapshot,remoteDownloadSnapshot,remoteRestoreSnapshot,remoteRestoreLatest,remoteTools,diagnosticsPayload,remoteSyncPaused,remotePauseInfo,pauseRemoteSync,pauseRemoteSyncAction,resumeReviewedSync,enforceBackupLimits,remoteDestination,remoteIdentity,invalidateRemote,assertRemote,coordinateRemote,readRemoteWork,writeRemoteWork,validateRemoteConfig,loadRemoteConfig,saveRemoteConfig,clearRemoteConfig,connectionScope,sharedConnection,useSharedConnection,get defaultObjectKey(){return REMOTE_OBJECT_KEY_DEFAULT;},remoteCryptoAvailable,toHex,sha256Hex,hmacRaw,signingKey,amzNow,uriEncode,remoteUrl,s3Request,remoteRunAction,scheduleRemoteBackup,armRemoteRetry,retryRemoteError,readRemoteBackup,preserveBeforeRemoteRestore,commitSnapshot,installRemoteSnapshot,markRemoteSuccess,reconcileRemote,putRemoteBackup,autoRemoteBackup,remoteBackup,reviewedRemoteDirection,remoteReviewChoice,remoteRestore,remotePublishLocal,remoteResumeSync,preserveRemoteSnapshot,remoteStartupSync,remoteTestConnection,get generation(){return remoteGeneration;},get queue(){return remoteQueue;},get controllers(){return remoteControllers;},flushScheduled(){if(remoteBackupTimer){clearTimeout(remoteBackupTimer);remoteBackupTimer=0;return autoRemoteBackup();}}};
 };

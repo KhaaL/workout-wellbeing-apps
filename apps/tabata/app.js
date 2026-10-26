@@ -193,11 +193,12 @@
     $('cloudActions').hidden=!cfg;$('cloudBackup').hidden=paused;$('cloudPause').hidden=paused;$('cloudResume').hidden=!paused;
     $('cloudUseRemote').textContent=remote.syncMode(cfg)==='immutable'?'Restore legacy backup locally…':'Use cloud copy…';
     for(const node of document.querySelectorAll('#cloudForm input,#cloudForm select,#cloudForm button,#cloudActions button'))node.disabled=cloudBusy||configBusy;
+    WorkoutStorage.renderConnectionScope($('connectionScope'),remote,{confirm:WorkoutUI.confirm,onChange:()=>{loadCloud();renderCloud();}});
     renderRecovery();WorkoutStorage.renderRemoteTools($('remoteTools'),remote,downloadJSON,'tabata');
   }
   function loadCloud(){
     const cfg=storage.remote.loadRemoteConfig();if(!cfg)return;
-    for(const [field,name] of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId']])$(field).value=cfg[name]||'';
+    for(const [field,name] of [['cloudEndpoint','endpoint'],['cloudRegion','region'],['cloudBucket','bucket'],['cloudObject','objectKey'],['cloudAccess','accessKeyId']])$(field).value=cfg[name]||(name==='objectKey'?storage.remote.defaultObjectKey:'');
     $('cloudPathStyle').checked=cfg.pathStyle;$('cloudMode').value=storage.remote.syncMode(cfg);
   }
   shell=WorkoutUI.createShell({name:'Tabata',items:[{id:'setup',label:'Timer',icon:'workout'},{id:'settings',label:'Settings',icon:'settings'}],onNavigate:navigate});
@@ -259,7 +260,7 @@
     }catch(error){toast(error.message);}finally{configBusy=false;renderCloud();}
   });
   for(const [id,method] of [['cloudBackup','remoteBackup'],['cloudPause','pauseRemoteSyncAction'],['cloudResume','remoteResumeSync'],['cloudKeepLocal','remotePublishLocal'],['cloudUseRemote','remoteRestore']])$(id).addEventListener('click',async()=>{try{await storage.remote[method]();}catch(error){toast(error.message);}renderCloud();});
-  $('cloudForget').addEventListener('click',async()=>{if(await WorkoutUI.confirm('Forget cloud connection?','Remove saved credentials on this device? Your sessions and cloud files are kept.','Forget connection',true)){storage.remote.clearRemoteConfig();$('cloudForm').reset();$('cloudSecret').value='';renderCloud();}});
+  $('cloudForget').addEventListener('click',async()=>{const text=WorkoutStorage.forgetConnectionText(storage.remote);if(await WorkoutUI.confirm(text.title,text.body,'Forget connection',true)){storage.remote.clearRemoteConfig();$('cloudForm').reset();$('cloudSecret').value='';loadCloud();renderCloud();}});
   if(document.documentElement.hasAttribute('data-source-preview')){
     // Source previews load external modules; only the built app has an offline shell.
     updates={canStart:()=>true,refresh:()=>{}};
@@ -273,6 +274,8 @@
   window.addEventListener('pagehide',()=>{checkpoint();releaseWake();});
   window.addEventListener('pageshow',()=>{renderTimer();requestWake();});
   window.addEventListener('online',()=>storage.remote.remoteStartupSync());
+  // Another app on this site saved or forgot the shared connection.
+  window.addEventListener('storage',event=>{if(event.key===WorkoutStorage.SHARED_CONNECTION_KEY){loadCloud();renderCloud();}});
   setInterval(()=>{if(active())renderTimer();},100);
   if(active()){$('recovered').hidden=false;storage.save(false);navigate('run');requestWake();}else navigate('setup');
   storage.remote.remoteStartupSync();

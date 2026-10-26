@@ -92,7 +92,7 @@ jobs:
       - name: Foodlog browser suite
         if: ${{ !cancelled() }}
         run: npm run test:foodlog-browser
-      - name: Single-site hosting, worker scopes and offline suite
+      - name: Single-site hosting, shared connection, worker scopes and offline suites
         if: ${{ !cancelled() }}
         run: npm run test:site-browser
       - name: Keep screenshots from a failed run

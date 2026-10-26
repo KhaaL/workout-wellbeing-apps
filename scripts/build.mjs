@@ -17,7 +17,7 @@ const shared={
   'app-ui-styles':await concat('packages/app-ui',['themes.css','components.css']),
   'theme-bootstrap':await read('packages/app-ui','theme-bootstrap.js'),
   'storage-engine':await concat('packages/storage-engine',['local.js','remote.js','handoff.js','undo.js']),
-  'storage-ui':await concat('packages/storage-ui',['remote-tools.js','handoff.js','status.js']),
+  'storage-ui':await concat('packages/storage-ui',['remote-tools.js','handoff.js','status.js','connection.js']),
   'app-updates':await read('packages/app-ui','updates.js')
 };
 const updateWorker=await read('packages/app-ui','update-worker.js');

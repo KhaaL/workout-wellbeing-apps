@@ -4,6 +4,8 @@ const cfg = {endpoint:'https://storage.test',region:'test',syncMode:'conditional
 const copy = v => JSON.parse(JSON.stringify(v));
 const fixture = (revision=100,notes='base') => ({version:14, settings:{lastModifiedAt:revision},exercises:[{id:'e',name:'Squat',unit:'kg'}],routines:[],workouts:[{id:'w',startedAt:1,finishedAt:2,notes,exercises:[{exerciseId:'e',name:'Squat',unit:'kg',sets:[{id:'s',reps:5,weight:20,completed:true}]}]}],activeWorkout:null});
 function setup(revision=100,notes='base',storage){const d=device(storage);d.api.state=d.api.prepareBackup(fixture(revision,notes));d.api.existing=true;d.api.saveRemoteConfig(copy(cfg));d.api.flushSave();return d;}
+// The site-wide connection merged with Liftlog's own record (backup path and history).
+const config = d => ({...JSON.parse(d.storage.get('wellbeing.connection.v1')||'{}'),...JSON.parse(d.storage.get('liftlog.v1.remote')||'{}')});
 const gate = () => {let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 const until = async fn => {for(let i=0;i<200;i++){if(fn())return;await new Promise(r=>setTimeout(r, 2));}throw Error('Did not reach test barrier');};
 class S3 {
@@ -68,7 +70,7 @@ await test('edits during upload remain durable pending work and do not report up
  const d=setup(200,'local'),s=new S3(fixture());s.attach(d);const g=gate();s.beforePut=()=>g.promise;
  const work=d.api.remoteBackup();await until(()=>s.calls.some(x=>x.method==='PUT'&&!x.url.includes('.snapshots/')));
  d.api.state.workouts[0].notes='new edit';d.api.save();g.resolve();await work;
- assert.equal(d.api.readRemoteWork().pending,true);assert.equal(d.api.ui.remoteStatus,'pending');assert.equal(JSON.parse(d.storage.get('liftlog.v1.remote')).lastUploadedModifiedAt,200);
+ assert.equal(d.api.readRemoteWork().pending,true);assert.equal(d.api.ui.remoteStatus,'pending');assert.equal(config(d).lastUploadedModifiedAt,200);
  const re=device(d.storage);assert.equal(re.api.readRemoteWork().pending,true);
 });
 await test('network failures persist bounded retry, reload recovery and immediate manual retry',async()=>{
@@ -90,7 +92,7 @@ await test('forget/change abort old GET/PUT/config check and cannot resurrect cr
  await until(()=>s.calls.some(x=>op==='upload'?x.method==='PUT'&&!x.url.includes('.snapshots/'):x.method==='GET'));
  const controllers=[...d.api.controllers];d.api.clearRemoteConfig();assert.ok(controllers.every(c=>c.signal.aborted));g.resolve();await p;
  assert.equal(d.storage.has('liftlog.v1.remote'),false);assert.equal(d.api.state.workouts[0].notes,'local');assert.equal(d.api.ui.remoteStatus,'');}
- const d=setup(),s=new S3(fixture(500,'remote'));s.attach(d);const g=gate();s.afterGet=()=>g.promise;const p=d.api.remoteStartupSync();await until(()=>s.calls.length);d.api.saveRemoteConfig({...cfg,bucket:'changed'});g.resolve();await p;assert.equal(JSON.parse(d.storage.get('liftlog.v1.remote')).bucket,'changed');assert.equal(d.api.state.workouts[0].notes,'base');
+ const d=setup(),s=new S3(fixture(500,'remote'));s.attach(d);const g=gate();s.afterGet=()=>g.promise;const p=d.api.remoteStartupSync();await until(()=>s.calls.length);d.api.saveRemoteConfig({...cfg,bucket:'changed'});g.resolve();await p;assert.equal(config(d).bucket,'changed');assert.equal(d.api.state.workouts[0].notes,'base');
 });
 await test('one coordinator serializes restore, upload and connection checks',async()=>{
  const d=setup(),s=new S3(fixture());s.attach(d);const g=gate();s.afterGet=()=>g.promise;
@@ -152,7 +154,7 @@ await test('older local recovery survives auto backup/startup/online/reload with
  assert.ok(d.api.state.settings.lastModifiedAt>=300+1);assert.equal(d.api.readRemoteWork().pending,true);
  await d.api.autoRemoteBackup();await d.api.remoteStartupSync();await d.api.remoteBackup();assert.equal(s.calls.length,0);
  const re=device(d.storage);s.attach(re);await re.api.remoteStartupSync();await re.api.autoRemoteBackup();assert.equal(s.calls.length,0);
- assert.equal(re.api.state.workouts[0].notes,'chosen file');assert.equal(JSON.parse(re.storage.get('liftlog.v1.remote')).secretAccessKey,cfg.secretAccessKey);
+ assert.equal(re.api.state.workouts[0].notes,'chosen file');assert.equal(config(re).secretAccessKey,cfg.secretAccessKey);
  assert.match(re.api.remoteStorageHTML(),/Keep local copy &amp; update cloud|Keep local copy & update cloud/);
 });
 await test('pause aborts pending GET and invalidates queued operations; local restore wins',async()=>{
@@ -165,7 +167,7 @@ await test('pause stops upload follow-ups and obsolete success after a dispatche
  const d=setup(300,'local'),s=new S3(fixture(100,'cloud'));s.attach(d);const g=gate();s.beforePut=()=>g.promise;
  const job=d.api.remoteBackup();await until(()=>s.calls.some(x=>x.method==='PUT'&&!x.url.includes('.snapshots/')));
  d.api.pauseRemoteSync('Paused by user');g.resolve();await job;
- assert.equal(d.api.remoteSyncPaused(),true);assert.equal(d.api.state.workouts[0].notes,'local');assert.equal(JSON.parse(d.storage.get('liftlog.v1.remote')).lastUploadedModifiedAt,undefined);
+ assert.equal(d.api.remoteSyncPaused(),true);assert.equal(d.api.state.workouts[0].notes,'local');assert.equal(config(d).lastUploadedModifiedAt,undefined);
  assert.equal(d.api.ui.remoteStatus,'paused');assert.equal(d.api.controllers.size,0);
 });
 await test('cancelled and failed local restores stay paused; inability to persist pause blocks replacement',async()=>{
@@ -236,7 +238,7 @@ await test('pause survives config changes; changing/forgetting during reviewed p
 await test('edits during explicit PUT stay pending after successful reviewed resume',async()=>{
  const d=setup(100,'local'),s=new S3(fixture(200,'cloud'));s.attach(d);const g=gate();s.beforePut=()=>g.promise;const p=d.api.remotePublishLocal();
  await until(()=>s.calls.some(x=>x.method==='PUT'&&!x.url.includes('.snapshots/')));const published=d.api.state.settings.lastModifiedAt;d.api.state.workouts[0].notes='new edit';d.api.save();g.resolve();await p;
- assert.equal(d.api.remoteSyncPaused(),false);assert.equal(d.api.readRemoteWork().pending,true);assert.equal(d.api.ui.remoteStatus,'pending');assert.equal(s.obj.workouts[0].notes,'local');assert.equal(JSON.parse(d.storage.get('liftlog.v1.remote')).lastUploadedModifiedAt,published);
+ assert.equal(d.api.remoteSyncPaused(),false);assert.equal(d.api.readRemoteWork().pending,true);assert.equal(d.api.ui.remoteStatus,'pending');assert.equal(s.obj.workouts[0].notes,'local');assert.equal(config(d).lastUploadedModifiedAt,published);
 });
 await test('pause records its cause; a review or check opened while paused keeps it',async()=>{
  const d=setup(),s=new S3(fixture(100,'base'));s.attach(d);const info=()=>d.api.remoteEngine.remotePauseInfo();
@@ -253,7 +255,7 @@ await test('pause records its cause; a review or check opened while paused keeps
 });
 await test('re-saving the same destination keeps verified backup history; another destination clears it',async()=>{
  const d=setup(100,'base'),s=new S3();s.attach(d);await d.api.remoteBackup();
- const saved=()=>JSON.parse(d.storage.get('liftlog.v1.remote')),before=saved();
+ const saved=()=>config(d),before=saved();
  assert.ok(before.lastBackupAt);assert.equal(before.lastUploadedModifiedAt,100);
  // Hold the startup sync that follows each save, so only the save itself is measured.
  let gets=0;s.afterGet=()=>++gets>1?new Promise(()=>{}):undefined;
@@ -262,7 +264,7 @@ await test('re-saving the same destination keeps verified backup history; anothe
  const other=setup(100,'base'),t=new S3();t.attach(other);await other.api.remoteBackup();
  gets=0;t.afterGet=()=>++gets>1?new Promise(()=>{}):undefined;
  await other.api.testAndSaveRemoteConfig({...cfg,bucket:'other'});
- const moved=JSON.parse(other.storage.get('liftlog.v1.remote'));
+ const moved=config(other);
  assert.equal(moved.bucket,'other');assert.equal(moved.lastBackupAt,null);assert.equal(moved.lastUploadedModifiedAt,null);assert.equal(moved.lastBackupMode,undefined);
 });
 await test('settings offer two backup modes and show a saved automatic mode as separate files',async()=>{

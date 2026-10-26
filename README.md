@@ -85,10 +85,9 @@ screen. An interrupted/reopened session is recovered **paused** at its latest
 checkpoint (saved at interval changes, every five seconds and when hidden).
 An abrupt termination can lose up to five seconds; resuming is always explicit.
 Completed and ended sessions save immediately. Tabata uses the shared recovery,
-backup and update machinery, while its data, credentials, theme and offline cache
-have separate namespaces. Its optional S3-compatible connection defaults to
-`tabata-backup.json`; enter deployment-specific values in this app's Settings.
-It never reads the other apps' device configuration.
+backup and update machinery, while its data, theme and offline cache have
+separate namespaces. It backs up to `tabata-backup.json` through the site's
+shared cloud connection (see [Shared cloud connection](#shared-cloud-connection)).
 
 `npm run build:tabata` builds the site; Tabata is served from `dist/tabata/`. For direct source previews, serve the
 repository root and open `apps/tabata/`: it loads canonical styles and scripts
@@ -248,10 +247,34 @@ configured cloud object path. Bike imports its old settings, history and active
 ride keys into `bike-cardio.state.v1`, retaining the original bytes. Bike JSON
 backups include history, settings and any saved ride; CSV export also remains.
 
-Sync metadata uses separate `liftlog.v1.*` and `bike-cardio.v1.*` namespaces.
-The default cloud objects are `liftlog-backup.json` and
-`bike-cardio-backup.json`. Credentials are kept separately and excluded from
-workout backups. No cloud connection runs until configured by the user.
+Sync metadata uses separate `liftlog.v1.*`, `bike-cardio.v1.*`, `tabata.v1.*`
+and `foodlog.v1.*` namespaces. The default cloud objects are
+`liftlog-backup.json`, `bike-cardio-backup.json`, `tabata-backup.json` and
+`foodlog-backup.json`. Credentials are excluded from backups. No cloud
+connection runs until configured by the user.
+
+### Shared cloud connection
+
+The apps on the site share one cloud connection, saved once under
+`wellbeing.connection.v1`: endpoint, region, bucket, path style, access key,
+secret and backup mode. Each app keeps its own record under `<namespace>.remote`
+with its backup path and backup history (last backup, last uploaded revision),
+tied to the destination it describes. Pause state, pending uploads, provider
+checks and conflicts stay per app, so apps never read each other's files.
+
+- Saving the connection in any app's Settings saves it for every app. Open
+  apps on the site pick up the change through a storage event and stop
+  requests made with the old connection.
+- An app whose history describes another bucket or path hides it until the
+  connection points there again.
+- **Forget connection** removes the shared connection, so cloud backups stop in
+  every app. The other apps keep their backup paths and history.
+- A connection saved before sharing moves to the shared record on first load.
+  If another app already saved a different one, that app keeps its own
+  connection and offers **Use the shared connection…**; forgetting its own
+  connection also returns it to the shared one.
+- The bucket's CORS rules need only the site's origin, and the key must allow
+  every app's backup path.
 
 Both apps provide a **provider check** and a list of **earlier cloud backups**
 under their cloud-storage settings. Compatibility checks create a small disposable
@@ -372,7 +395,8 @@ time. With separate backups, **Resume backups** opens the resume confirmation.
 With conditional sync, **Choose a copy** opens the existing choices; it does not
 resume or replace data. Saving the connection again with new credentials keeps
 the backup history; a different endpoint, region, bucket, object key, path
-style or mode clears it.
+style or mode hides it. Every app's Settings says that the connection is shared
+and names this app's backup path.
 
 Liftlog's **Cloud backup** section shows the bucket, the backup mode in one
 sentence, the backup and pause actions, and earlier cloud backups. After setup,

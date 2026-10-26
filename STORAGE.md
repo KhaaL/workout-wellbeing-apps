@@ -2,7 +2,8 @@
 
 ## App configuration
 
-Configure each app in Settings → cloud storage using values from your provider.
+Enter the connection once, in any app's Settings → cloud storage. Apps served
+from one site share it; each app backs up to its own object path.
 
 | Field | Example / requirement |
 |---|---|
@@ -12,11 +13,12 @@ Configure each app in Settings → cloud storage using values from your provider
 | Object path: Liftlog | `liftlog-backup.json` |
 | Object path: Bike Cardio | `bike-cardio-backup.json` |
 | Object path: Tabata | `tabata-backup.json` |
+| Object path: Foodlog | `foodlog-backup.json` |
 | Access key ID / secret | A matching pair authorized for the bucket |
 | Addressing | Path-style or virtual-hosted style, as required by the provider |
 | Backup mode | Automatic uses separate files; conditional sync is an explicit choice |
 
-All three apps may share a bucket using distinct object paths. The key must allow
+All apps share the bucket using distinct object paths. The key must allow
 object read/write and bucket listing for snapshot browsing. Provider-check probe
 cleanup additionally needs object deletion. Manage permissions using the
 provider's administration tools; use a management credential for CORS updates.

@@ -97,5 +97,6 @@ globalThis.WorkoutStorage = (() => {
     return {load, save, flush, commit, rescue, get failed(){return failed;}, get blocked(){return blocked;},
       get pending(){return pending;}, get warning(){return warning;}, get existing(){return existing;}, set existing(value){existing = value;}};
   }
-  return {version:'1.0.0', copy, stableStringify, enforceLimits, createLocal};
+  // One cloud connection for every app on the site; see remote.js.
+  return {version:'1.0.0', SHARED_CONNECTION_KEY:'wellbeing.connection.v1', copy, stableStringify, enforceLimits, createLocal};
 })();
