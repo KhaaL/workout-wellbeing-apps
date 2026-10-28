@@ -930,6 +930,10 @@ table.shortcuts tr:last-child td{ border-bottom:0; }
   font-size:var(--fs-sm); font-weight:600; transition:background .12s ease;
 }
 .file-btn:focus-within span{ outline:2px solid var(--focus); outline-offset:2px; }
+/* A secondary file action beside a view's main button: the size of .btn-sm
+   and the colour of .btn-quiet, so it does not compete with the main one. */
+.file-btn.is-quiet span{ min-height:30px; padding:3px var(--sp-3); font-size:var(--fs-xs); border-color:transparent; background:transparent; color:var(--muted); }
+.view-actions{ display:flex; align-items:center; gap:var(--sp-2); flex-wrap:wrap; }
 
 /* ============================================================
    DIALOG / TOAST / FOOTER
@@ -1213,6 +1217,7 @@ pre.code code{ background:none; border:0; padding:0; font-size:inherit; white-sp
   .icon-btn:hover{ background:var(--surface-2); color:var(--text); border-color:var(--border); }
   .icon-btn.danger:hover{ color:var(--danger); border-color:var(--danger); background:var(--danger-soft); }
   .file-btn:hover span{ background:var(--surface-2); }
+  .file-btn.is-quiet:hover span{ color:var(--text); }
   .link-btn:hover{ text-decoration:none; }
   .footer-btn:hover{ color:var(--text); }
 }
@@ -1228,7 +1233,7 @@ pre.code code{ background:none; border:0; padding:0; font-size:inherit; white-sp
      tuned for a mouse, and these are the same controls under a thumb. */
   .btn{ min-height:44px; }
   .btn-big{ min-height:52px; }
-  .btn-sm{ min-height:36px; }
+  .btn-sm,.file-btn.is-quiet span{ min-height:36px; }
   .set-row input{ min-height:44px; }
   /* Destructive, and its neighbour is the control a thumb aims at between
      sets. It keeps its column but gives up the left 8px of it, so a miss to
@@ -5556,15 +5561,18 @@ function viewRoutines(){
   const head = '<div class="view-head"><div><h1>Routines</h1>' +
     '<p class="view-sub">' + plural(routines.length, 'routine') + (plans.length ? ' · ' + plural(plans.length, 'plan') : '') +
       ' · starting one begins today’s workout</p></div>' +
-    (ui.routineDraft ? '' : '<button type="button" class="btn btn-primary" data-action="routine-new">' + IC.plus + '<span>New routine</span></button>') +
+    (ui.routineDraft ? '' : '<div class="view-actions">' +
+      /* the empty state below offers its own, larger import */
+      (!state.routines.length ? '' : '<label class="file-btn is-quiet"><span>' + IC.up + ' Import</span><input type="file" accept=".json,application/json" data-change="import-routines" aria-label="Import routines from a JSON file"></label>') +
+      '<button type="button" class="btn btn-primary" data-action="routine-new">' + IC.plus + '<span>New routine</span></button></div>') +
   '</div>';
   if (ui.routineDraft) return head + htmlRoutineEditor();
 
   let html = '';
   if (!state.routines.length){
-    html += '<div class="empty"><h3>Nothing here yet</h3><p>Routines are ordered lists of exercises with targets. Create one, or import a routines file from Settings.</p>' +
+    html += '<div class="empty"><h3>Nothing here yet</h3><p>Routines are ordered lists of exercises with targets. Create one, or import a routines file.</p>' +
       '<div class="form-actions"><button type="button" class="btn btn-primary" data-action="routine-new">' + IC.plus + '<span>New routine</span></button>' +
-      '<button type="button" class="btn" data-action="nav" data-view="settings">Import routines</button></div></div>';
+      '<label class="file-btn"><span>' + IC.up + ' Import routines</span><input type="file" accept=".json,application/json" data-change="import-routines" aria-label="Import routines from a JSON file"></label></div></div>';
     return head + html;
   }
   const row = (r, day) => {
