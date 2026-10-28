@@ -10,9 +10,9 @@ const LiftlogComparisons=(()=>{
   }
   /* The rows one exercise contributes. With `headline`, its load row (or
      reps/time when no load is logged) is marked as the figure to show first. */
-  function exerciseRows(ex,a,b,valid,options,headline,extra={}){
+  function exerciseRows(ex,a,b,valid,options,headline){
     // `name` and `measure` let a card head with the exercise and keep the measure short.
-    const rows=[],add=(measure,unit,x,y,lead)=>rows.push({label:ex.name+' · '+measure,name:ex.name,measure,unit,before:x,after:y,delta:valid&&x!=null&&y!=null?y-x:null,...extra,...(headline&&lead?{highlight:true}:{})});
+    const rows=[],add=(measure,unit,x,y,lead)=>rows.push({label:ex.name+' · '+measure,name:ex.name,measure,unit,before:x,after:y,delta:valid&&x!=null&&y!=null?y-x:null,...(headline&&lead?{highlight:true}:{})});
     const loadRow=ex.unit!=='time'&&!(ex.unit==='bw'&&a.load==null&&b.load==null);
     add('working sets','sets',a.sets,b.sets,false);
     add(ex.unit==='time'?'time':'reps',ex.unit==='time'?'s':'reps',a.total,b.total,!loadRow);
@@ -40,32 +40,10 @@ const LiftlogComparisons=(()=>{
     warnings.push('Working sets exclude warm-ups. Differences describe logged work; changed targets or effort can affect interpretation.');
     return {before,after,rows,warnings};
   }
-  /* Each exercise against its own most recent earlier session with the same
-     load convention, from any routine, so a workout with no twin still gets a
-     comparison. Each row names the session it is compared with. */
-  function compareExercises(workout,history,options){
-    const earlier=history.filter(w=>w.id!==workout.id&&w.startedAt<workout.startedAt).sort((a,b)=>b.startedAt-a.startedAt);
-    const rows=[],missing=[];
-    for(const [index,ex] of workout.exercises.entries()){
-      const now=measure(ex,options);if(!now.sets)continue;
-      const id=options.canonical(ex.exerciseId),occurrence=occurrenceOf(workout.exercises,index,id,options);
-      let base=null;
-      for(const w of earlier){
-        const match=w.exercises.filter(row=>options.canonical(row.exerciseId)===id)[occurrence];
-        if(match&&options.sameContract(ex,match)&&measure(match,options).sets){base={workout:w,block:match};break;}
-      }
-      if(!base){missing.push(ex.name);continue;}
-      rows.push(...exerciseRows(ex,measure(base.block,options),now,true,options,true,{beforeLabel:options.label(base.workout)}));
-    }
-    const details=missing.length?['No earlier session with the same load convention: '+missing.join(', ')+'.']:[];
-    const warnings=['Each exercise is compared with its most recent earlier session, from any routine. Exercise order and fatigue can differ between them.',
-      'Working sets exclude warm-ups. Differences describe logged work; changed targets or effort can affect interpretation.'];
-    return {before:null,after:workout,rows,warnings,details};
-  }
   /* Distinct exercises two workouts share, for ranking History comparison partners. */
   function sharedExercises(a,b,canonical){
     const ids=new Set(a.exercises.map(ex=>canonical(ex.exerciseId)));
     return new Set(b.exercises.map(ex=>canonical(ex.exerciseId)).filter(id=>ids.has(id))).size;
   }
-  return {sameRoutine,compare,compareExercises,sharedExercises};
+  return {sameRoutine,compare,sharedExercises};
 })();
