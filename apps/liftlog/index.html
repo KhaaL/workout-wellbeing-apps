@@ -810,6 +810,10 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .is-dragging .grip{ cursor:grabbing; color:var(--accent); }
 /* A drag that selects the row's text as it goes reads as a broken drag. */
 html.is-reordering{ user-select:none; -webkit-user-select:none; }
+/* Rows swap places in the DOM under the finger. Scroll anchoring would answer
+   each swap by shifting the scroll position a row's height, which fights the
+   edge autoscroll and moves the dragged row away from the finger. */
+html.is-reordering, html.is-reordering *{ overflow-anchor:none; }
 @media (max-width:640px){
   .item-row{ grid-template-columns:44px 1fr 1fr; }
   .item-row .item-name{ grid-column:2 / -1; padding-bottom:2px; }
@@ -7192,7 +7196,8 @@ function sortStart(g){
   const row = g.el.closest(s.row);
   const rows = sortRows(s);
   if (!row || rows.indexOf(row) === -1 || rows.length < 2) return false;
-  g.own = { s, row, from:rows.indexOf(row), shift:0 };
+  const scroller = sortScroller(row);
+  g.own = { s, row, from:rows.indexOf(row), shift:0, scroller, scroll0:scrollPos(scroller), raf:0 };
   row.classList.add('is-dragging');
   document.documentElement.classList.add('is-reordering');
 }
@@ -7202,8 +7207,13 @@ function sortStart(g){
    the row stays put on screen while the list rearranges around it. The loop is
    for a flick that crosses several rows between two events. */
 function sortMove(g){
-  const { s, row } = g.own;
-  const follow = () => { row.style.transform = 'translateY(' + (g.dy - g.own.shift) + 'px)'; };
+  const { s, row, scroller } = g.own;
+  /* Scrolling moves the row's resting place with the list, so the distance
+     scrolled is added back to keep the row under the finger. */
+  const follow = () => {
+    const scrolled = scrollPos(scroller) - g.own.scroll0;
+    row.style.transform = 'translateY(' + (g.dy - g.own.shift + scrolled) + 'px)';
+  };
   const past = (other, down) => {
     const r = other.getBoundingClientRect(), m = row.getBoundingClientRect();
     const mid = m.top + m.height/2, theirs = r.top + r.height/2;
@@ -7220,9 +7230,47 @@ function sortMove(g){
     if (!((next && past(next, true)) || (prev && past(prev, false)))) break;
     follow();
   }
+  if (!g.own.raf) g.own.raf = requestAnimationFrame(() => sortAutoScroll(g));
+}
+/* The handle carries touch-action:none, so the list cannot be scrolled by the
+   finger doing the drag. Holding the row near the top or bottom edge of the
+   list's visible area scrolls it instead, faster the closer to the edge, and
+   keeps scrolling while the finger rests there. */
+const SORT_EDGE = 56, SORT_SPEED = 16;
+function sortScroller(el){
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement){
+    const oy = getComputedStyle(p).overflowY;
+    if ((oy === 'auto' || oy === 'scroll') && p.scrollHeight > p.clientHeight) return p;
+  }
+  return null;                              /* the page itself */
+}
+function scrollPos(scroller){ return scroller ? scroller.scrollTop : window.scrollY; }
+function sortAutoScroll(g){
+  g.own.raf = 0;
+  if (press !== g || !g.on) return;
+  const { scroller } = g.own;
+  let top, bottom;
+  if (scroller){
+    const r = scroller.getBoundingClientRect();
+    top = Math.max(r.top, 0); bottom = Math.min(r.bottom, window.innerHeight);
+  } else {
+    /* the sticky header covers the top of the page */
+    top = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-h')) || 0;
+    bottom = window.innerHeight;
+  }
+  const y = g.event.clientY;
+  const depth = y < top + SORT_EDGE ? y - (top + SORT_EDGE)
+              : y > bottom - SORT_EDGE ? y - (bottom - SORT_EDGE) : 0;
+  if (!depth) return;
+  const step = Math.round(Math.max(-1, Math.min(1, depth / SORT_EDGE)) * SORT_SPEED) || Math.sign(depth);
+  const before = scrollPos(g.own.scroller);
+  if (scroller) scroller.scrollTop += step; else window.scrollBy(0, step);
+  if (scrollPos(g.own.scroller) === before) return;   /* already at the end */
+  sortMove(g);                              /* re-place the row; schedules the next frame */
 }
 function sortEnd(g, ok){
   const { s, row, from } = g.own;
+  cancelAnimationFrame(g.own.raf);
   const to = sortRows(s).indexOf(row);
   row.style.transform = '';
   row.classList.remove('is-dragging');
