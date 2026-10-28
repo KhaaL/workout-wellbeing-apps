@@ -27,12 +27,13 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     await page.waitForFunction(() => window.testAPI.state.routines.length === 2);
     assert.match(await page.locator('#toast-region').textContent(), /Imported 2 routines/);
 
-    /* With routines, a quiet Import sits beside New routine in the header. */
+    /* With routines, a quiet Import sits right of New routine in the header. */
     const quiet = page.locator('.view-head .file-btn.is-quiet');
     assert.equal(await quiet.count(), 1, 'the header shows a quiet import button');
     assert.equal((await quiet.textContent()).trim(), 'Import');
     const [q, n] = [await quiet.boundingBox(), await page.locator('.view-head [data-action="routine-new"]').boundingBox()];
     assert.ok(q.height < n.height, 'the import button is smaller than New routine');
+    assert.ok(q.x > n.x + n.width, 'the import button sits to the right of New routine');
     await quiet.locator('input').setInputFiles(file);
     await page.waitForFunction(() => /skipped/.test(document.querySelector('#toast-region').textContent));
     assert.equal(await page.evaluate(() => window.testAPI.state.routines.length), 2, 'importing the same file again adds nothing');
@@ -42,6 +43,6 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     assert.equal(await page.locator('.view-head input[data-change="import-routines"]').count(), 0, 'the routine editor has no import button');
 
     assert.deepEqual(errors, []);
-    console.log('routines-import: 8 checks passed');
+    console.log('routines-import: 9 checks passed');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });

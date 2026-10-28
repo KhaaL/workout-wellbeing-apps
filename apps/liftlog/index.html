@@ -5562,9 +5562,10 @@ function viewRoutines(){
     '<p class="view-sub">' + plural(routines.length, 'routine') + (plans.length ? ' · ' + plural(plans.length, 'plan') : '') +
       ' · starting one begins today’s workout</p></div>' +
     (ui.routineDraft ? '' : '<div class="view-actions">' +
+      '<button type="button" class="btn btn-primary" data-action="routine-new">' + IC.plus + '<span>New routine</span></button>' +
       /* the empty state below offers its own, larger import */
       (!state.routines.length ? '' : '<label class="file-btn is-quiet"><span>' + IC.up + ' Import</span><input type="file" accept=".json,application/json" data-change="import-routines" aria-label="Import routines from a JSON file"></label>') +
-      '<button type="button" class="btn btn-primary" data-action="routine-new">' + IC.plus + '<span>New routine</span></button></div>') +
+      '</div>') +
   '</div>';
   if (ui.routineDraft) return head + htmlRoutineEditor();
 
