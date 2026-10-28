@@ -96,24 +96,12 @@ test('unreadable source holds protect active work without hiding backup/recovery
  await assert.rejects(d.api.handoff.offer(),/could not be read/);assert(d.api.backup().active);
  await d.api.handoff.cancel();assert.equal(d.api.handoff.held(),null);assert.equal(d.api.state.active.status,'paused');
 });
-test('Liftlog compares each exercise with its own last session from any routine',()=>{
- const d=lift(),set=(weight,reps,extra={})=>({completed:true,reps,weight,unit:'kg',...extra});
- const block=(exerciseId,name,sets,extra={})=>({exerciseId,name,unit:'kg',loadMode:'total',sets,...extra});
- const workout=(id,routineId,startedAt,exercises)=>({id,routineId,routineName:'Routine '+routineId,startedAt,finishedAt:startedAt+60000,exercises});
- const older=workout('older','B',1000,[block('press','Press',[set(20,10,{countForVolume:false,countForPR:false}),set(50,8),set(50,7)])]);
- const perHand=workout('per-hand','C',2000,[block('press','Press',[set(25,8)],{loadMode:'per_hand'})]);
- const today=workout('today','A',3000,[block('press','Press',[set(52.5,8),set(52.5,6)]),block('row','Row',[set(40,10)])]);
- const options={canonical:x=>x,sameContract:d.api.sameProgressionContract,unit:'kg',load:d.api.setWeight,label:w=>w.id};
- const model=d.api.LiftlogComparisons.compareExercises(today,[today,perHand,older],options);
- assert.equal(model.before,null);
- const load=model.rows.find(row=>row.label==='Press · max logged load');
- assert.equal(load.beforeLabel,'older','a different load convention is skipped, a different routine is not');
- assert.equal(load.before,50);assert.equal(load.delta,2.5);assert.equal(load.highlight,true);
- assert.equal(model.rows.find(row=>row.label==='Press · working sets').before,2,'warm-ups stay out of the baseline');
- assert.match(model.details[0],/Row/);
- assert.equal(d.api.LiftlogComparisons.compareExercises(older,[today,perHand,older],options).rows.length,0,'later sessions never serve as a baseline');
- assert.equal(d.api.LiftlogComparisons.sharedExercises(today,older,x=>x),1);
- assert.equal(d.api.LiftlogComparisons.sharedExercises(today,workout('x','D',1,[block('squat','Squat',[])]),x=>x),0);
+test('Liftlog ranks History comparison partners by shared exercises',()=>{
+ const d=lift(),block=(exerciseId,name)=>({exerciseId,name,unit:'kg',loadMode:'total',sets:[]});
+ const workout=(id,exercises)=>({id,routineId:id,routineName:'Routine '+id,startedAt:1,finishedAt:2,exercises});
+ const today=workout('today',[block('press','Press'),block('row','Row')]);
+ assert.equal(d.api.LiftlogComparisons.sharedExercises(today,workout('older',[block('press','Press')]),x=>x),1);
+ assert.equal(d.api.LiftlogComparisons.sharedExercises(today,workout('x',[block('squat','Squat')]),x=>x),0);
 });
 test('Liftlog estimates, day labels and load suggestions follow what was logged',()=>{
  const d=lift();

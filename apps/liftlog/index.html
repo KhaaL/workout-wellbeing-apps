@@ -4568,15 +4568,6 @@ function renderComparisons(){
     emptyHint:'No other workout shares an exercise with this one. Choose a different workout.',
     onSelect:(a,b)=>{comparisonPair=[a,b];renderComparisons();},compare:(a,b)=>LiftlogComparisons.compare(a,b,comparisonOptions())});
 }
-/* Each exercise against its own last earlier session, from any routine. */
-function renderFinishedComparison(w){
-  const host=document.createElement('div');host.id='finished-comparison';$('#detail-body').prepend(host);
-  const items=sortedWorkouts().map(visibleHistoryWorkout);
-  WorkoutComparisons.render(host,{items,first:w.id,compact:true,label:comparisonLabel,title:'Compared with each exercise’s last session',
-    emptyHint:'No earlier session for these exercises yet. They will be compared here next time.',
-    /* rows name their earlier session by date only: one per exercise has to fit a card */
-    compareOne:first=>LiftlogComparisons.compareExercises(first,items,{...comparisonOptions(),label:w=>fmtDate(w.startedAt)})});
-}
 
 function render(){
   clearStatsCache();
@@ -4657,7 +4648,6 @@ function syncDetailSheet(){
       $('#detail-close').setAttribute('aria-label', 'Close ' + sheet.noun);
       $('#detail-body').innerHTML = sheet.body(item);
       $('#detail-actions').innerHTML = sheet.actions(item);
-      if(ui.detail.kind==='workout')renderFinishedComparison(item);
     });
     return true;
   }
