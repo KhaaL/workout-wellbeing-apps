@@ -38,7 +38,10 @@
 - Markup: one h1 "Settings". Section titles use the names in the order
   above. Developer diagnostics stay collapsed and sit outside preference
   sections.
-- Removing a feature in one app removes it in every app.
+- Removing a shared flow in one app removes it in every app. A feature
+  built on one app's own data can differ between apps: Bike Cardio compares
+  a finished ride with its baseline, and Lift Log shows no comparison on a
+  finished workout.
 - Before finishing UI work in one app, check the same flow in the other
   apps. Explain any new deviation from this order or vocabulary in the
   PR description.
