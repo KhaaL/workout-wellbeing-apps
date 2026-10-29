@@ -17,7 +17,7 @@
     "lint": "eslint packages apps/bike-cardio/*.js apps/tabata/*.js apps/foodlog/*.js apps/liftlog/*.js apps/liftlog/screens/*.js apps/*/controllers/*.js scripts/*.mjs eslint.config.mjs --max-warnings 0",
     "test:s3-cors": "python3 tests/s3-cors.test.py",
     "build:tabata": "node scripts/build.mjs",
-    "test:foodlog-browser": "npm run build && node tests/foodlog-browser.cjs && node tests/foodlog-phase2-browser.cjs",
+    "test:foodlog-browser": "npm run build && node tests/foodlog-browser.cjs && node tests/foodlog-phase2-browser.cjs && node tests/foodlog-logging-browser.cjs",
     "test:tabata-browser": "npm run build:tabata && node tests/tabata-browser.cjs && node tests/tabata-instructions-browser.cjs"
   },
   "devDependencies": {

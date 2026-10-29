@@ -26,12 +26,19 @@ never counted as 0, and totals say how many items lacked it.
   foods stay, and foods the file no longer lists are kept. Export writes the
   same format, including foods added in the app and every field Foodlog does not
   use. See [Foodlog catalog and exports](docs/FOODLOG.md).
-- **Logging:** Today groups the day by meal. **Add food** searches the catalog,
-  ignoring accents, with this meal's recent foods first, then favourites (★,
-  set on the food page). Portion buttons and a
-  stepper set the amount, and a live preview shows its nutrients. A food that
-  is missing can be created from the same dialog. Logs before the day change
-  time (default 04:00) count toward the previous day. **Copy a meal…** on each
+- **Logging:** Today groups the day by meal. **Add food** opens a sheet that
+  stays open while a meal is put together. It lists this meal's recent foods
+  first, then favourites (★, set on the food page), and search ignores accents.
+  Ranking uses earlier days only, so rows hold still while items are added.
+  Each row shows the amount it would log: the food's latest amount in this
+  meal, else anywhere, else its first portion. **+** logs that amount in one
+  tap, with Undo. A food's name opens the amount first: portion buttons, a
+  stepper and a live preview, with time, meal and note folded below. The
+  sheet's summary line shows what the meal holds, and its items open for
+  editing. With a keyboard: type, Enter, amount, Enter. A missing food can be
+  created from the same sheet. Logs into today get the clock time; logs into
+  an earlier day get no time. Logs before the day change time (default 04:00)
+  count toward the previous day. **Copy a meal…** on each
   meal copies one from the last 14 days, same meal first, keeping amounts,
   times and notes; a food still in the catalog logs at its current values.
 - **Frozen values:** logging stores a frozen copy of the food's values, shared

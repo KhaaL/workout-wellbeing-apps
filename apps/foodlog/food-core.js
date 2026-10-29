@@ -312,9 +312,11 @@ const FoodCore = (() => {
   /* Search: accents fold away, so "jordnotssmor" finds Jordnötssmör. */
   const fold = value => String(value).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const foodIdOf = key => key.slice(0, key.lastIndexOf('@'));
-  function search(s, {query = '', meal = '', archived = false} = {}){
+  // With `before`, only days before it rank, so logging into that day keeps the list in place.
+  function search(s, {query = '', meal = '', archived = false, before = ''} = {}){
     const words = fold(query).split(/\s+/).filter(Boolean), use = new Map();
     for (const e of s.entries){
+      if (before && e.date >= before) continue;
       const id = foodIdOf(e.version), u = use.get(id) || {count:0, last:'', meal:''};
       const at = e.date + (e.time || '');
       u.count++; if (at > u.last) u.last = at;
@@ -326,6 +328,27 @@ const FoodCore = (() => {
       // Latest use in this meal first, then favourites, then the most used, then by name; '' sorts last.
       .sort((a, b)=>b.use.meal.localeCompare(a.use.meal) || !!b.food.favourite - !!a.food.favourite || b.use.count - a.use.count || a.food.name.localeCompare(b.food.name))
       .map(r=>r.food);
+  }
+  /* The amount each food starts at when logged into `meal`: its latest amount in that
+     meal, else its latest anywhere (same unit only; a portion it still has takes the
+     portion's current amount), else its first portion, else 100 g, 100 ml or 1 portion. */
+  function startAmounts(s, foods, meal){
+    const ids = new Set(foods.map(f=>f.id)), last = new Map(), at = e => e.date + (e.time || '');
+    for (const e of s.entries){
+      const id = foodIdOf(e.version); if (!ids.has(id)) continue;
+      const slot = last.get(id) || {};
+      // Later entries win ties, so the latest of several logged in the same minute counts.
+      if (!slot.any || at(e) >= at(slot.any)) slot.any = e;
+      if (e.meal === meal && (!slot.meal || at(e) >= at(slot.meal))) slot.meal = e;
+      last.set(id, slot);
+    }
+    return new Map(foods.map(f=>{
+      const slot = last.get(f.id) || {}, e = [slot.meal, slot.any].find(x=>x && s.versions[x.version]?.basis === f.basis);
+      const portion = e && f.portions.find(p=>p.label === e.portion);
+      const start = portion ? {amount:portion.amount, portion:portion.label} : e ? {amount:e.amount, portion:''}
+        : f.portions[0] ? {amount:f.portions[0].amount, portion:f.portions[0].label} : {amount:f.basis === 'portion' ? 1 : 100, portion:''};
+      return [f.id, start];
+    }));
   }
   function usage(s, foodId){ return s.entries.filter(e=>foodIdOf(e.version) === foodId).length; }
   // Keep only versions some entry still uses.
@@ -608,6 +631,6 @@ const FoodCore = (() => {
 
   return {NUTRIENTS, KEYS, TARGET_KEYS, FREE, COMMON_MICROS, KINDS, SOURCES, BASES, UNITS, LIMITS, DEFAULT_MEALS,
     food, settings, state, versionOf, scaled, total, evaluate, round, format, microUnit, microLabel, describe,
-    dayFor, shiftDate, localDate, localTime, day, loggedDays, recentMeals, copyMeal, trends, fold, search, usage, prune, log, updateEntry, foodIdOf,
+    dayFor, shiftDate, localDate, localTime, day, loggedDays, recentMeals, copyMeal, trends, fold, search, startAmounts, usage, prune, log, updateEntry, foodIdOf,
     importCatalog, exportCatalog, exportDay, planDayImport, applyDayImport, samples, hash};
 })();
