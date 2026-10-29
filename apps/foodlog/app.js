@@ -289,6 +289,8 @@
   });
   $('amountBack').addEventListener('click',backToPick);
   $('addSearch').addEventListener('input',renderResults);$('addMeal').addEventListener('change',renderPick);
+  // Tapping into the search selects the last query, so typing the next food replaces it.
+  $('addSearch').addEventListener('focus',()=>{const input=$('addSearch');input.select();input.addEventListener('mouseup',event=>event.preventDefault(),{once:true});});
   // Enter takes the first match to its amount, and Enter there adds it and returns to the search.
   $('addSearch').addEventListener('keydown',event=>{
     if(event.key!=='Enter'||event.isComposing||!$('addSearch').value.trim()||!pickResults.length)return;

@@ -119,6 +119,14 @@ test('search can rank by days before the one being logged, so adding to it keeps
   assert.equal(F.search(s,{meal:'Breakfast'})[0].id,'example-cottage-cheese','without before, the latest use leads');
 });
 
+test('among foods used equally, a name start beats a word start, which beats a match inside a word',()=>{
+  const s=empty(),add=(id,name,brand='')=>s.foods.push(F.food({id,name,brand,kind:'generic',basis:'g',nutrients:{},source:'typical'}));
+  add('butter','Buttermilk');add('oat','Oat milk');add('milk','Milk 3%');add('choc','Chocolate','Milkway');
+  assert.deepEqual(F.search(s,{query:'milk'}).map(f=>f.id),['milk','choc','oat','butter']);
+  F.log(s,by(s,'butter'),{date:'2026-01-19',meal:'Breakfast',amount:200},'b1');
+  assert.equal(F.search(s,{query:'milk'})[0].id,'butter','a food in use still leads, so compound words such as lättmjölk are not buried');
+});
+
 test('a food starts at its latest amount in this meal, then anywhere, then its first portion',()=>{
   const s=imported(),start=(id,meal='Breakfast')=>plain(F.startAmounts(s,[by(s,id)],meal).get(id));
   assert.deepEqual(start('example-crispbread'),{amount:100,portion:''},'no use and no portion: 100 g');

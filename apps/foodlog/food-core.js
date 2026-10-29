@@ -323,10 +323,16 @@ const FoodCore = (() => {
       if (e.meal === meal && at > u.meal) u.meal = at;
       use.set(id, u);
     }
+    // Among foods used equally often, a name that starts with the query leads, then foods
+    // where every word starts a word ("milk" in "Oat milk"), then matches inside a word ("Buttermilk").
+    const phrase = words.join(' '), fit = f => {
+      const name = fold(f.name), tokens = fold(f.name + ' ' + f.brand).split(/[^\p{L}\p{N}]+/u);
+      return name.startsWith(phrase) ? 0 : words.every(w=>tokens.some(t=>t.startsWith(w))) ? 1 : 2;
+    };
     return s.foods.filter(f=>(archived || !f.archived) && words.every(w=>fold(f.name + ' ' + f.brand).includes(w)))
-      .map(f=>({food:f, use:use.get(f.id) || {count:0, last:'', meal:''}}))
-      // Latest use in this meal first, then favourites, then the most used, then by name; '' sorts last.
-      .sort((a, b)=>b.use.meal.localeCompare(a.use.meal) || !!b.food.favourite - !!a.food.favourite || b.use.count - a.use.count || a.food.name.localeCompare(b.food.name))
+      .map(f=>({food:f, use:use.get(f.id) || {count:0, last:'', meal:''}, fit:words.length ? fit(f) : 0}))
+      // Latest use in this meal first, then favourites, then the most used, then the fit, then by name; '' sorts last.
+      .sort((a, b)=>b.use.meal.localeCompare(a.use.meal) || !!b.food.favourite - !!a.food.favourite || b.use.count - a.use.count || a.fit - b.fit || a.food.name.localeCompare(b.food.name))
       .map(r=>r.food);
   }
   /* The amount each food starts at when logged into `meal`: its latest amount in that

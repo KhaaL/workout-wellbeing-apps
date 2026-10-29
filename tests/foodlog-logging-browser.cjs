@@ -94,10 +94,14 @@ async function open(browser,options){
     assert.match(await summary(),/^Breakfast · Yesterday: 3 items/);
     await page.getByRole('button',{name:/^Add Example Pantry Peanut Butter Crunchy, 100 g/}).click();
     const late=(await on('2026-01-19')).at(-1);assert.equal(late.amount,100);assert.equal('time' in late,false,'a later log of an earlier day gets no clock time');
-    await page.setViewportSize({width:320,height:640});
+    await page.setViewportSize({width:320,height:480});
     assert.equal(await dialog.evaluate(d=>d.scrollWidth<=d.clientWidth),true,'the sheet fits 320 px');
+    await dialog.evaluate(d=>{d.scrollTop=d.scrollHeight;});
+    const [sheetTop,searchTop]=await Promise.all([dialog.evaluate(d=>d.getBoundingClientRect().top),page.locator('#addSearch').evaluate(i=>i.getBoundingClientRect().top)]);
+    assert.ok(await dialog.evaluate(d=>d.scrollTop>0),'the list scrolls at this height');
+    assert.ok(searchTop>sheetTop&&searchTop<sheetTop+120,'the meal, search and summary stay at the top while the list scrolls');
     await page.locator('#pickPane [data-close]').click();
-    console.log('PASS an earlier day logs without a clock time, and the sheet fits 320 px');
+    console.log('PASS an earlier day logs without a clock time; the sheet fits 320 px and keeps its search in view');
     assert.deepEqual(errors,[]);await ctx.close();
 
     const desk=await open(browser,{});
@@ -111,7 +115,11 @@ async function open(browser,options){
     assert.equal(await desk.page.inputValue('#addSearch'),'');
     const entry=(await desk.page.evaluate(()=>JSON.parse(localStorage.getItem('foodlog.state.v1')))).entries.filter(e=>e.date==='2026-01-20');
     assert.deepEqual(entry.map(e=>[e.meal,e.amount]),[['Breakfast',30]]);
-    console.log('PASS the keyboard logs a food with search, Enter, amount, Enter');
+    await desk.page.keyboard.type('oat');await desk.page.locator('#addResults .quick-add').first().click();
+    await desk.page.click('#addSearch');
+    assert.deepEqual(await desk.page.locator('#addSearch').evaluate(i=>[i.selectionStart,i.selectionEnd]),[0,3],'a click into the search selects the last query');
+    await desk.page.keyboard.type('cottage');assert.equal(await desk.page.inputValue('#addSearch'),'cottage');
+    console.log('PASS the keyboard logs a food with search, Enter, amount, Enter; the next search replaces the last');
     assert.deepEqual(desk.errors,[]);await desk.ctx.close();
   }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
