@@ -11,9 +11,12 @@
   const newId=prefix=>prefix+(globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));
   let storage=null,shell=null,updates=null,view='today',viewDate='',followToday=true,toastTimer=0,cloudBusy=false,remoteStatus='',panel=null;
   let historyLimit=60,sheetFoodId=null,editingEntryId=null,amountFood=null,selectedPortion='',editingFoodId=null,foodThen=null;
+  let composing=false,returnToSearch=false,pickResults=[];
   const S=()=>storage.state;
 
+  // A modal dialog covers the page, so the toast moves into the open one to stay visible.
   function toast(message,action){
+    const box=$('toast'),host=[...document.querySelectorAll('dialog[open]')].at(-1)||document.body;if(box.parentElement!==host)host.append(box);
     $('toastText').textContent=message;const button=$('toastAction');button.hidden=!action;
     if(action){button.textContent=action.label;button.onclick=()=>{$('toast').hidden=true;action.run();};}
     $('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{$('toast').hidden=true;},action?8000:5000);
@@ -96,6 +99,13 @@
       list.append(rows);box.append(el('details',{},el('summary',{textContent:'Vitamins & minerals'}),list));
     }
   }
+  function entryButton({entry,v,amount}){
+    const n=F.scaled(v,amount).nutrients,button=el('button',{type:'button',className:'row-btn'});
+    button.append(el('span',{className:'main'},el('span',{className:'name'},named(v),v.estimate&&el('span',{className:'tag',textContent:'est.'})),
+      el('span',{className:'sub',textContent:[amountText(v,amount,entry.portion),entry.time,entry.note].filter(Boolean).join(' · ')})),
+      el('span',{className:'side',textContent:fmt('energy_kcal',n.energy_kcal)}));
+    button.addEventListener('click',()=>openEntry(entry.id));return button;
+  }
   function renderMeals(d){
     const box=$('meals');box.replaceChildren();
     for(const m of d.meals){
@@ -104,13 +114,7 @@
       section.append(el('div',{className:'meal-head'},el('h2',{textContent:m.meal}),sub&&el('span',{className:'hint',textContent:sub})));
       if(m.items.length){
         const list=el('ul',{className:'entries'});
-        for(const {entry,v,amount} of m.items){
-          const n=F.scaled(v,amount).nutrients,button=el('button',{type:'button',className:'row-btn'});
-          button.append(el('span',{className:'main'},el('span',{className:'name'},named(v),v.estimate&&el('span',{className:'tag',textContent:'est.'})),
-            el('span',{className:'sub',textContent:[amountText(v,amount,entry.portion),entry.time,entry.note].filter(Boolean).join(' · ')})),
-            el('span',{className:'side',textContent:fmt('energy_kcal',n.energy_kcal)}));
-          button.addEventListener('click',()=>openEntry(entry.id));list.append(el('li',{},button));
-        }
+        for(const item of m.items)list.append(el('li',{},entryButton(item)));
         section.append(list);
       }
       const add=el('button',{type:'button',className:'btn',textContent:'Add to '+m.meal}),copy=el('button',{type:'button',className:'btn',textContent:'Copy a meal…'});
@@ -133,15 +137,19 @@
     save();$('exportDay').disabled=false;
   }
 
-  /* Adding and editing entries. */
+  /* Adding and editing entries. The add sheet stays open while a meal is put together:
+     + logs a food at its start amount, the food's name opens the amount first, and
+     both return to the list. Opened from a logged item or a food page, it closes after one. */
   function mealOptions(select,extra){
     const meals=[...S().settings.meals];if(extra&&!meals.includes(extra))meals.push(extra);
     select.replaceChildren(...meals.map(m=>el('option',{value:m,textContent:m})));
   }
   function defaultMeal(){
-    const entries=S().entries.filter(e=>e.date===viewDate).sort((a,b)=>a.time.localeCompare(b.time));
+    const entries=S().entries.filter(e=>e.date===viewDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
     return entries.length?entries.at(-1).meal:S().settings.meals[0];
   }
+  // The clock time on today; another day gets no time, since the clock time would be wrong there.
+  const defaultTime=()=>viewDate===today()?nowTime():'';
   function showPane(pane){$('pickPane').hidden=pane!=='pick';$('amountPane').hidden=pane!=='amount';}
   function per(f){
     const unknown=f.nutrients.energy_kcal==null&&f.nutrients.protein_g==null;
@@ -152,38 +160,74 @@
     return tags.map(text=>el('span',{className:'tag',textContent:text}));
   }
   function openAdd(meal){
-    editingEntryId=null;mealOptions($('addMeal'));$('addMeal').value=meal||defaultMeal();$('addSearch').value='';
-    showPane('pick');renderResults();if(!$('addDialog').open)$('addDialog').showModal();$('addSearch').focus();
+    editingEntryId=null;composing=true;mealOptions($('addMeal'));$('addMeal').value=meal||defaultMeal();$('addSearch').value='';$('addSoFar').open=false;
+    showPane('pick');renderPick();if(!$('addDialog').open)$('addDialog').showModal();
+    // An on-screen keyboard would cover the suggestions, so only a mouse or trackpad starts in the search.
+    if(matchMedia('(pointer: fine)').matches)$('addSearch').focus();
+  }
+  function renderPick(){renderSoFar();renderResults();}
+  const refreshPick=()=>{if($('addDialog').open&&!$('pickPane').hidden)renderPick();};
+  // What the meal holds on the day being logged. The summary stays one line, so the list below does not move.
+  function renderSoFar(){
+    const meal=$('addMeal').value,m=F.day(S(),viewDate).meals.find(x=>x.meal===meal),items=m?.items||[];
+    $('addSoFarText').textContent=meal+' · '+dayName(viewDate)+': '+(items.length?plural(items.length,'item')+' · '+fmt('energy_kcal',m.total.sums.energy_kcal):'nothing yet');
+    $('addSoFarList').replaceChildren(...items.map(item=>el('li',{},entryButton(item))));
+  }
+  function markAdded(button,f,start,count){
+    button.setAttribute('aria-label','Add '+named(f)+', '+amountText(f,start.amount,start.portion)+(count?', '+count+' already in '+$('addMeal').value:''));
+    if(count)button.dataset.count=String(count);else delete button.dataset.count;
   }
   function renderResults(){
-    const list=$('addResults'),query=$('addSearch').value.trim(),results=F.search(S(),{query,meal:$('addMeal').value});
-    list.replaceChildren();
-    for(const f of results.slice(0,50)){
-      const button=el('button',{type:'button',className:'row-btn'},el('span',{className:'main'},el('span',{className:'name'},named(f),...foodTags(f)),el('span',{className:'sub',textContent:per(f)})));
-      button.addEventListener('click',()=>chooseFood(f));list.append(el('li',{},button));
+    const list=$('addResults'),query=$('addSearch').value.trim(),meal=$('addMeal').value;
+    // Ranked by days before this one, so foods added now keep their place in the list.
+    const results=F.search(S(),{query,meal,before:viewDate}),shown=results.slice(0,50),starts=F.startAmounts(S(),shown,meal),counts=new Map();
+    for(const e of S().entries)if(e.date===viewDate&&e.meal===meal){const id=F.foodIdOf(e.version);counts.set(id,(counts.get(id)||0)+1);}
+    pickResults=shown;list.replaceChildren();
+    for(const f of shown){
+      const start=starts.get(f.id),kcal=F.scaled(f,start.amount).nutrients.energy_kcal;
+      const pick=el('button',{type:'button',className:'row-btn'},el('span',{className:'main'},el('span',{className:'name'},named(f),...foodTags(f)),
+        el('span',{className:'sub',textContent:amountText(f,start.amount,start.portion)+' · '+(kcal==null?'energy unknown':fmt('energy_kcal',kcal))})));
+      const add=el('button',{type:'button',className:'btn quick-add',textContent:'+'});markAdded(add,f,start,counts.get(f.id));
+      pick.addEventListener('click',()=>chooseFood(f));add.addEventListener('click',()=>quickAdd(f,start,add));
+      list.append(el('li',{className:'pick-row'},pick,add));
     }
     if(!results.length)list.append(el('li',{},el('p',{className:'hint',textContent:query?'No food matches “'+query+'”.':'No foods yet. Import a catalog file in Foods, or add a new food.'})));
     else if(results.length>50)list.append(el('li',{},el('p',{className:'hint',textContent:'Showing 50 of '+results.length+'. Type more to narrow the list.'})));
     $('addNewFood').textContent=query?'New food “'+query+'”…':'New food…';
   }
-  function lastUse(foodId){
-    const at=e=>e.date+(e.time||'');let last=null;for(const e of S().entries)if(F.foodIdOf(e.version)===foodId&&(!last||at(e)>at(last)))last=e;
-    return last;
+  function logEntry(f,fields){
+    if(S().entries.length>=F.LIMITS.entries)throw new Error('The log holds at most '+F.LIMITS.entries+' items. Download a backup, then remove old days.');
+    return F.log(S(),f,{...fields,date:viewDate},newId('e-'));
   }
-  function chooseFood(f){
-    amountFood=f;editingEntryId=null;
-    const last=lastUse(f.id),lastBasis=last&&S().versions[last.version].basis===f.basis;
-    const start=lastBasis?{amount:last.amount,portion:f.portions.some(p=>p.label===last.portion)?last.portion:''}
-      :f.portions[0]?{amount:f.portions[0].amount,portion:f.portions[0].label}:{amount:f.basis==='portion'?1:100,portion:''};
-    setupAmount(F.versionOf(f).value,f.portions,{...start,time:nowTime(),meal:$('addMeal').value,note:''});
+  function undoAdd(id){
+    const index=S().entries.findIndex(e=>e.id===id);if(index<0)return;
+    S().entries.splice(index,1);F.prune(S());save();render();refreshPick();
+  }
+  // One tap logs the amount the row shows; only this row and the summary change, so the next tap lands where expected.
+  function quickAdd(f,start,button){
+    try{
+      const e=logEntry(f,{amount:start.amount,portion:start.portion,time:defaultTime(),meal:$('addMeal').value,note:''}),ok=save();
+      render();renderSoFar();markAdded(button,f,start,(Number(button.dataset.count)||0)+1);
+      toast(ok?'Added '+named(f)+' · '+amountText(f,start.amount,start.portion)+'.':'Saved in memory only. Download a backup before closing.',{label:'Undo',run:()=>undoAdd(e.id)});
+    }catch(error){toast(error.message);}
+  }
+  function chooseFood(f,{fromSearch=false}={}){
+    amountFood=f;editingEntryId=null;returnToSearch=fromSearch;
+    const meal=$('addMeal').value;
+    setupAmount(F.versionOf(f).value,f.portions,{...F.startAmounts(S(),[f],meal).get(f.id),time:defaultTime(),meal,note:''});
     showPane('amount');if(!$('addDialog').open)$('addDialog').showModal();$('amount').focus();$('amount').select();
   }
   function openEntry(id){
     const e=S().entries.find(x=>x.id===id);if(!e)return;
     const v=S().versions[e.version],food=S().foods.find(f=>f.id===F.foodIdOf(e.version));
-    editingEntryId=id;amountFood=food||null;
+    editingEntryId=id;amountFood=food||null;returnToSearch=false;
     setupAmount(v,food&&food.basis===v.basis?food.portions:[],{amount:e.amount,portion:e.portion||'',time:e.time,meal:e.meal,note:e.note||''});
-    showPane('amount');$('addDialog').showModal();$('amount').focus();
+    showPane('amount');if(!$('addDialog').open)$('addDialog').showModal();$('amount').focus();
+  }
+  function backToPick(){
+    editingEntryId=null;composing=true;showPane('pick');renderPick();
+    // Keyboard use continues in the search; otherwise focus lands on the summary, which reads out what the meal holds.
+    if(returnToSearch)$('addSearch').focus();else $('addSoFarText').focus({preventScroll:true});
   }
   let amountVersion=null;
   function setupAmount(v,portions,values){
@@ -201,8 +245,14 @@
       button.dataset.label=p.label;button.dataset.amount=String(p.amount);
       button.addEventListener('click',()=>{$('amount').value=String(p.amount);selectedPortion=p.label;renderPreview();});chips.append(button);
     }
-    $('amountBack').hidden=!!editingEntryId;$('removeEntry').hidden=!editingEntryId;$('saveEntry').textContent=editingEntryId?'Save':'Add';
-    renderPreview();
+    $('amountBack').hidden=!!editingEntryId&&!composing;$('removeEntry').hidden=!editingEntryId;$('entryMore').open=false;
+    syncMore();renderPreview();
+  }
+  // Time, meal and note sit folded; the summary shows their values and the Add button names the meal.
+  function syncMore(){
+    const note=$('entryNote').value.trim();
+    $('entryMoreText').textContent='Time, meal & note: '+[$('entryTime').value||'no time',$('entryMeal').value,note&&'“'+note+'”'].filter(Boolean).join(' · ');
+    $('saveEntry').textContent=editingEntryId?'Save':'Add to '+$('entryMeal').value;
   }
   function renderPreview(){
     const amount=$('amount').valueAsNumber;
@@ -213,34 +263,43 @@
       preview.append(' · '+(n[key]==null?info(key).label.toLowerCase()+' unknown':fmt(key,n[key])+' '+info(key).label.toLowerCase()));
   }
   $('amount').addEventListener('input',()=>{const chip=[...$('portionChips').children].find(c=>c.dataset.label===selectedPortion);if(!chip||Number(chip.dataset.amount)!==$('amount').valueAsNumber)selectedPortion='';renderPreview();});
+  for(const id of ['entryTime','entryNote'])$(id).addEventListener('input',syncMore);$('entryMeal').addEventListener('change',syncMore);
   $('amountPane').addEventListener('submit',event=>{
     event.preventDefault();if(!$('amountPane').reportValidity())return;
     const fields={time:$('entryTime').value,meal:$('entryMeal').value,amount:$('amount').valueAsNumber,portion:selectedPortion,note:$('entryNote').value.trim()};
     try{
-      let label;
+      let label,undo;
       if(editingEntryId){F.updateEntry(S(),editingEntryId,fields);label='Saved.';}
-      else{
-        if(S().entries.length>=F.LIMITS.entries)throw new Error('The log holds at most '+F.LIMITS.entries+' items. Download a backup, then remove old days.');
-        F.log(S(),amountFood,{...fields,date:viewDate},newId('e-'));label='Added '+named(amountFood)+' to '+fields.meal+'.';
-      }
-      const ok=save();$('addDialog').close();
+      else{const e=logEntry(amountFood,fields);label='Added '+named(amountFood)+' to '+fields.meal+'.';undo={label:'Undo',run:()=>undoAdd(e.id)};}
+      const ok=save();
+      // A new item clears the search for the next food; an edited one keeps it.
+      if(composing){if(!editingEntryId)$('addSearch').value='';backToPick();}else $('addDialog').close();
       if(view!=='today')navigate('today');else renderToday();
-      toast(ok?label:'Saved in memory only. Download a backup before closing.');
+      toast(ok?label:'Saved in memory only. Download a backup before closing.',undo);
     }catch(error){toast(error.message);}
   });
   $('removeEntry').addEventListener('click',()=>{
     const index=S().entries.findIndex(e=>e.id===editingEntryId);if(index<0)return;
     const [removed]=S().entries.splice(index,1),version=S().versions[removed.version];
-    F.prune(S());save();$('addDialog').close();renderToday();
+    F.prune(S());save();if(composing)backToPick();else $('addDialog').close();renderToday();
     toast('Removed '+named(version)+'.',{label:'Undo',run:()=>{
       if(S().entries.some(e=>e.id===removed.id))return;
-      S().versions[removed.version] ||= version;S().entries.push(removed);save();render();
+      S().versions[removed.version] ||= version;S().entries.push(removed);save();render();refreshPick();
     }});
   });
-  $('amountBack').addEventListener('click',()=>{showPane('pick');renderResults();$('addSearch').focus();});
-  $('addSearch').addEventListener('input',renderResults);$('addMeal').addEventListener('change',renderResults);
+  $('amountBack').addEventListener('click',backToPick);
+  $('addSearch').addEventListener('input',renderResults);$('addMeal').addEventListener('change',renderPick);
+  // Tapping into the search selects the last query, so typing the next food replaces it.
+  $('addSearch').addEventListener('focus',()=>{const input=$('addSearch');input.select();input.addEventListener('mouseup',event=>event.preventDefault(),{once:true});});
+  // Enter takes the first match to its amount, and Enter there adds it and returns to the search.
+  $('addSearch').addEventListener('keydown',event=>{
+    if(event.key!=='Enter'||event.isComposing||!$('addSearch').value.trim()||!pickResults.length)return;
+    event.preventDefault();chooseFood(pickResults[0],{fromSearch:true});
+  });
+  $('addDialog').addEventListener('close',()=>{composing=false;returnToSearch=false;});
   $('addNewFood').addEventListener('click',()=>openFoodForm(null,{name:$('addSearch').value.trim(),then:'log'}));
   for(const button of document.querySelectorAll('[data-close]'))button.addEventListener('click',()=>button.closest('dialog').close());
+  for(const dialog of document.querySelectorAll('dialog'))dialog.addEventListener('close',()=>{if(dialog.contains($('toast')))document.body.append($('toast'));});
 
   /* Food form. */
   const nutrientInputs=F.NUTRIENTS.map(n=>{
@@ -358,7 +417,7 @@
     $('archiveFood').textContent=f.archived?'Unarchive':'Archive';$('favouriteFood').textContent=f.favourite?'Remove from favourites':'Add to favourites';$('favouriteFood').setAttribute('aria-pressed',String(!!f.favourite));
     if(!$('foodSheet').open)$('foodSheet').showModal();
   }
-  $('logFood').addEventListener('click',()=>{const f=S().foods.find(x=>x.id===sheetFoodId);if(!f)return;$('foodSheet').close();if(view!=='today')navigate('today');mealOptions($('addMeal'));$('addMeal').value=defaultMeal();chooseFood(f);});
+  $('logFood').addEventListener('click',()=>{const f=S().foods.find(x=>x.id===sheetFoodId);if(!f)return;$('foodSheet').close();if(view!=='today')navigate('today');mealOptions($('addMeal'));$('addMeal').value=defaultMeal();$('addSearch').value='';chooseFood(f);});
   $('editFood').addEventListener('click',()=>{const f=S().foods.find(x=>x.id===sheetFoodId);if(f)openFoodForm(f);});
   // Favourites come right after this meal's recent foods when adding.
   $('favouriteFood').addEventListener('click',()=>{

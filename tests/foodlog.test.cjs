@@ -109,6 +109,41 @@ test('days change at the configured time, search folds accents and ranks recent 
   by(s,'example-oat-drink').archived=true;assert.equal(F.search(s,{query:'oat'}).length,0);assert.equal(F.search(s,{query:'oat',archived:true}).length,1);
 });
 
+test('search can rank by days before the one being logged, so adding to it keeps the order',()=>{
+  const s=imported();
+  log(s,'example-crispbread',20,{date:'2026-01-19'});log(s,'example-oat-drink',200,{date:'2026-01-19',time:'07:00'});
+  const order=F.search(s,{meal:'Breakfast',before:'2026-01-20'}).map(f=>f.id);
+  assert.deepEqual(order.slice(0,2),['example-crispbread','example-oat-drink']);
+  log(s,'example-cottage-cheese',100,{time:'09:00'});
+  assert.deepEqual(F.search(s,{meal:'Breakfast',before:'2026-01-20'}).map(f=>f.id),order,'an item logged on that day does not move the list');
+  assert.equal(F.search(s,{meal:'Breakfast'})[0].id,'example-cottage-cheese','without before, the latest use leads');
+});
+
+test('among foods used equally, a name start beats a word start, which beats a match inside a word',()=>{
+  const s=empty(),add=(id,name,brand='')=>s.foods.push(F.food({id,name,brand,kind:'generic',basis:'g',nutrients:{},source:'typical'}));
+  add('butter','Buttermilk');add('oat','Oat milk');add('milk','Milk 3%');add('choc','Chocolate','Milkway');
+  assert.deepEqual(F.search(s,{query:'milk'}).map(f=>f.id),['milk','choc','oat','butter']);
+  F.log(s,by(s,'butter'),{date:'2026-01-19',meal:'Breakfast',amount:200},'b1');
+  assert.equal(F.search(s,{query:'milk'})[0].id,'butter','a food in use still leads, so compound words such as lättmjölk are not buried');
+});
+
+test('a food starts at its latest amount in this meal, then anywhere, then its first portion',()=>{
+  const s=imported(),start=(id,meal='Breakfast')=>plain(F.startAmounts(s,[by(s,id)],meal).get(id));
+  assert.deepEqual(start('example-crispbread'),{amount:100,portion:''},'no use and no portion: 100 g');
+  assert.deepEqual(start('example-oat-drink'),{amount:200,portion:'1 serving'},'no use: the first portion');
+  log(s,'example-oat-drink',250,{date:'2026-01-18',meal:'Lunch'});log(s,'example-oat-drink',150,{date:'2026-01-17',time:'07:00'});
+  assert.deepEqual(start('example-oat-drink','Breakfast'),{amount:150,portion:''},'the latest amount in this meal');
+  assert.deepEqual(start('example-oat-drink','Dinner'),{amount:250,portion:''},'else the latest amount anywhere');
+  log(s,'example-crispbread',12,{date:'2026-01-19',portion:'1 piece'});
+  assert.deepEqual(start('example-crispbread'),{amount:12,portion:''},'a portion the food no longer has is dropped');
+  by(s,'example-crispbread').portions=[{label:'1 piece',amount:13}];
+  assert.deepEqual(start('example-crispbread'),{amount:13,portion:'1 piece'},'a portion it still has logs at its current weight');
+  log(s,'example-cottage-cheese',200,{date:'2026-01-19'});log(s,'example-cottage-cheese',150,{date:'2026-01-19'});
+  assert.deepEqual(start('example-cottage-cheese'),{amount:150,portion:''},'of two in the same minute, the later counts');
+  s.foods[s.foods.indexOf(by(s,'example-cottage-cheese'))]=F.food({...by(s,'example-cottage-cheese'),basis:'portion',portions:[]});
+  assert.deepEqual(start('example-cottage-cheese'),{amount:1,portion:''},'amounts in another unit are ignored');
+});
+
 test('day export follows the food log shape',()=>{
   const s=imported();
   s.foods.push(F.food({id:'bowl',name:'Rice bowl',brand:'',kind:'dish',basis:'portion',nutrients:{energy_kcal:700,protein_g:30},source:'menu',estimate:false}));

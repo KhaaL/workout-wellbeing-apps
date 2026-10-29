@@ -26,11 +26,11 @@ never counted as 0, and totals say how many items lacked it.
   foods stay, and foods the file no longer lists are kept. Export writes the
   same format, including foods added in the app and every field Foodlog does not
   use. See [Foodlog catalog and exports](docs/FOODLOG.md).
-- **Logging:** Today groups the day by meal. **Add food** searches the catalog,
-  ignoring accents, with this meal's recent foods first, then favourites (★,
-  set on the food page). Portion buttons and a
-  stepper set the amount, and a live preview shows its nutrients. A food that
-  is missing can be created from the same dialog. Logs before the day change
+- **Logging:** Today groups the day by meal. Foods holds the catalog, and
+  the add sheet logs from it: **+** logs a food at its usual amount in one tap.
+  Steps, list order and start amounts are in
+  [apps/foodlog/README.md](apps/foodlog/README.md). Logs into today get the
+  clock time; logs into an earlier day get none. Logs before the day change
   time (default 04:00) count toward the previous day. **Copy a meal…** on each
   meal copies one from the last 14 days, same meal first, keeping amounts,
   times and notes; a food still in the catalog logs at its current values.

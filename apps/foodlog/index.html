@@ -37,7 +37,13 @@ table.nutrients{width:100%;border-collapse:collapse;font-size:14px;margin-top:8p
 .entries,.food-list,.day-list{list-style:none;margin:8px 0;padding:0}
 .row-btn{display:flex;width:100%;gap:12px;align-items:center;justify-content:space-between;text-align:left;padding:10px 4px;min-height:52px;background:none;border:0;border-bottom:1px solid var(--border);color:var(--text);font:inherit}
 .row-btn:hover{background:var(--surface-2)}.row-btn .main{min-width:0;display:grid;gap:2px}.row-btn .name{font-weight:600;overflow-wrap:anywhere}.row-btn .sub{font-size:13px;color:var(--muted)}.row-btn .side{flex:none;font-variant-numeric:tabular-nums;font-size:14px;text-align:right}
-.add-to{width:100%;margin-top:8px}.meal-actions{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:8px;margin-top:8px}
+.add-to{width:100%;margin-top:8px}
+.pick-head{position:sticky;top:-16px;z-index:1;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin:-16px -16px 0;padding:16px 16px 0;background:var(--bg)}.pick-head .sheet-head{margin:0}.pick-head input{width:100%;min-height:48px;padding:10px 12px}
+.meal-pick{display:flex;align-items:center;gap:8px;min-width:0}.meal-pick select{font:inherit;min-width:0;max-width:100%;padding:6px 8px}
+.so-far{border-bottom:1px solid var(--border)}.so-far summary{overflow-wrap:anywhere}.so-far .entries{margin:0 0 8px;max-height:40dvh;overflow:auto}#entryMoreText{font-weight:600;overflow-wrap:anywhere}
+.pick-row{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}.pick-row .row-btn{flex:1;min-width:0;border-bottom:0}
+.quick-add{flex:none;width:48px;padding:0;font-size:24px;line-height:1;position:relative}.quick-add[data-count]{border-color:var(--accent);color:var(--accent)}
+.quick-add[data-count]::after{content:attr(data-count);position:absolute;top:3px;right:3px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;background:var(--accent-strong);color:var(--on-accent);font-size:11px;font-weight:700;line-height:16px}.meal-actions{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:8px;margin-top:8px}
 .presets{display:flex;gap:8px;margin:4px 0 12px;flex-wrap:wrap}.presets button{flex:1;min-width:96px;padding:8px;font-size:13px}.presets button[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .preview{font-size:14px;color:var(--muted);margin:8px 0 12px}.preview strong{color:var(--text)}
 dialog.sheet{width:min(100vw - 16px,600px);max-height:calc(100dvh - 16px);padding:16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg);color:var(--text)}
@@ -137,10 +143,10 @@ html.setup-screen .toast{bottom:calc(var(--nav-h) + var(--action-h) + env(safe-a
 
 <dialog id="addDialog" class="sheet" aria-labelledby="addTitle">
 <div id="pickPane">
-<div class="sheet-head"><h2 id="addTitle">Add food</h2><button class="btn" type="button" data-close>Close</button></div>
-<div class="stack">
-<label class="field">Meal<select id="addMeal"></select></label>
-<label class="field">Search<input id="addSearch" type="search" autocomplete="off" spellcheck="false" placeholder="Name or brand"></label>
+<div class="pick-head">
+<div class="sheet-head"><h2 id="addTitle" class="meal-pick">Add to <select id="addMeal" aria-label="Meal"></select></h2><button class="btn" type="button" data-close>Done</button></div>
+<input id="addSearch" type="search" aria-label="Search foods" autocomplete="off" spellcheck="false" enterkeyhint="go" placeholder="Search foods by name or brand">
+<details id="addSoFar" class="so-far"><summary id="addSoFarText"></summary><ul id="addSoFarList" class="entries" aria-label="Logged in this meal"></ul></details>
 </div>
 <ul id="addResults" class="food-list" aria-label="Matching foods"></ul>
 <button id="addNewFood" class="btn add-to" type="button">New food…</button>
@@ -151,8 +157,10 @@ html.setup-screen .toast{bottom:calc(var(--nav-h) + var(--action-h) + env(safe-a
 <div id="portionChips" class="presets" role="group" aria-label="Portions"></div>
 <label class="field"><span id="amountLabel">Amount · g</span><input id="amount" type="number" min="0.01" max="100000" step="any" inputmode="decimal" aria-label="Amount" data-stepper data-increment="5" required></label>
 <div id="amountPreview" class="preview" aria-live="polite"></div>
+<details id="entryMore"><summary id="entryMoreText">Time, meal &amp; note</summary><div class="stack">
 <div class="grid2"><label class="field">Time (optional)<input id="entryTime" type="time"></label><label class="field">Meal<select id="entryMeal"></select></label></div>
 <label class="field">Note (optional)<input id="entryNote" maxlength="300" placeholder="e.g. slice weight assumed"></label>
+</div></details>
 <div class="form-actions"><button id="amountBack" class="btn" type="button">Back</button><button id="removeEntry" class="btn btn-danger" type="button" hidden>Remove</button><button id="saveEntry" class="btn btn-primary" type="submit">Add</button></div>
 </form>
 </dialog>
