@@ -230,6 +230,23 @@ test('Liftlog adds warm-up sets from the Settings steps before the first working
  assert.equal(JSON.stringify(d.api.warmupPlan(s.activeWorkout.exercises[0]).map(p=>p.load)),'[10,15]','bodyweight takes its share of the added load');
  start(block([{...row(null),unit:'time',durationSeconds:60}],{unit:'time'}));assert.equal(d.api.warmupPlan(s.activeWorkout.exercises[0]).length,0,'timed work has none');
 });
+test('Liftlog tells whether a movement family has already worked in this session',()=>{
+ const d=lift(),s=d.api.state;
+ const def=(id,movementFamily)=>({id,name:id,category:'Push',unit:'kg',loadMode:'total',equipmentKey:'',movementFamily,archived:false,notes:'',url:''});
+ s.exercises.push(def('bench','horizontal_push'),def('incline','horizontal_push'),def('press','vertical_push'),def('curl','other'));
+ const set=(extra={})=>({id:Math.random().toString(36).slice(2),weight:50,reps:5,completed:false,unit:'kg',...extra});
+ const block=(id,sets,extra={})=>({exerciseId:id,name:id,unit:'kg',movementFamily:'squat',sets,...extra});
+ const bench=block('bench',[set(),set()]),incline=block('incline',[set()]),press=block('press',[set()]),curl=block('curl',[set()]),curl2=block('curl',[set()]);
+ const w={exercises:[bench,incline,press,curl,curl2]};
+ assert.equal(JSON.stringify(d.api.movementWarmth(w,incline)),'{"family":"horizontal_push","fresh":true}','nothing logged: fresh, using the library family over the block copy');
+ bench.sets[0].completed=true;bench.sets[0].completedAt=1;bench.sets[0].countForVolume=false;bench.sets[0].countForPR=false;
+ assert.equal(d.api.movementWarmth(w,incline).fresh,true,'a warm-up is not work');
+ bench.sets[1].completed=true;bench.sets[1].completedAt=2;
+ assert.equal(JSON.stringify(d.api.movementWarmth(w,incline)),'{"family":"horizontal_push","fresh":false,"by":"bench"}','a working set warms the family');
+ assert.equal(d.api.movementWarmth(w,press).fresh,true,'another family stays fresh');
+ incline.sets[0].completed=true;incline.sets[0].completedAt=3;assert.equal(d.api.movementWarmth(w,bench).by,'incline','the most recent exercise is named');
+ curl.sets[0].completed=true;curl.sets[0].completedAt=4;assert.equal(d.api.movementWarmth(w,curl2),null,'other says nothing');
+});
 test('Liftlog shows the last session compactly, naming a shared load label once',()=>{
  const d=lift(),ex={unit:'kg',loadMode:'machine_stack'},set=(weight,reps,extra={})=>({completed:true,weight,reps,unit:'kg',...extra});
  assert.equal(d.api.lastSessionSummary([set(20,10,{countForVolume:false,countForPR:false}),set(40,10),set(40,10),set(35,9)],ex),'40 × 10, 40 × 10, 35 × 9 kg stack','warm-ups left out, label once');

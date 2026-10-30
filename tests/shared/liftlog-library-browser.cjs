@@ -48,7 +48,7 @@ const fixture={version:14,settings:{lastModifiedAt:1},exercises:[
   assert.equal(await sheet.isVisible(),false,'starting closes the preview and exposes workout controls');
   assert.equal(await page.evaluate(()=>document.activeElement.id),'workout-title');
   // The quiet button above the sets adds the Settings warm-ups (50% then 75%) before the first working set; a swap drops them with the old movement's load.
-  const warmButton=page.locator('#main [data-action="add-warmups"]');assert.equal((await warmButton.textContent()).trim(),'2 warm-up sets');
+  const warmButton=page.locator('#main [data-action="add-warmups"]');assert.equal((await warmButton.textContent()).trim(),'2 warm-up sets · first horizontal push');
   await warmButton.click();await page.locator('.set-row.is-warmup').nth(1).waitFor();assert.equal(await page.locator('.set-row.is-warmup').count(),2);
   assert.equal(await page.evaluate(()=>testAPI.state.activeWorkout.exercises[0].sets.map(s=>s.weight+'x'+s.reps).join()),'10x8,15x8,20xnull,20xnull,20xnull');
   assert.equal(await warmButton.count(),0,'one set of warm-ups per exercise');

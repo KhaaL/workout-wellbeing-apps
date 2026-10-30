@@ -28,7 +28,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
 
     /* Defaults: two warm-ups at 50% and 75% for the working reps, resting 1:00 then 2:00. */
     await start();
-    assert.equal((await button.textContent()).trim(), '2 warm-up sets', 'a small button above the sets offers the default two warm-ups');
+    assert.equal((await button.textContent()).trim(), '2 warm-up sets · first horizontal push', 'a small button above the sets offers the default two warm-ups');
     assert.ok(await button.evaluate(b => b.classList.contains('btn-sm') && b.classList.contains('btn-quiet')), 'the button is small and quiet');
     await button.click();
     assert.deepEqual(await sets(), [[50, 6, 60], [75, 6, 120], [100, null, null], [100, null, null], [100, null, null]],
@@ -64,7 +64,34 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     await button.click();
     assert.deepEqual((await sets()).slice(0, 2), [[75, 6, 120], [90, 6, 150]]);
 
+    /* The button says whether the movement family has worked yet in this workout. */
+    await page.evaluate(() => {
+      const t = window.testAPI;
+      t.state.activeWorkout = null;
+      t.state.exercises = [
+        { id:'bench', name:'Bench Press', category:'Push', unit:'kg', loadMode:'total', equipmentKey:'', movementFamily:'horizontal_push', archived:false, notes:'', url:'' },
+        { id:'incline', name:'Incline Press', category:'Push', unit:'kg', loadMode:'total', equipmentKey:'', movementFamily:'horizontal_push', archived:false, notes:'', url:'' },
+        { id:'curl', name:'Curl', category:'Pull', unit:'kg', loadMode:'total', equipmentKey:'', movementFamily:'other', archived:false, notes:'', url:'' }];
+      t.state.routines = [{ id:'r2', name:'Push', items:['bench', 'incline', 'curl'].map((id, i) => ({ id:'j' + i, exerciseId:id, sets:2, repsMin:6, repsMax:8, weight:60 })) }];
+      t.startRoutine('r2'); t.navigate('today');
+    });
+    const goTo = i => page.evaluate(i => { const t = window.testAPI; t.state.activeWorkout.currentExerciseIndex = i; t.render(); }, i);
+    const warmAdd = page.locator('#main .warmup-add');
+    assert.equal((await button.textContent()).trim(), '2 warm-up sets · first horizontal push', 'the first exercise of a family says so');
+    await goTo(1);
+    assert.equal((await warmAdd.textContent()).trim(), '2 warm-up sets · first horizontal push', 'nothing logged yet: still fresh');
+    await goTo(0); await button.click(); await page.locator('.set-done-btn').nth(0).click();
+    await goTo(1);
+    assert.equal((await warmAdd.textContent()).trim(), '2 warm-up sets · first horizontal push', 'a warm-up is not work');
+    await goTo(0); await page.locator('.set-done-btn').nth(2).click();
+    await goTo(1);
+    assert.equal(await warmAdd.locator('.warmup-note').textContent(), 'horizontal push worked: Bench Press', 'after a working set the family is worked');
+    assert.equal((await button.textContent()).trim(), '2 warm-up sets');
+    assert.match(await button.getAttribute('aria-label'), /horizontal push already worked by Bench Press$/);
+    await goTo(2);
+    assert.equal((await warmAdd.textContent()).trim(), '2 warm-up sets', 'an unclassified exercise says nothing');
+
     assert.deepEqual(errors, []);
-    console.log('warmups: 18 checks passed');
+    console.log('warmups: 25 checks passed');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });

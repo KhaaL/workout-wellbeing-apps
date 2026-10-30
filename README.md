@@ -539,6 +539,11 @@ to the load step. Steps that round to nothing, to the working load or to the
 previous step are dropped, so light loads get fewer. Bodyweight work takes its
 share of the added load; timed work gets none. Warm-ups count toward neither
 volume nor records, and a swap drops them with the old movement's load.
+The button also says whether the exercise's movement family (Exercises → Movement
+family) has done working sets yet in this workout: "first horizontal push" when
+it has not, or a note such as "horizontal push worked: Chest Press Machine" when
+it has. Warm-ups do not count as work, and the families `other` and `cardio`
+show neither.
 
 History opens on **Sessions** (stats and the session list). **Progress** holds
 progression flags, load results and the weekly chart; **Compare** holds the
