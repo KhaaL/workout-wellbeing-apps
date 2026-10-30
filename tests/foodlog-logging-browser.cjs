@@ -87,7 +87,8 @@ async function open(browser,options){
 
     await page.locator('#pickPane [data-close]').click();await dialog.waitFor({state:'hidden'});
     assert.equal(await page.locator('section.meal[aria-label="Breakfast"] .row-btn').count(),2);
-    assert.equal(await page.locator('body > #toast').count(),1,'the toast returns to the page when the sheet closes');
+    // The dialog hides at once, but its close event, which moves the toast back, runs in a later task.
+    await page.waitForFunction(()=>document.getElementById('toast').parentElement===document.body,null,{timeout:2000});
     console.log('PASS Done closes the sheet on the updated day');
 
     await page.click('#prevDay');await page.getByRole('button',{name:'Add to Breakfast'}).click();
