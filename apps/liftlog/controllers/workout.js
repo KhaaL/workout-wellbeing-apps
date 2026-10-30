@@ -427,8 +427,6 @@ function openExerciseMenu(){
   let next = null;
   const button = (text, css, action) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + css; b.textContent = text;
     b.addEventListener('click', () => { next = action; dialog.close(); }); actions.append(b); };
-  const ramp = warmupPlan(ex);
-  if (ramp.length) button('Add ' + context.plural(ramp.length, 'warm-up set'), '', addWarmups);
   if (canSwap(ex)) button('Swap for another exercise…', '', openSwapDialog);
   button('Remove exercise…', 'btn-danger', () => confirmExerciseRemoval(w, ex));
   button('Cancel', '', null);
@@ -554,23 +552,26 @@ function addSet(){
   context.render();
   context.toast('Set ' + ex.sets.length + ' added');
 }
-/* A warm-up ramp before the first working set: 50% for 8, 70% for 5 and 85%
-   for 3 of its load, each rounded to the Settings load step. A step that rounds
-   to nothing, to the working load or to the step before it is dropped, so a
-   light load gets fewer warm-ups. Bodyweight work ramps its added load from
-   none. Timed work, a set with no load, and an exercise that already has
-   warm-ups or logged sets get none. */
-const WARMUP_RAMP = [[0.5, 8], [0.7, 5], [0.85, 3]];
+/* Warm-up sets before the first working set, from the steps in Settings
+   (by default 50% of its load then 75%, resting 1:00 then 2:00). Each is done
+   for the working set's reps, or the bottom of the target range when those
+   are blank, and its load is rounded to the Settings load step. A step that
+   rounds to nothing, to the working load or to the step before it is dropped,
+   so a light load gets fewer warm-ups. Bodyweight work takes its share of the
+   added load, and a share that rounds to none is a bodyweight-only set. Timed
+   work, a set with no load, and an exercise that already has warm-ups or
+   logged sets get none. */
 function warmupPlan(ex){
   if (!ex || ex.unit === 'time' || ex.sets.some(s => s.completed || context.isWarmup(s))) return [];
   const first = ex.sets[0], bodyweight = ex.unit === 'bw';
   const load = first && context.toNum(bodyweight ? first.addedWeight : first.weight);
   if (load == null || load <= 0) return [];
+  const reps = context.toNum(first.reps) || context.toNum(ex.targetRepsMin) || context.toNum(ex.targetReps) || null;
   const step = context.toNum(context.state.settings.loadStep) || 2.5, plan = [];
-  for (const [share, reps] of bodyweight ? [[0, 8], [0.5, 5]] : WARMUP_RAMP){
-    const value = Math.round(Math.round(load * share / step) * step * 100) / 100;
+  for (const { percent, rest } of context.state.settings.warmupSteps){
+    const value = Math.round(Math.round(load * percent / 100 / step) * step * 100) / 100;
     if ((value <= 0 && !bodyweight) || value >= load || plan.some(p => p.load === value)) continue;
-    plan.push({ load:value, reps });
+    plan.push({ load:value, reps, rest });
   }
   return plan;
 }
@@ -579,11 +580,12 @@ function addWarmups(){
   const ex = currentExercise(), plan = warmupPlan(ex);
   if (!plan.length){ context.toast('No warm-up sets to add for ' + (ex ? ex.name : 'this exercise')); return; }
   const first = ex.sets[0], bodyweight = ex.unit === 'bw';
-  const rows = plan.map(({ load, reps }) => {
+  const rows = plan.map(({ load, reps, rest }) => {
     const s = newSetFrom(ex, null);
     if (bodyweight){ s.addedWeight = load; s.addedWeightUnit = first.addedWeightUnit || context.unitLabel(); }
     else { s.weight = load; s.unit = first.unit || s.unit; }
-    s.reps = reps; context.setWarmup(s, true);
+    /* the rest after this set; currentRestSeconds reads it once it is logged */
+    s.reps = reps; s.restSeconds = rest; context.setWarmup(s, true);
     return s;
   });
   ex.sets.unshift(...rows);

@@ -241,6 +241,8 @@ kbd{
 .mt-2{ margin-top:var(--sp-2); }
 .mt-3{ margin-top:var(--sp-3); }
 .mt-4{ margin-top:var(--sp-4); }
+/* The quiet "+ 2 warm-up sets" above a fresh set list, close to the rows it adds to. */
+.warmup-add{ display:flex; justify-content:flex-end; margin:var(--sp-3) 0 calc(-1 * var(--sp-3)); }
 .mt-5{ margin-top:var(--sp-5); }
 .mb-3{ margin-bottom:var(--sp-3); }
 .mb-4{ margin-bottom:var(--sp-4); }
@@ -1930,6 +1932,13 @@ function validateBackup(s){
     fields(s.settings, 'settings', ['theme', 'unit', 'effortMetric', 'historyLinksDismissedKey'], text);
     fields(s.settings, 'settings', ['defaultRest', 'loadStep', 'lastFileBackupAt', 'lastModifiedAt', 'seededAt'], number);
     fields(s.settings, 'settings', ['autoRest', 'sound', 'vibrate'], bool);
+    if (s.settings.warmupSteps != null){
+      array(s.settings.warmupSteps, 'settings.warmupSteps');
+      s.settings.warmupSteps.forEach((step, i) => {
+        const here = 'settings.warmupSteps[' + i + ']'; object(step, here);
+        fields(step, here, ['percent', 'rest'], number);
+      });
+    }
     if (s.settings.lastModifiedAt != null && (!Number.isSafeInteger(s.settings.lastModifiedAt) || s.settings.lastModifiedAt < 0 || s.settings.lastModifiedAt > 8640000000000000))
       fail('settings.lastModifiedAt', 'a nonnegative integer epoch revision');
   }
@@ -2020,7 +2029,7 @@ function validateBackup(s){
       ex.sets.forEach((set, j) => {
         const here = at + '.sets[' + j + ']'; object(set, here);
         id(set.id, here + '.id', sets);
-        fields(set, here, ['weight', 'addedWeight', 'reps', 'durationSeconds', 'rpe', 'rir', 'distance'], number);
+        fields(set, here, ['weight', 'addedWeight', 'reps', 'durationSeconds', 'rpe', 'rir', 'distance', 'restSeconds'], number);
         timestamp(set.completedAt, here + '.completedAt');
         fields(set, here, ['unit', 'setType', 'addedWeightUnit', 'distanceUnit'], text);
         fields(set, here, ['completed', 'countForVolume', 'countForPR', 'includeInVolume'], bool);
@@ -2204,6 +2213,7 @@ function normalizeState(s){
   set.sound = !!set.sound;
   set.vibrate = !!set.vibrate;
   set.effortMetric = EFFORT_METRICS.includes(set.effortMetric) ? set.effortMetric : d.effortMetric;
+  set.warmupSteps = normalizeWarmupSteps(set.warmupSteps);
   set.lastFileBackupAt = toNum(set.lastFileBackupAt);
   set.lastModifiedAt = toNum(set.lastModifiedAt);
   set.seededAt = toNum(set.seededAt);
@@ -2315,8 +2325,25 @@ const EFFORT_METRICS = ['none', 'rpe', 'rir'];
    on a bar, and a step most stacks can make. */
 const LOAD_STEP_DEFAULT = { kg:2.5, lb:5 };
 const LOAD_STEP_BOUNDS = [0.25, 50];
+/* Warm-up sets, lightest first: a share of the first working set's load and
+   the rest that follows the set. */
+const WARMUP_STEPS_DEFAULT = [{ percent:50, rest:60 }, { percent:75, rest:120 }];
+const WARMUP_PERCENT_BOUNDS = [5, 95], WARMUP_MAX_STEPS = 4;
+/* Steps that are not a number, out of bounds or not heavier than the one
+   before are dropped; nothing usable left means the default steps. */
+function normalizeWarmupSteps(steps){
+  const out = [];
+  for (const step of Array.isArray(steps) ? steps : []){
+    const percent = toNum(step && step.percent), rest = toNum(step && step.rest);
+    if (percent == null || rest == null || percent < WARMUP_PERCENT_BOUNDS[0] || percent > WARMUP_PERCENT_BOUNDS[1]) continue;
+    if (out.length && percent <= out[out.length - 1].percent) continue;
+    out.push({ percent:Math.round(percent), rest:clamp(Math.round(rest), REST_MIN, REST_MAX) });
+  }
+  return (out.length ? out : WARMUP_STEPS_DEFAULT).slice(0, WARMUP_MAX_STEPS).map(step => ({ ...step }));
+}
 function defaultSettings(){
   return { theme:'system', unit:'kg', defaultRest:90, autoRest:true, sound:true, vibrate:true, effortMetric:'none',
+           warmupSteps:normalizeWarmupSteps(WARMUP_STEPS_DEFAULT),
            loadStep:LOAD_STEP_DEFAULT.kg, lastFileBackupAt:null, lastModifiedAt:null, seededAt:null, historyLinksDismissedKey:'' };
 }
 /* History is kept newest-first everywhere; every mutation that can change a
@@ -2497,6 +2524,8 @@ function freshUI(){
     remoteStatus:'idle',        /* checking | pending | synced | error */
     remoteStatusText:'',
     settingsSections:{},        /* disclosure choices survive settings re-renders */
+    warmupDraft:null,           /* warm-up steps being edited in Settings, until Save */
+    warmupStatus:'',            /* the warm-up form's status line */
     backupNagged:false          /* the stale-backup reminder is shown once per page load */
   };
 }
@@ -3051,12 +3080,21 @@ function restOverride(block){
   const def = block && exerciseById(canonicalExerciseId(block.exerciseId));
   return def ? normalizeRestSeconds(def.restSeconds) : null;
 }
-/* The rest after a set of `ex`; by default the exercise on screen. */
+/* The rest after a set of `ex`; by default the exercise on screen. A
+   warm-up set carries its own rest (Settings → Warm-up sets), which applies
+   while it is the latest set logged and work is still open. */
 function currentRestSeconds(ex){
   const w = state.activeWorkout;
   if (ex === undefined) ex = w ? w.exercises[currentMemberIndex(w)] : null;
+  const warm = warmupRest(ex);
+  if (warm != null) return warm;
   const own = restOverride(ex);
   return own != null ? own : state.settings.defaultRest;
+}
+function warmupRest(ex){
+  if (!ex || !Array.isArray(ex.sets) || !ex.sets.some(s => !s.completed)) return null;
+  const last = ex.sets.filter(s => s.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))[0];
+  return last && isWarmup(last) ? normalizeRestSeconds(last.restSeconds) : null;
 }
 function timerLeft(t){
   return t.running ? Math.max(0, (t.endsAt - Date.now())/1000) : t.remaining;
@@ -5181,7 +5219,7 @@ function htmlCurrentExercise(w, ex){
           (ex.targetWeight != null ? ' @ ' + (bodyweight ? '+' : '') + fmtNum(ex.targetWeight) + ' ' + exerciseLoadLabel(ex) : '') +
           (ex.targetRir != null ? ' · RIR ' + fmtNum(ex.targetRir) : '') + '</span>' +
         '<span class="tag">' + icon('timer','ic-inline') + ' rest ' + fmtClock(currentRestSeconds()) +
-          (restOverride(ex) != null ? ' (this exercise)' : '') + '</span>' +
+          (warmupRest(ex) != null ? ' (warm-up)' : restOverride(ex) != null ? ' (this exercise)' : '') + '</span>' +
       '</span>' +
       /* Read from the library rather than from the session's own copy of the
          exercise: a link corrected today should work in a session started
@@ -5193,6 +5231,7 @@ function htmlCurrentExercise(w, ex){
     prevHTML +
     (ex.notes ? '<p class="ex-notes">“' + esc(ex.notes) + '”</p>' : '') +
     (cue ? loadCueHTML(cue, ex) : '') +
+    warmupButtonHTML(ex) +
     '<div class="mt-4 ' + cols + '" role="group" aria-label="Sets for ' + esc(ex.name) + '">' + setsHTML + '</div>' +
     '<div class="sets-foot">' +
       '<button type="button" class="btn" data-action="add-set">' + IC.plus + '<span>Add set</span></button>' +
@@ -5202,6 +5241,16 @@ function htmlCurrentExercise(w, ex){
   '</div>';
 }
 
+/* Warm-ups go above the first working set, so the button that adds them sits
+   there too, quiet and small: it is offered only before anything is logged. */
+function warmupButtonHTML(ex){
+  const plan = warmupPlan(ex);
+  if (!plan.length) return '';
+  const what = plan.map(p => fmtNum(p.load) + (p.reps ? ' × ' + p.reps : '')).join(', ');
+  return '<div class="warmup-add"><button type="button" class="btn btn-sm btn-quiet" data-action="add-warmups" ' +
+    'aria-label="Add ' + plural(plan.length, 'warm-up set') + ' to ' + esc(ex.name) + ': ' + esc(what) + '">' +
+    IC.plus + '<span>' + plural(plan.length, 'warm-up set') + '</span></button></div>';
+}
 /* Which superset this is and how to switch to its partner. Logging a set
    switches on its own; the button is for doing things out of order. */
 function htmlSupersetNote(w, ex, run){
@@ -6728,7 +6777,7 @@ function htmlExerciseEditRow(e){
 /* ---------- SETTINGS ---------- */
 function settingsContext(){
   return {
-    state,ui,IC,THEMES,REST_MIN,REST_MAX,LOAD_STEP_BOUNDS,esc,unitLabel,fmtNum,fmtDate,convertWeight,toLocalInput,
+    state,ui,IC,THEMES,REST_MIN,REST_MAX,LOAD_STEP_BOUNDS,WARMUP_PERCENT_BOUNDS,WARMUP_MAX_STEPS,esc,unitLabel,fmtNum,fmtDate,convertWeight,toLocalInput,
     cloudSummaryText,storageAttention:hasRescuedData,workoutHandoff,systemBarDiagnostics,historyExerciseIdentities,exerciseById,unresolvedHistoryExercises,
     historyImportSummaryHTML,shortcutTable
   };
@@ -6741,6 +6790,35 @@ function shortcutTable(){
     SHORTCUTS.map(sc => '<tr><td>' + sc.keys.map(k => '<kbd>' + esc(k) + '</kbd>').join(' ') +
       '</td><td>' + esc(sc.text) + '</td></tr>').join('') +
     '</tbody></table>';
+}
+/* The warm-up form as typed, so Add and Remove keep what is in the fields. */
+function readWarmupForm(form){
+  const values = name => [...form.querySelectorAll('[name="' + name + '"]')].map(el => el.value);
+  const rest = values('wu-rest');
+  return values('wu-percent').map((percent, i) => ({ percent, rest:rest[i] }));
+}
+function editWarmupSteps(change){
+  const form = $('#warmup-form'); if (!form) return;
+  ui.warmupDraft = readWarmupForm(form);
+  change(ui.warmupDraft);
+  ui.warmupStatus = 'Not saved yet.';
+  render();
+}
+function saveWarmupSteps(form){
+  const steps = readWarmupForm(form).map(step => ({ percent:toNum(step.percent), rest:toNum(step.rest) }));
+  const bad = steps.findIndex((step, i) => step.percent == null || step.rest == null ||
+    step.percent < WARMUP_PERCENT_BOUNDS[0] || step.percent > WARMUP_PERCENT_BOUNDS[1] ||
+    step.rest < REST_MIN || step.rest > REST_MAX || (i > 0 && step.percent <= steps[i - 1].percent));
+  if (bad !== -1){
+    ui.warmupDraft = readWarmupForm(form);
+    ui.warmupStatus = 'Warm-up ' + (bad + 1) + ' needs ' + WARMUP_PERCENT_BOUNDS[0] + '–' + WARMUP_PERCENT_BOUNDS[1] +
+      '% of the working load, more than the warm-up before it, and a rest of ' + REST_MIN + '–' + REST_MAX + ' seconds. Nothing was saved.';
+    render(); announce(ui.warmupStatus); return;
+  }
+  state.settings.warmupSteps = normalizeWarmupSteps(steps);
+  ui.warmupDraft = null;
+  ui.warmupStatus = 'Saved: ' + state.settings.warmupSteps.map(step => step.percent + '% then ' + fmtClock(step.rest) + ' rest').join(', ') + '.';
+  save(); render(); announce(ui.warmupStatus);
 }
 function addBodyweightEntry(form){
   const date = form.elements.namedItem('bodyweight-date');
@@ -6957,6 +7035,8 @@ const actions = {
   },
 
   'export'(){ exportData(); },
+  'warmup-step-add'(){ editWarmupSteps(steps => { if (steps.length < WARMUP_MAX_STEPS) steps.push({ percent:'', rest:'' }); }); },
+  'warmup-step-remove'(d){ editWarmupSteps(steps => { if (steps.length > 1) steps.splice(Number(d.idx), 1); }); },
   'bodyweight-del'(d){
     const entry = (state.bodyweights || []).find(x => x.id === d.id); if (!entry) return;
     confirmDlg('Delete bodyweight entry?', fmtDate(entry.loggedAt) + ' · ' +
@@ -7490,6 +7570,7 @@ document.addEventListener('submit', e => {
     if (error){ ui.mergeExerciseError = error; render(); }
   }
   else if (kind === 'bodyweight-add'){ addBodyweightEntry(form); }
+  else if (kind === 'warmup-save'){ saveWarmupSteps(form); }
 });
 
 
