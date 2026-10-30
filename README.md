@@ -529,12 +529,16 @@ replaces the current exercise for that session only. The new one keeps the set
 count, and the rep range and target RIR when both are counted the same way;
 pairings carry over and the routine is unchanged.
 
-**More… → Add warm-up sets** puts a ramp before the first working set when nothing is
-logged yet: 50% of its load for 8, 70% for 5 and 85% for 3, rounded to the load
-step. Steps that round to nothing, to the working load or to the previous step
-are dropped, so light loads get fewer. Bodyweight work ramps its added load
-from none; timed work gets none. Warm-ups count toward neither volume nor
-records, and a swap drops them with the old movement's load.
+A small **+ 2 warm-up sets** button above the set list adds warm-ups before the
+first working set while nothing is logged yet. By default there are two, both for
+the working set's reps (or the bottom of the target range when those are blank):
+50% of its load with 1:00 rest after it, then 75% with 2:00 rest. Working sets
+then rest for the normal time. **Settings → Warm-up sets** changes the steps:
+1 to 4 warm-ups, each heavier than the one before, with its own rest. Loads round
+to the load step. Steps that round to nothing, to the working load or to the
+previous step are dropped, so light loads get fewer. Bodyweight work takes its
+share of the added load; timed work gets none. Warm-ups count toward neither
+volume nor records, and a swap drops them with the old movement's load.
 
 History opens on **Sessions** (stats and the session list). **Progress** holds
 progression flags, load results and the weekly chart; **Compare** holds the

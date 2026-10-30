@@ -47,10 +47,12 @@ const fixture={version:14,settings:{lastModifiedAt:1},exercises:[
   assert.equal(await page.evaluate(()=>testAPI.state.activeWorkout.exercises.length),2);
   assert.equal(await sheet.isVisible(),false,'starting closes the preview and exposes workout controls');
   assert.equal(await page.evaluate(()=>document.activeElement.id),'workout-title');
-  // A warm-up ramp goes before the first working set; a swap drops it with the old movement's load.
-  await page.locator('[data-action="exercise-menu"]').click();await page.getByRole('dialog',{name:'More for Visible Press'}).getByRole('button',{name:'Add 3 warm-up sets',exact:true}).click();await page.locator('.set-row.is-warmup').nth(2).waitFor();assert.equal(await page.locator('.set-row.is-warmup').count(),3);
-  assert.equal(await page.evaluate(()=>testAPI.state.activeWorkout.exercises[0].sets.map(s=>s.weight).join()),'10,15,17.5,20,20,20');
-  await page.locator('[data-action="exercise-menu"]').click();const menu=page.getByRole('dialog',{name:'More for Visible Press'});assert.equal(await menu.getByRole('button',{name:/warm-up/}).count(),0,'one ramp per exercise');
+  // The quiet button above the sets adds the Settings warm-ups (50% then 75%) before the first working set; a swap drops them with the old movement's load.
+  const warmButton=page.locator('#main [data-action="add-warmups"]');assert.equal((await warmButton.textContent()).trim(),'2 warm-up sets');
+  await warmButton.click();await page.locator('.set-row.is-warmup').nth(1).waitFor();assert.equal(await page.locator('.set-row.is-warmup').count(),2);
+  assert.equal(await page.evaluate(()=>testAPI.state.activeWorkout.exercises[0].sets.map(s=>s.weight+'x'+s.reps).join()),'10x8,15x8,20xnull,20xnull,20xnull');
+  assert.equal(await warmButton.count(),0,'one set of warm-ups per exercise');
+  await page.locator('[data-action="exercise-menu"]').click();const menu=page.getByRole('dialog',{name:'More for Visible Press'});assert.equal(await menu.getByRole('button',{name:/warm-up/}).count(),0,'the More… menu no longer adds warm-ups');
   // Swap keeps the prescription for this session; the swapped-in exercise brings its own rest.
   await menu.getByRole('button',{name:'Swap for another exercise…',exact:true}).click();const swap=page.getByRole('dialog',{name:'Swap Visible Press'});
   assert.match(await swap.textContent(),/keeps 3 sets of 8 to 10 reps/);assert.equal(await swap.locator('optgroup[label="Same movement family"] option').count(),1);

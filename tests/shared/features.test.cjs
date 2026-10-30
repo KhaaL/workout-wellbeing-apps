@@ -204,21 +204,30 @@ test('Bike backups accept measured power and reject malformed power',()=>{
   const bad=JSON.parse(JSON.stringify(backup));change(bad.history[0]);assert.throws(()=>d.api.prepare(bad),pattern);
  }
 });
-test('Liftlog adds a warm-up ramp before the first working set',()=>{
- const d=lift(),s=d.api.state;s.settings.unit='kg';s.settings.loadStep=2.5;
+test('Liftlog adds warm-up sets from the Settings steps before the first working set',()=>{
+ const d=lift(),s=d.api.state;s.settings.unit='kg';s.settings.loadStep=2.5;s.settings.defaultRest=90;
  const row=(weight,extra={})=>({id:Math.random().toString(36).slice(2),weight,reps:null,durationSeconds:null,completed:false,unit:'kg',...extra});
  const start=(block)=>{s.activeWorkout={id:'now',routineId:'',routineName:'Free',startedAt:Date.now(),finishedAt:null,notes:'',currentExerciseIndex:0,timer:null,exercises:[block]};};
  const block=(sets,extra={})=>({exerciseId:'bench',name:'Bench',unit:'kg',loadMode:'total',equipmentKey:'',movementFamily:'horizontal_push',plannedSets:3,targetRepsMin:5,targetRepsMax:8,targetRir:null,skipped:false,notes:'',sets,...extra});
- start(block([row(100),row(100),row(100)]));d.api.addWarmups();
- const sets=s.activeWorkout.exercises[0].sets;
- assert.equal(JSON.stringify(sets.map(x=>[x.weight,x.reps,x.countForVolume===false&&x.countForPR===false])),
-  JSON.stringify([[50,8,true],[70,5,true],[85,3,true],[100,null,false],[100,null,false],[100,null,false]]));
- assert.equal(d.api.warmupPlan(s.activeWorkout.exercises[0]).length,0,'a second ramp is not offered');
- start(block([row(5),row(5)]));assert.equal(JSON.stringify(d.api.warmupPlan(s.activeWorkout.exercises[0])),'[{"load":2.5,"reps":8}]','a light load gets fewer warm-ups');
+ assert.equal(JSON.stringify(s.settings.warmupSteps),'[{"percent":50,"rest":60},{"percent":75,"rest":120}]','two warm-ups by default: 50% then 75%, resting 1:00 then 2:00');
+ start(block([row(100,{reps:6}),row(100,{reps:6}),row(100,{reps:6})]));d.api.addWarmups();
+ const ex=s.activeWorkout.exercises[0],sets=ex.sets;
+ assert.equal(JSON.stringify(sets.map(x=>[x.weight,x.reps,x.countForVolume===false&&x.countForPR===false,x.restSeconds??null])),
+  JSON.stringify([[50,6,true,60],[75,6,true,120],[100,6,false,null],[100,6,false,null],[100,6,false,null]]),'warm-ups use the working reps');
+ assert.equal(d.api.warmupPlan(ex).length,0,'a second set of warm-ups is not offered');
+ assert.equal(d.api.currentRestSeconds(ex),90,'nothing logged: the normal rest');
+ sets[0].completed=true;sets[0].completedAt=1;assert.equal(d.api.currentRestSeconds(ex),60,'after the first warm-up: its own rest');
+ sets[1].completed=true;sets[1].completedAt=2;assert.equal(d.api.currentRestSeconds(ex),120,'after the second warm-up: its own rest');
+ sets[2].completed=true;sets[2].completedAt=3;assert.equal(d.api.currentRestSeconds(ex),90,'after a working set: the normal rest');
+ start(block([row(100),row(100)]));assert.equal(d.api.warmupPlan(s.activeWorkout.exercises[0])[0].reps,5,'blank reps fall back to the bottom of the target range');
+ s.settings.warmupSteps=[{percent:40,rest:45},{percent:60,rest:60},{percent:80,rest:90}];
+ assert.equal(JSON.stringify(d.api.warmupPlan(s.activeWorkout.exercises[0])),'[{"load":40,"reps":5,"rest":45},{"load":60,"reps":5,"rest":60},{"load":80,"reps":5,"rest":90}]','the Settings steps decide the warm-ups');
+ s.settings.warmupSteps=[{percent:50,rest:60},{percent:75,rest:120}];
+ start(block([row(5),row(5)]));assert.equal(JSON.stringify(d.api.warmupPlan(s.activeWorkout.exercises[0])),'[{"load":2.5,"reps":5,"rest":60}]','a light load gets fewer warm-ups');
  start(block([row(100,{completed:true,reps:5}),row(100)]));assert.equal(d.api.warmupPlan(s.activeWorkout.exercises[0]).length,0,'not after a logged set');
- start(block([row(null)]));assert.equal(d.api.warmupPlan(s.activeWorkout.exercises[0]).length,0,'no load, no ramp');
+ start(block([row(null)]));assert.equal(d.api.warmupPlan(s.activeWorkout.exercises[0]).length,0,'no load, no warm-ups');
  start(block([{...row(null),unit:'bw',addedWeight:20,addedWeightUnit:'kg'}],{unit:'bw',loadMode:'bodyweight_added'}));
- assert.equal(JSON.stringify(d.api.warmupPlan(s.activeWorkout.exercises[0])),'[{"load":0,"reps":8},{"load":10,"reps":5}]','bodyweight ramps its added load');
+ assert.equal(JSON.stringify(d.api.warmupPlan(s.activeWorkout.exercises[0]).map(p=>p.load)),'[10,15]','bodyweight takes its share of the added load');
  start(block([{...row(null),unit:'time',durationSeconds:60}],{unit:'time'}));assert.equal(d.api.warmupPlan(s.activeWorkout.exercises[0]).length,0,'timed work has none');
 });
 test('Liftlog shows the last session compactly, naming a shared load label once',()=>{

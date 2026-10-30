@@ -3,7 +3,7 @@
 const LiftlogSettings = (() => {
   function templates(context){
     const {
-      state,ui,IC,THEMES,REST_MIN,REST_MAX,LOAD_STEP_BOUNDS,esc,unitLabel,fmtNum,fmtDate,convertWeight,toLocalInput,
+      state,ui,IC,THEMES,REST_MIN,REST_MAX,LOAD_STEP_BOUNDS,WARMUP_PERCENT_BOUNDS,WARMUP_MAX_STEPS,esc,unitLabel,fmtNum,fmtDate,convertWeight,toLocalInput,
       cloudSummaryText,storageAttention,workoutHandoff,systemBarDiagnostics,historyExerciseIdentities,exerciseById,unresolvedHistoryExercises,
       historyImportSummaryHTML,shortcutTable
     }=context;
@@ -24,6 +24,31 @@ const LiftlogSettings = (() => {
           '<div class="bodyweight-row"><span>' + fmtDate(entry.loggedAt) + '</span><strong>' +
             fmtNum(convertWeight(entry.weight, entry.unit, unitLabel())) + ' ' + unitLabel() + '</strong>' +
             '<button type="button" class="btn btn-sm btn-danger" data-action="bodyweight-del" data-id="' + esc(entry.id) + '" aria-label="Delete bodyweight entry from ' + esc(fmtDate(entry.loggedAt)) + '">' + IC.trash + '<span class="sr-only">Delete</span></button></div>').join('') + '</div>' : '') +
+      '</div>';
+    }
+
+    /* The steps are checked together (each heavier than the one before), so
+       the block is a form with its own Save and status line. Add and Remove
+       edit a draft that only Save commits. */
+    function warmupSettingsHTML(){
+      const steps = ui.warmupDraft || state.settings.warmupSteps;
+      const row = (step, i) => '<div class="form-row warmup-step">' +
+        '<label class="field"><span class="cap">Warm-up ' + (i + 1) + ' (% load)</span>' +
+          '<input type="number" name="wu-percent" min="' + WARMUP_PERCENT_BOUNDS[0] + '" max="' + WARMUP_PERCENT_BOUNDS[1] + '" step="1" inputmode="numeric" required value="' + esc(String(step.percent)) + '"></label>' +
+        '<label class="field"><span class="cap">Rest after (s)</span>' +
+          '<input type="number" name="wu-rest" min="' + REST_MIN + '" max="' + REST_MAX + '" step="15" inputmode="numeric" required value="' + esc(String(step.rest)) + '"></label>' +
+        (steps.length > 1 ? '<button type="button" class="btn btn-sm btn-quiet" data-action="warmup-step-remove" data-idx="' + i + '" aria-label="Remove warm-up ' + (i + 1) + '">' + IC.trash + '<span class="sr-only">Remove</span></button>' : '') +
+      '</div>';
+      return '<div class="setting-block">' +
+        '<h3>Warm-up sets</h3>' +
+        '<p class="desc">What the warm-up button on the current exercise adds before the first working set. Each warm-up uses the working set’s reps and a share of its load, rounded to the load step. After the last warm-up, sets rest for the normal time.</p>' +
+        '<form data-form="warmup-save" id="warmup-form">' + steps.map(row).join('') +
+          '<div class="form-actions">' +
+            (steps.length < WARMUP_MAX_STEPS ? '<button type="button" class="btn btn-sm" data-action="warmup-step-add">' + IC.plus + '<span>Add warm-up</span></button>' : '') +
+            '<button type="submit" class="btn btn-primary">Save warm-ups</button>' +
+          '</div>' +
+          '<p class="hint" id="warmup-status" role="status">' + esc(ui.warmupStatus || '') + '</p>' +
+        '</form>' +
       '</div>';
     }
 
@@ -87,6 +112,7 @@ const LiftlogSettings = (() => {
               (s.vibrate ? ' checked' : '') + (navigator.vibrate ? '' : ' disabled') + '><span class="track" aria-hidden="true"></span></span>' +
           '</div>' +
         '</div>' +
+        warmupSettingsHTML() +
         '<div class="setting-block">' +
           '<h3>Appearance</h3><p class="desc">Theme follows your system by default. Color themes apply instantly and are remembered on this device.</p>' +
           '<label class="field theme-field"><span class="cap">Theme</span><select id="themeChoice" data-change="theme">' +
