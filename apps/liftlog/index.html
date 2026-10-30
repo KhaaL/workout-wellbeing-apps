@@ -242,7 +242,8 @@ kbd{
 .mt-3{ margin-top:var(--sp-3); }
 .mt-4{ margin-top:var(--sp-4); }
 /* The quiet "+ 2 warm-up sets" above a fresh set list, close to the rows it adds to. */
-.warmup-add{ display:flex; justify-content:flex-end; margin:var(--sp-3) 0 calc(-1 * var(--sp-3)); }
+.warmup-add{ display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; column-gap:var(--sp-2); margin:var(--sp-3) 0 calc(-1 * var(--sp-3)); }
+.warmup-note{ color:var(--muted); font-size:var(--fs-xs); }
 .mt-5{ margin-top:var(--sp-5); }
 .mb-3{ margin-bottom:var(--sp-3); }
 .mb-4{ margin-bottom:var(--sp-4); }
@@ -3096,6 +3097,27 @@ function warmupRest(ex){
   const last = ex.sets.filter(s => s.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))[0];
   return last && isWarmup(last) ? normalizeRestSeconds(last.restSeconds) : null;
 }
+/* Whether the movement family of `ex` has already done working sets in this
+   workout, so the warm-up button can say if the muscles are fresh. The family
+   is read from the library, so an edit applies mid-session. `other` (not
+   classified) and `cardio` say nothing. Warm-ups never count as work. */
+const NO_WARMTH_FAMILIES = ['other', 'cardio'];
+function movementFamilyOf(block){
+  const def = block && exerciseById(canonicalExerciseId(block.exerciseId));
+  return String((def && def.movementFamily) || (block && block.movementFamily) || '').trim();
+}
+function movementWarmth(w, ex){
+  const family = movementFamilyOf(ex);
+  if (!w || !ex || !family || NO_WARMTH_FAMILIES.includes(family)) return null;
+  let by = null, at = -1;
+  for (const other of w.exercises){
+    if (other === ex || movementFamilyOf(other) !== family) continue;
+    for (const s of other.sets || []){
+      if (s.completed && !isWarmup(s) && (s.completedAt || 0) > at){ at = s.completedAt || 0; by = other.name; }
+    }
+  }
+  return by ? { family, fresh:false, by } : { family, fresh:true };
+}
 function timerLeft(t){
   return t.running ? Math.max(0, (t.endsAt - Date.now())/1000) : t.remaining;
 }
@@ -5247,9 +5269,14 @@ function warmupButtonHTML(ex){
   const plan = warmupPlan(ex);
   if (!plan.length) return '';
   const what = plan.map(p => fmtNum(p.load) + (p.reps ? ' × ' + p.reps : '')).join(', ');
-  return '<div class="warmup-add"><button type="button" class="btn btn-sm btn-quiet" data-action="add-warmups" ' +
-    'aria-label="Add ' + plural(plan.length, 'warm-up set') + ' to ' + esc(ex.name) + ': ' + esc(what) + '">' +
-    IC.plus + '<span>' + plural(plan.length, 'warm-up set') + '</span></button></div>';
+  /* whether this movement has worked yet in the session, the main reason to warm up */
+  const warmth = movementWarmth(state.activeWorkout, ex), family = warmth && warmth.family.replace(/_/g, ' ');
+  const said = !warmth ? '' : warmth.fresh ? '. First ' + family + ' in this workout' : '. ' + family + ' already worked by ' + warmth.by;
+  return '<div class="warmup-add">' +
+    (warmth && !warmth.fresh ? '<span class="warmup-note" aria-hidden="true">' + esc(family) + ' worked: ' + esc(warmth.by) + '</span>' : '') +
+    '<button type="button" class="btn btn-sm btn-quiet" data-action="add-warmups" ' +
+    'aria-label="Add ' + plural(plan.length, 'warm-up set') + ' to ' + esc(ex.name) + ': ' + esc(what) + esc(said) + '">' +
+    IC.plus + '<span>' + plural(plan.length, 'warm-up set') + (warmth && warmth.fresh ? ' · first ' + esc(family) : '') + '</span></button></div>';
 }
 /* Which superset this is and how to switch to its partner. Logging a set
    switches on its own; the button is for doing things out of order. */
