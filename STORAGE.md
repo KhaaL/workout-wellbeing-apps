@@ -16,7 +16,7 @@ from one site share it; each app backs up to its own object path.
 | Object path: Foodlog | `foodlog-backup.json` |
 | Access key ID / secret | A matching pair authorized for the bucket |
 | Addressing | Path-style or virtual-hosted style, as required by the provider |
-| Backup mode | Automatic uses separate files; conditional sync is an explicit choice |
+| Backup mode | Separate backup files (default) or conditional sync, an explicit choice |
 
 All apps share the bucket using distinct object paths. The key must allow
 object read/write and bucket listing for snapshot browsing. Provider-check probe
@@ -92,7 +92,8 @@ of applying an empty rule set.
    reading and listing only; it does not verify writes.
 3. Run the provider check under Troubleshooting for upload, read-back and
    compatibility results.
-4. Review local data, resume backups if paused, then use Back up now.
+4. Review local data and resume backups if paused. Changes back up by themselves;
+   Back up now uploads at once, even before the first change.
 5. Browse earlier cloud backups and confirm the uploaded backup exists.
 
 Separate backups use `<object-path>.snapshots/<timestamp>-<UUID>.json`. The base

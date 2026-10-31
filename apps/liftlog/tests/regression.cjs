@@ -687,7 +687,8 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       localStorage.removeItem('liftlog.v1.remote-paused');
       const t=window.testAPI, checks=[];
       const check=(ok,label)=>{ if(!ok) throw Error(label); checks.push(label); };
-      localStorage.setItem('liftlog.v1.remote',JSON.stringify({endpoint:'https://storage.test',bucket:'test',region:'test',syncMode:'conditional',accessKeyId:'test',secretAccessKey:'test',pathStyle:true}));
+      const connection={endpoint:'https://storage.test',bucket:'test',region:'test',syncMode:'conditional',accessKeyId:'test',secretAccessKey:'test',pathStyle:true};
+      localStorage.setItem('liftlog.v1.remote',JSON.stringify(connection));
       t.state.settings.lastModifiedAt=1000;
       const remote=t.backupPayload();
       remote.settings.lastModifiedAt=2000;
@@ -698,6 +699,14 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
         return options.method === 'PUT' ? new Response('',{status:200}) :
           new Response(JSON.stringify(remote),{status:200,headers:{'content-type':'application/json',etag:'\"synthetic-etag\"'}});
       };
+      // A first connection with data on both sides has no shared history, so
+      // sync pauses for a choice instead of letting the newer timestamp win.
+      await t.remoteStartupSync();
+      check(t.state.routines[0].name!=='Remote newest' && JSON.parse(localStorage.getItem('liftlog.v1.remote-paused')).code==='conflict' && !requests.includes('PUT'),
+        'a first connection with data on both sides pauses for a choice');
+      localStorage.removeItem('liftlog.v1.remote-paused');requests.length=0;
+      // After a sync at revision 1000, only the cloud changed: it is restored.
+      localStorage.setItem('liftlog.v1.remote',JSON.stringify({...connection,lastUploadedModifiedAt:1000}));
       await t.remoteStartupSync();
       check(t.state.routines[0].name==='Remote newest' && t.state.settings.lastModifiedAt===2000,
         'startup restores the newer remote snapshot');

@@ -7,6 +7,7 @@ WorkoutStorage.pauseReasons = {
   clear:()=>'Paused when you cleared workout data on this device.',
   'history-import':()=>'Paused when you imported workout history from a file.',
   review:()=>'Paused when a choice between the local and cloud copies did not finish.',
+  conflict:()=>'Paused because this device and the cloud hold different data. Choose which copy to keep.',
   snapshot:()=>'Paused when you chose a cloud backup to restore.',
   provider:()=>'Paused by the storage provider check. Its results are under Troubleshooting.',
   handoff:()=>'Paused when you prepared a workout handoff to another device.',

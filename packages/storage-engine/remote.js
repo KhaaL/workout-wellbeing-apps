@@ -7,6 +7,10 @@ WorkoutStorage.createRemote = function(app) {
   const deepCopy = WorkoutStorage.copy;
   const BACKUP_MAX_BYTES = 8 * 1024 * 1024;
   const localRevisionKey = () => JSON.stringify(app.state);
+  /* A pristine device holds only the app's starting data: nothing the person
+     made. It never uploads, and on first connection it takes the cloud copy. */
+  const pristine = () => !!app.isPristine?.(app.state);
+  const hasData = () => app.isPristine ? !pristine() : !!app.hasData?.();
   const flushSave = () => app.local.flush();
   const uid = () => globalThis.crypto?.randomUUID?.() || Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
 /* All apps on one site share one cloud connection (endpoint, region, bucket,
@@ -245,7 +249,7 @@ function clearRemoteConfig(){
   invalidateRemote();
   try{
     if (connectionScope() !== 'own') localStorage.removeItem(SHARED_KEY);
-    localStorage.removeItem(LS_REMOTE_KEY);localStorage.removeItem(REMOTE_WORK_KEY);localStorage.removeItem(providerKey);snapshotPage=null;snapshotIndex=null;lastDiagnostic=null;providerMemory=null;
+    localStorage.removeItem(LS_REMOTE_KEY);localStorage.removeItem(REMOTE_WORK_KEY);localStorage.removeItem(providerKey);localStorage.removeItem(freshKey);snapshotPage=null;snapshotIndex=null;lastDiagnostic=null;providerMemory=null;
   }
   catch(e){ toast('Could not forget configuration — storage unavailable'); }
   setRemoteStatus('', '');
@@ -414,7 +418,7 @@ function preserveBeforeRemoteRestore(){
 /* localStorage setItem is atomic: persist the candidate before activating it.
    Failure leaves the old durable key and in-memory state intact. */
 function commitSnapshot(candidate){ enforceBackupLimits(candidate); validateBackup(candidate); if (!app.local.commit(candidate,{key:LS_REMOTE_RESTORE_KEY,payload:backupPayload()})){ setRemoteStatus('error','Restore not saved — previous data retained'); return false; } app.onRestore(); return true; }
-function installRemoteSnapshot(candidate, remoteAt, expected, ctx){
+function installRemoteSnapshot(candidate, remoteAt, expected, ctx, message){
   if (ctx) assertRemote(ctx);
   if (remoteSyncPaused()){ setRemoteStatus('paused','Local copy protected — cloud sync paused'); return false; }
   if (app.isActive() || (expected != null && expected !== localRevisionKey())){
@@ -422,7 +426,7 @@ function installRemoteSnapshot(candidate, remoteAt, expected, ctx){
     setRemoteStatus('pending','Remote replacement deferred — workout or local edits; recheck after workout'); return false;
   }
   if (!commitSnapshot(candidate)) return false;
-  toast('Restored newer remote backup'); return true;
+  toast(message || 'Restored newer remote backup'); return true;
 }
 function markRemoteSuccess(cfg, revision, ctx, message){
   assertRemote(ctx);
@@ -433,20 +437,36 @@ function markRemoteSuccess(cfg, revision, ctx, message){
   setRemoteStatus(pending ? 'pending' : 'synced', pending ? 'Newer changes waiting to back up' : message || 'Up to date');
   armRemoteRetry();
 }
+/* A conflict pauses sync, so a later local edit cannot upload over the cloud
+   copy before the person chooses one. */
+function holdConflict(message, ctx){
+  // Called from inside a running request, which finishes normally: only
+  // later work is stopped, so the generation is left as it is.
+  if (ctx) ctx.allowPaused = true;
+  clearTimeout(remoteBackupTimer); remoteBackupTimer = 0;
+  try { if (localStorage.getItem(REMOTE_PAUSE_KEY) == null) localStorage.setItem(REMOTE_PAUSE_KEY, JSON.stringify({reason:message,code:'conflict',at:Date.now()})); }
+  catch(e){ remotePauseBlocked = true; }
+  setRemoteStatus('conflict',message);
+  return 'conflict';
+}
 function reconcileRemote(remote, expected, ctx){
-  if (!remote) return 'upload';
+  if (!remote) return pristine() ? 'pristine' : 'upload';
   const same = backupDataKey(remote.candidate) === backupDataKey(app.state);
   const localAt = remoteSnapshotTime(app.state);
   if (same) return 'same';
+  if (pristine()){
+    if (installRemoteSnapshot(remote.candidate, remote.at, expected, ctx, 'Restored the cloud copy. This device’s starting data is kept as a recovery copy.')) return 'restored';
+    return 'deferred';
+  }
   const baseline = loadRemoteConfig()?.lastUploadedModifiedAt;
-  if (Number.isSafeInteger(baseline) && baseline > 0 && localAt !== baseline && remote.at !== baseline){
-    setRemoteStatus('conflict','Both copies changed since the last sync — choose Keep local copy or Use cloud copy');
-    return 'conflict';
-  }
-  if (!remote.at || (!localAt && app.local.existing) || remote.at === localAt){
-    setRemoteStatus('conflict','Conflicting or undated backups — download local data and explicitly restore to choose');
-    return 'conflict';
-  }
+  // A first connection has no shared history: timestamps from two devices
+  // say nothing about which copy the person wants.
+  if (!Number.isSafeInteger(baseline) || baseline <= 0)
+    return holdConflict('This device and the cloud both hold data — choose Keep local copy or Use cloud copy', ctx);
+  if (localAt !== baseline && remote.at !== baseline)
+    return holdConflict('Both copies changed since the last sync — choose Keep local copy or Use cloud copy', ctx);
+  if (!remote.at || (!localAt && app.local.existing) || remote.at === localAt)
+    return holdConflict('Conflicting or undated backups — download local data and explicitly restore to choose', ctx);
   if (remote.at > localAt){
     if (installRemoteSnapshot(remote.candidate, remote.at, expected, ctx)) return 'restored';
     return 'deferred';
@@ -508,7 +528,7 @@ async function putRemoteBackup(cfg, ctx){
     const expected = localRevisionKey();
     const remote = await readRemoteBackup(cfg, ctx);
     const result = reconcileRemote(remote, expected, ctx);
-    if (['conflict','deferred'].includes(result)) return result;
+    if (['conflict','deferred','pristine'].includes(result)) return result;
     if (result === 'restored' || result === 'same'){
       markRemoteSuccess(cfg, remoteSnapshotTime(app.state), ctx, result === 'restored' ? 'Restored from remote' : 'Up to date'); return result;
     }
@@ -544,6 +564,7 @@ function remoteBackup(){
   return remoteRunAction(() => coordinateRemote(async ctx => {
     try { const result = await putRemoteBackup(cfg, ctx); assertRemote(ctx);
       if (result === 'uploaded') toast('Cloud backup complete' + (app.local.failed ? ' — local save failed' : ''));
+      else if (result === 'pristine') toast('Nothing to back up yet: this device holds only its starting data');
     } catch(e){ retryRemoteError(e, ctx); throw e; }
   },cfg));
 }
@@ -636,6 +657,39 @@ async function preserveRemoteSnapshot(cfg,remote,ctx){
   const snapshot = await s3Request({...cfg,objectKey:key},'PUT',remote.raw,{headers:{'if-none-match':'*'}},ctx);
   if (!snapshot.ok) throw responseError(snapshot,await snapshot.text(),cfg,'preserve snapshot');
 }
+/* Separate backups on a device with only its starting data: nothing is
+   uploaded. If the cloud already holds backups for this app, the person is
+   asked once per page load whether to restore the newest, browse them, or
+   start fresh here. Without backups, the first change saves the first one. */
+let offeredScope=null;
+const freshKey=app.namespace+'.remote-fresh';
+function startedFresh(cfg){try{return localStorage.getItem(freshKey)===scopeKey(cfg);}catch(e){return false;}}
+async function offerCloudBackups(cfg){
+  const scope=scopeKey(cfg),ask=app.choose||(typeof WorkoutUI==='undefined'?null:WorkoutUI.dialog);
+  const waiting='Separate backups enabled — your first change saves this device’s first backup';
+  if(offeredScope===scope||startedFresh(cfg)||!ask||toolsBusy){setRemoteStatus('synced',waiting);return;}
+  offeredScope=scope;
+  setRemoteStatus('checking','Looking for cloud backups…');
+  try{await remoteListSnapshots();}catch(e){setRemoteStatus('synced',waiting);return;}
+  const items=snapshotIndex?.scope===scope?snapshotIndex.items:[];
+  if(!items.length||!pristine()||loadRemoteConfig()&&scopeKey(loadRemoteConfig())!==scope){setRemoteStatus('synced',waiting);return;}
+  setRemoteStatus('synced','Cloud backups found — restore one or start fresh on this device');
+  const count=items.length===1?'1 backup file':items.length+' backup files';
+  const choice=await ask({title:'Cloud backups found',
+    body:`The cloud holds ${count} for this app. The newest was saved ${new Date(items[0].at).toLocaleString()}. This device has only its starting data. Restore the newest backup to continue here, browse them to choose another, or start fresh on this device.`,
+    buttons:[{label:'Start fresh on this device',value:'fresh'},{label:'Browse backups',value:'browse'},{label:'Restore latest…',value:'restore',cls:'btn-primary',autofocus:true}]});
+  if(choice==='fresh'){
+    try{localStorage.setItem(freshKey,scope);}catch(e){}
+    setRemoteStatus('synced',waiting);toast('Starting fresh. Your first change saves this device’s first cloud backup.');
+  }else if(choice==='browse')app.onBrowse?.();
+  else if(choice==='restore'){
+    // The restore pauses sync for its review; a cancelled review leaves this
+    // device as it was, so the pause it made is lifted again.
+    const restored=await remoteRestoreSnapshot(items[0].key,false,{latestAt:items[0].at,resume:true}).catch(()=>false);
+    if(!restored&&remotePauseInfo()?.code==='snapshot'){try{localStorage.removeItem(REMOTE_PAUSE_KEY);}catch(e){}setRemoteStatus('synced','Cloud backups found — restore one or start fresh on this device');}
+  }
+  app.onRefresh?.();
+}
 async function remoteStartupSync(){
   const cfg = loadRemoteConfig();
   if (remoteSyncPaused()){ setRemoteStatus('paused','Local copy protected — cloud sync paused'); return; }
@@ -644,7 +698,8 @@ async function remoteStartupSync(){
   if(syncMode(cfg)==='immutable'){
     // Each device owns its local state. Never select another device's backup
     // by timestamps or silently restore the former single-object backup.
-    if(readRemoteWork()?.pending||(app.hasData?.()&&(cfg.lastBackupMode!=='immutable'||remoteSnapshotTime(app.state)!==cfg.lastUploadedModifiedAt)))scheduleRemoteBackup();
+    if(hasData()&&(readRemoteWork()?.pending||cfg.lastBackupMode!=='immutable'||remoteSnapshotTime(app.state)!==cfg.lastUploadedModifiedAt))scheduleRemoteBackup();
+    else if(pristine())return offerCloudBackups(cfg);
     else setRemoteStatus('synced','Separate backups enabled — browse cloud backups to restore another device’s copy');
     return;
   }
@@ -655,6 +710,7 @@ async function remoteStartupSync(){
       const remote = await readRemoteBackup(cfg,ctx);
       const result = reconcileRemote(remote,expected,ctx);
       if (result === 'upload') scheduleRemoteBackup(0);
+      else if (result === 'pristine') setRemoteStatus('synced','Cloud sync on — the cloud is empty; your first change uploads this device’s data');
       else if (['same','restored'].includes(result)) markRemoteSuccess(cfg,remoteSnapshotTime(app.state),ctx,result === 'restored' ? 'Restored from remote' : 'Up to date');
     } catch(e){ retryRemoteError(e,ctx); }
   },cfg).catch(() => {});

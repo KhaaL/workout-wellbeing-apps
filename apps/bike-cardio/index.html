@@ -261,7 +261,7 @@ let storageControllerInstance;
     onLocalStatus:status=>{if(status.failed||status.blocked)storageWarning(status.warning||'Changes are not being saved. Keep this page open and download a full backup.');else if(!status.warning){storageOK=true;$('storageNotice').hidden=true;}queueMicrotask(renderStorageStatus);},
     onRemoteStatus:status=>{remoteStatus=status;renderBackupControls();},
     onBusy:busy=>{cloudBusy=busy;storageController().panel.setBusy(busy);renderStorageStatus();},
-    toast,confirm:WorkoutUI.confirm,onRefresh:renderBackupControls,
+    toast,confirm:WorkoutUI.confirm,onRefresh:renderBackupControls,onBrowse:()=>{navigate('settings');openStorageOptions('snapshots');},
     pauseForHandoff:()=>{let paused=session?session:C.restore(read(KEYS.active,null),Date.now());if(!paused)throw new Error('No recoverable workout.');C.pause(paused,Date.now(),'Paused for handoff. Review on the receiving device.');if(paused.status!=='paused')throw new Error('Workout has ended; save it before transferring.');H.breakSeries(paused.hr);write(KEYS.active,paused,{remote:false});if(session)session=paused;release();cancelVoice();},
     onHandoffChange:()=>{renderHandoff();updateRestore();},onHandoffReceived:()=>h10.disconnect(),
     onRestore:()=>{records=storage.state.history;selected=null;session=null;phaseKey='';applySavedSettings();presetUI.render();planUI?.render();show(currentView==='settings'?'settings':'setup');updateRestore();buildDefaultFields();renderBackupControls();}

@@ -25,10 +25,11 @@ const LiftlogStorage = (() => {
       get state(){return options.getState();},prepare:options.prepare,validate:options.validate,
       backup:options.backup,revision,dataKey:obj=>dataKey(obj,options.prepare),
       summarizeBackup:obj=>({records:obj.workouts.length,recordLabel:'workouts',hasActive:!!obj.activeWorkout}),
-      hasData:()=>{const state=options.getState();return !!(options.local.existing||state.workouts.length||state.activeWorkout||state.bodyweights.length);},
+      // An unedited sample seed: seeding never sets a revision, and any edit does.
+      isPristine:state=>!!(state.settings.seededAt&&!revision(state)&&!state.activeWorkout),
       setRevision:(obj,value)=>{obj.settings.lastModifiedAt=value;},isActive:()=>!!options.getState().activeWorkout,
       onStatus:options.onStatus,toast:options.toast,confirm:options.confirm,choose:options.choose,
-      onBusy:options.onBusy,onRefresh:options.onRefresh,onToolsChange:options.onToolsChange,onRestore:options.onRestore
+      onBusy:options.onBusy,onRefresh:options.onRefresh,onToolsChange:options.onToolsChange,onRestore:options.onRestore,onBrowse:options.onBrowse
     });
   }
   function createHandoff(options){

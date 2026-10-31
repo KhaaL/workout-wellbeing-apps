@@ -20,6 +20,7 @@
   storage=TabataStorage.create({toast,confirm:WorkoutUI.confirm,onLocalStatus:localStatus,
     onRemoteStatus:status=>{remoteStatus=status;renderStorage();},
     onBusy:busy=>{cloudBusy=busy;panel?.setBusy(busy);renderStatus();},onRefresh:()=>renderStorage(),
+    onBrowse:()=>{navigate('settings');openStorage('snapshots');},
     onRestore:()=>{fillSetup();fillSettings();navigate(storage.state.active?'run':view==='run'?'setup':view);renderStorage();localStatus();}});
   function active(){return storage.state.active;}
   function fillSetup(){

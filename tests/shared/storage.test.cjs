@@ -394,3 +394,29 @@ test('version 5 backups keep planned sessions and planned rides; invalid plans a
   assert.throws(()=>d.bike.prepare({...d.bike.backup(),history:[{...ride,conditions:{fed:'snack'}}]}),/fed state/);
   assert.equal(d.bike.prepare({...d.bike.backup(),version:4}).plans.length,0,'version 4 backups start with no plans');
 });
+
+test('a first conditional connection: a pristine device takes the cloud copy and never uploads its starting data',async()=>{
+  const d=setup();d.bike.remote.saveRemoteConfig({...cfg});
+  const cloud=d.bike.backup();cloud.updatedAt=200;cloud.history=[legacyRecord()];
+  let calls=[];d.ctx.fetch=async(url,options)=>{calls.push(options.method);return new Response(JSON.stringify(cloud),{headers:{etag:'"1"'}});};
+  await d.bike.remote.remoteStartupSync();
+  assert.deepEqual(calls,['GET']);assert.equal(d.bike.state.history[0].id,'old','the cloud copy is restored');
+  assert.ok(d.map.has('bike-cardio.v1.before-remote-restore'),'the starting data is kept as a recovery copy');
+  assert.match(d.messages.join('\n'),/This device’s starting data is kept as a recovery copy/);
+  const empty=setup();empty.bike.remote.saveRemoteConfig({...cfg});calls=[];
+  empty.ctx.fetch=async(url,options)=>{calls.push(options.method);return new Response('<Error><Code>NoSuchKey</Code></Error>',{status:404});};
+  await empty.bike.remote.remoteStartupSync();
+  assert.deepEqual(calls,['GET'],'an empty cloud gets no upload of starting data');
+});
+test('a first conditional connection with data on both sides pauses, and a later edit cannot upload over the cloud',async()=>{
+  const d=setup();d.bike.remote.saveRemoteConfig({...cfg});
+  d.bike.state.updatedAt=300;d.bike.state.history=[legacyRecord()];
+  const cloud=d.bike.backup();cloud.updatedAt=200;cloud.history[0].metrics.notes='remote edit';
+  const calls=[];d.ctx.fetch=async(url,options)=>{calls.push(options.method);return new Response(JSON.stringify(cloud),{headers:{etag:'"1"'}});};
+  await d.bike.remote.remoteStartupSync();
+  assert.deepEqual(calls,['GET'],'the newer local copy does not win by timestamp');
+  assert.equal(JSON.parse(d.map.get('bike-cardio.v1.remote-paused')).code,'conflict');
+  d.bike.write('bike-cardio.history.v1',[{...legacyRecord(),id:'new'}]);
+  await d.bike.remote.autoRemoteBackup();
+  assert.deepEqual(calls,['GET'],'a later edit stays local while sync is paused');
+});

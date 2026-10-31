@@ -24,7 +24,7 @@ const FoodlogStorage = (() => {
       get state(){return state;},prepare,validate:prepare,backup,
       revision:raw=>raw.updatedAt||0,dataKey:raw=>{const candidate=prepare(raw);delete candidate.updatedAt;return WorkoutStorage.stableStringify(candidate);},
       setRevision:(candidate,value)=>{candidate.updatedAt=value;},summarizeBackup:raw=>({records:raw.entries.length,recordLabel:'logged items',hasActive:false}),
-      hasData:()=>!!(local.existing||state.foods.length||state.entries.length||state.updatedAt),isActive:()=>false,
+      isPristine:s=>!s.updatedAt&&!s.foods.length&&!s.entries.length,isActive:()=>false,onBrowse:options.onBrowse,
       toast:options.toast,confirm:options.confirm,onStatus:options.onRemoteStatus,onBusy:options.onBusy,onRefresh:options.onRefresh,onRestore:options.onRestore});
     async function restore(raw){
       const expected=JSON.stringify(state),candidate=prepare(raw);
