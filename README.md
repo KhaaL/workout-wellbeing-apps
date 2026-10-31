@@ -277,7 +277,8 @@ Sync metadata uses separate `liftlog.v1.*`, `bike-cardio.v1.*`, `tabata.v1.*`
 and `foodlog.v1.*` namespaces. The default cloud objects are
 `liftlog-backup.json`, `bike-cardio-backup.json`, `tabata-backup.json` and
 `foodlog-backup.json`. Credentials are excluded from backups. No cloud
-connection runs until configured by the user.
+connection runs until the user saves one; a connection saved in one app starts
+backups in every app on the site the next time each is opened.
 
 ### Shared cloud connection
 
@@ -328,7 +329,7 @@ An `AccessDenied` / `Invalid signature` response is reported as a
 credentials or signing problem.
 
 Snapshot browsing uses signed `ListObjectsV2` requests scoped to
-`<backup-path>.snapshots/`, with 20 entries per page, oldest first. Bucket listing
+`<backup-path>.snapshots/`, with 20 entries per page, newest first. Bucket listing
 permission is required. Preview fetches the file to show record counts; downloads
 retain its exact bytes. Restore validates the app format, checks for changes
 during confirmation, preserves the current local state and leaves cloud sync
@@ -379,12 +380,33 @@ on the site. Their storage keys, theme keys, service-worker scopes and cache
 prefixes stay separate, and each app reacts only to its own storage events.
 Deployment credentials and personal workout data are not part of this package.
 
+### First run with a connection
+
+A device that holds only an app's starting data (Liftlog's sample routines and
+workouts, or the other apps' empty state) is *pristine*. Each app's storage
+adapter says when its state is pristine; any edit ends it. A pristine device
+never uploads its starting data.
+
+- **Separate backup files:** saving the connection, or opening an app that finds
+  one saved, lists this app's cloud backups. If any exist, a dialog offers
+  **Restore latest…**, **Browse backups** or **Start fresh on this device**.
+  Nothing uploads until one is chosen. Start fresh is remembered for this
+  connection; dismissing the dialog asks again on the next load. With no
+  backups, the first change saves the first one.
+- **Conditional sync:** a pristine device takes the cloud copy and keeps its
+  starting data as the recovery copy. With an empty cloud it uploads nothing
+  until the first change.
+- A first connection where this device and the cloud both hold different data
+  has no shared history, so sync pauses and asks for **Keep local copy** or
+  **Use cloud copy**. A conflict pauses sync, so a later edit cannot upload over
+  the cloud copy before the choice.
+
 ## Separate backup files
 
-The connection form now has a **Backup mode** choice in both apps. **Automatic**
-selects **Separate backup files** for every provider, including connections
-without a mode setting. **Conditional sync** remains an explicit choice and
-requires enforced write conditions. Existing single-object cloud backups are kept.
+The connection form has a **Backup mode** choice in every app. **Separate backup
+files** is the default for every provider, including connections without a mode
+setting. **Conditional sync** remains an explicit choice and requires enforced
+write conditions. Existing single-object cloud backups are kept.
 
 Each upload creates `<backup-path>.snapshots/<timestamp>-<random-UUID>.json` and
 verifies the saved bytes by reading them back. It never writes a shared latest

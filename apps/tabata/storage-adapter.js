@@ -35,7 +35,7 @@ const TabataStorage = (() => {
       get state(){return state;},prepare,validate:prepare,backup,
       revision:raw=>raw.updatedAt||0,dataKey:raw=>{const candidate=prepare(raw);delete candidate.updatedAt;return WorkoutStorage.stableStringify(candidate);},
       setRevision:(candidate,value)=>{candidate.updatedAt=value;},summarizeBackup:raw=>({records:raw.history.length,recordLabel:'sessions',hasActive:!!raw.active}),
-      hasData:()=>!!(local.existing||state.history.length||state.active||state.updatedAt),isActive:()=>!!state.active,
+      isPristine:s=>!s.updatedAt&&!s.history.length&&!s.active,isActive:()=>!!state.active,onBrowse:options.onBrowse,
       toast:options.toast,confirm:options.confirm,onStatus:options.onRemoteStatus,onBusy:options.onBusy,onRefresh:options.onRefresh,
       onRestore:()=>{if(state.active)state.active={...state.active,anchorAt:null,status:'paused'};options.onRestore();}});
     async function restore(raw){

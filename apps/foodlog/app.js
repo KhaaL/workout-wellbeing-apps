@@ -40,6 +40,7 @@
   storage=FoodlogStorage.create({toast,confirm:WorkoutUI.confirm,onLocalStatus:localStatus,
     onRemoteStatus:status=>{remoteStatus=status;renderStorage();},
     onBusy:busy=>{cloudBusy=busy;panel?.setBusy(busy);renderStatus();},onRefresh:()=>renderStorage(),
+    onBrowse:()=>{navigate('settings');openStorage('snapshots');},
     onRestore:()=>{for(const id of ['addDialog','foodDialog','foodSheet'])if($(id).open)$(id).close();fillSettings();render();renderStorage();localStatus();}});
 
   /* Days. */

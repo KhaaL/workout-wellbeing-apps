@@ -3,7 +3,9 @@ const {device} = require('./remote-harness.cjs');
 const cfg = {endpoint:'https://storage.test',region:'test',syncMode:'conditional',bucket:'test',objectKey:'backup.json',pathStyle:true,accessKeyId:'fake',secretAccessKey:'synthetic-secret'};
 const copy = v => JSON.parse(JSON.stringify(v));
 const fixture = (revision=100,notes='base') => ({version:14, settings:{lastModifiedAt:revision},exercises:[{id:'e',name:'Squat',unit:'kg'}],routines:[],workouts:[{id:'w',startedAt:1,finishedAt:2,notes,exercises:[{exerciseId:'e',name:'Squat',unit:'kg',sets:[{id:'s',reps:5,weight:20,completed:true}]}]}],activeWorkout:null});
-function setup(revision=100,notes='base',storage){const d=device(storage);d.api.state=d.api.prepareBackup(fixture(revision,notes));d.api.existing=true;d.api.saveRemoteConfig(copy(cfg));d.api.flushSave();return d;}
+// These devices last synced the base fixture (revision 100), so a cloud copy at 100
+// is the shared baseline. Without one, a first connection pauses for a choice.
+function setup(revision=100,notes='base',storage){const d=device(storage);d.api.state=d.api.prepareBackup(fixture(revision,notes));d.api.existing=true;d.api.saveRemoteConfig({...copy(cfg),lastUploadedModifiedAt:100});d.api.flushSave();return d;}
 // The site-wide connection merged with Liftlog's own record (backup path and history).
 const config = d => ({...JSON.parse(d.storage.get('wellbeing.connection.v1')||'{}'),...JSON.parse(d.storage.get('liftlog.v1.remote')||'{}')});
 const gate = () => {let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
@@ -26,11 +28,16 @@ class S3 {
 let passed=0;
 async function test(name,fn){await fn();passed++;console.log('PASS '+name);}
 (async()=>{
-await test('two devices: conditional CAS collision rereads and preserves both prior revisions',async()=>{
+await test('two devices: conditional CAS collision rereads, keeps the first write and pauses the other device',async()=>{
  const a=setup(200,'A'),b=setup(300,'B'),s=new S3(fixture());s.attach(a);s.attach(b);
  let reads=0;const g=gate();s.afterGet=async()=>{if(++reads===2)g.resolve();if(reads<=2)await g.promise;};
  await Promise.all([a.api.remoteBackup(),b.api.remoteBackup()]);
- assert.equal(s.obj.settings.lastModifiedAt,300);assert.equal(s.obj.workouts[0].notes,'B');assert.ok(s.snapshots.length>=2);
+ // Both changed since revision 100: one conditional write lands; the other device rereads,
+ // finds both copies changed and pauses for a choice, keeping its own data.
+ const [winner,loser]=s.obj.workouts[0].notes==='A'?[a,b]:[b,a];
+ assert.equal(s.obj.workouts[0].notes,winner.api.state.workouts[0].notes);
+ assert.equal(loser.api.remoteSyncPaused(),true);assert.equal(JSON.parse(loser.storage.get('liftlog.v1.remote-paused')).code,'conflict');
+ assert.notEqual(loser.api.state.workouts[0].notes,s.obj.workouts[0].notes,'the paused device keeps its own data');
  assert.ok(s.calls.filter(x=>x.method==='GET').length>=3);
  assert.ok(s.snapshots.some(x=>x.workouts[0].notes==='base'));
 });
@@ -44,13 +51,18 @@ await test('GET races: starting a workout or editing notes prevents replacement'
  if(active){d.api.state.activeWorkout={...copy(d.api.state.workouts[0]),id:'active',finishedAt:null};}
  else d.api.state.workouts[0].notes='during GET';d.api.save();g.resolve();await work;
  assert.ok(d.api.state.activeWorkout || d.api.state.workouts[0].notes==='during GET');assert.equal(s.calls.length,1);
- assert.equal(d.api.ui.remoteStatus,'pending');}
+ // Local changed during the GET and the cloud changed since revision 100: both copies changed.
+ assert.equal(d.api.ui.remoteStatus,'conflict');assert.equal(d.api.remoteSyncPaused(),true);assert.equal(s.obj.workouts[0].notes,'cloud');}
 });
 await test('active/recoverable workouts protected at startup, online recovery and after reload',async()=>{
  const d=setup(),s=new S3(fixture(500));s.attach(d);d.api.state.activeWorkout={...copy(d.api.state.workouts[0]),id:'active',finishedAt:null};d.api.save({immediate:true});
  for(let i=0;i<2;i++)await d.api.remoteStartupSync();assert.equal(d.api.state.activeWorkout.id,'active');
  const re=device(d.storage);s.attach(re);await re.api.remoteStartupSync();assert.equal(re.api.state.activeWorkout.id,'active');
- d.api.state.workouts[0].notes='finished local';d.api.state.activeWorkout=null;d.api.save();await d.api.remoteBackup();assert.equal(s.obj.workouts[0].notes,'finished local');
+ // Starting the workout changed local while the cloud is newer than revision 100: sync is
+ // paused for a choice, so finishing it uploads nothing over the cloud copy.
+ assert.equal(d.api.remoteSyncPaused(),true);
+ d.api.state.workouts[0].notes='finished local';d.api.state.activeWorkout=null;d.api.save();await d.api.remoteBackup();assert.equal(s.obj.workouts[0].notes,'base');
+ assert.equal(s.calls.filter(x=>x.method==='PUT').length,0);
 });
 await test('equal timestamps compare normalized contents and exclude export bookkeeping',async()=>{
  const d=setup(),s=new S3(fixture());s.obj.exportedAt='2020-01-01';s.obj.settings.lastFileBackupAt=999;s.attach(d);
@@ -76,6 +88,7 @@ await test('edits during upload remain durable pending work and do not report up
 await test('network failures persist bounded retry, reload recovery and immediate manual retry',async()=>{
  const d=setup(200);d.ctx.fetch=async()=>{throw Error('offline failure');};await d.api.autoRemoteBackup();let w=d.api.readRemoteWork();assert.equal(w.pending,true);assert.equal(w.attempts,1);
  for(let i=0;i<12;i++)await d.api.autoRemoteBackup();w=d.api.readRemoteWork();assert.equal(w.attempts,10);assert.ok(w.nextAt-Date.now()<=300000);
+ d.api.save({touch:false,remote:false,immediate:true}); // the reload reads this device's saved data
  const re=device(d.storage),s=new S3();s.attach(re);await re.api.remoteStartupSync();assert.equal(re.api.readRemoteWork().pending,true);await re.api.remoteBackup();assert.equal(re.api.readRemoteWork().pending,false);
 });
 await test('request and streamed body timeouts abort and persist retry',async()=>{
@@ -167,7 +180,7 @@ await test('pause stops upload follow-ups and obsolete success after a dispatche
  const d=setup(300,'local'),s=new S3(fixture(100,'cloud'));s.attach(d);const g=gate();s.beforePut=()=>g.promise;
  const job=d.api.remoteBackup();await until(()=>s.calls.some(x=>x.method==='PUT'&&!x.url.includes('.snapshots/')));
  d.api.pauseRemoteSync('Paused by user');g.resolve();await job;
- assert.equal(d.api.remoteSyncPaused(),true);assert.equal(d.api.state.workouts[0].notes,'local');assert.equal(config(d).lastUploadedModifiedAt,undefined);
+ assert.equal(d.api.remoteSyncPaused(),true);assert.equal(d.api.state.workouts[0].notes,'local');assert.equal(config(d).lastUploadedModifiedAt,100,'an obsolete success does not move the baseline');
  assert.equal(d.api.ui.remoteStatus,'paused');assert.equal(d.api.controllers.size,0);
 });
 await test('cancelled and failed local restores stay paused; inability to persist pause blocks replacement',async()=>{

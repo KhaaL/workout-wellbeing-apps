@@ -12,7 +12,7 @@
     "test:updates-browser": "npm run build && node tests/shared/updates-browser.cjs",
     "test:features-browser": "npm run build && node tests/shared/features-browser.cjs && node tests/shared/usability-browser.cjs",
     "test:app-ui-browser": "npm run build && node tests/shared/app-ui-browser.cjs && node tests/shared/storage-status-browser.cjs && node tests/shared/liftlog-library-browser.cjs && node tests/shared/theme-bars-browser.cjs",
-    "test:site-browser": "npm run build && node tests/shared/site-browser.cjs && node tests/shared/connection-browser.cjs && node tests/shared/settings-parity-browser.cjs",
+    "test:site-browser": "npm run build && node tests/shared/site-browser.cjs && node tests/shared/connection-browser.cjs && node tests/shared/first-run-browser.cjs && node tests/shared/settings-parity-browser.cjs",
     "test:browser": "npm run test:site-browser && npm run test:liftlog-browser && npm run test:bike-browser && npm run test:remote-tools-browser && npm run test:updates-browser && npm run test:app-ui-browser && npm run test:features-browser && npm run test:tabata-browser && npm run test:foodlog-browser",
     "lint": "eslint packages apps/bike-cardio/*.js apps/tabata/*.js apps/foodlog/*.js apps/liftlog/*.js apps/liftlog/screens/*.js apps/*/controllers/*.js scripts/*.mjs eslint.config.mjs --max-warnings 0",
     "test:s3-cors": "python3 tests/s3-cors.test.py",

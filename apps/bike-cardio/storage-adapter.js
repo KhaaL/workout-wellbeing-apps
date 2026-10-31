@@ -118,9 +118,9 @@ globalThis.BikeStorage = (() => {
     remote=WorkoutStorage.createRemote({namespace,objectKey:'bike-cardio-backup.json',recoveryKey:namespace+'.before-remote-restore',
       local,limits:{history:10000},get state(){return state;},prepare,validate:prepare,backup,
       summarizeBackup:raw=>({records:raw.history.length,recordLabel:'rides',hasActive:!!raw.active}),
-      hasData:()=>!!(local.existing||state.history.length||state.active),revision:raw=>raw?.updatedAt||0,dataKey,setRevision:(obj,value)=>{obj.updatedAt=value;},isActive,
+      isPristine:s=>!s.updatedAt&&!s.history.length&&!s.active&&!s.presets?.length&&!s.machines?.length&&!s.plans?.length,revision:raw=>raw?.updatedAt||0,dataKey,setRevision:(obj,value)=>{obj.updatedAt=value;},isActive,
       onStatus:options.onRemoteStatus,onBusy:options.onBusy,toast:options.toast,confirm:options.confirm,
-      onRefresh:options.onRefresh,onRestore:()=>options.onRestore(state)});
+      onRefresh:options.onRefresh,onBrowse:options.onBrowse,onRestore:()=>options.onRestore(state)});
     function get(old,fallback){const name=fields[old];if(!name)throw new Error('Unknown storage key');return state[name]??fallback;}
     function write(old,value,options={}){
       const name=fields[old];if(!name)throw new Error('Unknown storage key');

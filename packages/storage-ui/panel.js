@@ -196,7 +196,12 @@ WorkoutStorage.createStoragePanel = function(options) {
     try{
       const pending=remote.configure({endpoint,region,bucket,objectKey:d.objectKey.trim()||remote.defaultObjectKey,accessKeyId,secretAccessKey,syncMode:d.syncMode,pathStyle:!!d.pathStyle});
       generation=remote.generation;await pending;
-      ui.draft=null;ui.connectionOpen=false;message('Read check passed. Connection saved; the first backup verifies writing.');toast('Read check passed. Connection saved.');
+      ui.draft=null;ui.connectionOpen=false;
+      // Says what the sync step that configure() starts does next.
+      message(d.syncMode==='conditional'
+        ?'Read check passed. Connection saved. Sync starts now: a device with only its starting data takes the cloud copy; if both hold data, sync pauses until you choose one.'
+        :'Read check passed. Connection saved. This device backs up its own changes as new files; if cloud backups already exist, you are asked whether to restore one.');
+      toast('Read check passed. Connection saved.');
     }catch(error){if(generation===remote.generation)message(error.message,true);}
     finally{ui.saving=false;refresh();changed();}
   }
@@ -260,6 +265,7 @@ WorkoutStorage.createStoragePanel = function(options) {
     // Opens the part a status card action points to and returns what to focus.
     open(target){
       if(target==='configure'){ui.connectionOpen=true;refresh();return fields.endpoint;}
+      if(target==='snapshots'){refresh();return snapshots.querySelector('#snapshotList button')||snapshots.querySelector('#browseSnapshots');}
       if(target==='review')return [...cloudActions.querySelectorAll('button')].find(node=>!node.hidden&&(node.id==='cloudKeepLocal'||node.id==='cloudResume'))||null;
       return null;
     }

@@ -3835,6 +3835,7 @@ const remoteEngine = LiftlogStorage.createRemote({
   onStatus:(...args)=>setRemoteStatus(...args),toast:(...args)=>toast(...args),confirm:(...args)=>confirmDlg(...args),choose:(...args)=>dialog(...args),
   onBusy:value=>{ui.remoteBusy=value;storagePanel?.setBusy(value);render();},onRefresh:()=>render(),
   onToolsChange:()=>storagePanel?.refresh(),
+  onBrowse:()=>{navigate('settings');openStorageOptions('snapshots');},
   onRestore:()=>{applyTheme();cancelRestBeep();if(state.activeWorkout)restoreTimer();else loadTimer(state.settings.defaultRest);resetUI();render();}
 });
 
