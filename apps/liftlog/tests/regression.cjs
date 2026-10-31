@@ -177,7 +177,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       check(t.ui.routineDraft.items[1] === second, 'pairing nonadjacent items moves them together');
       t.ui.routineDraft.items.reverse();
       check(t.routineGroups(t.ui.routineDraft.items).length === 2, 'reordering preserves pair');
-      t.ui.routineDraft = structuredClone(r); t.ui.view = 'routines';
+      t.ui.routineDraft = structuredClone(r); t.ui.view = 'today';
       t.saveRoutineDraft();
       const mergeSource = {...currentSquat,id:'old-current-squat',name:'Back Squat old',archived:true};
       t.state.exercises.push(mergeSource);
@@ -231,7 +231,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     await page.getByRole('button', {name:/Show archived/}).click();
     assert.equal(await page.locator('#ex-list .ex-row').filter({hasText:'Leg Press'}).count(), 1,
       'archived exercises can be reviewed and restored');
-    await navigateUI(page,'routines');
+    await navigateUI(page,'today');
     await page.getByRole('button', {name:'Lower body', exact:true}).click();
     await page.getByRole('button', { name:'Edit Lower body', exact:true }).click();
     assert.equal(await page.locator('#routine-add-select option', {hasText:'Leg Press'}).count(), 0,
@@ -536,39 +536,42 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       t.state.activeWorkout = null;
       t.state.routines.push({id:'cue-routine',name:'Cue routine',items:[
         {id:'cue-item',exerciseId:squat.id,sets:3,repsMin:5,repsMax:8,targetRir:2,weight:100}]});
-      t.ui.selectedRoutineId='cue-routine'; t.ui.view='today'; t.render();
+      t.ui.view='today'; t.ui.detail={kind:'routine',id:'cue-routine'}; t.render();
     });
-    assert.equal(await page.locator('.today-cues .cue-table tbody tr:not(.cue-actions-row)').count(), 1,
+    assert.equal(await page.locator('#detail-body .detail-cues .cue-table tbody tr:not(.cue-actions-row)').count(), 1,
       'a target RIR with no RIR logged lists the exercise without a suggestion');
-    assert.match(await page.locator('.today-cues').innerText(), /RIR not logged last time[\s\S]*a suggestion needs RIR on each set/,
+    assert.match(await page.locator('#detail-body .detail-cues').innerText(), /RIR not logged last time[\s\S]*a suggestion needs RIR on each set/,
       'the row and the note say the suggestion was held back for missing RIR');
-    assert.equal(await page.locator('.today-cues .cue-next').innerText(), '—', 'a held suggestion shows no next load');
+    assert.equal(await page.locator('#detail-body .detail-cues .cue-next').innerText(), '—', 'a held suggestion shows no next load');
     assert.equal(await page.evaluate(() => window.testAPI.loadCueFor('ex-squat', window.testAPI.state.routines.find(r => r.id==='cue-routine').items[0])), null,
       'a held suggestion never seeds a session');
     await page.evaluate(() => { const t=window.testAPI;
       t.state.routines.find(r => r.id==='cue-routine').items[0].targetRir=null; t.render(); });
-    assert.match(await page.locator('.today-cues').innerText(), /Check RIR first[\s\S]*confirm good technique and 1–2 reps in reserve/,
+    assert.match(await page.locator('#detail-body .detail-cues').innerText(), /Check RIR first[\s\S]*confirm good technique and 1–2 reps in reserve/,
       'missing target RIR gets a rep cue and one technique note rather than an unconditional load increase');
-    assert.equal(await page.locator('.today-cues .cue-next').innerText(), 'Planned 100 kg',
+    assert.equal(await page.locator('#detail-body .detail-cues .cue-next').innerText(), 'Planned 100 kg',
       'a planned routine weight replaces the suggested figure, since sessions start there');
-    assert.match(await page.locator('.today-cues').innerText(), /Planned: the routine sets this weight/, 'the planned note explains it');
+    assert.match(await page.locator('#detail-body .detail-cues').innerText(), /Planned: the routine sets this weight/, 'the planned note explains it');
     await page.evaluate(() => { const t=window.testAPI;
       t.state.routines.find(r => r.id==='cue-routine').items[0].weight=null; t.render(); });
-    assert.match(await page.locator('.today-cues .cue-next').innerText(), /^102\.5 kg × 5–8$/,
+    assert.match(await page.locator('#detail-body .detail-cues .cue-next').innerText(), /^102\.5 kg × 5–8$/,
       'next load is the last load plus the step, with the routine\'s rep range');
-    assert.equal(await page.locator('.today-cues .cue-date').last().innerText(), await page.evaluate(() =>
+    assert.equal(await page.locator('#detail-body .detail-cues .cue-date').last().innerText(), await page.evaluate(() =>
       new Date(window.testAPI.state.workouts[0].startedAt).toLocaleDateString(undefined, {month:'short', day:'numeric'})),
       'the last result is dated like the rest of the app, month and day');
+    await page.locator('#detail-close').click();
     await navigateUI(page,'settings');
     await page.locator('#load-step').fill('5');
     await page.locator('#load-step').press('Tab');
     await navigateUI(page,'today');
-    assert.match(await page.locator('.today-cues .cue-next').innerText(), /^105 kg × 5–8$/, 'the step comes from Settings');
-    assert.equal(await page.locator('.today-cues [data-action="cue-dismiss"]').count(), 0, 'row actions start hidden');
-    await page.locator('.today-cues [data-action="cue-menu"]').click();
-    assert.equal(await page.locator('.today-cues [data-action="cue-menu"]').getAttribute('aria-expanded'), 'true', 'the row menu opens');
-    await page.locator('.today-cues [data-action="cue-dismiss"]').click();
-    assert.equal(await page.locator('.today-cues .cue-table tbody tr:not(.cue-actions-row)').count(), 0,
+    // Load suggestions live in the routine's sheet, which navigating closed.
+    await page.locator('#open-routine-cue-routine').click();
+    assert.match(await page.locator('#detail-body .detail-cues .cue-next').innerText(), /^105 kg × 5–8$/, 'the step comes from Settings');
+    assert.equal(await page.locator('#detail-body .detail-cues [data-action="cue-dismiss"]').count(), 0, 'row actions start hidden');
+    await page.locator('#detail-body .detail-cues [data-action="cue-menu"]').click();
+    assert.equal(await page.locator('#detail-body .detail-cues [data-action="cue-menu"]').getAttribute('aria-expanded'), 'true', 'the row menu opens');
+    await page.locator('#detail-body .detail-cues [data-action="cue-dismiss"]').click();
+    assert.equal(await page.locator('#detail-body .detail-cues .cue-table tbody tr:not(.cue-actions-row)').count(), 0,
       'dismissing hides the current exposure');
     assert.equal(await page.evaluate(() => window.testAPI.prepareBackup(window.testAPI.backupPayload())
       .progressionPreferences.some(pref => pref.exerciseId==='ex-squat' && pref.dismissedExposureKey)), true,
@@ -578,12 +581,13 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       next.exercises[0].sets.forEach((set,i) => {set.id='cue-set-new-'+i;});
       next.exercises[1].sets[0].id='historic-set-new';
       t.state.workouts.unshift(next); t.render(); });
-    assert.equal(await page.locator('.today-cues .cue-table tbody tr:not(.cue-actions-row)').count(), 1,
+    assert.equal(await page.locator('#detail-body .detail-cues .cue-table tbody tr:not(.cue-actions-row)').count(), 1,
       'a new exposure restores the dismissed cue');
-    await page.locator('.today-cues [data-action="cue-menu"]').click();
-    await page.locator('.today-cues [data-action="cue-off"]').click();
-    assert.equal(await page.locator('.today-cues .cue-table tbody tr:not(.cue-actions-row)').count(), 0,
+    await page.locator('#detail-body .detail-cues [data-action="cue-menu"]').click();
+    await page.locator('#detail-body .detail-cues [data-action="cue-off"]').click();
+    assert.equal(await page.locator('#detail-body .detail-cues .cue-table tbody tr:not(.cue-actions-row)').count(), 0,
       'turning suggestions off hides the routine cue');
+    await page.locator('#detail-close').click();
     await navigateUI(page,'history');
     if (!await page.locator('[data-progression-analysis]').evaluate(el => el.open))
       await page.locator('[data-progression-analysis] summary').click();
@@ -1340,16 +1344,15 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       return checks;
     });
     await pl.waitForTimeout(3000); // let the setup's toasts leave before the screenshots
-    const planned = pl.getByRole('group', {name:'Choose a plan'});
-    assert.equal(await planned.locator('.routine-pick-row').count(), 4, 'Today lists every plan');
-    assert.equal(await planned.locator('.routine-pick-row').first().getByText('Overdue', {exact:true}).isVisible(), true, 'an overdue plan is marked');
-    assert.equal(await pl.getByRole('group', {name:'Choose a routine'}).locator('.routine-pick-row').count(), 1, 'the routine list holds stable routines only');
-    assert.equal(await pl.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'Today with plans fits phone width');
+    // Workout is the routine list: plans in their own section, then stable routines.
+    const planned = pl.getByRole('list', {name:'Planned sessions'});
+    assert.equal(await planned.locator('li').count(), 4, 'Workout lists every plan');
+    assert.equal(await planned.locator('li').first().getByText('Overdue', {exact:true}).isVisible(), true, 'an overdue plan is marked');
+    assert.equal(await pl.getByRole('list', {name:'Routines'}).locator('li').count(), 1, 'the routine list holds stable routines only');
+    assert.equal(await pl.locator('.nav-btn[data-view="routines"]').count(), 0, 'there is no separate Routines tab');
+    assert.equal(await pl.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'Workout with plans fits phone width');
     await pl.screenshot({path:'/tmp/liftlog-plans-today.png', fullPage:true});
-    await pl.evaluate(() => window.testAPI.navigate('routines'));
-    assert.equal(await pl.getByRole('list', {name:'Planned sessions'}).locator('li').count(), 4, 'Routines lists plans in their own section');
-    await pl.screenshot({path:'/tmp/liftlog-plans-routines.png', fullPage:true});
-    await pl.getByRole('list', {name:'Routines'}).getByRole('button', {name:'Day B'}).click();
+    await pl.getByRole('list', {name:'Routines'}).getByRole('button', {name:'Day B', exact:true}).click();
     await pl.getByRole('button', {name:'Plan a session from Day B'}).click();
     await pl.locator('#routine-planned-for').fill('2031-05-06');
     await pl.locator('#routine-form').getByRole('button', {name:'Save'}).click();

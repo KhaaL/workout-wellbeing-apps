@@ -81,7 +81,6 @@ function beginWorkout(workout){
   context.restoreTimer();
   context.ui.view = 'today';
   context.ui.detail = null;
-  context.ui.selectedRoutineId = null;
   /* nothing to log yet means the sheet is where the user needs to be — and the
      focus with it: everything outside an open modal is inert. */
   context.ui.overviewOpen = workout.exercises.length === 0;
