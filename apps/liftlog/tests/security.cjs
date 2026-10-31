@@ -175,13 +175,16 @@ const fixture = () => ({
     assert.equal(await page.locator('[data-action="toggle-set"]').first().getAttribute('data-id'),setId);
     await page.locator('[data-action="toggle-set"]').first().click();
     assert.equal(await page.evaluate(() => window.testAPI.state.activeWorkout.exercises[0].sets[0].completed),true);
-    await page.evaluate(() => window.testAPI.navigate('routines'));
+    // Routines are listed on Workout while no session runs: set the imported session
+    // aside for the routine list, sheet and editor checks, then put it back.
+    await page.evaluate(() => { const t = window.testAPI; window.__heldWorkout = t.state.activeWorkout; t.state.activeWorkout = null; t.navigate('today'); t.render(); });
     await assertInert();
     await page.locator('[data-action="detail-open"][data-kind="routine"]').first().click();
     await assertInert();
     await page.getByRole('button',{name:'Edit Routine',exact:true}).click();
     assert.equal(await page.locator('#routine-add-select option').filter({hasText:'Squat'}).getAttribute('value'),malicious.exercises[0].id);
     await page.getByRole('button',{name:'Cancel',exact:true}).click();
+    await page.evaluate(() => { const t = window.testAPI; t.state.activeWorkout = window.__heldWorkout; t.save(); t.render(); });
     await page.evaluate(() => window.testAPI.navigate('exercises'));
     await assertInert();
     await page.locator('[data-action="detail-open"][data-kind="exercise"]').filter({hasText:'Squat'}).first().click();
