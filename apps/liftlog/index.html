@@ -144,9 +144,6 @@ html.session-active .app-footer{ display:none; }     /* keyboard help is still ?
 .view-head{ display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-4); flex-wrap:wrap; margin-bottom:var(--sp-5); }
 .view-head h1{ font-weight:700; letter-spacing:-.022em; }
 .view-sub{ color:var(--muted); font-size:var(--fs-sm); }
-/* Today's idle view has no view-head of its own to carry the top-of-view
-   gap (see the note on `main` above), so it supplies the same sp-5 itself. */
-.today-idle{ margin-top:var(--sp-5); }
 .section-title{ display:flex; align-items:center; gap:var(--sp-3); margin:var(--sp-6) 0 var(--sp-3); }
 .section-title h2,.section-title h3{ font-weight:700; font-size:var(--fs-md); }
 .section-title .rule{ flex:1; border-top:1px solid var(--border); }
@@ -258,26 +255,9 @@ kbd{
 .ic-xs{ width:11px; height:11px; display:inline-block; vertical-align:-1px; }
 .ic-inline{ display:inline-block; vertical-align:-2px; }
 
-/* ============================================================
-   TODAY — PICKER
-   ============================================================ */
-.routine-pick{ display:flex; flex-direction:column; gap:var(--sp-2); }
-.routine-pick-row{
-  display:flex; align-items:center; gap:var(--sp-3);
-  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
-  padding:var(--sp-2) var(--sp-3) var(--sp-2) 0;
-  transition:border-color .12s ease, background .12s ease;
-}
-.routine-pick-row.is-selected{ border-color:var(--accent); box-shadow:inset 3px 0 0 var(--accent); }
+/* An archived exercise stays in the Exercises list, dimmed. */
 .ex-row.is-archived{ opacity:.72; }
-/* the label fills the row so the whole card is a selection target */
-.rp-select{
-  flex:1; min-width:0; text-align:left; background:none; border:0; cursor:pointer;
-  padding:var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-4); border-radius:var(--radius);
-}
-.rp-name{ font-weight:650; display:block; }
-.rp-meta{ color:var(--muted); font-size:var(--fs-xs); display:block; }
-.rp-go{ flex:none; }
+/* The last finished session, above the routine list on the Workout tab. */
 .last-session-row{ display:flex; gap:var(--sp-3); align-items:baseline; flex-wrap:wrap; }
 .last-session{ border-left:3px solid var(--success); }
 
@@ -682,8 +662,6 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .progression-panel.ready{ border-left-color:var(--accent); }
 .progression-panel.ready .progression-list button{ text-decoration-color:var(--accent); }
 .progression-count.ready{ color:var(--accent); font-weight:650; }
-.today-cues{ padding:var(--sp-4); margin-top:var(--sp-3); }
-.today-cues h3{ margin:0 0 var(--sp-2); font-size:var(--fs-sm); }
 /* load suggestions: one row per movement whose target was met */
 .cue-table{ width:100%; border-collapse:collapse; font-size:var(--fs-sm); font-variant-numeric:tabular-nums; }
 .cue-table th,.cue-table td{ text-align:left; padding:var(--sp-2); border-top:1px solid var(--border); vertical-align:middle; }
@@ -1209,7 +1187,6 @@ pre.code code{ background:none; border:0; padding:0; font-size:inherit; white-sp
   .btn-danger-solid:hover{ filter:brightness(1.07); background:var(--danger-strong); }
   .btn-quiet:hover{ background:var(--surface-2); color:var(--text); }
   input:hover:not(:focus),select:hover:not(:focus),textarea:hover:not(:focus){ border-color:var(--muted); }
-  .routine-pick-row:not(.is-selected):hover{ border-color:var(--border-strong); background:var(--surface-2); }
   .strip-step:hover:not([disabled]){ background:var(--surface-2); border-color:var(--muted); }
   .strip-step.is-last:hover{ background:var(--accent-strong); filter:brightness(1.07); }
   .strip-num:hover{ background:var(--surface-2); border-color:var(--border); }
@@ -1285,7 +1262,6 @@ button,.btn,.icon-btn,.nav-btn,.strip-step,.strip-num,.set-num,.hist-row,.list-o
     <nav class="main-nav" aria-label="Main">
       <ul id="nav-list">
         <li><button type="button" class="nav-btn" data-action="nav" data-view="today">Workout</button></li>
-        <li><button type="button" class="nav-btn" data-action="nav" data-view="routines">Routines</button></li>
         <li><button type="button" class="nav-btn" data-action="nav" data-view="history">History</button></li>
         <li><button type="button" class="nav-btn" data-action="nav" data-view="exercises">Exercises</button></li>
         <li><button type="button" class="nav-btn" data-action="nav" data-view="settings">Settings</button></li>
@@ -1794,7 +1770,7 @@ const ITEM_LIMITS = { sets:[1,12], reps:[0,999] };
 const PAIR_KEYS = ['eitherOf', 'supersetOf'];
 
 /* Single-key view switches, shared by the shortcut handler. */
-const NAV_KEYS = { t:'today', r:'routines', h:'history', e:'exercises' };
+const NAV_KEYS = { t:'today', h:'history', e:'exercises' };
 
 /* One list drives both the help dialog and the Settings table. */
 /* What a toggled switch is called in its confirmation toast. Every boolean
@@ -1804,11 +1780,10 @@ const SETTING_LABEL = { autoRest:'Auto-rest', sound:'Timer sound', vibrate:'Time
 const SHORTCUTS = [
   { keys:['?'], text:'Open shortcut help' },
   { keys:['/'], text:'Focus search (Exercises)' },
-  { keys:['t'], text:'Go to Today' },
-  { keys:['r'], text:'Go to Routines' },
+  { keys:['t'], text:'Go to Workout' },
   { keys:['h'], text:'Go to History' },
   { keys:['e'], text:'Go to Exercises' },
-  { keys:['s'], text:'Start selected routine · save current edit' },
+  { keys:['s'], text:'Start the first plan or routine · save current edit' },
   { keys:['p'], text:'Previous exercise' },
   { keys:['n'], text:'Next exercise' },
   { keys:['space'], text:'Start / pause rest timer' },
@@ -2493,7 +2468,6 @@ function freshUI(){
   return {
     view:'today',
     prevView:null,
-    selectedRoutineId:null,
     overviewOpen:false,         /* whether the session-overview drawer is expanded */
     detail:null,                /* {kind, id} of the item shown in the detail sheet */
     notesOpen:false,            /* session-notes field expanded (auto if a note exists) */
@@ -2543,6 +2517,8 @@ function resetUI(){
    Every navigation path goes through here — nav buttons and shortcuts alike.
    A detail sheet belongs to its view too; `detail` opens one on arrival. */
 function navigate(view, detail){
+  /* Routines used to have a tab of their own; their list is the Workout tab now. */
+  if (view === 'routines') view = 'today';
   if (ui.view !== view){
     ui.cueMenuId = null;
     ui.routineDraft = null; ui.routineError = '';
@@ -4767,8 +4743,6 @@ function trackHeaderHeight(){
    detail sheet was showing) settle here. */
 function normalizeSelections(){
   if (ui.detail && (!detailItem(ui.detail) || DETAIL_SHEETS[ui.detail.kind].view !== ui.view)) ui.detail = null;
-  if (state.routines.length && !routineById(ui.selectedRoutineId))
-    ui.selectedRoutineId = defaultRoutineId();
   const trendable = trendCandidates();
   if (trendable.length && !trendable.some(e => e.id === ui.trendExId))
     ui.trendExId = trendable[0].id;
@@ -4810,7 +4784,6 @@ function renderNav(){
 
 function viewHTML(){
   switch(ui.view){
-    case 'routines':  return viewRoutines();
     case 'history':   return viewHistory();
     case 'exercises': return viewExercises();
     case 'settings':  return viewSettings();
@@ -4819,56 +4792,16 @@ function viewHTML(){
 }
 
 /* ---------- TODAY ---------- */
+/* With no session running, the Workout tab is the routine list: each row
+   starts its routine or opens its sheet (load suggestions, edit, plan,
+   duplicate). Routines used to have a tab of their own that showed the same
+   two lists with the same Start buttons. */
 function viewToday(){
   const w = state.activeWorkout;
   if (w) return htmlActiveWorkout(w);
-  return '<div class="today-idle">' + htmlPicker() + '</div>';
+  return viewRoutines();
 }
 
-function htmlPicker(){
-  let html = '';
-  const last = sortedWorkouts()[0];
-  if (last){
-    html += '<section class="panel last-session" aria-label="Last session">' +
-      '<div class="pad last-session-row">' +
-        '<strong>Last session</strong>' +
-        '<span class="small">' + esc(last.routineName) + '</span>' +
-        '<span class="muted small">' + fmtDate(last.startedAt) + ' · ' + plural(workoutSets(last), 'set') + ' · ' + fmtNum(workoutVolume(last)) + ' ' + unitLabel() + '</span>' +
-        '<button type="button" class="btn btn-sm push-right" data-action="go-history">Open history</button>' +
-      '</div></section>';
-  }
-  const pickRow = (r, day) => {
-    const sel = r.id === ui.selectedRoutineId;
-    return '<div class="routine-pick-row' + (sel ? ' is-selected' : '') + '">' +
-      '<button type="button" class="rp-select" data-action="select-routine" data-id="' + esc(r.id) + '" aria-pressed="' + sel + '"' + (isPlan(r) ? ' id="preview-plan-' + esc(encodeURIComponent(r.id)) + '" aria-haspopup="dialog"' : '') + '>' +
-        '<span class="rp-name">' + esc(r.name) + (day && day.overdue ? ' <span class="tag tag-warn">Overdue</span>' : '') + '</span>' +
-        '<span class="rp-meta">' + (day ? esc(day.overdue ? day.when : day.label) + ' · ' : '') + routineSummary(r.items) + '</span>' +
-      '</button>' +
-      '<span class="rp-go"><button type="button" class="btn btn-primary btn-sm" data-action="routine-start" data-id="' + esc(r.id) + '" ' +
-        'aria-label="Start ' + esc(r.name) + '">' + IC.play + '<span>Start</span></button></span>' +
-    '</div>';
-  };
-  const plans = sortedPlans(), routines = stableRoutines();
-  if (plans.length){
-    html += '<section aria-labelledby="plan-title" class="mb-4"><div class="section-title"><h2 id="plan-title">Planned</h2><span class="rule"></span></div>' +
-      '<div class="routine-pick" role="group" aria-label="Choose a plan">' + plans.map(({ r, day }) => pickRow(r, day)).join('') + '</div>' +
-      '<p class="hint mt-2">A plan leaves this list once its session is saved; History keeps what it prescribed.</p></section>';
-  }
-  html += '<section aria-labelledby="pick-title"><div class="section-title"><h2 id="pick-title">Start a workout</h2><span class="rule"></span></div>';
-  if (state.routines.length === 0){
-    html += '<div class="empty"><h3>No routines yet</h3><p>Build one from your exercises, or import a routines file.</p>' +
-      '<div class="form-actions"><button type="button" class="btn btn-primary" data-action="nav" data-view="routines">Go to Routines</button>' +
-      '<button type="button" class="btn" data-action="nav" data-view="settings">Import a file</button></div></div>';
-  } else {
-    if (routines.length) html += '<div class="routine-pick" role="group" aria-label="Choose a routine">' + routines.map(r => pickRow(r, null)).join('') + '</div>';
-    html += '<p class="hint mt-2 keyboard-only">Tip: press <kbd>s</kbd> to start the highlighted routine.</p>';
-    const selected = routineById(ui.selectedRoutineId);
-    if (selected) html += htmlRoutineLoadCues(selected);
-  }
-  html += '</section>';
-  html += '<div class="mt-3"><button type="button" class="btn" data-action="start-empty">' + IC.plus + '<span>Start empty session</span></button></div>';
-  return html;
-}
 /* The load suggestions a routine's current targets have earned, one per
    movement, each with the routine item that earned it: under the picker on
    Today, and at the top of the routine's detail sheet. A suggestion held back
@@ -4980,12 +4913,6 @@ function loadCueActionsHTML(cue, name){
     '<button type="button" class="btn btn-sm" data-action="cue-off" data-id="' + esc(cue.id) + '">Stop for ' + esc(name) + '</button>' +
   '</div>';
 }
-function htmlRoutineLoadCues(routine){
-  const table = loadCueTableHTML(routine);
-  return table ? '<section class="panel today-cues" aria-label="Load suggestions for ' + esc(routine.name) + '">' +
-    '<h3>Load suggestions</h3>' + table + '</section>' : '';
-}
-
 function htmlActiveWorkout(w){
   const ex = currentExercise();
   const doneSets = workoutSets(w);
@@ -5463,13 +5390,8 @@ function exerciseOptions(selected, skip){
    in the page, where each kind has always been edited — so the sheet is only
    ever for looking, and there is one editor per kind rather than two. */
 const DETAIL_SHEETS = {
-  plan:{
-    view:'today', noun:'plan', find:id=>{const r=routineById(id);return r&&isPlan(r)?r:null;},
-    title:r=>r.name, sub:r=>'Plan · '+planDay(r).label+' · '+routineSummary(r.items),
-    body:routineDetailHTML, actions:r=>detailBtn('detail-start','routine-start',r.id,'Start '+r.name,IC.play+'<span>Start workout</span>','btn-primary')
-  },
   routine:{
-    view:'routines', noun:'routine', find:id => routineById(id),
+    view:'today', noun:'routine', find:id => routineById(id),
     title:r => r.name, sub:r => (isPlan(r) ? 'Plan · ' + planDay(r).label + ' · ' : '') + routineSummary(r.items),
     body:routineDetailHTML, actions:routineDetailActions
   },
@@ -5515,7 +5437,7 @@ function closeDetail(){
   const d = ui.detail;
   ui.detail = null;
   if (d && d.kind === 'workout') ui.historyHighlight = null;
-  if (d) ui.focus = d.kind==='plan'?'preview-plan-'+encodeURIComponent(d.id):detailRowId(d.kind, d.id);
+  if (d) ui.focus = detailRowId(d.kind, d.id);
   render();
 }
 /* Edit hands over to the page: the sheet closes and the item's own editor
@@ -5635,23 +5557,25 @@ function workoutDetailActions(w){
 /* ---------- ROUTINES ---------- */
 function viewRoutines(){
   const plans = sortedPlans(), routines = stableRoutines();
-  const head = '<div class="view-head"><div><h1>Routines</h1>' +
+  const head = '<div class="view-head"><div><h1>Workout</h1>' +
     '<p class="view-sub">' + plural(routines.length, 'routine') + (plans.length ? ' · ' + plural(plans.length, 'plan') : '') +
-      ' · starting one begins today’s workout</p></div>' +
+      ' · start one, or open it to see and edit it</p></div>' +
     (ui.routineDraft ? '' : '<div class="view-actions">' +
-      '<button type="button" class="btn btn-primary" data-action="routine-new">' + IC.plus + '<span>New routine</span></button>' +
+      /* Start is this screen's main action, so New routine stays secondary */
+      '<button type="button" class="btn" data-action="routine-new">' + IC.plus + '<span>New routine</span></button>' +
       /* the empty state below offers its own, larger import */
       (!state.routines.length ? '' : '<label class="file-btn is-quiet"><span>' + IC.up + ' Import</span><input type="file" accept=".json,application/json" data-change="import-routines" aria-label="Import routines from a JSON file"></label>') +
       '</div>') +
   '</div>';
   if (ui.routineDraft) return head + htmlRoutineEditor();
 
-  let html = '';
+  const startEmptyHTML = '<div class="mt-4"><button type="button" class="btn" data-action="start-empty">' + IC.plus + '<span>Start empty session</span></button></div>';
+  let html = lastSessionHTML();
   if (!state.routines.length){
     html += '<div class="empty"><h3>Nothing here yet</h3><p>Routines are ordered lists of exercises with targets. Create one, or import a routines file.</p>' +
       '<div class="form-actions"><button type="button" class="btn btn-primary" data-action="routine-new">' + IC.plus + '<span>New routine</span></button>' +
       '<label class="file-btn"><span>' + IC.up + ' Import routines</span><input type="file" accept=".json,application/json" data-change="import-routines" aria-label="Import routines from a JSON file"></label></div></div>';
-    return head + html;
+    return head + html + startEmptyHTML;
   }
   const row = (r, day) => {
     const names = routineGroups(r.items).map(g => g.map(it => (exerciseById(it.exerciseId) || {}).name || '(removed)').join(' or ')).slice(0,4).join(', ');
@@ -5666,7 +5590,7 @@ function viewRoutines(){
         '</span>' + IC.chev +
       '</button>' +
       '<span class="list-actions">' +
-        '<button type="button" class="btn btn-sm btn-primary" data-action="routine-start" data-id="' + esc(r.id) + '">' + IC.play + '<span>Start</span></button>' +
+        '<button type="button" class="btn btn-sm btn-primary" data-action="routine-start" data-id="' + esc(r.id) + '" aria-label="Start ' + esc(r.name) + '">' + IC.play + '<span>Start</span></button>' +
       '</span></li>';
   };
   if (plans.length){
@@ -5677,7 +5601,18 @@ function viewRoutines(){
     html += (plans.length ? '<div class="section-title"><h2>Routines</h2><span class="rule"></span></div>' : '') +
       '<ul class="list" aria-label="Routines">' + routines.map(r => row(r, null)).join('') + '</ul>';
   }
-  return head + html;
+  return head + html + '<p class="hint mt-2 keyboard-only">Tip: press <kbd>s</kbd> to start the first one.</p>' + startEmptyHTML;
+}
+function lastSessionHTML(){
+  const last = sortedWorkouts()[0];
+  if (!last) return '';
+  return '<section class="panel last-session mb-4" aria-label="Last session">' +
+    '<div class="pad last-session-row">' +
+      '<strong>Last session</strong>' +
+      '<span class="small">' + esc(last.routineName) + '</span>' +
+      '<span class="muted small">' + fmtDate(last.startedAt) + ' · ' + plural(workoutSets(last), 'set') + ' · ' + fmtNum(workoutVolume(last)) + ' ' + unitLabel() + '</span>' +
+      '<button type="button" class="btn btn-sm push-right" data-action="go-history">Open history</button>' +
+    '</div></section>';
 }
 
 function htmlRoutineEditor(){
@@ -6869,7 +6804,6 @@ function addBodyweightEntry(form){
 const actions = {
   nav(d){ navigate(d.view); },
   'go-history'(){ navigate('history'); },
-  'select-routine'(d){ ui.selectedRoutineId = d.id;const r=routineById(d.id);if(r&&isPlan(r))openDetail('plan',r.id);else render(); },
   'routine-start'(d){ startRoutine(d.id); },
   'start-empty'(){ startEmpty(); },
   'add-workout-exercise'(d){ addExerciseToWorkout(d.id); },
@@ -7704,10 +7638,10 @@ document.addEventListener('keydown', e => {
       navigate('exercises');
       break;
     case 's':
-      if (ui.view === 'routines' && ui.routineDraft){ saveRoutineDraft(); }
+      if (ui.view === 'today' && !state.activeWorkout && ui.routineDraft){ saveRoutineDraft(); }
       else if (ui.view === 'exercises' && ui.exerciseDraft){ saveExerciseDraft(); }
       else if (ui.view === 'today' && !state.activeWorkout){
-        const id = ui.selectedRoutineId || defaultRoutineId();
+        const id = defaultRoutineId();
         if (id) startRoutine(id);
       }
       break;
@@ -7731,7 +7665,7 @@ function init(){
      the user to choose. A fresh install can adopt a dated remote snapshot. */
   /* Undated existing data requires explicit conflict resolution, never invented age. */
   createStoragePanel();
-  appShell = WorkoutUI.createShell({name:'Liftlog',items:[{id:'today',label:'Workout',icon:'workout'},{id:'routines',label:'Routines',icon:'routines'},{id:'history',label:'History',icon:'history'},{id:'exercises',label:'Exercises',icon:'exercises'},{id:'settings',label:'Settings',icon:'settings'}],onNavigate:view=>navigate(view)});
+  appShell = WorkoutUI.createShell({name:'Liftlog',items:[{id:'today',label:'Workout',icon:'workout'},{id:'history',label:'History',icon:'history'},{id:'exercises',label:'Exercises',icon:'exercises'},{id:'settings',label:'Settings',icon:'settings'}],onNavigate:view=>navigate(view)});
   applyTheme();
   /* restoreTimer() reads activeWorkout.timer, and loadTimer() overwrites it —
      so a running rest timer must be restored instead of, not after, a reset. */

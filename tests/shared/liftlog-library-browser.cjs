@@ -19,7 +19,7 @@ const fixture={version:14,settings:{lastModifiedAt:1},exercises:[
   const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block'}),page=await context.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));await page.route('https://app.test/**',route=>route.fulfill({contentType:'text/html',body:html}));await page.goto('https://app.test/');
   await page.evaluate(data=>{const prepared=testAPI.prepareBackup(data);localStorage.setItem('liftlog.v1',JSON.stringify(prepared));},fixture);await page.reload();
-  const planned=page.locator('[data-action="select-routine"][data-id="plan"]');await planned.click();
+  const planned=page.locator('#open-routine-plan');await planned.click();
   const sheet=page.locator('#detail-dlg');assert.equal(await sheet.isVisible(),true);assert.match(await page.locator('#detail-body').textContent(),/Visible Press.*3 × 8–10 reps.*Archive Row.*2 × 10–12 reps/);
   assert.equal(await page.evaluate(()=>testAPI.state.activeWorkout),null,'preview does not start a workout');
   await page.screenshot({path:'/tmp/liftlog-planned-preview.png',animations:'disabled'});
@@ -36,7 +36,7 @@ const fixture={version:14,settings:{lastModifiedAt:1},exercises:[
   await page.fill('#history-search','Archive Row');assert.equal(await page.locator('.hist-row').count(),0);
   await page.fill('#history-search','');await page.locator('.hist-row').click();assert.doesNotMatch(await page.locator('#detail-body').textContent(),/Archive Row/);assert.match(await page.locator('#detail-body').textContent(),/Visible Press/);
   await page.locator('#detail-close').click();
-  await navigate(page,'routines');await page.locator('#open-routine-plan').click();await page.locator('#detail-edit').click();
+  await navigate(page,'today');await page.locator('#open-routine-plan').click();await page.locator('#detail-edit').click();
   assert.equal(await page.locator('#routine-add-select option[value="row"]').count(),0,'archived exercises cannot be added');
   await navigate(page,'exercises');await page.click('#ex-archived-toggle');await page.click('#archive-ex-row');
   await page.waitForFunction(()=>!testAPI.state.exercises.find(e=>e.id==='row').archived);await page.evaluate(()=>testAPI.flushSave());

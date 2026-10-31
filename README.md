@@ -489,7 +489,11 @@ dark only. Phones use labeled
 bottom navigation; active workouts replace it with an action bar and a Menu button.
 Other screens provide Return to workout without resetting or pausing the session.
 Desktop keeps the same destinations in the header. Liftlog's Today destination is
-now labeled Workout; existing view identities and keyboard shortcuts remain.
+now labeled Workout. Liftlog has no separate Routines tab: with no session
+running, Workout lists the planned sessions and routines, each with Start and a
+row that opens its sheet (load suggestions, edit, plan, duplicate). New routine,
+Import, the last session and Start empty session are on the same screen. The
+`r` shortcut is gone; `s` starts the first plan or routine.
 
 Bike's Workout screen contains the upcoming plan and optional ride adjustments.
 Settings holds default targets/durations, sound, appearance, storage and updates.
@@ -528,7 +532,7 @@ referrer: Liftlog workout notes and Bike plan and ride notes. Instructions
 (Liftlog exercises, Tabata) show links as typed. Bike ride notes have the same
 Preview switch as the instruction editors.
 
-**Load suggestions** use the same words on Today, the routine sheet, the workout
+**Load suggestions** use the same words on the routine sheet, the workout
 and History → Progress. Each shows a state (Ready; Reps met, check RIR; RIR not
 logged), the last result as load × reps, and the next load with the routine's rep
 range. A planned routine weight replaces the suggested figure ("Planned 100 kg"),
