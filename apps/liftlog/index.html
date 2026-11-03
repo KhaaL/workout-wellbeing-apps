@@ -416,6 +416,21 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
    effort column is on. Outranks the "done" colours above on specificity, so a
    completed warm-up still reads as a warm-up. */
 .set-row.is-warmup .set-done-btn{ border-color:var(--warning); color:var(--warning); }
+/* A logged set reads as one line of text (htmlDoneSetRow). Its controls are
+   36px tall, the .btn-sm size: un-logging a set is a correction, and the 44px
+   floor stays on the open row's Done, the control aimed at between sets. */
+.set-row.is-compact{ align-items:center; padding:var(--sp-1) 0; }
+.set-summary{
+  grid-column:1 / -3; display:flex; align-items:center; gap:var(--sp-2); min-width:0; min-height:36px;
+  padding:0 2px; background:none; border:0; border-radius:var(--radius);
+  font:inherit; font-size:var(--fs-sm); color:var(--muted); text-align:left; cursor:pointer; font-variant-numeric:tabular-nums;
+}
+.set-summary .n{ font-weight:700; min-width:1.4em; }
+.set-summary .wu{ font-size:10px; font-weight:650; color:var(--warning); }
+.set-summary .set-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.set-summary .set-text.reps-under{ color:var(--warning); }
+.set-summary .set-text.reps-over{ color:var(--success); }
+.set-row.is-compact .set-done-btn{ min-height:36px; }
 .sets-foot{ display:flex; gap:var(--sp-2); flex-wrap:wrap; align-items:center; margin-top:var(--sp-3); padding-top:var(--sp-3); border-top:1px solid var(--border); }
 .sets-foot .next-up{ margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
@@ -504,6 +519,8 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .status-chip.ok{ background:var(--success-soft); color:var(--success); }
 .status-chip.skip{ background:var(--warning-soft); color:var(--warning); }
 .status-chip.current{ background:var(--accent-soft); color:var(--accent); }
+/* an outline, so it never reads as the filled Skipped chip in the same colour */
+.status-chip.warm{ border:1px solid var(--warning); color:var(--warning); }
 
 /* session overview drawer */
 .overview-toggle .chev{ transition:transform .15s ease; }
@@ -3094,6 +3111,31 @@ function movementWarmth(w, ex){
   }
   return by ? { family, fresh:false, by } : { family, fresh:true };
 }
+/* The muscle group each fresh group starts on, for the overview's "First
+   Push" chip: index → category. A group is fresh until any of its exercises
+   logs a working set; the chip sits on its first exercise in the current order
+   that is neither done nor skipped, so reordering moves it. Legs and Hinge
+   share the hips and hamstrings, so they count as one group. The category is
+   read from the library, like movementFamilyOf. Core, Cardio and Other get no
+   chip: they are rarely loaded enough to warm up for. */
+const NO_WARMUP_GROUPS = ['Core', 'Cardio', 'Other'];
+function muscleGroupOf(block){
+  const def = block && exerciseById(canonicalExerciseId(block.exerciseId));
+  return normalizeCategory((def && def.category) || (block && block.category), block && block.name);
+}
+function freshGroupStarts(w){
+  const starts = new Map(), worked = new Set(), seen = new Set();
+  const key = c => c === 'Hinge' ? 'Legs' : c;
+  for (const ex of w.exercises){
+    if ((ex.sets || []).some(s => s.completed && !isWarmup(s))) worked.add(key(muscleGroupOf(ex)));
+  }
+  w.exercises.forEach((ex, i) => {
+    const group = muscleGroupOf(ex), k = key(group);
+    if (NO_WARMUP_GROUPS.includes(group) || worked.has(k) || seen.has(k) || ex.skipped || allSetsDone(ex)) return;
+    seen.add(k); starts.set(i, group);
+  });
+  return starts;
+}
 function timerLeft(t){
   return t.running ? Math.max(0, (t.endsAt - Date.now())/1000) : t.remaining;
 }
@@ -3425,6 +3467,7 @@ function workoutController(){
     get inferMovementFamily(){return inferMovementFamily;},
     get isPlan(){return isPlan;},
     get isWarmup(){return isWarmup;},
+    get setFieldsHTML(){return setFieldsHTML;},
     get lastPerformance(){return lastPerformance;},
     get loadCueFor(){return loadCueFor;},
     get loadTimer(){return loadTimer;},
@@ -5057,6 +5100,74 @@ function bestBits(stats, ex){
   if (ex.unit === 'time' && stats.duration > 0) out.push(['Best hold', stats.duration + ' s']);
   return out;
 }
+/* The effort column a set shows: a prescribed RIR must be recordable even
+   when global effort tracking is off. Exercises without one follow the global
+   preference. null when the column is off. */
+function setMetric(ex){
+  const metric = ex.targetRir != null ? 'rir' : state.settings.effortMetric;
+  if (metric === 'none') return null;
+  return metric === 'rir' ? { field:'rir', label:'RIR' } : { field:'rpe', label:'RPE' };
+}
+/* The inputs of one set: load, count and effort. The set row and the set
+   editor both build from this, so a logged row can show text only and the
+   editor still gets every field. Below 640px the per-row captions are hidden
+   (the head row already names the columns), so every input carries its own
+   aria-label. */
+function setFieldsHTML(ex, s, n, metric = setMetric(ex)){
+  const wLabel = exerciseLoadLabel(ex), bodyweight = ex.unit === 'bw';
+  const repsLabel = ex.unit === 'time' ? 'sec' : 'reps';
+  let html = '';
+  if (ex.unit !== 'time'){
+    const weightField = bodyweight ? 'addedWeight' : 'weight';
+    const weightValue = bodyweight ? s.addedWeight : s.weight;
+    html += '<label class="field"><span class="cap">' + esc(wLabel) + '</span>' +
+      '<input id="sw-' + esc(s.id) + '" type="number" inputmode="decimal" min="0" step="0.5" ' +
+      'aria-label="Set ' + n + (bodyweight ? ' added load' : ' weight') + ' in ' + esc(wLabel) + '" ' +
+      'data-bind="set" data-change="set-weight" data-id="' + esc(s.id) + '" data-field="' + weightField + '" ' +
+      'value="' + esc(weightValue != null ? weightValue : '') + '" placeholder="0"></label>';
+  }
+  const timedField = ex.unit === 'time';
+  const midVal = timedField ? setDuration(s) : s.reps;
+  const hasTarget = ex.targetRepsMin != null;
+  const range = repRangeState(ex, s);
+  html += '<label class="field"><span class="cap">' + esc(repsLabel) + '</span>' +
+    '<input id="sr-' + esc(s.id) + '" type="number" inputmode="numeric" min="0" step="1" ' +
+    (range ? 'class="' + range.cls + '" title="' + esc(range.title) + '" ' : '') +
+    'aria-label="Set ' + n + ' ' + esc(repsLabel) + (hasTarget ? ', target ' + esc(targetRangeLabel(ex)) : '') + '" ' +
+    'data-bind="set" data-change="set-reps" data-id="' + esc(s.id) + '" data-field="' + (timedField ? 'durationSeconds' : 'reps') + '" ' +
+    'value="' + esc(midVal != null ? midVal : '') + '" placeholder="' + esc(hasTarget ? targetRangeLabel(ex) : '0') + '"></label>';
+  if (metric){
+    const rir = metric.field === 'rir', mv = s[metric.field];
+    html += '<label class="field"><span class="cap">' + metric.label + '</span>' +
+      '<input type="number" inputmode="decimal" min="' + (rir ? 0 : 1) + '" max="10" step="' + (rir ? 1 : 0.5) + '" ' +
+      'aria-label="Set ' + n + ' ' + metric.label + '" ' +
+      'data-bind="set" data-id="' + esc(s.id) + '" data-field="' + metric.field + '" ' +
+      'value="' + esc(mv != null ? mv : '') + '" placeholder="' + esc(rir && ex.targetRir != null ? ex.targetRir : '–') + '"></label>';
+  }
+  return html;
+}
+/* A logged set is a record to read, so it is one line of text: number, load
+   × count, effort. The line opens the set editor, which holds every field and
+   the warm-up toggle; the done box beside it still un-logs the set, and a long
+   press on it still marks a warm-up. A row is 44px tall instead of 56px or
+   more, and has no input borders. */
+function htmlDoneSetRow(ex, s, n, metric){
+  const warm = isWarmup(s), effort = metric && s[metric.field] != null ? metric.label + ' ' + fmtNum(s[metric.field]) : '';
+  const range = repRangeState(ex, s);
+  const text = setSummary(s, ex) + (effort ? ' · ' + effort : '');
+  return '<div class="set-row is-done is-compact' + (warm ? ' is-warmup' : '') + '">' +
+    '<button type="button" class="set-summary" data-action="edit-set" data-id="' + esc(s.id) + '" ' +
+      'aria-label="Edit set ' + n + (warm ? ', warm-up' : '') + ': ' + text + '" title="Edit set ' + n + '">' +
+      '<span class="n">' + n + '</span>' +
+      (warm ? '<span class="wu" title="Warm-up: out of volume and records">W</span>' : '') +
+      '<span class="set-text' + (range ? ' ' + range.cls : '') + '">' + text + '</span>' +
+    '</button>' +
+    '<button type="button" id="sd-' + esc(s.id) + '" class="btn set-done-btn" data-action="toggle-set" ' +
+      'data-longpress="toggle-warmup" data-id="' + esc(s.id) + '" aria-pressed="true" ' +
+      'aria-label="Mark set ' + n + ' as not done" title="Mark set ' + n + ' as not done · hold to mark it a warm-up">' +
+      IC.boxcheck + '</button>' +
+  '</div>';
+}
 function htmlCurrentExercise(w, ex){
   const run = supersetRun(w, w.currentExerciseIndex);
   const next = w.exercises[run[run.length - 1] + 1] || null;
@@ -5076,20 +5187,15 @@ function htmlCurrentExercise(w, ex){
   if (bits.length) prevHTML = '<div class="prev-perf">' + bits.join('') + '</div>';
 
   const currentIdx = ex.sets.findIndex(s => !s.completed);
-  /* A prescribed RIR must be recordable even when global effort tracking is
-     off. Exercises without one continue to follow the global preference. */
-  const metric = ex.targetRir != null ? 'rir' : state.settings.effortMetric;
-  const showMetric = metric !== 'none';
-  const metricField = metric === 'rir' ? 'rir' : 'rpe';
-  const metricLabel = metric === 'rir' ? 'RIR' : 'RPE';
-  const cols = 'sets' + (showMetric ? '' : ' no-rpe') + (showWeight ? '' : ' no-weight');
+  const metric = setMetric(ex);
+  const cols = 'sets' + (metric ? '' : ' no-rpe') + (showWeight ? '' : ' no-weight');
 
   let setsHTML =
     '<div class="sets-head" aria-hidden="true">' +
       '<span>Set</span>' +
       (showWeight ? '<span>' + (bodyweight ? 'Added' : 'Weight') + '<span class="narrow-hide"> (' + esc(wLabel) + ')</span></span>' : '') +
       '<span>' + esc(repsLabel) + '</span>' +
-      (showMetric ? '<span>' + metricLabel + '</span>' : '') +
+      (metric ? '<span>' + metric.label + '</span>' : '') +
       '<span>Done</span><span></span>' +
     '</div>';
 
@@ -5102,14 +5208,15 @@ function htmlCurrentExercise(w, ex){
     const prevMatch = isWarmup(s) ? null : prevWork[workIdx++];
     const prevSet = prevMatch ? setSummary(prevMatch, ex) : '';
     const n = i + 1;
+    const warm = isWarmup(s);
+    if (s.completed){ setsHTML += htmlDoneSetRow(ex, s, n, metric); return; }
     /* The set number doubles as the warm-up toggle: the row is already five or
        six columns wide and has no room for another one, and "is this a warm-up"
        is the set's identity rather than another field. The cell is 34px at
        480px and 30px at 400px, so the marker is a letter and takes the place of
        the previous-session figure — which is itself hidden below 480px, where
        .prev-perf above already lists the whole of the last session. */
-    const warm = isWarmup(s);
-    setsHTML += '<div class="set-row' + (isCur ? ' is-current' : '') + (s.completed ? ' is-done' : '') +
+    setsHTML += '<div class="set-row' + (isCur ? ' is-current' : '') +
         (warm ? ' is-warmup' : '') + '">' +
       '<button type="button" id="sn-' + esc(s.id) + '" class="set-num" data-action="toggle-warmup" data-id="' + esc(s.id) + '" ' +
         'aria-pressed="' + warm + '" aria-label="Set ' + n +
@@ -5117,46 +5224,14 @@ function htmlCurrentExercise(w, ex){
         '<span class="n">' + n + '</span>' +
         (warm ? '<span class="wu" title="Warm-up: out of volume and records">W</span>'
               : (prevSet ? '<span class="prev" title="Previous session">' + prevSet + '</span>' : '')) +
-      '</button>';
-    /* Below 640px the per-row captions are hidden (the head row already names
-       the columns), so every input carries its own aria-label — which also
-       names it better than the bare unit ever did. */
-    if (showWeight){
-      const weightField = bodyweight ? 'addedWeight' : 'weight';
-      const weightValue = bodyweight ? s.addedWeight : s.weight;
-      setsHTML += '<label class="field"><span class="cap">' + esc(wLabel) + '</span>' +
-        '<input id="sw-' + esc(s.id) + '" type="number" inputmode="decimal" min="0" step="0.5" ' +
-        'aria-label="Set ' + n + (bodyweight ? ' added load' : ' weight') + ' in ' + esc(wLabel) + '" ' +
-        'data-bind="set" data-change="set-weight" data-id="' + esc(s.id) + '" data-field="' + weightField + '" ' +
-        'value="' + esc(weightValue != null ? weightValue : '') + '" placeholder="0"></label>';
-    }
-    const timedField = ex.unit === 'time';
-    const midVal = timedField ? setDuration(s) : s.reps;
-    const hasTarget = ex.targetRepsMin != null;
-    const range = repRangeState(ex, s);
-    setsHTML += '<label class="field"><span class="cap">' + esc(repsLabel) + '</span>' +
-      '<input id="sr-' + esc(s.id) + '" type="number" inputmode="numeric" min="0" step="1" ' +
-      (range ? 'class="' + range.cls + '" title="' + esc(range.title) + '" ' : '') +
-      'aria-label="Set ' + n + ' ' + esc(repsLabel) + (hasTarget ? ', target ' + esc(targetRangeLabel(ex)) : '') + '" ' +
-      'data-bind="set" data-change="set-reps" data-id="' + esc(s.id) + '" data-field="' + (timedField ? 'durationSeconds' : 'reps') + '" ' +
-      'value="' + esc(midVal != null ? midVal : '') + '" placeholder="' + esc(hasTarget ? targetRangeLabel(ex) : '0') + '"></label>';
-    if (showMetric){
-      const mv = s[metricField];
-      setsHTML += '<label class="field"><span class="cap">' + metricLabel + '</span>' +
-        '<input type="number" inputmode="decimal" min="' + (metric === 'rir' ? 0 : 1) + '" max="10" step="' + (metric === 'rir' ? 1 : 0.5) + '" ' +
-        'aria-label="Set ' + n + ' ' + metricLabel + '" ' +
-        'data-bind="set" data-id="' + esc(s.id) + '" data-field="' + metricField + '" ' +
-        'value="' + esc(mv != null ? mv : '') + '" placeholder="' + esc(metric === 'rir' && ex.targetRir != null ? ex.targetRir : '–') + '"></label>';
-    }
+      '</button>' + setFieldsHTML(ex, s, n, metric);
     /* A long press here toggles the warm-up flag (data-longpress); a tap still
        logs the set. The set number keeps the same toggle as a plain button, so
        the gesture is never the only way in — a keyboard has no long press. */
     setsHTML += '<button type="button" id="sd-' + esc(s.id) + '" class="btn set-done-btn" data-action="toggle-set" ' +
       'data-longpress="toggle-warmup" data-id="' + esc(s.id) + '" ' +
-      'aria-pressed="' + esc(s.completed) + '" aria-label="' + (s.completed ? 'Mark set ' + n + ' as not done' : 'Mark set ' + n + ' as done') +
-      '" title="' + (s.completed ? 'Mark set ' + n + ' as not done' : 'Mark set ' + n + ' as done') +
-      ' · hold to mark it a warm-up">' +
-      (s.completed ? IC.boxcheck : IC.box) + '</button>';
+      'aria-pressed="false" aria-label="Mark set ' + n + ' as done" title="Mark set ' + n + ' as done · hold to mark it a warm-up">' +
+      IC.box + '</button>';
     setsHTML += '<button type="button" class="btn set-edit-btn" data-action="edit-set" data-id="' + esc(s.id) + '" ' +
       'aria-label="Edit set ' + n + '" title="Edit set ' + n + '">' + IC.pen + '</button>';
     setsHTML += '</div>';
@@ -5240,6 +5315,7 @@ function htmlSupersetNote(w, ex, run){
 function overviewSheetHTML(w){
   const last = w.exercises.length - 1;
   const nowIdx = currentMemberIndex(w);
+  const fresh = freshGroupStarts(w);
   let html = '';
 
   w.exercises.forEach((ex, i) => {
@@ -5257,6 +5333,8 @@ function overviewSheetHTML(w){
     const chip = isNow ? '<span class="status-chip current">Now</span>'
       : ex.skipped ? '<span class="status-chip skip">Skipped</span>'
       : allSetsDone(ex) ? '<span class="status-chip ok">' + icon('check','ic-xs') + ' Done</span>' : '';
+    const warmChip = fresh.has(i) ? '<span class="status-chip warm" title="First ' + esc(fresh.get(i)) +
+      ' exercise in this workout: warm up first">First ' + esc(fresh.get(i)) + '</span> ' : '';
     const meta = settled && logged.length ? logged.map(s => setSummary(s, ex)).join(', ')
       : isNow || logged.length ? logged.length + '/' + ex.sets.length + ' sets'
       : plural(ex.sets.length, 'set') + ' planned';
@@ -5272,7 +5350,7 @@ function overviewSheetHTML(w){
         'aria-label="Reorder ' + esc(ex.name) + '. Drag it, or use the up and down arrow keys." ' +
         'title="Drag to reorder">' + IC.grip + '</button>' +
       '<span class="item-name">' +
-        '<span class="ov-title">' + (chip ? chip + ' ' : '') + (marker ? marker + ' ' : '') + esc(ex.name) +
+        '<span class="ov-title">' + (chip ? chip + ' ' : '') + warmChip + (marker ? marker + ' ' : '') + esc(ex.name) +
           (joined && i < partnerIndex ? '<span class="sr-only">' + (pairKey === 'supersetOf' ? ' in a superset with ' : ' or ') +
             esc(w.exercises[partnerIndex].name) + '</span>' : '') + '</span>' +
         '<span class="ov-meta">' + meta + '</span></span>' +

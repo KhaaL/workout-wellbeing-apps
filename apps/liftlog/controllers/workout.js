@@ -362,7 +362,9 @@ function openSetEditor(setId){
   const dialog=document.createElement('dialog');dialog.className='numeric-editor';dialog.setAttribute('aria-label','Edit set '+number);
   const heading=document.createElement('h2');heading.textContent='Set '+number;dialog.append(heading);
   const inputs=[];
-  for(const original of opener.closest('.set-row').querySelectorAll('input')){
+  /* Built from the set itself: a logged row shows text only and has no inputs to copy. */
+  const fields=document.createElement('template');fields.innerHTML=context.setFieldsHTML(ex,set,number);
+  for(const original of fields.content.querySelectorAll('input')){
     const label=document.createElement('label');label.className='field';const cap=document.createElement('span');cap.textContent=original.getAttribute('aria-label');
     const input=original.cloneNode();input.removeAttribute('id');input.removeAttribute('data-bind');input.removeAttribute('data-change');input.removeAttribute('data-id');input.value=original.value;input.dataset.stepper='';
     if(['weight','addedWeight'].includes(original.dataset.field)){input.dataset.increment=context.state.settings.loadStep||original.step;input.step='any';}
