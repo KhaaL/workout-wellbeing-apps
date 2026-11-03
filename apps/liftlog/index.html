@@ -416,6 +416,8 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
    effort column is on. Outranks the "done" colours above on specificity, so a
    completed warm-up still reads as a warm-up. */
 .set-row.is-warmup .set-done-btn{ border-color:var(--warning); color:var(--warning); }
+.numeric-editor .editor-pair{ display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-2); }
+.numeric-editor hr{ width:100%; border:0; border-top:1px solid var(--border); margin:var(--sp-1) 0; }
 /* A logged set reads as one line of text (htmlDoneSetRow). Its controls are
    36px tall, the .btn-sm size: un-logging a set is a correction, and the 44px
    floor stays on the open row's Done, the control aimed at between sets. */
@@ -5167,16 +5169,24 @@ function setFieldsHTML(ex, s, n, metric = setMetric(ex)){
    the warm-up toggle; the done box beside it still un-logs the set, and a long
    press on it still marks a warm-up. A row is 44px tall instead of 56px or
    more, and has no input borders. */
+/* A logged set's figures without the unit: the target tag and the column
+   head already name it, and "kg stack" on every line was most of the line.
+   The button's aria-label keeps the unit through setSummary. */
+function doneSetText(s, ex){
+  const reps = s.reps != null ? s.reps : '–', dur = setDuration(s);
+  if (ex.unit === 'time' || dur != null) return dur != null ? dur + ' s' : '–';
+  if (ex.unit === 'bw') return (toNum(s.addedWeight) > 0 ? 'BW +' + fmtNum(s.addedWeight) : 'BW') + ' × ' + reps;
+  return fmtNum(s.weight) + ' × ' + reps;
+}
 function htmlDoneSetRow(ex, s, n, metric){
   const warm = isWarmup(s), effort = metric && s[metric.field] != null ? metric.label + ' ' + fmtNum(s[metric.field]) : '';
-  const range = repRangeState(ex, s);
-  const text = setSummary(s, ex) + (effort ? ' · ' + effort : '');
+  const range = repRangeState(ex, s), tail = effort ? ' · ' + effort : '';
   return '<div class="set-row is-done is-compact' + (warm ? ' is-warmup' : '') + '">' +
     '<button type="button" class="set-summary" data-action="edit-set" data-id="' + esc(s.id) + '" ' +
-      'aria-label="Edit set ' + n + (warm ? ', warm-up' : '') + ': ' + text + '" title="Edit set ' + n + '">' +
+      'aria-label="Edit set ' + n + (warm ? ', warm-up' : '') + ': ' + setSummary(s, ex) + tail + '" title="Edit set ' + n + '">' +
       '<span class="n">' + n + '</span>' +
       (warm ? '<span class="wu" title="Warm-up: out of volume and records">W</span>' : '') +
-      '<span class="set-text' + (range ? ' ' + range.cls : '') + '">' + text + '</span>' +
+      '<span class="set-text' + (range ? ' ' + range.cls : '') + '">' + doneSetText(s, ex) + tail + '</span>' +
     '</button>' +
     '<button type="button" id="sd-' + esc(s.id) + '" class="btn set-done-btn" data-action="toggle-set" ' +
       'data-longpress="toggle-warmup" data-id="' + esc(s.id) + '" aria-pressed="true" ' +

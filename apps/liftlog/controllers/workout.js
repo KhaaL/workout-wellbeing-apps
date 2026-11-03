@@ -365,19 +365,25 @@ function openSetEditor(setId){
   /* Built from the set itself: a logged row shows text only and has no inputs to copy. */
   const fields=document.createElement('template');fields.innerHTML=context.setFieldsHTML(ex,set,number);
   for(const original of fields.content.querySelectorAll('input')){
-    const label=document.createElement('label');label.className='field';const cap=document.createElement('span');cap.textContent=original.getAttribute('aria-label');
+    /* The heading already says "Set 3", so the caption drops it: "Weight in kg".
+       The input keeps its full aria-label, which still contains the caption. */
+    const name=original.getAttribute('aria-label').replace(/^Set \d+ /,'');
+    const label=document.createElement('label');label.className='field';const cap=document.createElement('span');cap.textContent=name.charAt(0).toUpperCase()+name.slice(1);
     const input=original.cloneNode();input.removeAttribute('id');input.removeAttribute('data-bind');input.removeAttribute('data-change');input.removeAttribute('data-id');input.value=original.value;input.dataset.stepper='';
     if(['weight','addedWeight'].includes(original.dataset.field)){input.dataset.increment=context.state.settings.loadStep||original.step;input.step='any';}
     label.append(cap,input);dialog.append(label);inputs.push({input,field:original.dataset.field});
   }
+  /* Cancel and Save side by side under the fields, Save on the right; the
+     rarer changes to the set itself sit below a rule. Removing the whole
+     exercise lives in the exercise's More… menu, not in one set's editor. */
   const actions=document.createElement('div');actions.className='editor-actions';dialog.append(actions);
-  const button=(text,css,action)=>{const b=document.createElement('button');b.type='button';b.className='btn '+css;b.textContent=text;b.addEventListener('click',action);actions.append(b);};
-  button('Save changes','btn-primary',()=>{if(inputs.some(({input})=>!input.reportValidity()))return;context.trackChange(context.setUndoTarget(context.state.activeWorkout,ex,set),'Edited set',()=>{for(const {input,field}of inputs)set[field]=context.normalizeSetNumber(field,input.value);context.save();});dialog.close();context.ui.focus='sd-'+setId;context.render();});
+  const button=(text,css,action,into=actions)=>{const b=document.createElement('button');b.type='button';b.className='btn '+css;b.textContent=text;b.addEventListener('click',action);into.append(b);};
+  const pair=document.createElement('div');pair.className='editor-pair';actions.append(pair);
+  button('Cancel','',()=>dialog.close(),pair);
+  button('Save changes','btn-primary',()=>{if(inputs.some(({input})=>!input.reportValidity()))return;context.trackChange(context.setUndoTarget(context.state.activeWorkout,ex,set),'Edited set',()=>{for(const {input,field}of inputs)set[field]=context.normalizeSetNumber(field,input.value);context.save();});dialog.close();context.ui.focus='sd-'+setId;context.render();},pair);
+  actions.append(document.createElement('hr'));
   button(context.isWarmup(set)?'Mark as working set':'Mark as warm-up','',()=>{dialog.close();toggleWarmup(setId);});
-  button('Cancel','',()=>dialog.close());
-  const divider=document.createElement('hr');actions.append(divider);
   button('Delete set '+number+'…','btn-danger',()=>{dialog.close();deleteSet(setId);});
-  button('Remove exercise…','btn-danger',()=>{dialog.close();confirmExerciseRemoval(context.state.activeWorkout,ex);});
   dialog.addEventListener('close',()=>{dialog.remove();if(opener?.isConnected)opener.focus();},{once:true});document.body.append(dialog);context.WorkoutUI.attachSteppers(dialog);dialog.showModal();
 }
 
@@ -429,6 +435,8 @@ function openExerciseMenu(){
   const button = (text, css, action) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + css; b.textContent = text;
     b.addEventListener('click', () => { next = action; dialog.close(); }); actions.append(b); };
   if (canSwap(ex)) button('Swap for another exercise…', '', openSwapDialog);
+  /* Skipped work stays in the plan: the overview marks it and can reopen it. */
+  if (!allSetsDone(ex)) button('Skip exercise', '', () => advanceExercise(true, true));
   button('Remove exercise…', 'btn-danger', () => confirmExerciseRemoval(w, ex));
   button('Cancel', '', null);
   /* the follow-up runs after focus has gone back, so its own dialog or render owns focus */
