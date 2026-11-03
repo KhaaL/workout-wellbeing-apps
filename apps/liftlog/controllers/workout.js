@@ -774,8 +774,10 @@ function finishWorkout(){
     context.ui.focus = 'detail-title';
     context.navigate('history', { kind:'workout', id:w.id });
     window.scrollTo(0,0);
-    context.toast('Workout saved — ' + context.fmtNum(context.workoutVolume(w)) + ' ' + context.unitLabel() + ' total' + (planDone ? ' · plan done' : ''));
-    context.maybeNagBackup();
+    /* One toast: a backup reminder used to replace the save confirmation at once. */
+    const reminder = context.backupReminder();
+    context.toast('Workout saved — ' + context.fmtNum(context.workoutVolume(w)) + ' ' + context.unitLabel() + ' total' + (planDone ? ' · plan done' : '') +
+      (reminder ? '. ' + reminder.text : ''), reminder && reminder.action);
   };
   if (done === 0){
     context.dialog({ title:'No sets completed', body:'This workout has no completed sets. Do you want to save it anyway?',
@@ -786,6 +788,31 @@ function finishWorkout(){
       ]}).then(v => { if (v === 'save') commit(false); else if (v === 'discard') commit(true); });
   } else commit(false);
 }
+/* Working sets the plan still holds and nobody logged: finishing drops them.
+   An either-of pair counts its larger member, like the planned-set totals;
+   a superset counts every member. Skipped exercises and warm-ups are left
+   out, since dropping them loses nothing that was planned as work. */
+function openWorkSets(w){
+  const open = ex => ex.skipped ? 0 : ex.sets.filter(s => !s.completed && !context.isWarmup(s)).length;
+  return context.routineGroups(w.exercises).reduce((n, group) =>
+    n + (group[0].supersetOf ? group.reduce((a, ex) => a + open(ex), 0) : Math.max(...group.map(open))), 0);
+}
+/* The Finish button asks first when planned work is left, because finishing
+   drops the unlogged rows and the button sits beside every exercise title.
+   A workout with nothing logged gets finishWorkout's own question instead. */
+function confirmFinishWorkout(){
+  if(context.workoutHandoff.held()){context.toast('Workout held for handoff');return;}
+  const w = context.state.activeWorkout; if (!w) return;
+  const open = openWorkSets(w);
+  if (!open || context.workoutSets(w) === 0){ finishWorkout(); return; }
+  context.dialog({ title:'Finish workout?',
+    body:context.plural(open, 'planned set') + (open === 1 ? ' is' : ' are') + ' not logged. Finishing removes ' +
+      (open === 1 ? 'it' : 'them') + ' from this workout.',
+    buttons:[
+      { label:'Cancel', value:'cancel', cls:'', autofocus:true },
+      { label:'Finish workout', value:'finish', cls:'btn-primary' }
+    ]}).then(v => { if (v === 'finish') finishWorkout(); });
+}
 function discardWorkout(){
   if(context.workoutHandoff.held()){context.toast('Cancel the handoff in Settings before discarding the workout');return;}
   context.confirmDlg('Discard workout?','All sets logged in this session will be lost. This cannot be undone.','Discard workout',true)
@@ -795,6 +822,6 @@ function discardWorkout(){
       context.render(); context.toast('Workout discarded');
     });
 }
-    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,setReps,openSetEditor,canSwap,swapExercise,openSwapDialog,openExerciseMenu,warmupPlan,addWarmups,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,discardWorkout};
+    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,setReps,openSetEditor,canSwap,swapExercise,openSwapDialog,openExerciseMenu,warmupPlan,addWarmups,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,confirmFinishWorkout,openWorkSets,discardWorkout};
   }
 };
