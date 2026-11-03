@@ -70,10 +70,18 @@ const LiftlogSettings = (() => {
       '<div id="storage-summary"></div>' +
       '<section class="panel" aria-label="Preferences">' +
         '<div class="setting-block">' +
-          '<h3>Weight unit</h3><p class="desc">Planned weights and the active workout are converted; logged history keeps the unit it was logged in.</p>' +
+          '<h3>Weights</h3><p class="desc">Planned weights and the active workout are converted; logged history keeps the unit it was logged in.</p>' +
           '<div class="radio-row" role="radiogroup" aria-label="Unit">' +
             ['kg','lb'].map(u =>
               '<label class="radio-pill"><input type="radio" name="unit" value="' + u + '" data-change="unit"' + (s.unit === u ? ' checked' : '') + '><span>' + u + '</span></label>').join('') +
+          '</div>' +
+          /* The step belongs with the unit it is counted in: it sets load
+             suggestions and rounds warm-up loads, and has nothing to do with rest. */
+          '<div class="form-row mt-4">' +
+            '<label class="field rest-field"><span class="cap">Load increase step (' + unitLabel() + ')</span>' +
+            '<input type="number" id="load-step" min="' + LOAD_STEP_BOUNDS[0] + '" max="' + LOAD_STEP_BOUNDS[1] + '" step="0.25" inputmode="decimal" ' +
+            'data-change="load-step" value="' + s.loadStep + '">' +
+            '<span class="hint">Added to the last load when a target is met, and the rounding for warm-up loads</span></label>' +
           '</div>' +
         '</div>' +
         bodyweightSettingsHTML() +
@@ -91,10 +99,6 @@ const LiftlogSettings = (() => {
             '<label class="field rest-field"><span class="cap">Rest between sets (seconds)</span>' +
             '<input type="number" min="' + REST_MIN + '" max="' + REST_MAX + '" step="15" inputmode="numeric" ' +
             'data-change="default-rest" value="' + s.defaultRest + '"></label>' +
-            '<label class="field rest-field"><span class="cap">Load increase step (' + unitLabel() + ')</span>' +
-            '<input type="number" id="load-step" min="' + LOAD_STEP_BOUNDS[0] + '" max="' + LOAD_STEP_BOUNDS[1] + '" step="0.25" inputmode="decimal" ' +
-            'data-change="load-step" value="' + s.loadStep + '">' +
-            '<span class="hint">Added to the last load when a target is met</span></label>' +
           '</div>' +
           '<div class="switch-row">' +
             '<label for="sw-autorest"><strong>Auto-start after each set</strong><br><span class="hint">Starts the rest above the moment a set is logged</span></label>' +

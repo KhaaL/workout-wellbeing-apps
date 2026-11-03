@@ -365,19 +365,25 @@ function openSetEditor(setId){
   /* Built from the set itself: a logged row shows text only and has no inputs to copy. */
   const fields=document.createElement('template');fields.innerHTML=context.setFieldsHTML(ex,set,number);
   for(const original of fields.content.querySelectorAll('input')){
-    const label=document.createElement('label');label.className='field';const cap=document.createElement('span');cap.textContent=original.getAttribute('aria-label');
+    /* The heading already says "Set 3", so the caption drops it: "Weight in kg".
+       The input keeps its full aria-label, which still contains the caption. */
+    const name=original.getAttribute('aria-label').replace(/^Set \d+ /,'');
+    const label=document.createElement('label');label.className='field';const cap=document.createElement('span');cap.textContent=name.charAt(0).toUpperCase()+name.slice(1);
     const input=original.cloneNode();input.removeAttribute('id');input.removeAttribute('data-bind');input.removeAttribute('data-change');input.removeAttribute('data-id');input.value=original.value;input.dataset.stepper='';
     if(['weight','addedWeight'].includes(original.dataset.field)){input.dataset.increment=context.state.settings.loadStep||original.step;input.step='any';}
     label.append(cap,input);dialog.append(label);inputs.push({input,field:original.dataset.field});
   }
+  /* Cancel and Save side by side under the fields, Save on the right; the
+     rarer changes to the set itself sit below a rule. Removing the whole
+     exercise lives in the exercise's More… menu, not in one set's editor. */
   const actions=document.createElement('div');actions.className='editor-actions';dialog.append(actions);
-  const button=(text,css,action)=>{const b=document.createElement('button');b.type='button';b.className='btn '+css;b.textContent=text;b.addEventListener('click',action);actions.append(b);};
-  button('Save changes','btn-primary',()=>{if(inputs.some(({input})=>!input.reportValidity()))return;context.trackChange(context.setUndoTarget(context.state.activeWorkout,ex,set),'Edited set',()=>{for(const {input,field}of inputs)set[field]=context.normalizeSetNumber(field,input.value);context.save();});dialog.close();context.ui.focus='sd-'+setId;context.render();});
+  const button=(text,css,action,into=actions)=>{const b=document.createElement('button');b.type='button';b.className='btn '+css;b.textContent=text;b.addEventListener('click',action);into.append(b);};
+  const pair=document.createElement('div');pair.className='editor-pair';actions.append(pair);
+  button('Cancel','',()=>dialog.close(),pair);
+  button('Save changes','btn-primary',()=>{if(inputs.some(({input})=>!input.reportValidity()))return;context.trackChange(context.setUndoTarget(context.state.activeWorkout,ex,set),'Edited set',()=>{for(const {input,field}of inputs)set[field]=context.normalizeSetNumber(field,input.value);context.save();});dialog.close();context.ui.focus='sd-'+setId;context.render();},pair);
+  actions.append(document.createElement('hr'));
   button(context.isWarmup(set)?'Mark as working set':'Mark as warm-up','',()=>{dialog.close();toggleWarmup(setId);});
-  button('Cancel','',()=>dialog.close());
-  const divider=document.createElement('hr');actions.append(divider);
   button('Delete set '+number+'…','btn-danger',()=>{dialog.close();deleteSet(setId);});
-  button('Remove exercise…','btn-danger',()=>{dialog.close();confirmExerciseRemoval(context.state.activeWorkout,ex);});
   dialog.addEventListener('close',()=>{dialog.remove();if(opener?.isConnected)opener.focus();},{once:true});document.body.append(dialog);context.WorkoutUI.attachSteppers(dialog);dialog.showModal();
 }
 
@@ -429,6 +435,8 @@ function openExerciseMenu(){
   const button = (text, css, action) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + css; b.textContent = text;
     b.addEventListener('click', () => { next = action; dialog.close(); }); actions.append(b); };
   if (canSwap(ex)) button('Swap for another exercise…', '', openSwapDialog);
+  /* Skipped work stays in the plan: the overview marks it and can reopen it. */
+  if (!allSetsDone(ex)) button('Skip exercise', '', () => advanceExercise(true, true));
   button('Remove exercise…', 'btn-danger', () => confirmExerciseRemoval(w, ex));
   button('Cancel', '', null);
   /* the follow-up runs after focus has gone back, so its own dialog or render owns focus */
@@ -774,8 +782,10 @@ function finishWorkout(){
     context.ui.focus = 'detail-title';
     context.navigate('history', { kind:'workout', id:w.id });
     window.scrollTo(0,0);
-    context.toast('Workout saved — ' + context.fmtNum(context.workoutVolume(w)) + ' ' + context.unitLabel() + ' total' + (planDone ? ' · plan done' : ''));
-    context.maybeNagBackup();
+    /* One toast: a backup reminder used to replace the save confirmation at once. */
+    const reminder = context.backupReminder();
+    context.toast('Workout saved — ' + context.fmtNum(context.workoutVolume(w)) + ' ' + context.unitLabel() + ' total' + (planDone ? ' · plan done' : '') +
+      (reminder ? '. ' + reminder.text : ''), reminder && reminder.action);
   };
   if (done === 0){
     context.dialog({ title:'No sets completed', body:'This workout has no completed sets. Do you want to save it anyway?',
@@ -786,6 +796,31 @@ function finishWorkout(){
       ]}).then(v => { if (v === 'save') commit(false); else if (v === 'discard') commit(true); });
   } else commit(false);
 }
+/* Working sets the plan still holds and nobody logged: finishing drops them.
+   An either-of pair counts its larger member, like the planned-set totals;
+   a superset counts every member. Skipped exercises and warm-ups are left
+   out, since dropping them loses nothing that was planned as work. */
+function openWorkSets(w){
+  const open = ex => ex.skipped ? 0 : ex.sets.filter(s => !s.completed && !context.isWarmup(s)).length;
+  return context.routineGroups(w.exercises).reduce((n, group) =>
+    n + (group[0].supersetOf ? group.reduce((a, ex) => a + open(ex), 0) : Math.max(...group.map(open))), 0);
+}
+/* The Finish button asks first when planned work is left, because finishing
+   drops the unlogged rows and the button sits beside every exercise title.
+   A workout with nothing logged gets finishWorkout's own question instead. */
+function confirmFinishWorkout(){
+  if(context.workoutHandoff.held()){context.toast('Workout held for handoff');return;}
+  const w = context.state.activeWorkout; if (!w) return;
+  const open = openWorkSets(w);
+  if (!open || context.workoutSets(w) === 0){ finishWorkout(); return; }
+  context.dialog({ title:'Finish workout?',
+    body:context.plural(open, 'planned set') + (open === 1 ? ' is' : ' are') + ' not logged. Finishing removes ' +
+      (open === 1 ? 'it' : 'them') + ' from this workout.',
+    buttons:[
+      { label:'Cancel', value:'cancel', cls:'', autofocus:true },
+      { label:'Finish workout', value:'finish', cls:'btn-primary' }
+    ]}).then(v => { if (v === 'finish') finishWorkout(); });
+}
 function discardWorkout(){
   if(context.workoutHandoff.held()){context.toast('Cancel the handoff in Settings before discarding the workout');return;}
   context.confirmDlg('Discard workout?','All sets logged in this session will be lost. This cannot be undone.','Discard workout',true)
@@ -795,6 +830,6 @@ function discardWorkout(){
       context.render(); context.toast('Workout discarded');
     });
 }
-    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,setReps,openSetEditor,canSwap,swapExercise,openSwapDialog,openExerciseMenu,warmupPlan,addWarmups,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,discardWorkout};
+    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,setReps,openSetEditor,canSwap,swapExercise,openSwapDialog,openExerciseMenu,warmupPlan,addWarmups,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,confirmFinishWorkout,openWorkSets,discardWorkout};
   }
 };

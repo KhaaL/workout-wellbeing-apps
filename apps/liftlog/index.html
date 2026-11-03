@@ -416,6 +416,8 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
    effort column is on. Outranks the "done" colours above on specificity, so a
    completed warm-up still reads as a warm-up. */
 .set-row.is-warmup .set-done-btn{ border-color:var(--warning); color:var(--warning); }
+.numeric-editor .editor-pair{ display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-2); }
+.numeric-editor hr{ width:100%; border:0; border-top:1px solid var(--border); margin:var(--sp-1) 0; }
 /* A logged set reads as one line of text (htmlDoneSetRow). Its controls are
    36px tall, the .btn-sm size: un-logging a set is a correction, and the 44px
    floor stays on the open row's Done, the control aimed at between sets. */
@@ -1496,11 +1498,6 @@ function fmtNum(n){
 function unitLabel(){ return state.settings.unit === 'lb' ? 'lb' : 'kg'; }
 /* "3 sets" / "1 set" without an if at every call site */
 function plural(n, word, suffix){ return n + ' ' + word + (n === 1 ? '' : (suffix || 's')); }
-/* MM-DD: the date as a short, fixed-width prefix */
-function fmtMonthDay(ts){
-  const d = new Date(ts), p = n => String(n).padStart(2, '0');
-  return p(d.getMonth() + 1) + '-' + p(d.getDate());
-}
 /* Calendar days on this device's clock: last night's session is "yesterday"
    in the morning even though fewer than 24 hours have passed. Rounding absorbs
    the 23- and 25-hour days at daylight-saving changes. */
@@ -2822,9 +2819,26 @@ function liftToasts(){
    opened since. Without popover support it is an ordinary fixed element. */
 let toastTimer = 0;
 /* An action (Undo) keeps the toast up for 6 s instead of 3 s. */
+/* An open modal dialog makes everything outside it inert, this popover
+   included: a toast's button (Undo, Back up) showed above a sheet and could not
+   be pressed. So the region moves into the topmost open modal dialog while one
+   is open, and back to the body when that dialog closes. */
+function placeToastRegion(region){
+  let host = document.body;
+  try { host = [...document.querySelectorAll('dialog[open]')].filter(d => d.matches(':modal')).pop() || host; } catch(e){ /* no :modal support */ }
+  if (region.parentNode === host) return;
+  host.append(region);
+  if (host === document.body) return;
+  host.addEventListener('close', () => {
+    if (region.parentNode !== host) return;
+    document.body.append(region);
+    if (region.childElementCount && region.showPopover) region.showPopover();
+  }, { once:true });
+}
 function toast(msg, action){
   liftToasts();
   const region = $('#toast-region');
+  placeToastRegion(region);
   if (region.showPopover){
     if (region.matches(':popover-open') && $('dialog[open]')) region.hidePopover();
     if (!region.matches(':popover-open')) region.showPopover();
@@ -3471,7 +3485,8 @@ function workoutController(){
     get lastPerformance(){return lastPerformance;},
     get loadCueFor(){return loadCueFor;},
     get loadTimer(){return loadTimer;},
-    get maybeNagBackup(){return maybeNagBackup;},
+    get backupReminder(){return backupReminder;},
+    get routineGroups(){return routineGroups;},
     get navigate(){return navigate;},
     get normalizeLoadMode(){return normalizeLoadMode;},
     get normalizeSetNumber(){return normalizeSetNumber;},
@@ -3546,6 +3561,7 @@ function overviewStep(...args){return workoutController().overviewStep(...args);
 function pairSessionExercises(...args){return workoutController().pairSessionExercises(...args);}
 function unpairSessionExercises(...args){return workoutController().unpairSessionExercises(...args);}
 function finishWorkout(...args){return workoutController().finishWorkout(...args);}
+function confirmFinishWorkout(...args){return workoutController().confirmFinishWorkout(...args);}
 function discardWorkout(...args){return workoutController().discardWorkout(...args);}
 
 /* ============================================================
@@ -3792,12 +3808,14 @@ function backupIsStale(){
          (Date.now() - at) / 86400000 >= BACKUP_NAG_DAYS;
 }
 /* Said at most once per page load, just after a workout is filed — the moment
-   there is something new to lose. */
-function maybeNagBackup(){
-  if (ui.backupNagged || !backupIsStale()) return;
+   there is something new to lose. Returns the reminder as a toast's second
+   line plus the button that opens Backups & cloud storage, or null. */
+function backupReminder(){
+  if (ui.backupNagged || !backupIsStale()) return null;
   ui.backupNagged = true;
   const n = workoutsSinceBackup();
-  toast(n + (n === 1 ? ' workout' : ' workouts') + ' since your last backup — see Settings › Data');
+  return { text:n + (n === 1 ? ' workout' : ' workouts') + ' since your last backup.',
+    action:{ label:'Back up', run:() => { closeDetail(); navigate('settings'); openStorageOptions(); } } };
 }
 function importData(file){
   readJSONFile(file, applyFullBackup);
@@ -5151,16 +5169,24 @@ function setFieldsHTML(ex, s, n, metric = setMetric(ex)){
    the warm-up toggle; the done box beside it still un-logs the set, and a long
    press on it still marks a warm-up. A row is 44px tall instead of 56px or
    more, and has no input borders. */
+/* A logged set's figures without the unit: the target tag and the column
+   head already name it, and "kg stack" on every line was most of the line.
+   The button's aria-label keeps the unit through setSummary. */
+function doneSetText(s, ex){
+  const reps = s.reps != null ? s.reps : '–', dur = setDuration(s);
+  if (ex.unit === 'time' || dur != null) return dur != null ? dur + ' s' : '–';
+  if (ex.unit === 'bw') return (toNum(s.addedWeight) > 0 ? 'BW +' + fmtNum(s.addedWeight) : 'BW') + ' × ' + reps;
+  return fmtNum(s.weight) + ' × ' + reps;
+}
 function htmlDoneSetRow(ex, s, n, metric){
   const warm = isWarmup(s), effort = metric && s[metric.field] != null ? metric.label + ' ' + fmtNum(s[metric.field]) : '';
-  const range = repRangeState(ex, s);
-  const text = setSummary(s, ex) + (effort ? ' · ' + effort : '');
+  const range = repRangeState(ex, s), tail = effort ? ' · ' + effort : '';
   return '<div class="set-row is-done is-compact' + (warm ? ' is-warmup' : '') + '">' +
     '<button type="button" class="set-summary" data-action="edit-set" data-id="' + esc(s.id) + '" ' +
-      'aria-label="Edit set ' + n + (warm ? ', warm-up' : '') + ': ' + text + '" title="Edit set ' + n + '">' +
+      'aria-label="Edit set ' + n + (warm ? ', warm-up' : '') + ': ' + setSummary(s, ex) + tail + '" title="Edit set ' + n + '">' +
       '<span class="n">' + n + '</span>' +
       (warm ? '<span class="wu" title="Warm-up: out of volume and records">W</span>' : '') +
-      '<span class="set-text' + (range ? ' ' + range.cls : '') + '">' + text + '</span>' +
+      '<span class="set-text' + (range ? ' ' + range.cls : '') + '">' + doneSetText(s, ex) + tail + '</span>' +
     '</button>' +
     '<button type="button" id="sd-' + esc(s.id) + '" class="btn set-done-btn" data-action="toggle-set" ' +
       'data-longpress="toggle-warmup" data-id="' + esc(s.id) + '" aria-pressed="true" ' +
@@ -5182,7 +5208,7 @@ function htmlCurrentExercise(w, ex){
   let prevHTML = '';
   const bits = [];
   const bit = (k, v) => bits.push('<span class="pp-item"><span class="pp-k">' + k + '</span><strong>' + v + '</strong></span>');
-  if (prev) bit(fmtMonthDay(prev.date), lastSessionSummary(prev.sets, ex));
+  if (prev) bit(fmtShortDate(prev.date), lastSessionSummary(prev.sets, ex));
   bestBits(stats, ex).forEach(([k, v]) => bit(k, v));
   if (bits.length) prevHTML = '<div class="prev-perf">' + bits.join('') + '</div>';
 
@@ -6941,7 +6967,7 @@ const actions = {
      since the point of jumping is to get back to the main logging flow */
   'overview-jump'(d){ ui.overviewOpen = false; reopenExercise(Number(d.idx)); },
   'superset-switch'(d){ switchSupersetMember(Number(d.idx)); },
-  'finish-workout'(){ finishWorkout(); },
+  'finish-workout'(){ confirmFinishWorkout(); },
   'discard-workout'(){ discardWorkout(); },
 
   'timer-toggle'(){ toggleTimer(); },
