@@ -217,16 +217,6 @@ select{ appearance:none; padding-right:30px; background-image:linear-gradient(45
    banner is showing, and the strip tucks under the banner. */
 #save-banner:not([hidden]) ~ main .session-strip{ margin-top:0; }
 .hint{ color:var(--muted); font-size:var(--fs-xs); }
-/* System-bar diagnostics: a readout of the handful of values the page can see,
-   collapsed so it stays out of the way of the actual setting above it. */
-.diag{ margin-top:var(--sp-3); }
-.diag summary{ cursor:pointer; font-size:var(--fs-sm); font-weight:650; color:var(--muted); padding:var(--sp-2) 0; }
-.diag summary:hover{ color:var(--text); }
-.diag-list{ margin:var(--sp-2) 0 var(--sp-3); }
-.diag-list > div{ display:flex; justify-content:space-between; gap:var(--sp-3); padding:5px 0; border-top:1px solid var(--border); }
-.diag-list > div:first-child{ border-top:0; }
-.diag-list dt{ color:var(--muted); font-size:var(--fs-xs); }
-.diag-list dd{ margin:0; font-size:var(--fs-xs); text-align:right; word-break:break-all; }
 
 kbd{
   font-family:var(--font-mono); font-size:12px;
@@ -1776,7 +1766,6 @@ function exerciseUnitOptions(selected){
 }
 
 const THEMES = WorkoutUI.themes;
-const THEME_SCHEME = WorkoutUI.schemes;
 let appShell = null;
 
 /* How a set carries its measurement across the import/export boundary. The
@@ -2726,11 +2715,6 @@ function addHistoricalExerciseToLibrary(sourceId){
 function currentTheme(){
   return THEMES.some(x => x.id === state.settings.theme) ? state.settings.theme : 'system';
 }
-/* What the OS will draw its status-bar glyphs for, which is the one half of
-   this the page does not get a say in. */
-function systemPrefersDark(){
-  return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-}
 function applyTheme(){
   syncSystemBar();
 }
@@ -2738,82 +2722,6 @@ function applyTheme(){
    Android's navigation bar white while the installed shell keeps light glyphs. */
 function syncSystemBar(){
   WorkoutUI.applyTheme(currentTheme());
-  paintDiagnostics();
-}
-/* The manifest's theme_color, read back from the file rather than repeated
-   here, so the diagnostics report what actually shipped. Fetched once; the row
-   reads "—" if this is offline before the service worker has the file, or on
-   file:// where the request is not allowed. */
-let manifestThemeColor = null;      /* what the service worker hands out */
-let manifestThemeColorLive = null;  /* what is actually on the server */
-/* Compare cached and network manifest hints; native bar rendering is platform-owned. */
-function loadManifestThemeColor(){
-  const read = (url, set) => {
-    try{
-      fetch(url).then(r => r.ok ? r.json() : null)
-        .then(m => { if (m && m.theme_color) set(m.theme_color); })
-        .catch(() => {});
-    }catch(e){ /* nothing to do: the row stays "—" */ }
-  };
-  read('./manifest.webmanifest', v => { manifestThemeColor = v; });
-  read('./manifest.webmanifest?fresh=' + Date.now(), v => { manifestThemeColorLive = v; });
-}
-/* The resolved top inset, which is the number that says whether this app is
-   being drawn under the status bar at all. Everything the app does about the
-   system bar is scaled by it, so a 0 here means none of it is in play. */
-function safeAreaInsetTop(){
-  const probe = document.createElement('div');
-  probe.style.cssText = 'position:fixed;top:0;left:0;width:0;visibility:hidden;height:env(safe-area-inset-top,0px)';
-  document.body.appendChild(probe);
-  const h = getComputedStyle(probe).height;
-  probe.remove();
-  return h;
-}
-function displayMode(){
-  return ['fullscreen','standalone','minimal-ui','browser']
-    .find(m => window.matchMedia && window.matchMedia('(display-mode: ' + m + ')').matches) || 'unknown';
-}
-/* Every value the page has any visibility into, in one list. Android picks the
-   colour of the clock and the status icons itself and tells the page nothing,
-   so what is missing from this list is as much the point as what is in it. */
-function systemBarReport(){
-  const root = document.documentElement;
-  const cs = getComputedStyle(root);
-  const meta = document.querySelector('meta[name="theme-color"]');
-  const t = currentTheme();
-  return [
-    ['Top safe-area inset', safeAreaInsetTop()],
-    ['Display mode', displayMode()],
-    ['Phone dark mode', systemPrefersDark() ? 'on' : 'off'],
-    ['Theme', t + (THEME_SCHEME[t] ? ' (' + THEME_SCHEME[t] + ')' : ' (follows phone)')],
-
-    ['theme-color (page)', meta ? meta.content : 'none'],
-    ['theme_color (served)', manifestThemeColor || '—'],
-    ['theme_color (network)', manifestThemeColorLive || '—'],
-    ['--surface', cs.getPropertyValue('--surface').trim()],
-    ['--text', cs.getPropertyValue('--text').trim()]
-  ];
-}
-function diagRows(){
-  return systemBarReport().map(([k,v]) =>
-    '<div><dt>' + esc(k) + '</dt><dd class="mono">' + esc(v) + '</dd></div>').join('');
-}
-/* Changing the theme does not re-render Settings — setTheme() repaints the
-   tokens and leaves the view alone — so the readout is refreshed in place
-   instead. Reading these values theme by theme is the entire point of the
-   block, and a stale one would be worse than none: it would look like the
-   theme had changed nothing. Called from syncSystemBar(), which is the one
-   thing every path that can move these values already goes through. */
-function paintDiagnostics(){
-  const list = document.querySelector('.diag-list');
-  if (list) list.innerHTML = diagRows();
-}
-function systemBarDiagnostics(){
-  return '<details class="diag"><summary>System bar diagnostics</summary>' +
-    '<p class="desc">Page and manifest colour hints. Native bars and icon contrast are controlled by the browser and operating system.</p>' +
-    '<dl class="diag-list">' + diagRows() +
-    '<button type="button" class="btn btn-sm" data-action="copy-diag">' + IC.copy + '<span>Copy</span></button>' +
-  '</details>';
 }
 
 /* Refresh shared browser chrome when the system theme changes. */
@@ -4335,7 +4243,9 @@ function importFixture(){
     { id:'ex-leg-press', name:'Leg Press', category:'Legs', movementFamily:'squat', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-leg-press', archived:false, notes:'', url:'' },
     { id:'ex-leg-curl', name:'Leg Curl', category:'Hinge', movementFamily:'hinge', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-leg-curl', archived:false, notes:'', url:'' },
     { id:'ex-calf-raise', name:'Calf Raise', category:'Legs', movementFamily:'squat', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-calf-raise', archived:false, notes:'', url:'' },
-    { id:'ex-plank', name:'Plank', category:'Core', movementFamily:'core', unit:'time', loadMode:'duration', equipmentKey:'', archived:false, notes:'', url:'' }
+    { id:'ex-plank', name:'Plank', category:'Core', movementFamily:'core', unit:'time', loadMode:'duration', equipmentKey:'', archived:false, notes:'', url:'' },
+    { id:'ex-db-bench', name:'Dumbbell Bench Press', category:'Push', movementFamily:'horizontal_push', unit:'kg', loadMode:'total', equipmentKey:'', archived:false, notes:'', url:'' },
+    { id:'ex-chest-press', name:'Chest Press', category:'Push', movementFamily:'horizontal_push', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-chest-press', archived:false, notes:'', url:'' }
   ];
   /* both pairings, so the reference shows each key in use: an either-of pair
      (do one of the two) and a superset (alternate the two, set by set) */
@@ -4354,6 +4264,29 @@ function importFixture(){
     items:[
       { id:'it-6', exerciseId:'ex-squat', sets:3, repsMin:5, repsMax:5, targetRir:3, weight:90 },
       { id:'it-7', exerciseId:'ex-plank', sets:2, repsMin:45, repsMax:45, targetRir:null, weight:null }
+    ]
+  }, {
+    /* set plans: one entry per set, each with its own load and target. The
+       item's own figures stay as a summary for versions without set plans.
+       implementCount says the 45 kg is two dumbbells of 22.5. */
+    id:'rt-upper', name:'Upper body',
+    items:[
+      { id:'it-8', exerciseId:'ex-db-bench', sets:3, repsMin:6, repsMax:10, targetRir:2, weight:45, implementCount:2,
+        setPlan:[
+          { type:'warmup', weight:20, reps:8, restSec:45 },
+          { type:'warmup', weight:35, reps:4, restSec:90 },
+          { type:'working', weight:45, repsMin:6, repsMax:10, targetRir:2 },
+          { type:'working', weight:45, repsMin:6, repsMax:10, targetRir:2 },
+          { type:'working', weight:45, repsMin:6, repsMax:10, targetRir:2 }
+        ] },
+      { id:'it-9', exerciseId:'ex-chest-press', sets:3, repsMin:6, repsMax:12, targetRir:1, weight:70,
+        setPlan:[
+          { type:'warmup', weight:41, reps:8 },
+          { type:'warmup', weight:59, reps:3 },
+          { type:'top', weight:70, repsMin:6, repsMax:8, targetRir:1 },
+          { type:'backoff', weight:59, repsMin:10, repsMax:12, targetRir:2 },
+          { type:'backoff', weight:59, repsMin:10, repsMax:12, targetRir:2 }
+        ] }
     ]
   }];
   /* two days back, so relative-date displays have something sensible to show */
@@ -4383,6 +4316,24 @@ function importFixture(){
             completedAt:started + 2520000, unit:'time' }
         ] }
     ]
+  }, {
+    /* from a set plan: a warm-up as above, then a top set and a back-off
+       set, each with its role and its own target */
+    id:'wk-example-2', routineId:'rt-upper', routineName:'Upper body',
+    startedAt:started - 2 * 86400000, finishedAt:started - 2 * 86400000 + 35 * 60000,
+    notes:'', currentExerciseIndex:1,
+    exercises:[
+      { exerciseId:'ex-chest-press', name:'Chest Press', category:'Push', movementFamily:'horizontal_push', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-chest-press',
+        plannedSets:2, targetRepsMin:6, targetRepsMax:12, targetRir:1, targetWeight:70, notes:'', skipped:false,
+        sets:[
+          { id:'st-6', weight:41, reps:8, rir:null, completed:true, completedAt:started - 2 * 86400000 + 60000,
+            unit:'kg', countForVolume:false, countForPR:false },
+          { id:'st-7', weight:70, reps:7, rir:1, completed:true, completedAt:started - 2 * 86400000 + 300000,
+            unit:'kg', role:'top', targetRepsMin:6, targetRepsMax:8, targetRir:1 },
+          { id:'st-8', weight:59, reps:12, rir:2, completed:true, completedAt:started - 2 * 86400000 + 540000,
+            unit:'kg', role:'backoff', targetRepsMin:10, targetRepsMax:12, targetRir:2 }
+        ] }
+    ]
   }];
   return { exercises, routines, workouts };
 }
@@ -4406,7 +4357,8 @@ function schemaHelpHTML(){
       'exercises first, then by name, and finally created from the file\u2019s own <code>exercises</code> array \u2014 ' +
       'which is why routines travel with the exercises they need. When a name is only similar, or matches an exercise ' +
       'recorded differently, the import asks which of your exercises to use before changing anything. ' +
-      'Routines whose name you already have are skipped.</p>' +
+      'Routines whose name you already have are skipped. An item can carry a <code>setPlan</code> with one entry per set ' +
+      '(the sample\u2019s Upper body routine has two), and <code>implementCount</code> for a load spread over several implements.</p>' +
     rows([
       ['routines[]', 'required', 'The list. A bare top-level array is accepted too.'],
       ['routines[].name', 'string, required', 'Skipped if missing, or if a routine of that name already exists (for a plan: that name on that day).'],
@@ -4441,7 +4393,8 @@ function schemaHelpHTML(){
     '<h3 class="sh-h">History file</h3>' +
     '<p class="desc">Workouts are deduplicated by <code>id</code> \u2014 first write wins, so re-importing the same ' +
       'file adds no second copy. A workout needs an <code>id</code> and a <code>startedAt</code>; without either it is invalid. ' +
-      'Historical exercise IDs that no longer exist in Exercises remain visible in Progress and can be linked later.</p>' +
+      'Historical exercise IDs that no longer exist in Exercises remain visible in Progress and can be linked later. ' +
+      'Sets logged from a set plan keep their <code>role</code> and their own target (the sample\u2019s second workout).</p>' +
     rows([
       ['workouts[]', 'required', 'The list. A bare top-level array is accepted too.'],
       ['workouts[].id', 'string, required', 'The dedupe key. An identical reused id is reported as already present; different content with the same id is a conflict, and the local copy is kept.'],
@@ -7012,8 +6965,8 @@ function htmlExerciseEditRow(e){
 function settingsContext(){
   return {
     state,ui,IC,THEMES,REST_MIN,REST_MAX,LOAD_STEP_BOUNDS,WARMUP_PERCENT_BOUNDS,WARMUP_MAX_STEPS,esc,unitLabel,fmtNum,fmtDate,convertWeight,toLocalInput,
-    cloudSummaryText,storageAttention:hasRescuedData,workoutHandoff,systemBarDiagnostics,historyExerciseIdentities,exerciseById,unresolvedHistoryExercises,
-    historyImportSummaryHTML,shortcutTable
+    cloudSummaryText,storageAttention:hasRescuedData,workoutHandoff,historyExerciseIdentities,exerciseById,unresolvedHistoryExercises,
+    historyImportSummaryHTML
   };
 }
 function viewSettings(){return LiftlogSettings.render(settingsContext());}
@@ -7098,13 +7051,7 @@ const actions = {
   'close-overview'(){ closeOverview(); },
   'open-overview'(){ ui.overviewOpen = true; ui.focus = 'add-ex-select'; render(); },
   'open-session-note'(){ ui.notesOpen = true; ui.focus = 'wnotes'; render(); },
-  'copy-diag'(){
-    const text = systemBarReport().map(([k,v]) => k + ': ' + v).join('\n');
-    if (navigator.clipboard && navigator.clipboard.writeText)
-      navigator.clipboard.writeText(text).then(() => toast('Diagnostics copied'),
-                                               () => toast('Could not copy'));
-    else toast('Clipboard unavailable here');
-  },
+
   'history-tab'(d){ ui.historyTab = HISTORY_TABS.some(([id]) => id === d.tab) ? d.tab : 'sessions'; ui.focus = null; render(); },
   'trend-mode'(d){ ui.trendMode = d.mode === 'muscle' ? 'muscle' : 'exercise'; render(); },
   'weekly-metric'(d){ ui.weeklyMetric = d.metric === 'sets' ? 'sets' : 'volume'; render(); },
@@ -7951,7 +7898,6 @@ function init(){
   if (state.activeWorkout) restoreTimer();
   else loadTimer(state.settings.defaultRest);
 
-  loadManifestThemeColor();
   trackHeaderHeight();
   wireSheets();
   $('#help-shortcuts').innerHTML = shortcutTable();

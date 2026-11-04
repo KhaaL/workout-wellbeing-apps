@@ -4,8 +4,8 @@ const LiftlogSettings = (() => {
   function templates(context){
     const {
       state,ui,IC,THEMES,REST_MIN,REST_MAX,LOAD_STEP_BOUNDS,WARMUP_PERCENT_BOUNDS,WARMUP_MAX_STEPS,esc,unitLabel,fmtNum,fmtDate,convertWeight,toLocalInput,
-      cloudSummaryText,storageAttention,workoutHandoff,systemBarDiagnostics,historyExerciseIdentities,exerciseById,unresolvedHistoryExercises,
-      historyImportSummaryHTML,shortcutTable
+      cloudSummaryText,storageAttention,workoutHandoff,historyExerciseIdentities,exerciseById,unresolvedHistoryExercises,
+      historyImportSummaryHTML
     }=context;
     function bodyweightSettingsHTML(){
       const entries = state.bodyweights || [];
@@ -66,7 +66,7 @@ const LiftlogSettings = (() => {
 
     function viewSettings(){
       const s = state.settings;
-      return '<div class="view-head"><div><h1>Settings</h1><p class="view-sub">Preferences, data<span class="keyboard-only">, shortcuts</span></p></div></div>' +
+      return '<div class="view-head"><div><h1>Settings</h1><p class="view-sub">Preferences, data</p></div></div>' +
       '<div id="storage-summary"></div>' +
       '<section class="panel" aria-label="Preferences">' +
         '<div class="setting-block">' +
@@ -136,7 +136,7 @@ const LiftlogSettings = (() => {
             '<button type="button" class="icon-btn" data-action="schema-open" ' +
               'aria-label="File format and sample files" title="File format and sample files">' + IC.help + '</button>' +
           '</div>' +
-          '<p class="desc">Imports merge into this browser. Routine imports add missing exercises. History reports new workouts, existing copies, invalid entries and ID conflicts separately; local workouts win conflicts.</p>' +
+          '<p class="desc">Imports merge into this browser. Routine imports add missing exercises, and a routine can plan each set: warm-ups, working, top and back-off sets with their own load and target. History reports new workouts, existing copies, invalid entries and ID conflicts separately; local workouts win conflicts.</p>' +
           '<div class="transfer-grid">' +
             '<div class="transfer-group" role="group" aria-labelledby="transfer-routines-title">' +
               '<h4 id="transfer-routines-title">Routines</h4>' +
@@ -163,19 +163,13 @@ const LiftlogSettings = (() => {
           '<div id="handoff-tools" class="setting-block handoff-tools"></div>',
           {defaultOpen:!!state.activeWorkout || !!workoutHandoff.held()}) +
         settingsDisclosure('app-updates', 'App updates', 'Loaded version and safe update controls',
-          '<div id="app-update-controls"></div><div class="setting-block">' + systemBarDiagnostics() + '</div>') +
+          '<div id="app-update-controls"></div>') +
         settingsDisclosure('danger', 'Advanced & destructive actions', 'Clear workout history',
         '<div class="setting-block">' +
           '<h3 class="danger-heading">Workout data</h3>' +
           '<p class="desc">Removes finished workouts after saving a recovery copy. Bodyweight entries, exercises, routines and settings are kept. Finish or discard any saved workout first; cloud uploads stay paused for review.</p>' +
           '<button type="button" class="btn btn-danger" data-action="clear-workouts">' + IC.trash + '<span>Clear workout data…</span></button>' +
         '</div>') +
-      '</section>' +
-      '<section class="panel mt-4 keyboard-only" aria-label="Keyboard shortcuts">' +
-        '<div class="setting-block">' +
-          '<h3>Keyboard shortcuts</h3><p class="desc">Disabled while typing in a field.</p>' +
-          shortcutTable() +
-        '</div>' +
       '</section>';
     }
     return {viewSettings};
