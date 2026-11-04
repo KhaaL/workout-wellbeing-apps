@@ -48,6 +48,48 @@ function routineSummary(items){
   const exercises = groups.reduce((n, g) => n + (g[0].supersetOf ? g.length : 1), 0);
   return context.plural(exercises, 'exercise') + ' · ' + low + (high !== low ? '–' + high : '') + ' planned sets';
 }
+/* A set plan: one entry per set, in order. Warm-ups carry a fixed load, a
+   fixed count (reps) and optionally their own rest (restSec); working, top and
+   back-off sets carry a load and a target range with an optional RIR. Entries
+   of an unknown type are dropped. A plan with no non-warm-up entry, or more
+   than the item set limit of them, is dropped whole, and the item falls back
+   to its own sets, reps and load. */
+const SET_PLAN_TYPES = ['warmup', 'working', 'top', 'backoff'];
+const SET_PLAN_MAX = 24;
+function normalizeSetPlan(list){
+  if (!Array.isArray(list)) return null;
+  const n = v => context.toNum(v), reps = v => context.clamp(Math.round(v), ...context.ITEM_LIMITS.reps);
+  const out = [];
+  for (const e of list){
+    if (!e || typeof e !== 'object' || !SET_PLAN_TYPES.includes(e.type)) continue;
+    const entry = { type:e.type }, weight = n(e.weight);
+    if (weight != null && weight >= 0) entry.weight = weight;
+    if (e.type === 'warmup'){
+      const count = n(e.reps != null ? e.reps : e.repsMin);
+      if (count != null) entry.reps = reps(count);
+      const rest = context.normalizeRestSeconds(e.restSec);
+      if (rest != null) entry.restSec = rest;
+    } else {
+      let low = n(e.repsMin != null ? e.repsMin : e.reps), high = n(e.repsMax != null ? e.repsMax : e.reps);
+      if (low == null) low = high;
+      if (high == null) high = low;
+      if (low != null){
+        low = reps(low); high = reps(high);
+        if (high < low) [low, high] = [high, low];
+        entry.repsMin = low; entry.repsMax = high;
+      }
+      const rir = n(e.targetRir);
+      entry.targetRir = rir == null ? null : context.clamp(Math.round(rir), 0, 10);
+    }
+    out.push(entry);
+  }
+  const work = out.filter(e => e.type !== 'warmup').length;
+  return work >= 1 && work <= context.ITEM_LIMITS.sets[1] && out.length <= SET_PLAN_MAX ? out : null;
+}
+/* The non-warm-up entries of an item's set plan, or null without one. */
+function workEntries(it){
+  return it && Array.isArray(it.setPlan) ? it.setPlan.filter(e => e.type !== 'warmup') : null;
+}
 function normalizeRoutineItem(it){
   it.sets = context.clamp(parseInt(it.sets, 10) || context.ITEM_LIMITS.sets[0], ...context.ITEM_LIMITS.sets);
   const legacy = context.toNum(it.reps);
@@ -65,6 +107,14 @@ function normalizeRoutineItem(it){
   if (it.weight != null && it.weight < 0) it.weight = null;
   delete it.reps;
   delete it.rest;
+  /* A set plan overrides the item's own figures, which stay as a summary for
+     older versions; its non-warm-up entries decide the set count. */
+  const plan = normalizeSetPlan(it.setPlan);
+  if (plan){ it.setPlan = plan; it.sets = plan.filter(e => e.type !== 'warmup').length; }
+  else delete it.setPlan;
+  const count = context.toNum(it.implementCount);
+  if (Number.isInteger(count) && count >= 1 && count <= 10) it.implementCount = count;
+  else delete it.implementCount;
   return it;
 }
 function normalizeWorkoutTargets(ex){
@@ -92,11 +142,19 @@ function normalizeWorkoutTargets(ex){
 }
 /* Where a logged count sits against the target range. Warm-ups are not held
    to the working target. */
+/* A set's own target when its plan gave it one, else the exercise's. Set
+   plans write targetRepsMin/Max and targetRir onto each planned set. */
+function setTarget(ex, s){
+  return s && Object.prototype.hasOwnProperty.call(s, 'targetRepsMax')
+    ? { targetRepsMin:s.targetRepsMin, targetRepsMax:s.targetRepsMax, targetRir:s.targetRir != null ? s.targetRir : null }
+    : { targetRepsMin:ex.targetRepsMin, targetRepsMax:ex.targetRepsMax, targetRir:ex.targetRir != null ? ex.targetRir : null };
+}
 function repRangeState(ex, s){
   const v = context.toNum(ex.unit === 'time' ? s.durationSeconds : s.reps);
-  const low = context.toNum(ex.targetRepsMin), high = context.toNum(ex.targetRepsMax);
+  const t = setTarget(ex, s);
+  const low = context.toNum(t.targetRepsMin), high = context.toNum(t.targetRepsMax);
   if (v == null || low == null || context.isWarmup(s)) return null;
-  const target = targetRangeLabel(ex);
+  const target = targetRangeLabel(t);
   if (v < low) return { cls:'reps-under', title:'Below the ' + target + ' target' };
   if (high != null && v > high) return { cls:'reps-over', title:'Above the ' + target + ' target — time for more load?' };
   return null;
@@ -360,6 +418,6 @@ function addRoutineItem(exId){
   d.items.push(context.newRoutineItem(exId));
   context.render();
 }
-    return {pairKeyOf,cleanRoutinePairs,routineGroups,groupPlannedSets,keepRoutinePairsAdjacent,routineSummary,normalizeRoutineItem,normalizeWorkoutTargets,repRangeState,paintRepRange,parseRepRange,targetRangeLabel,pairRoutineItems,unpairRoutineItems,PAIR_KINDS,PAIR_SCOPES,pairScope,pairCandidates,pairPickerOptions,refreshSecondPairPicker,openPairDialog,closePairDialog,addPair,isPlan,stableRoutines,localDay,validPlanDay,normalizePlanFields,planDay,sortedPlans,routineKey,defaultRoutineId,newRoutineDraft,newPlanDraft,saveRoutineDraft,duplicateRoutine,deleteRoutine,routineStep,removeRoutineItem,addRoutineItem};
+    return {SET_PLAN_TYPES,normalizeSetPlan,workEntries,setTarget,pairKeyOf,cleanRoutinePairs,routineGroups,groupPlannedSets,keepRoutinePairsAdjacent,routineSummary,normalizeRoutineItem,normalizeWorkoutTargets,repRangeState,paintRepRange,parseRepRange,targetRangeLabel,pairRoutineItems,unpairRoutineItems,PAIR_KINDS,PAIR_SCOPES,pairScope,pairCandidates,pairPickerOptions,refreshSecondPairPicker,openPairDialog,closePairDialog,addPair,isPlan,stableRoutines,localDay,validPlanDay,normalizePlanFields,planDay,sortedPlans,routineKey,defaultRoutineId,newRoutineDraft,newPlanDraft,saveRoutineDraft,duplicateRoutine,deleteRoutine,routineStep,removeRoutineItem,addRoutineItem};
   }
 };
