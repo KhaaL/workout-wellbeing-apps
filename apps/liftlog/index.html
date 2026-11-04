@@ -217,16 +217,6 @@ select{ appearance:none; padding-right:30px; background-image:linear-gradient(45
    banner is showing, and the strip tucks under the banner. */
 #save-banner:not([hidden]) ~ main .session-strip{ margin-top:0; }
 .hint{ color:var(--muted); font-size:var(--fs-xs); }
-/* System-bar diagnostics: a readout of the handful of values the page can see,
-   collapsed so it stays out of the way of the actual setting above it. */
-.diag{ margin-top:var(--sp-3); }
-.diag summary{ cursor:pointer; font-size:var(--fs-sm); font-weight:650; color:var(--muted); padding:var(--sp-2) 0; }
-.diag summary:hover{ color:var(--text); }
-.diag-list{ margin:var(--sp-2) 0 var(--sp-3); }
-.diag-list > div{ display:flex; justify-content:space-between; gap:var(--sp-3); padding:5px 0; border-top:1px solid var(--border); }
-.diag-list > div:first-child{ border-top:0; }
-.diag-list dt{ color:var(--muted); font-size:var(--fs-xs); }
-.diag-list dd{ margin:0; font-size:var(--fs-xs); text-align:right; word-break:break-all; }
 
 kbd{
   font-family:var(--font-mono); font-size:12px;
@@ -429,6 +419,17 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 }
 .set-summary .n{ font-weight:700; min-width:1.4em; }
 .set-summary .wu{ font-size:10px; font-weight:650; color:var(--warning); }
+.set-num .role,.set-summary .role{ font-size:10px; font-weight:650; line-height:1.2; color:var(--accent); white-space:nowrap; }
+.row-role{ display:none; }
+@media (max-width:400px){
+  .set-row{ position:relative; }
+  .row-role{ display:block; position:absolute; top:0; left:0; z-index:1; padding:0 4px; border-radius:99px; border:1px solid currentColor;
+    background:var(--surface); color:var(--accent); font-size:10px; font-weight:700; line-height:14px; }
+  .row-role.is-warm{ color:var(--warning); }
+  .set-row.is-current .row-role{ left:var(--sp-3); }
+}
+/* what to pick up when the stored load is a total over several implements */
+.implement-split{ display:block; margin-top:2px; font-size:var(--fs-xs); color:var(--muted); font-variant-numeric:tabular-nums; }
 .set-summary .set-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .set-summary .set-text.reps-under{ color:var(--warning); }
 .set-summary .set-text.reps-over{ color:var(--success); }
@@ -750,6 +751,8 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .item-row{ display:grid; grid-template-columns:44px minmax(120px,1fr) repeat(4,minmax(58px,82px)) 84px; gap:var(--sp-2); align-items:end; padding:var(--sp-3) 0; border-top:1px solid var(--border); }
 .item-row:first-child{ border-top:0; }
 .item-row .item-actions{ grid-column:-2 / -1; }
+.set-plan-summary{ grid-column:3 / -2; display:flex; flex-wrap:wrap; align-items:center; gap:var(--sp-2); font-size:var(--fs-sm); color:var(--muted); align-self:center; }
+.set-plan-summary strong{ color:var(--text); }
 /* Shape and label carry the meaning: a violet OR bracket for either-of, a
    green + bracket for a superset. --pair picks the colour per kind. */
 .either-pair{ --pair:var(--either); }
@@ -820,6 +823,7 @@ html.is-reordering, html.is-reordering *{ overflow-anchor:none; }
   .item-row .grip{ grid-row:1 / span 5; align-self:center; }
   .item-row .field:last-of-type:nth-of-type(odd){ grid-column:2 / -1; }
   .item-row .item-actions{ grid-column:2 / -1; justify-content:flex-end; }
+  .item-row .set-plan-summary{ grid-column:2 / -1; }
 }
 
 /* exercises */
@@ -1762,7 +1766,6 @@ function exerciseUnitOptions(selected){
 }
 
 const THEMES = WorkoutUI.themes;
-const THEME_SCHEME = WorkoutUI.schemes;
 let appShell = null;
 
 /* How a set carries its measurement across the import/export boundary. The
@@ -1777,6 +1780,8 @@ const REST_MIN = 15, REST_MAX = 600;
 
 /* Routine item bounds, applied on save and on import alike. */
 const ITEM_LIMITS = { sets:[1,12], reps:[0,999] };
+/* A planned set's role besides warm-up (which is countForVolume/countForPR). */
+const SET_ROLES = ['top', 'backoff'];
 /* Two kinds of routine pair share one set of rules. Either-of: perform one of
    the two. Superset: perform both, alternating set by set. An item belongs to
    at most one pair; either-of wins a conflict because it is the older contract.
@@ -1828,7 +1833,7 @@ const SCHEMA_VERSION = 16;  /* v3: sets carry durationSeconds (time no longer ov
                                v14: routines can be one-off plans (plan, plannedFor)
                                v15: library exercises can override the rest length (restSeconds)
                                v16: library exercises carry instructions (Markdown text) */
-const EXPORT_SCHEMA = '1.14.0'; /* version of the documented import/export contract — 1.1: sets[].rir;
+const EXPORT_SCHEMA = '1.15.0'; /* version of the documented import/export contract — 1.1: sets[].rir;
                                   1.2: exercises[].url; 1.3: per-item rest dropped; 1.4: items[].eitherOf;
                                   1.5: lower/upper rep targets and optional target RIR;
                                   1.6: reversible historical exercise links;
@@ -1837,7 +1842,9 @@ const EXPORT_SCHEMA = '1.14.0'; /* version of the documented import/export contr
                                   1.9: archived/loadMode/equipmentKey/movementFamily exercise metadata;
                                   1.10: progressionPreferences in full backups and history transfers;
                                   1.11: items[].supersetOf; 1.12: routines[].plan/plannedFor;
-                                  1.13: exercises[].restSeconds; 1.14: exercises[].instructions */
+                                  1.13: exercises[].restSeconds; 1.14: exercises[].instructions;
+                                  1.15: items[].setPlan and items[].implementCount, sets[].role and
+                                  per-set targets (optional: older versions read the item summary) */
 
 /* Set by load() when stored data could not be used, surfaced once after init. */
 const localStore = LiftlogStorage.createLocal({
@@ -1980,7 +1987,18 @@ function validateBackup(s){
     r.items.forEach((it, j) => {
       const at = path + '.items[' + j + ']'; object(it, at);
       id(it.id, at + '.id', items); id(it.exerciseId, at + '.exerciseId');
-      fields(it, at, ['sets', 'reps', 'repsMin', 'repsMax', 'targetRir', 'weight', 'rest'], number);
+      fields(it, at, ['sets', 'reps', 'repsMin', 'repsMax', 'targetRir', 'weight', 'rest', 'implementCount'], number);
+      if (it.setPlan != null){
+        array(it.setPlan, at + '.setPlan');
+        it.setPlan.forEach((e, k) => {
+          const here = at + '.setPlan[' + k + ']'; object(e, here);
+          if (!SET_PLAN_TYPES.includes(e.type)) fail(here + '.type', 'one of ' + SET_PLAN_TYPES.join(', '));
+          fields(e, here, ['weight', 'reps', 'repsMin', 'repsMax', 'targetRir', 'restSec'], number);
+        });
+        const work = it.setPlan.filter(e => e.type !== 'warmup').length;
+        if (!work) fail(at + '.setPlan', 'at least one non-warm-up set');
+        if (it.sets != null && it.sets !== work) fail(at + '.sets', 'the number of non-warm-up setPlan entries (' + work + ')');
+      }
       text(it.eitherOf, at + '.eitherOf');
       text(it.supersetOf, at + '.supersetOf');
     });
@@ -2013,13 +2031,14 @@ function validateBackup(s){
       const at = path + '.exercises[' + i + ']'; object(ex, at);
       if (ex.exerciseId != null) id(ex.exerciseId, at + '.exerciseId');
       fields(ex, at, ['name', 'category', 'unit', 'notes', 'eitherOf', 'supersetOf', 'loadMode', 'equipmentKey', 'movementFamily'], text);
-      fields(ex, at, ['plannedSets', 'targetReps', 'targetRepsMin', 'targetRepsMax', 'targetRir', 'targetWeight', 'restSeconds'], number);
+      fields(ex, at, ['plannedSets', 'targetReps', 'targetRepsMin', 'targetRepsMax', 'targetRir', 'targetWeight', 'restSeconds', 'implementCount'], number);
       bool(ex.skipped, at + '.skipped');
       array(ex.sets, at + '.sets');
       ex.sets.forEach((set, j) => {
         const here = at + '.sets[' + j + ']'; object(set, here);
         id(set.id, here + '.id', sets);
-        fields(set, here, ['weight', 'addedWeight', 'reps', 'durationSeconds', 'rpe', 'rir', 'distance', 'restSeconds'], number);
+        fields(set, here, ['weight', 'addedWeight', 'reps', 'durationSeconds', 'rpe', 'rir', 'distance', 'restSeconds', 'targetRepsMin', 'targetRepsMax', 'targetRir'], number);
+        if (set.role != null && !SET_ROLES.includes(set.role)) fail(here + '.role', 'one of ' + SET_ROLES.join(', '));
         timestamp(set.completedAt, here + '.completedAt');
         fields(set, here, ['unit', 'setType', 'addedWeightUnit', 'distanceUnit'], text);
         fields(set, here, ['completed', 'countForVolume', 'countForPR', 'includeInVolume'], bool);
@@ -2696,11 +2715,6 @@ function addHistoricalExerciseToLibrary(sourceId){
 function currentTheme(){
   return THEMES.some(x => x.id === state.settings.theme) ? state.settings.theme : 'system';
 }
-/* What the OS will draw its status-bar glyphs for, which is the one half of
-   this the page does not get a say in. */
-function systemPrefersDark(){
-  return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-}
 function applyTheme(){
   syncSystemBar();
 }
@@ -2708,82 +2722,6 @@ function applyTheme(){
    Android's navigation bar white while the installed shell keeps light glyphs. */
 function syncSystemBar(){
   WorkoutUI.applyTheme(currentTheme());
-  paintDiagnostics();
-}
-/* The manifest's theme_color, read back from the file rather than repeated
-   here, so the diagnostics report what actually shipped. Fetched once; the row
-   reads "—" if this is offline before the service worker has the file, or on
-   file:// where the request is not allowed. */
-let manifestThemeColor = null;      /* what the service worker hands out */
-let manifestThemeColorLive = null;  /* what is actually on the server */
-/* Compare cached and network manifest hints; native bar rendering is platform-owned. */
-function loadManifestThemeColor(){
-  const read = (url, set) => {
-    try{
-      fetch(url).then(r => r.ok ? r.json() : null)
-        .then(m => { if (m && m.theme_color) set(m.theme_color); })
-        .catch(() => {});
-    }catch(e){ /* nothing to do: the row stays "—" */ }
-  };
-  read('./manifest.webmanifest', v => { manifestThemeColor = v; });
-  read('./manifest.webmanifest?fresh=' + Date.now(), v => { manifestThemeColorLive = v; });
-}
-/* The resolved top inset, which is the number that says whether this app is
-   being drawn under the status bar at all. Everything the app does about the
-   system bar is scaled by it, so a 0 here means none of it is in play. */
-function safeAreaInsetTop(){
-  const probe = document.createElement('div');
-  probe.style.cssText = 'position:fixed;top:0;left:0;width:0;visibility:hidden;height:env(safe-area-inset-top,0px)';
-  document.body.appendChild(probe);
-  const h = getComputedStyle(probe).height;
-  probe.remove();
-  return h;
-}
-function displayMode(){
-  return ['fullscreen','standalone','minimal-ui','browser']
-    .find(m => window.matchMedia && window.matchMedia('(display-mode: ' + m + ')').matches) || 'unknown';
-}
-/* Every value the page has any visibility into, in one list. Android picks the
-   colour of the clock and the status icons itself and tells the page nothing,
-   so what is missing from this list is as much the point as what is in it. */
-function systemBarReport(){
-  const root = document.documentElement;
-  const cs = getComputedStyle(root);
-  const meta = document.querySelector('meta[name="theme-color"]');
-  const t = currentTheme();
-  return [
-    ['Top safe-area inset', safeAreaInsetTop()],
-    ['Display mode', displayMode()],
-    ['Phone dark mode', systemPrefersDark() ? 'on' : 'off'],
-    ['Theme', t + (THEME_SCHEME[t] ? ' (' + THEME_SCHEME[t] + ')' : ' (follows phone)')],
-
-    ['theme-color (page)', meta ? meta.content : 'none'],
-    ['theme_color (served)', manifestThemeColor || '—'],
-    ['theme_color (network)', manifestThemeColorLive || '—'],
-    ['--surface', cs.getPropertyValue('--surface').trim()],
-    ['--text', cs.getPropertyValue('--text').trim()]
-  ];
-}
-function diagRows(){
-  return systemBarReport().map(([k,v]) =>
-    '<div><dt>' + esc(k) + '</dt><dd class="mono">' + esc(v) + '</dd></div>').join('');
-}
-/* Changing the theme does not re-render Settings — setTheme() repaints the
-   tokens and leaves the view alone — so the readout is refreshed in place
-   instead. Reading these values theme by theme is the entire point of the
-   block, and a stale one would be worse than none: it would look like the
-   theme had changed nothing. Called from syncSystemBar(), which is the one
-   thing every path that can move these values already goes through. */
-function paintDiagnostics(){
-  const list = document.querySelector('.diag-list');
-  if (list) list.innerHTML = diagRows();
-}
-function systemBarDiagnostics(){
-  return '<details class="diag"><summary>System bar diagnostics</summary>' +
-    '<p class="desc">Page and manifest colour hints. Native bars and icon contrast are controlled by the browser and operating system.</p>' +
-    '<dl class="diag-list">' + diagRows() +
-    '<button type="button" class="btn btn-sm" data-action="copy-diag">' + IC.copy + '<span>Copy</span></button>' +
-  '</details>';
 }
 
 /* Refresh shared browser chrome when the system theme changes. */
@@ -3480,6 +3418,9 @@ function workoutController(){
     get fmtNum(){return fmtNum;},
     get inferMovementFamily(){return inferMovementFamily;},
     get isPlan(){return isPlan;},
+    get setTarget(){return setTarget;},
+    get workEntries(){return workEntries;},
+    get implementSplit(){return implementSplit;},
     get isWarmup(){return isWarmup;},
     get setFieldsHTML(){return setFieldsHTML;},
     get lastPerformance(){return lastPerformance;},
@@ -3590,6 +3531,7 @@ function routinesController(){
     get routineById(){return routineById;},
     get save(){return save;},
     get state(){return state;},
+    get normalizeRestSeconds(){return normalizeRestSeconds;},
     get toNum(){return toNum;},
     get toast(){return toast;},
     get ui(){return ui;},
@@ -3606,12 +3548,16 @@ function routineSummary(...args){return routinesController().routineSummary(...a
 function normalizeRoutineItem(...args){return routinesController().normalizeRoutineItem(...args);}
 function normalizeWorkoutTargets(...args){return routinesController().normalizeWorkoutTargets(...args);}
 function repRangeState(...args){return routinesController().repRangeState(...args);}
+function setTarget(...args){return routinesController().setTarget(...args);}
+function normalizeSetPlan(...args){return routinesController().normalizeSetPlan(...args);}
+function workEntries(...args){return routinesController().workEntries(...args);}
 function paintRepRange(...args){return routinesController().paintRepRange(...args);}
 function parseRepRange(...args){return routinesController().parseRepRange(...args);}
 function targetRangeLabel(...args){return routinesController().targetRangeLabel(...args);}
 function pairRoutineItems(...args){return routinesController().pairRoutineItems(...args);}
 function unpairRoutineItems(...args){return routinesController().unpairRoutineItems(...args);}
 const PAIR_KINDS=routinesController().PAIR_KINDS;
+const SET_PLAN_TYPES=routinesController().SET_PLAN_TYPES;
 const PAIR_SCOPES=routinesController().PAIR_SCOPES;
 const pairScope=routinesController().pairScope;
 function pairCandidates(...args){return routinesController().pairCandidates(...args);}
@@ -4192,7 +4138,11 @@ function applyRoutineImport(plan, choices){
         repsMin:it.repsMin == null ? (it.reps == null ? 8 : it.reps) : it.repsMin,
         repsMax:it.repsMax == null ? (it.reps == null ? (it.repsMin == null ? 8 : it.repsMin) : it.reps) : it.repsMax,
         targetRir:it.targetRir, weight:!match || match.keepWeight ? it.weight : null,
-        eitherOf:it.eitherOf, supersetOf:it.supersetOf });
+        eitherOf:it.eitherOf, supersetOf:it.supersetOf, implementCount:it.implementCount,
+        /* loads that mean another number here (per hand, added load) are dropped
+           from every planned set too, like the item's own load */
+        setPlan:Array.isArray(it.setPlan) ? it.setPlan.map(e => e && typeof e === 'object' && match && !match.keepWeight
+          ? { ...e, weight:null } : e) : undefined });
     }).filter(Boolean);
     cleanRoutinePairs(items);
     keepRoutinePairsAdjacent(items);
@@ -4293,7 +4243,9 @@ function importFixture(){
     { id:'ex-leg-press', name:'Leg Press', category:'Legs', movementFamily:'squat', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-leg-press', archived:false, notes:'', url:'' },
     { id:'ex-leg-curl', name:'Leg Curl', category:'Hinge', movementFamily:'hinge', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-leg-curl', archived:false, notes:'', url:'' },
     { id:'ex-calf-raise', name:'Calf Raise', category:'Legs', movementFamily:'squat', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-calf-raise', archived:false, notes:'', url:'' },
-    { id:'ex-plank', name:'Plank', category:'Core', movementFamily:'core', unit:'time', loadMode:'duration', equipmentKey:'', archived:false, notes:'', url:'' }
+    { id:'ex-plank', name:'Plank', category:'Core', movementFamily:'core', unit:'time', loadMode:'duration', equipmentKey:'', archived:false, notes:'', url:'' },
+    { id:'ex-db-bench', name:'Dumbbell Bench Press', category:'Push', movementFamily:'horizontal_push', unit:'kg', loadMode:'total', equipmentKey:'', archived:false, notes:'', url:'' },
+    { id:'ex-chest-press', name:'Chest Press', category:'Push', movementFamily:'horizontal_push', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-chest-press', archived:false, notes:'', url:'' }
   ];
   /* both pairings, so the reference shows each key in use: an either-of pair
      (do one of the two) and a superset (alternate the two, set by set) */
@@ -4312,6 +4264,29 @@ function importFixture(){
     items:[
       { id:'it-6', exerciseId:'ex-squat', sets:3, repsMin:5, repsMax:5, targetRir:3, weight:90 },
       { id:'it-7', exerciseId:'ex-plank', sets:2, repsMin:45, repsMax:45, targetRir:null, weight:null }
+    ]
+  }, {
+    /* set plans: one entry per set, each with its own load and target. The
+       item's own figures stay as a summary for versions without set plans.
+       implementCount says the 45 kg is two dumbbells of 22.5. */
+    id:'rt-upper', name:'Upper body',
+    items:[
+      { id:'it-8', exerciseId:'ex-db-bench', sets:3, repsMin:6, repsMax:10, targetRir:2, weight:45, implementCount:2,
+        setPlan:[
+          { type:'warmup', weight:20, reps:8, restSec:45 },
+          { type:'warmup', weight:35, reps:4, restSec:90 },
+          { type:'working', weight:45, repsMin:6, repsMax:10, targetRir:2 },
+          { type:'working', weight:45, repsMin:6, repsMax:10, targetRir:2 },
+          { type:'working', weight:45, repsMin:6, repsMax:10, targetRir:2 }
+        ] },
+      { id:'it-9', exerciseId:'ex-chest-press', sets:3, repsMin:6, repsMax:12, targetRir:1, weight:70,
+        setPlan:[
+          { type:'warmup', weight:41, reps:8 },
+          { type:'warmup', weight:59, reps:3 },
+          { type:'top', weight:70, repsMin:6, repsMax:8, targetRir:1 },
+          { type:'backoff', weight:59, repsMin:10, repsMax:12, targetRir:2 },
+          { type:'backoff', weight:59, repsMin:10, repsMax:12, targetRir:2 }
+        ] }
     ]
   }];
   /* two days back, so relative-date displays have something sensible to show */
@@ -4341,6 +4316,24 @@ function importFixture(){
             completedAt:started + 2520000, unit:'time' }
         ] }
     ]
+  }, {
+    /* from a set plan: a warm-up as above, then a top set and a back-off
+       set, each with its role and its own target */
+    id:'wk-example-2', routineId:'rt-upper', routineName:'Upper body',
+    startedAt:started - 2 * 86400000, finishedAt:started - 2 * 86400000 + 35 * 60000,
+    notes:'', currentExerciseIndex:1,
+    exercises:[
+      { exerciseId:'ex-chest-press', name:'Chest Press', category:'Push', movementFamily:'horizontal_push', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-chest-press',
+        plannedSets:2, targetRepsMin:6, targetRepsMax:12, targetRir:1, targetWeight:70, notes:'', skipped:false,
+        sets:[
+          { id:'st-6', weight:41, reps:8, rir:null, completed:true, completedAt:started - 2 * 86400000 + 60000,
+            unit:'kg', countForVolume:false, countForPR:false },
+          { id:'st-7', weight:70, reps:7, rir:1, completed:true, completedAt:started - 2 * 86400000 + 300000,
+            unit:'kg', role:'top', targetRepsMin:6, targetRepsMax:8, targetRir:1 },
+          { id:'st-8', weight:59, reps:12, rir:2, completed:true, completedAt:started - 2 * 86400000 + 540000,
+            unit:'kg', role:'backoff', targetRepsMin:10, targetRepsMax:12, targetRir:2 }
+        ] }
+    ]
   }];
   return { exercises, routines, workouts };
 }
@@ -4364,7 +4357,8 @@ function schemaHelpHTML(){
       'exercises first, then by name, and finally created from the file\u2019s own <code>exercises</code> array \u2014 ' +
       'which is why routines travel with the exercises they need. When a name is only similar, or matches an exercise ' +
       'recorded differently, the import asks which of your exercises to use before changing anything. ' +
-      'Routines whose name you already have are skipped.</p>' +
+      'Routines whose name you already have are skipped. An item can carry a <code>setPlan</code> with one entry per set ' +
+      '(the sample\u2019s Upper body routine has two), and <code>implementCount</code> for a load spread over several implements.</p>' +
     rows([
       ['routines[]', 'required', 'The list. A bare top-level array is accepted too.'],
       ['routines[].name', 'string, required', 'Skipped if missing, or if a routine of that name already exists (for a plan: that name on that day).'],
@@ -4379,6 +4373,14 @@ function schemaHelpHTML(){
       ['items[].eitherOf', 'optional string', 'Exactly two different exercises in a routine share a key to form an either-of pair. They are placed together; completing one removes the other from that workout only. Invalid or incomplete pairs become independent exercises.'],
       ['items[].supersetOf', 'optional string', 'Exactly two different exercises in a routine share a key to form a superset. They are placed together; a workout alternates between them set by set, and each exercise rests on its own timer between its sets. An item cannot be in an either-of pair and a superset at once. Invalid or incomplete supersets become independent exercises. Finished workouts do not record supersets.'],
       ['items[].weight', 'number | null', 'Planned load, or added load for a bodyweight exercise. <code>null</code> uses last time\u2019s figure.'],
+      ['items[].setPlan', 'optional array', 'One entry per set, in order, each with its own load and target. When present it overrides <code>sets</code>, <code>repsMin</code>, <code>repsMax</code>, <code>targetRir</code> and <code>weight</code>, which stay as a summary for older versions. <code>sets</code> becomes the number of non-warm-up entries. Unknown entry types are dropped; a plan with no non-warm-up entry is dropped whole.'],
+      ['setPlan[].type', 'enum', '<code>warmup</code> \u00b7 <code>working</code> \u00b7 <code>top</code> \u00b7 <code>backoff</code>. Warm-ups are tagged W and count toward neither volume nor records; top and back-off sets are tagged T and B. In a superset only non-warm-up sets alternate.'],
+      ['setPlan[].weight', 'number', 'The set\u2019s load. Left out on a non-warm-up set, it uses the same position\u2019s load from last time.'],
+      ['setPlan[].reps', 'integer', 'Warm-ups: the fixed count (seconds for a timed movement).'],
+      ['setPlan[].repsMin / repsMax', 'integer', 'Non-warm-up sets: the set\u2019s own target range. <code>reps</code> is accepted as both bounds.'],
+      ['setPlan[].targetRir', 'integer | null', 'Non-warm-up sets: the set\u2019s own RIR target. Load suggestions hold each set to its own range and RIR.'],
+      ['setPlan[].restSec', 'integer', 'Warm-ups: the rest after that set, in seconds.'],
+      ['items[].implementCount', 'integer', 'Optional, 1\u201310. The planned load is a total over this many implements (two dumbbells), and logging shows what each one weighs: 45 with 2 shows \u201c2 \u00d7 22.5\u201d. Ignored for per-hand, bodyweight and timed exercises.'],
       ['exercises[]', 'optional', 'Definitions for the ids above, including broad <code>category</code>, <code>movementFamily</code>, <code>loadMode</code>, optional <code>equipmentKey</code>, <code>archived</code>, notes and URL.'],
       ['exercises[].unit', 'enum', 'One of ' + units + '. <code>kg</code> and <code>lb</code> both mean weighted; a created Library exercise follows this browser’s global weight unit.'],
       ['exercises[].loadMode', 'enum', '<code>total</code>, <code>per_hand</code>, <code>machine_stack</code>, <code>bodyweight_added</code>, or <code>duration</code>. Same-series analytics require matching load mode and equipment identity.'],
@@ -4391,7 +4393,8 @@ function schemaHelpHTML(){
     '<h3 class="sh-h">History file</h3>' +
     '<p class="desc">Workouts are deduplicated by <code>id</code> \u2014 first write wins, so re-importing the same ' +
       'file adds no second copy. A workout needs an <code>id</code> and a <code>startedAt</code>; without either it is invalid. ' +
-      'Historical exercise IDs that no longer exist in Exercises remain visible in Progress and can be linked later.</p>' +
+      'Historical exercise IDs that no longer exist in Exercises remain visible in Progress and can be linked later. ' +
+      'Sets logged from a set plan keep their <code>role</code> and their own target (the sample\u2019s second workout).</p>' +
     rows([
       ['workouts[]', 'required', 'The list. A bare top-level array is accepted too.'],
       ['workouts[].id', 'string, required', 'The dedupe key. An identical reused id is reported as already present; different content with the same id is a conflict, and the local copy is kept.'],
@@ -4412,6 +4415,8 @@ function schemaHelpHTML(){
       ['sets[].completed', 'boolean', 'Whether the set was performed.'],
       ['sets[].countForVolume', 'boolean', 'Default true. <code>false</code> marks a warm-up: performed, but out of the totals. <code>includeInVolume</code> is accepted as an alias.'],
       ['sets[].countForPR', 'boolean', 'Default true. <code>false</code> keeps a set out of records.'],
+      ['sets[].role', 'optional enum', '<code>top</code> or <code>backoff</code>, from a routine set plan. Working sets have none; warm-ups use <code>countForVolume</code>.'],
+      ['sets[].targetRepsMin / targetRepsMax / targetRir', 'optional number', 'The set\u2019s own target from a set plan. Without them a set uses its exercise\u2019s target.'],
       ['bodyweights[]', 'optional', 'Dated entries with <code>id</code>, <code>loggedAt</code>, <code>weight</code>, and <code>unit</code>. Used for bodyweight volume and progression.'],
       ['exerciseLinks[]', 'optional', 'Same progression series links from a historical <code>sourceId</code> to a current <code>targetId</code>. Load mode, equipment key and measurement must be compatible; movement family remains independent. Workout records are never rewritten.'],
       ['historySeparateIds[]', 'optional', 'Historical exercise IDs explicitly reviewed and intentionally kept as their own progression series.'],
@@ -4492,6 +4497,14 @@ function normalizeImportedSet(s, exUnit){
   const cv = s.countForVolume != null ? s.countForVolume : s.includeInVolume;
   if (cv === false) o.countForVolume = false;
   if (s.countForPR === false) o.countForPR = false;
+  /* a set-plan row keeps its role and its own target */
+  if (SET_ROLES.includes(s.role)) o.role = s.role;
+  if (toNum(s.targetRepsMax) != null){
+    const reps = v => clamp(Math.round(v), ...ITEM_LIMITS.reps);
+    o.targetRepsMax = reps(toNum(s.targetRepsMax));
+    o.targetRepsMin = toNum(s.targetRepsMin) != null ? Math.min(reps(toNum(s.targetRepsMin)), o.targetRepsMax) : o.targetRepsMax;
+    o.targetRir = toNum(s.targetRir) != null ? clamp(Math.round(toNum(s.targetRir)), 0, 10) : null;
+  }
   /* Explicit setType is authoritative. Unit is only the fallback for legacy
      files and cannot turn an explicit reps set into timed work. */
   const unit = isUnit(s.unit) ? s.unit : (isUnit(exUnit) ? exUnit : 'kg');
@@ -4897,6 +4910,8 @@ function suggestedLoad(cue){
 /* A routine item ({repsMin, repsMax, weight}) and a workout block
    ({targetRepsMin, targetRepsMax, targetWeight}) name the same plan differently. */
 function cuePlan(x){
+  const entry = (workEntries(x) || [])[0];
+  if (entry) return { min:toNum(entry.repsMin), max:toNum(entry.repsMax), weight:entry.weight != null ? entry.weight : null };
   const pick = (a, b) => x[a] != null ? x[a] : x[b] != null ? x[b] : null;
   return { min:toNum(pick('repsMin', 'targetRepsMin')), max:toNum(pick('repsMax', 'targetRepsMax')), weight:pick('weight', 'targetWeight') };
 }
@@ -5118,11 +5133,62 @@ function bestBits(stats, ex){
   if (ex.unit === 'time' && stats.duration > 0) out.push(['Best hold', stats.duration + ' s']);
   return out;
 }
+/* The load per implement, for an item planned with implementCount (two
+   dumbbells): the stored figure is the total, and "2 × 22.5" says what to
+   pick up. Per-hand, bodyweight and timed exercises already state their own
+   convention, so they get none. */
+function implementSplit(ex, total){
+  const n = ex && ex.implementCount, load = toNum(total);
+  if (!(n > 1) || load == null || load <= 0 || ex.unit === 'bw' || ex.unit === 'time' || ex.loadMode === 'per_hand') return '';
+  return n + ' × ' + fmtNum(Math.round(load / n * 100) / 100);
+}
+function implementSplitHTML(ex, s){
+  if (!(ex.implementCount > 1) || ex.unit === 'bw' || ex.unit === 'time' || ex.loadMode === 'per_hand') return '';
+  return '<span class="implement-split" id="split-' + esc(s.id) + '" aria-live="off">' + esc(implementSplit(ex, s.weight)) + '</span>';
+}
+/* Which planned role a set has, as the letter its row shows: W for a warm-up,
+   T for a top set, B for a back-off set. Working sets show none. */
+const SET_ROLE_MARK = { top:['T', 'Top set'], backoff:['B', 'Back-off set'] };
+function setRoleMarkHTML(s){
+  if (isWarmup(s)) return '<span class="wu" title="Warm-up: out of volume and records">W</span>';
+  const mark = SET_ROLE_MARK[s.role];
+  return mark ? '<span class="role" title="' + mark[1] + '">' + mark[0] + '</span>' : '';
+}
+/* Below 400px the shared set table hides the set-number cell, and the W/T/B
+   letter with it; this badge, pinned to the row's top-left corner, takes over
+   there. Screen readers get the role from the done button instead. */
+function rowRoleBadgeHTML(s){
+  const warm = isWarmup(s), mark = warm ? ['W'] : SET_ROLE_MARK[s.role];
+  return mark ? '<span class="row-role' + (warm ? ' is-warm' : '') + '" aria-hidden="true">' + mark[0] + '</span>' : '';
+}
+function roleWords(s){
+  return isWarmup(s) ? ' (warm-up)' : SET_ROLE_MARK[s.role] ? ' (' + SET_ROLE_MARK[s.role][1].toLowerCase() + ')' : '';
+}
+/* The header's target: one figure when every set shares it, else a part per
+   run of sets with the same role and target ("top 1 × 6–8 · RIR 1 · back-off
+   2 × 10–12 · RIR 2"). */
+function targetTagText(ex){
+  const work = ex.sets.filter(s => !isWarmup(s));
+  const parts = [];
+  for (const s of work){
+    const t = setTarget(ex, s), key = (s.role || '') + '|' + targetRangeLabel(t) + '|' + t.targetRir;
+    const last = parts[parts.length - 1];
+    if (last && last.key === key) last.n++;
+    else parts.push({ key, n:1, role:s.role, range:targetRangeLabel(t), rir:t.targetRir });
+  }
+  const label = { top:'top ', backoff:'back-off ' };
+  if (parts.length > 1 || (parts[0] && parts[0].role)) return parts.map(p => (label[p.role] || '') + p.n + ' × ' + p.range +
+    (p.rir != null ? ' · RIR ' + fmtNum(p.rir) : '')).join(' · ');
+  const bodyweight = ex.unit === 'bw', split = implementSplit(ex, ex.targetWeight);
+  return 'target ' + work.length + ' × ' + targetRangeLabel(ex) +
+    (ex.targetWeight != null ? ' @ ' + (bodyweight ? '+' : '') + fmtNum(ex.targetWeight) + ' ' + exerciseLoadLabel(ex) + (split ? ' (' + split + ')' : '') : '') +
+    (ex.targetRir != null ? ' · RIR ' + fmtNum(ex.targetRir) : '');
+}
 /* The effort column a set shows: a prescribed RIR must be recordable even
    when global effort tracking is off. Exercises without one follow the global
    preference. null when the column is off. */
 function setMetric(ex){
-  const metric = ex.targetRir != null ? 'rir' : state.settings.effortMetric;
+  const metric = ex.targetRir != null || ex.sets.some(s => s.targetRir != null) ? 'rir' : state.settings.effortMetric;
   if (metric === 'none') return null;
   return metric === 'rir' ? { field:'rir', label:'RIR' } : { field:'rpe', label:'RPE' };
 }
@@ -5142,25 +5208,25 @@ function setFieldsHTML(ex, s, n, metric = setMetric(ex)){
       '<input id="sw-' + esc(s.id) + '" type="number" inputmode="decimal" min="0" step="0.5" ' +
       'aria-label="Set ' + n + (bodyweight ? ' added load' : ' weight') + ' in ' + esc(wLabel) + '" ' +
       'data-bind="set" data-change="set-weight" data-id="' + esc(s.id) + '" data-field="' + weightField + '" ' +
-      'value="' + esc(weightValue != null ? weightValue : '') + '" placeholder="0"></label>';
+      'value="' + esc(weightValue != null ? weightValue : '') + '" placeholder="0">' + implementSplitHTML(ex, s) + '</label>';
   }
   const timedField = ex.unit === 'time';
   const midVal = timedField ? setDuration(s) : s.reps;
-  const hasTarget = ex.targetRepsMin != null;
+  const target = setTarget(ex, s), hasTarget = target.targetRepsMin != null;
   const range = repRangeState(ex, s);
   html += '<label class="field"><span class="cap">' + esc(repsLabel) + '</span>' +
     '<input id="sr-' + esc(s.id) + '" type="number" inputmode="numeric" min="0" step="1" ' +
     (range ? 'class="' + range.cls + '" title="' + esc(range.title) + '" ' : '') +
-    'aria-label="Set ' + n + ' ' + esc(repsLabel) + (hasTarget ? ', target ' + esc(targetRangeLabel(ex)) : '') + '" ' +
+    'aria-label="Set ' + n + ' ' + esc(repsLabel) + (hasTarget ? ', target ' + esc(targetRangeLabel(target)) : '') + '" ' +
     'data-bind="set" data-change="set-reps" data-id="' + esc(s.id) + '" data-field="' + (timedField ? 'durationSeconds' : 'reps') + '" ' +
-    'value="' + esc(midVal != null ? midVal : '') + '" placeholder="' + esc(hasTarget ? targetRangeLabel(ex) : '0') + '"></label>';
+    'value="' + esc(midVal != null ? midVal : '') + '" placeholder="' + esc(hasTarget ? targetRangeLabel(target) : '0') + '"></label>';
   if (metric){
     const rir = metric.field === 'rir', mv = s[metric.field];
     html += '<label class="field"><span class="cap">' + metric.label + '</span>' +
       '<input type="number" inputmode="decimal" min="' + (rir ? 0 : 1) + '" max="10" step="' + (rir ? 1 : 0.5) + '" ' +
       'aria-label="Set ' + n + ' ' + metric.label + '" ' +
       'data-bind="set" data-id="' + esc(s.id) + '" data-field="' + metric.field + '" ' +
-      'value="' + esc(mv != null ? mv : '') + '" placeholder="' + esc(rir && ex.targetRir != null ? ex.targetRir : '–') + '"></label>';
+      'value="' + esc(mv != null ? mv : '') + '" placeholder="' + esc(rir && target.targetRir != null ? target.targetRir : '–') + '"></label>';
   }
   return html;
 }
@@ -5183,9 +5249,9 @@ function htmlDoneSetRow(ex, s, n, metric){
   const range = repRangeState(ex, s), tail = effort ? ' · ' + effort : '';
   return '<div class="set-row is-done is-compact' + (warm ? ' is-warmup' : '') + '">' +
     '<button type="button" class="set-summary" data-action="edit-set" data-id="' + esc(s.id) + '" ' +
-      'aria-label="Edit set ' + n + (warm ? ', warm-up' : '') + ': ' + setSummary(s, ex) + tail + '" title="Edit set ' + n + '">' +
+      'aria-label="Edit set ' + n + (warm ? ', warm-up' : SET_ROLE_MARK[s.role] ? ', ' + SET_ROLE_MARK[s.role][1].toLowerCase() : '') + ': ' + setSummary(s, ex) + tail + '" title="Edit set ' + n + '">' +
       '<span class="n">' + n + '</span>' +
-      (warm ? '<span class="wu" title="Warm-up: out of volume and records">W</span>' : '') +
+      setRoleMarkHTML(s) +
       '<span class="set-text' + (range ? ' ' + range.cls : '') + '">' + doneSetText(s, ex) + tail + '</span>' +
     '</button>' +
     '<button type="button" id="sd-' + esc(s.id) + '" class="btn set-done-btn" data-action="toggle-set" ' +
@@ -5248,15 +5314,14 @@ function htmlCurrentExercise(w, ex){
         'aria-pressed="' + warm + '" aria-label="Set ' + n +
         (warm ? ' is a warm-up. Mark it as a working set' : ' is a working set. Mark it as a warm-up') + '">' +
         '<span class="n">' + n + '</span>' +
-        (warm ? '<span class="wu" title="Warm-up: out of volume and records">W</span>'
-              : (prevSet ? '<span class="prev" title="Previous session">' + prevSet + '</span>' : '')) +
-      '</button>' + setFieldsHTML(ex, s, n, metric);
+        (setRoleMarkHTML(s) || (prevSet ? '<span class="prev" title="Previous session">' + prevSet + '</span>' : '')) +
+      '</button>' + rowRoleBadgeHTML(s) + setFieldsHTML(ex, s, n, metric);
     /* A long press here toggles the warm-up flag (data-longpress); a tap still
        logs the set. The set number keeps the same toggle as a plain button, so
        the gesture is never the only way in — a keyboard has no long press. */
     setsHTML += '<button type="button" id="sd-' + esc(s.id) + '" class="btn set-done-btn" data-action="toggle-set" ' +
       'data-longpress="toggle-warmup" data-id="' + esc(s.id) + '" ' +
-      'aria-pressed="false" aria-label="Mark set ' + n + ' as done" title="Mark set ' + n + ' as done · hold to mark it a warm-up">' +
+      'aria-pressed="false" aria-label="Mark set ' + n + roleWords(s) + ' as done" title="Mark set ' + n + ' as done · hold to mark it a warm-up">' +
       IC.box + '</button>';
     setsHTML += '<button type="button" class="btn set-edit-btn" data-action="edit-set" data-id="' + esc(s.id) + '" ' +
       'aria-label="Edit set ' + n + '" title="Edit set ' + n + '">' + IC.pen + '</button>';
@@ -5266,9 +5331,7 @@ function htmlCurrentExercise(w, ex){
   return '<div class="pad divider-top" id="ex-panel-top" tabindex="-1">' +
     '<div class="ex-head">' +
       '<span class="ex-tags">' +
-        '<span class="tag">target ' + ex.sets.filter(s => !isWarmup(s)).length + ' × ' + esc(targetRangeLabel(ex)) +
-          (ex.targetWeight != null ? ' @ ' + (bodyweight ? '+' : '') + fmtNum(ex.targetWeight) + ' ' + exerciseLoadLabel(ex) : '') +
-          (ex.targetRir != null ? ' · RIR ' + fmtNum(ex.targetRir) : '') + '</span>' +
+        '<span class="tag">' + esc(targetTagText(ex)) + '</span>' +
         '<span class="tag">' + icon('timer','ic-inline') + ' rest ' + fmtClock(currentRestSeconds()) +
           (warmupRest(ex) != null ? ' (warm-up)' : restOverride(ex) != null ? ' (this exercise)' : '') + '</span>' +
       '</span>' +
@@ -5719,6 +5782,22 @@ function lastSessionHTML(){
     '</div></section>';
 }
 
+/* A set plan in words: "2 warm-ups · top 1 × 6–8 @ 70 RIR 1 · back-off 2 ×
+   10–12 @ 59 RIR 2". Runs of identical entries are counted once. A load over
+   several implements says what each one weighs. */
+function setPlanSummary(it, def){
+  const ex = { implementCount:it.implementCount, unit:def ? def.unit : 'kg', loadMode:def ? def.loadMode : 'total' };
+  const label = { working:'', top:'top ', backoff:'back-off ' };
+  const warmups = it.setPlan.filter(e => e.type === 'warmup').length, parts = [];
+  for (const e of it.setPlan.filter(x => x.type !== 'warmup')){
+    const split = implementSplit(ex, e.weight);
+    const text = label[e.type] + '× ' + targetRangeLabel({ targetRepsMin:e.repsMin, targetRepsMax:e.repsMax }) +
+      (e.weight != null ? ' @ ' + fmtNum(e.weight) + (split ? ' (' + split + ')' : '') : '') + (e.targetRir != null ? ' RIR ' + fmtNum(e.targetRir) : '');
+    const last = parts[parts.length - 1];
+    if (last && last.text === text) last.n++; else parts.push({ text, n:1 });
+  }
+  return [warmups ? plural(warmups, 'warm-up') : '', ...parts.map(p => p.text.replace('× ', p.n + ' × '))].filter(Boolean).join(' · ');
+}
 function htmlRoutineEditor(){
   const d = ui.routineDraft;
   const groups = routineGroups(d.items);
@@ -5768,7 +5847,13 @@ function htmlRoutineEditor(){
       '<label class="field ' + (field === 'weight' ? 'target-weight' : '') + '"><span class="cap">' + cap + '</span>' +
       '<input type="number" min="' + (field === 'sets' ? 1 : 0) + '" ' + (extra || 'step="1" inputmode="numeric"') + ' data-bind="ritem" data-idx="' + i + '" data-field="' + field + '" ' +
       'value="' + esc(value != null ? value : '') + '" placeholder="–"></label>';
-    const targetFields =
+    /* A set plan replaces the four fields: they would be ignored while it
+       exists, so the row shows the plan and offers to drop it. */
+    const targetFields = it.setPlan ? '<span class="set-plan-summary">' +
+        '<span><strong>Set plan</strong> · ' + esc(setPlanSummary(it, e)) + '</span>' +
+        '<button type="button" class="btn btn-sm" data-action="ritem-clear-plan" data-idx="' + i + '" ' +
+          'aria-label="Remove the set plan from ' + esc(name) + '; keep ' + plural(it.sets, 'set') + ' of ' +
+          esc(targetRangeLabel({ targetRepsMin:it.repsMin, targetRepsMax:it.repsMax })) + '">Remove set plan</button></span>' :
       numberField('Sets', 'sets', it.sets, 'max="12" step="1" inputmode="numeric"') +
       '<label class="field"><span class="cap">' + countLabel + '</span>' +
         '<input type="text" inputmode="text" autocomplete="off" spellcheck="false" ' +
@@ -6230,24 +6315,57 @@ function progressionExposure(block, at){
       const unit = s.unit === 'lb' || s.unit === 'kg' ? s.unit : block.unit;
       return n != null && n > 0 ? convertWeight(n, unit, 'kg') : null;
     });
-    if (loads.some(n => n == null || Math.abs(n - loads[0]) > 0.05)) return { comparable:false };
+    if (loads.some(n => n == null) || !sameLoadPerRole(sets, loads)) return { comparable:false };
     load = loads[0];
   } else {
     const base = bodyweightAt(at, 'kg') || 0;
     const loads = sets.map(s => base + convertWeight(toNum(s.addedWeight) || 0,
       s.addedWeightUnit === 'lb' ? 'lb' : 'kg', 'kg'));
-    if (loads.some(n => Math.abs(n - loads[0]) > 0.05)) return { comparable:false };
+    if (!sameLoadPerRole(sets, loads)) return { comparable:false };
     load = loads[0];
   }
   const targetMax = toNum(block.targetRepsMax);
   const targetRir = toNum(block.targetRir);
   const efforts = sets.map(s => s.rir != null ? toNum(s.rir) :
     (s.rpe != null ? 10 - toNum(s.rpe) : null));
-  const effortMet = targetRir == null || (efforts.every(n => n != null) && efforts.every(n => n >= targetRir));
-  const ready = targetMax != null && targetMax > 0 && reps.every(n => n >= targetMax) && effortMet;
+  const targets = sets.map(s => { const t = setTarget(block, s); return { max:toNum(t.targetRepsMax), rir:toNum(t.targetRir) }; });
+  const ready = targetsMet(targets, reps, efforts);
   return { comparable:true, kind:block.unit === 'bw' ? 'bw' : 'loaded',
     count, load, reps, totalReps:reps.reduce((a,n) => a + n, 0),
-    targetMax, targetRir, efforts, effortKnown:efforts.every(n => n != null), ready };
+    targetMax, targetRir, targets, efforts, effortKnown:efforts.every(n => n != null), ready };
+}
+/* One load per role: every working set alike, or every top set alike and
+   every back-off set alike. The first planned set's load (the top set, in a
+   top-and-back-off plan) is the one the series follows. */
+function sameLoadPerRole(sets, loads){
+  const first = new Map();
+  return sets.every((s, i) => {
+    const role = s.role || '';
+    if (!first.has(role)){ first.set(role, loads[i]); return true; }
+    return Math.abs(loads[i] - first.get(role)) <= 0.05;
+  });
+}
+/* Every set reached the top of its own range, and its own RIR target when it
+   has one. Sets from a set plan carry their own targets; others share the
+   exercise's. */
+function targetsMet(targets, reps, efforts){
+  return targets.length > 0 && targets.every((t, i) => t.max != null && t.max > 0 && reps[i] >= t.max &&
+    (t.rir == null || (efforts[i] != null && efforts[i] >= t.rir)));
+}
+/* The per-set targets a plan prescribes, for comparing a past result with it:
+   a routine item's set plan, a workout block's own planned sets, or the one
+   target repeated over the planned set count. */
+function planTargets(plan){
+  const entries = workEntries(plan);
+  if (entries) return entries.map(e => ({ max:toNum(e.repsMax), rir:toNum(e.targetRir) }));
+  const own = s => Object.prototype.hasOwnProperty.call(s, 'targetRepsMax');
+  if (Array.isArray(plan.sets) && plan.sets.some(own)){
+    const work = plan.sets.filter(s => !isWarmup(s));
+    const count = toNum(plan.plannedSets) || work.length;
+    return work.slice(0, count).map(s => { const t = setTarget(plan, s); return { max:toNum(t.targetRepsMax), rir:toNum(t.targetRir) }; });
+  }
+  const count = toNum(Array.isArray(plan.sets) ? plan.plannedSets : plan.sets) || 0;
+  return Array.from({ length:count }, () => ({ max:toNum(plan.repsMax != null ? plan.repsMax : plan.targetRepsMax), rir:toNum(plan.targetRir) }));
 }
 /* A dismissal belongs to one result, including its logged measurements and
    prescription. New sessions and meaningful corrections create a new key. */
@@ -6256,7 +6374,8 @@ function progressionExposureKey(w, block){
     block.unit, block.loadMode, block.equipmentKey, block.plannedSets,
     block.targetRepsMin, block.targetRepsMax, block.targetRir,
     block.sets.map(s => [s.id, s.completed, s.countForVolume, s.countForPR,
-      s.unit, s.weight, s.addedWeight, s.addedWeightUnit, s.reps, s.rir, s.rpe])]);
+      s.unit, s.weight, s.addedWeight, s.addedWeightUnit, s.reps, s.rir, s.rpe,
+      ...(Object.prototype.hasOwnProperty.call(s, 'targetRepsMax') ? [s.role, s.targetRepsMin, s.targetRepsMax, s.targetRir] : [])])]);
   let hash = 2166136261;
   for (let i = 0; i < source.length; i++){ hash ^= source.charCodeAt(i); hash = Math.imul(hash, 16777619); }
   return String(w.id || w.startedAt) + ':' + (hash >>> 0).toString(36);
@@ -6320,18 +6439,19 @@ function loadCueFor(exId, plan, options = {}){
   const source = workout && workout.exercises[latest.blockIndex];
   if (source && (!sameProgressionContract(source, live) ||
       (plan && plan.unit && !sameProgressionContract(source, plan)))) return null;
-  const count = plan && toNum(typeof plan.sets === 'number' ? plan.sets : plan.plannedSets);
-  const targetMax = plan && toNum(plan.repsMax != null ? plan.repsMax : plan.targetRepsMax);
-  const targetRir = plan && toNum(plan.targetRir);
-  const repsMet = plan && count === latest.count && targetMax != null && targetMax > 0 &&
-    latest.reps.every(n => n >= targetMax);
-  const meetsPlan = plan ? repsMet &&
-    (targetRir == null || latest.efforts.every(n => n != null && n >= targetRir)) : status.ready;
+  /* Each planned set is held to its own target, so a top set and its
+     back-off sets can each have their range and RIR. */
+  const targets = plan ? planTargets(plan) : null;
+  const rirs = targets ? targets.map(t => t.rir).filter(n => n != null) : [];
+  const targetRir = rirs.length ? Math.min(...rirs) : null;
+  const repsMet = plan && targets.length === latest.count &&
+    targets.every((t, i) => t.max != null && t.max > 0 && latest.reps[i] >= t.max);
+  const meetsPlan = plan ? repsMet && targetsMet(targets, latest.reps, latest.efforts) : status.ready;
   const pref = progressionPreference(id);
   if (pref && (pref.loadCuesOff || pref.dismissedExposureKey === latest.exposureKey)) return null;
   if (meetsPlan) return {id, latest, targetRir:plan ? targetRir : latest.targetRir};
   const held = options.held && repsMet && targetRir != null && latest.efforts.some(n => n == null) &&
-    latest.efforts.every(n => n == null || n >= targetRir);
+    targets.every((t, i) => t.rir == null || latest.efforts[i] == null || latest.efforts[i] >= t.rir);
   return held ? {id, latest, targetRir, held:true} : null;
 }
 function cueExerciseName(id){ return (historyExerciseById(id) || {}).name || 'this exercise'; }
@@ -6845,8 +6965,8 @@ function htmlExerciseEditRow(e){
 function settingsContext(){
   return {
     state,ui,IC,THEMES,REST_MIN,REST_MAX,LOAD_STEP_BOUNDS,WARMUP_PERCENT_BOUNDS,WARMUP_MAX_STEPS,esc,unitLabel,fmtNum,fmtDate,convertWeight,toLocalInput,
-    cloudSummaryText,storageAttention:hasRescuedData,workoutHandoff,systemBarDiagnostics,historyExerciseIdentities,exerciseById,unresolvedHistoryExercises,
-    historyImportSummaryHTML,shortcutTable
+    cloudSummaryText,storageAttention:hasRescuedData,workoutHandoff,historyExerciseIdentities,exerciseById,unresolvedHistoryExercises,
+    historyImportSummaryHTML
   };
 }
 function viewSettings(){return LiftlogSettings.render(settingsContext());}
@@ -6931,13 +7051,7 @@ const actions = {
   'close-overview'(){ closeOverview(); },
   'open-overview'(){ ui.overviewOpen = true; ui.focus = 'add-ex-select'; render(); },
   'open-session-note'(){ ui.notesOpen = true; ui.focus = 'wnotes'; render(); },
-  'copy-diag'(){
-    const text = systemBarReport().map(([k,v]) => k + ': ' + v).join('\n');
-    if (navigator.clipboard && navigator.clipboard.writeText)
-      navigator.clipboard.writeText(text).then(() => toast('Diagnostics copied'),
-                                               () => toast('Could not copy'));
-    else toast('Clipboard unavailable here');
-  },
+
   'history-tab'(d){ ui.historyTab = HISTORY_TABS.some(([id]) => id === d.tab) ? d.tab : 'sessions'; ui.focus = null; render(); },
   'trend-mode'(d){ ui.trendMode = d.mode === 'muscle' ? 'muscle' : 'exercise'; render(); },
   'weekly-metric'(d){ ui.weeklyMetric = d.metric === 'sets' ? 'sets' : 'volume'; render(); },
@@ -7000,6 +7114,14 @@ const actions = {
   'ritem-up'(d){ routineStep(Number(d.idx), -1); },
   'ritem-down'(d){ routineStep(Number(d.idx), 1); },
   'ritem-rm'(d){ removeRoutineItem(Number(d.idx)); },
+  /* Back to one target for every set: the item's own summary figures. */
+  'ritem-clear-plan'(d){
+    const it = ui.routineDraft && ui.routineDraft.items[Number(d.idx)];
+    if (!it || !it.setPlan) return;
+    delete it.setPlan;
+    ui.focus = 'ri-grip-' + d.idx; render();
+    toast('Set plan removed: ' + plural(it.sets, 'set') + ' of ' + targetRangeLabel({ targetRepsMin:it.repsMin, targetRepsMax:it.repsMax }) + ' each');
+  },
   'ritem-add'(){
     const sel = $('#routine-add-select');
     if (sel && sel.value) addRoutineItem(sel.value);
@@ -7776,7 +7898,6 @@ function init(){
   if (state.activeWorkout) restoreTimer();
   else loadTimer(state.settings.defaultRest);
 
-  loadManifestThemeColor();
   trackHeaderHeight();
   wireSheets();
   $('#help-shortcuts').innerHTML = shortcutTable();

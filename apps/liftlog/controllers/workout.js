@@ -39,8 +39,10 @@ function buildWorkoutExercise(item){
     targetWeight:item.weight != null ? item.weight : null,
     ...(item.eitherOf ? { eitherOf:item.eitherOf } : {}),
     ...(item.supersetOf ? { supersetOf:item.supersetOf } : {}),
+    ...(item.implementCount > 1 ? { implementCount:item.implementCount } : {}),
     notes:exDef.notes || '', skipped:false, sets:[]
   };
+  if (context.workEntries(item)) return buildPlannedSets(ex, item, prev);
   const n = Math.max(1, item.sets || 3);
   /* Planned sets are working sets, so they line up with last time's working
      sets: a warm-up ramp must not seed the first working set with its load. */
@@ -121,6 +123,42 @@ function startEmpty(){
 }
 /* Default plan for a freshly added exercise: timed work is measured in
    seconds, everything else in reps. */
+/* One row per set-plan entry. Warm-ups arrive tagged, with their load, count
+   and rest filled in. Every other row carries its own target (and a top or
+   back-off row its role), and its load: the plan's, else what the same
+   non-warm-up position lifted last time. A set plan states its loads, so the
+   load suggestion never steps them. */
+function buildPlannedSets(ex, item, prev){
+  const prevWork = prev ? prev.sets.filter(s => !context.isWarmup(s)) : [];
+  const timed = ex.unit === 'time', bodyweight = ex.unit === 'bw';
+  let workIdx = 0;
+  for (const e of item.setPlan){
+    const set = newSetFrom(ex, null), warm = e.type === 'warmup';
+    let load = e.weight != null ? e.weight : null;
+    if (!warm){
+      const prevSet = prevWork[workIdx++];
+      if (load == null && prevSet){
+        load = bodyweight
+          ? (prevSet.addedWeight != null ? context.convertWeight(prevSet.addedWeight, prevSet.addedWeightUnit || context.unitLabel(), context.unitLabel()) : null)
+          : (prevSet.weight != null ? Math.round(context.convertWeight(prevSet.weight, prevSet.unit === 'lb' ? 'lb' : 'kg', set.unit) * 100) / 100 : null);
+      }
+      set.targetRepsMin = e.repsMin != null ? e.repsMin : ex.targetRepsMin;
+      set.targetRepsMax = e.repsMax != null ? e.repsMax : ex.targetRepsMax;
+      set.targetRir = e.targetRir != null ? e.targetRir : null;
+      if (e.type === 'top' || e.type === 'backoff') set.role = e.type;
+    } else {
+      context.setWarmup(set, true);
+      if (e.reps != null){ if (timed) set.durationSeconds = e.reps; else set.reps = e.reps; }
+      if (e.restSec != null) set.restSeconds = e.restSec;
+    }
+    if (!timed && load != null){
+      if (bodyweight){ set.addedWeight = load; set.addedWeightUnit = context.unitLabel(); }
+      else set.weight = load;
+    }
+    ex.sets.push(set);
+  }
+  return ex;
+}
 function newRoutineItem(exId){
   const def = context.exerciseById(exId);
   return { id:context.uid(), exerciseId:exId, sets:3,
@@ -231,7 +269,8 @@ function settleEitherOf(w, ex){
    durationSeconds — writing it to `reps` is exactly the v2 bug v3 undid. */
 function fillSetDefaults(ex, s){
   const field = ex.unit === 'time' ? 'durationSeconds' : 'reps';
-  if (context.toNum(s[field]) == null) s[field] = ex.targetRepsMin != null ? ex.targetRepsMin : 0;
+  const low = context.setTarget(ex, s).targetRepsMin;
+  if (context.toNum(s[field]) == null) s[field] = low != null ? low : 0;
   if (!s.unit) s.unit = ex.unit === 'time' ? 'time' : (ex.unit === 'bw' ? 'bw' : context.state.settings.unit);
 }
 function toggleWarmup(setId, focusId){
@@ -325,9 +364,12 @@ function cascadeSetField(setId, field, value, elPrefix, unitSuffix){
   /* clearing a field is not "setting" it, and must not wipe the rest */
   if (value == null){ context.save({changed:['activeWorkout']}); return; }
   let changed = 0;
+  /* A load flows only into rows of the same kind: a warm-up's load never
+     fills a working row, and a top set's never fills a back-off row. */
+  const kind = x => context.isWarmup(x) ? 'warmup' : x.role || '';
   for (let j = i + 1; j < ex.sets.length; j++){
     const s = ex.sets[j];
-    if (s.completed || s[field] != null) continue;
+    if (s.completed || s[field] != null || kind(s) !== kind(ex.sets[i])) continue;
     s[field] = value;
     const el = document.getElementById(elPrefix + s.id);
     if (el) el.value = value;
@@ -342,6 +384,8 @@ function cascadeWeight(setId, value){
   const field = ex.unit === 'bw' ? 'addedWeight' : 'weight';
   if (ex.unit === 'bw') ex.sets.forEach(s => { s.addedWeightUnit = context.unitLabel(); });
   cascadeSetField(setId, field, value, 'sw-', context.unitLabel());
+  /* the per-implement figure under each load follows without a re-render */
+  ex.sets.forEach(s => { const el = document.getElementById('split-' + s.id); if (el) el.textContent = context.implementSplit(ex, s.weight); });
 }
 /* The count belongs to its own row only; see cascadeSetField. */
 function setReps(setId, value){

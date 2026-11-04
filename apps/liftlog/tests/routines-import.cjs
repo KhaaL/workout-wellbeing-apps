@@ -24,8 +24,8 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     assert.equal(await pickers.count(), 1, 'the empty Routines tab shows one import button');
     assert.equal(await page.locator('.empty .file-btn').textContent(), ' Import routines');
     await pickers.first().setInputFiles(file);
-    await page.waitForFunction(() => window.testAPI.state.routines.length === 2);
-    assert.match(await page.locator('#toast-region').textContent(), /Imported 2 routines/);
+    await page.waitForFunction(() => window.testAPI.state.routines.length === 3);
+    assert.match(await page.locator('#toast-region').textContent(), /Imported 3 routines/);
 
     /* With routines, a quiet Import sits right of New routine in the header. */
     const quiet = page.locator('.view-head .file-btn.is-quiet');
@@ -36,7 +36,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     assert.ok(q.x > n.x + n.width, 'the import button sits to the right of New routine');
     await quiet.locator('input').setInputFiles(file);
     await page.waitForFunction(() => /skipped/.test(document.querySelector('#toast-region').textContent));
-    assert.equal(await page.evaluate(() => window.testAPI.state.routines.length), 2, 'importing the same file again adds nothing');
+    assert.equal(await page.evaluate(() => window.testAPI.state.routines.length), 3, 'importing the same file again adds nothing');
 
     /* The editor replaces the header's actions. */
     await page.locator('.view-head [data-action="routine-new"]').click();

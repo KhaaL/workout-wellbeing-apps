@@ -18,9 +18,9 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       const wait = () => new Promise(r => setTimeout(r, 60));
       t.state.exercises = []; t.state.routines = []; t.state.workouts = [];
       const sample = t.sampleRoutinesFile();
-      check(sample.version === 16 && sample.schemaVersion === '1.14.0', 'sample version markers');
+      check(sample.version === 16 && sample.schemaVersion === '1.15.0', 'sample version markers');
       t.importRoutines(file(sample)); await wait();
-      check(t.state.routines.length === 2 && t.state.exercises.length === 5, 'routine sample imports all definitions');
+      check(t.state.routines.length === 3 && t.state.exercises.length === 7, 'routine sample imports all definitions');
       check(t.state.routines[1].plan === true && /^\d{4}-\d{2}-\d{2}$/.test(t.state.routines[1].plannedFor) && !('plan' in t.state.routines[0]),
         'the sample plan imports as a plan and the routine stays stable');
       const r = t.state.routines[0];
@@ -32,7 +32,9 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       check(r.items[0].repsMin === 5 && r.items[0].repsMax === 8 && r.items[0].targetRir === 2,
         'routine sample preserves rep range and target RIR');
       t.importRoutines(file(sample)); await wait();
-      check(t.state.routines.length === 2, 'routine import deduplicates');
+      check(t.state.routines.length === 3, 'routine import deduplicates');
+      check(t.state.routines[2].items.map(it => it.setPlan.map(e => e.type).join()).join('|') === 'warmup,warmup,working,working,working|warmup,warmup,top,backoff,backoff' &&
+        t.state.routines[2].items[0].implementCount === 2, 'the sample set plans and implement count survive import');
       /* The pair checks below were written against the either-of routine alone;
          supersets have their own section. Dropping the sample's superset keeps
          their counts about the pair. */
@@ -44,8 +46,10 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       check(sets.length === 5 && sets[0].countForVolume === false && sets[0].countForPR === false, 'history warm-up flags survive');
       check(sets[3].reps === null && sets[3].durationSeconds === 45 && sets[2].rir === 0, 'timed sets and zero RIR survive');
       t.importHistory(file(history)); await wait();
-      check(t.state.workouts.length === 1, 'history import deduplicates');
-      check(t.ui.importSummary.added === 0 && t.ui.importSummary.already === 1 &&
+      check(t.state.workouts.length === 2, 'history import deduplicates');
+      check(t.state.workouts[1].exercises[0].sets.map(s => s.role || '').join() === ',top,backoff' && t.state.workouts[1].exercises[0].sets[2].targetRepsMax === 12,
+        'history set roles and per-set targets survive');
+      check(t.ui.importSummary.added === 0 && t.ui.importSummary.already === 2 &&
         t.ui.importSummary.invalid === 0 && t.ui.importSummary.conflicts === 0,
         'duplicate-only history import reports an existing workout precisely');
       const orphan = { workouts:[{ id:'wk-orphan', routineId:null, routineName:'Old log',
@@ -137,7 +141,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       t.state.schemaVersion = 'stale'; t.state.source = 'stale'; t.state.exportedAt = 'stale';
       const freshEnvelope = t.backupPayload();
       delete t.state.schemaVersion; delete t.state.source; delete t.state.exportedAt;
-      check(freshEnvelope.schemaVersion === '1.14.0' && freshEnvelope.source === 'liftlog-web' && freshEnvelope.exportedAt !== 'stale',
+      check(freshEnvelope.schemaVersion === '1.15.0' && freshEnvelope.source === 'liftlog-web' && freshEnvelope.exportedAt !== 'stale',
         'fresh export metadata wins over stale state fields');
       t.setUnit('lb');
       check(t.state.exercises.filter(ex => ex.unit === 'kg' || ex.unit === 'lb').every(ex => ex.unit === 'lb'),
@@ -218,7 +222,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       'review can relink a previously separated series');
     await page.evaluate(() => window.testAPI.state.exercises.reverse());
     await navigateUI(page,'exercises');
-    assert.deepEqual(await page.locator('#ex-list .list-name').allTextContents(), ['Back Squat','Leg Press','Plank'],
+    assert.deepEqual(await page.locator('#ex-list .list-name').allTextContents(), ['Back Squat','Chest Press','Dumbbell Bench Press','Leg Press','Plank'],
       'exercise list is alphabetical regardless of stored order');
     await page.locator('#ex-list .ex-row').filter({hasText:'Leg Press'}).locator('.list-open').click();
     const legPressSheet = page.getByRole('dialog', {name:'Leg Press'});
@@ -1201,7 +1205,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       ['lib-squat', 'f-press', 'lib-bench', 'lib-plank', 'lib-pullup'], 'confirmed choices are applied');
     await im.evaluate(() => { const t = window.testAPI; t.state.exercises = []; t.state.routines = [];
       t.importRoutines(new File([JSON.stringify(t.sampleRoutinesFile())], 's.json', {type:'application/json'})); });
-    await im.waitForFunction(() => window.testAPI.state.routines.length === 2);
+    await im.waitForFunction(() => window.testAPI.state.routines.length === 3);
     assert.equal(await im.locator('#import-match-dlg').evaluate(d => d.open), false, 'a clean import asks nothing');
     await im.close();
     console.log(matchChecks.map(s => 'PASS ' + s).join('\n') + '\nPASS routine import review: cancel, Esc, choose, confirm, clean import');
@@ -1525,8 +1529,8 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     assert.equal(await touch.locator('.app-footer').evaluate(el => getComputedStyle(el).display), 'none',
       'keyboard-help footer is hidden on touch');
     await navigateUI(touch,'settings');
-    assert.equal(await touch.locator('[aria-label="Keyboard shortcuts"]').evaluate(el => getComputedStyle(el).display), 'none',
-      'shortcut table is hidden on touch');
+    assert.equal(await touch.locator('#main [aria-label="Keyboard shortcuts"], #main .diag').count(), 0,
+      'Settings has no shortcut table and no system bar diagnostics');
     assert.deepEqual(await touch.locator('.settings-disclosure:not(.is-nested)').evaluateAll(nodes => nodes.map(node => node.open)), [false,false,false,false,false],
       'secondary data controls are collapsed in mobile Settings');
     await touch.locator('[data-settings-section="transfer"] summary').click();
