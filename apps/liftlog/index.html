@@ -524,6 +524,11 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .status-chip.current{ background:var(--accent-soft); color:var(--accent); }
 /* an outline, so it never reads as the filled Skipped chip in the same colour */
 .status-chip.warm{ border:1px solid var(--warning); color:var(--warning); }
+.order-note{ margin:var(--sp-1) 0 0; font-size:var(--fs-xs); color:var(--muted); }
+.order-warn{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--sp-2); margin-top:var(--sp-3); padding:var(--sp-2) var(--sp-3);
+  border-left:3px solid var(--warning); background:var(--warning-soft); border-radius:var(--radius); font-size:var(--fs-sm); }
+.order-warn p{ margin:0; flex:1 1 200px; }
+.order-warn.is-excluded{ border-left-color:var(--border-strong); background:var(--surface-2); }
 
 /* session overview drawer */
 .overview-toggle .chev{ transition:transform .15s ease; }
@@ -1707,6 +1712,30 @@ function inferMovementFamily(name, category){
   if (c === 'Cardio') return 'cardio';
   return 'other';
 }
+/* The muscle group an exercise loads, for spacing exercises apart: two in the
+   same group back to back is a conflict. The default comes from the movement
+   family; an exercise's own `group` overrides it. `none` takes an exercise out
+   of every rule (rehab work, arm isolation). Unclassified families default to
+   none, so an unknown movement never raises a warning. */
+const EXERCISE_GROUPS = ['press', 'back', 'quads', 'posterior', 'core', 'none'];
+const GROUP_BY_FAMILY = { horizontal_push:'press', vertical_push:'press', horizontal_pull:'back', vertical_pull:'back',
+  squat:'quads', hinge:'posterior', core:'core' };
+/* Why an exposure is left out of progression (excludeFromProgression.reason). */
+const EXCLUDE_REASONS = { 'order-conflict':'Order conflict', sleep:'Sleep', illness:'Illness', injury:'Injury', other:'Other' };
+function defaultGroup(family){ return GROUP_BY_FAMILY[String(family || '').trim()] || 'none'; }
+function normalizeGroup(value){ return EXERCISE_GROUPS.includes(value) ? value : null; }
+/* The group in force for a library exercise, or for a workout block (read
+   through its library exercise, so an edit applies to past sessions too). */
+function exerciseGroup(x){
+  if (!x) return 'none';
+  const def = x.exerciseId !== undefined ? exerciseById(canonicalExerciseId(x.exerciseId)) : x;
+  const src = def || x;
+  return normalizeGroup(src.group) || defaultGroup(src.movementFamily || inferMovementFamily(src.name, src.category));
+}
+function groupOptions(value, family){
+  return '<option value=""' + (value ? '' : ' selected') + '>Automatic (' + defaultGroup(family) + ')</option>' +
+    EXERCISE_GROUPS.map(g => '<option value="' + g + '"' + (value === g ? ' selected' : '') + '>' + g + '</option>').join('');
+}
 function normalizeLoadMode(mode, unit){
   const kind = exerciseMeasureKind(unit);
   if (kind === 'time') return 'duration';
@@ -1833,7 +1862,7 @@ const SCHEMA_VERSION = 16;  /* v3: sets carry durationSeconds (time no longer ov
                                v14: routines can be one-off plans (plan, plannedFor)
                                v15: library exercises can override the rest length (restSeconds)
                                v16: library exercises carry instructions (Markdown text) */
-const EXPORT_SCHEMA = '1.15.0'; /* version of the documented import/export contract — 1.1: sets[].rir;
+const EXPORT_SCHEMA = '1.16.0'; /* version of the documented import/export contract — 1.1: sets[].rir;
                                   1.2: exercises[].url; 1.3: per-item rest dropped; 1.4: items[].eitherOf;
                                   1.5: lower/upper rep targets and optional target RIR;
                                   1.6: reversible historical exercise links;
@@ -1844,7 +1873,8 @@ const EXPORT_SCHEMA = '1.15.0'; /* version of the documented import/export contr
                                   1.11: items[].supersetOf; 1.12: routines[].plan/plannedFor;
                                   1.13: exercises[].restSeconds; 1.14: exercises[].instructions;
                                   1.15: items[].setPlan and items[].implementCount, sets[].role and
-                                  per-set targets (optional: older versions read the item summary) */
+                                  per-set targets (optional: older versions read the item summary);
+                                  1.16: exercises[].group and workout exercises[].excludeFromProgression */
 
 /* Set by load() when stored data could not be used, surfaced once after init. */
 const localStore = LiftlogStorage.createLocal({
@@ -1954,6 +1984,7 @@ function validateBackup(s){
     if (typeof e.instructions === 'string' && e.instructions.length > WorkoutMarkdown.MAX_LENGTH)
       fail(path + '.instructions', 'at most ' + WorkoutMarkdown.MAX_LENGTH + ' characters');
     number(e.restSeconds, path + '.restSeconds');
+    if (e.group != null && !EXERCISE_GROUPS.includes(e.group)) fail(path + '.group', 'one of ' + EXERCISE_GROUPS.join(', '));
     bool(e.archived, path + '.archived');
   });
   const linkSources = new Set();
@@ -2033,6 +2064,12 @@ function validateBackup(s){
       fields(ex, at, ['name', 'category', 'unit', 'notes', 'eitherOf', 'supersetOf', 'loadMode', 'equipmentKey', 'movementFamily'], text);
       fields(ex, at, ['plannedSets', 'targetReps', 'targetRepsMin', 'targetRepsMax', 'targetRir', 'targetWeight', 'restSeconds', 'implementCount'], number);
       bool(ex.skipped, at + '.skipped');
+      if (ex.excludeFromProgression != null){
+        object(ex.excludeFromProgression, at + '.excludeFromProgression');
+        if (!EXCLUDE_REASONS[ex.excludeFromProgression.reason])
+          fail(at + '.excludeFromProgression.reason', 'one of ' + Object.keys(EXCLUDE_REASONS).join(', '));
+        text(ex.excludeFromProgression.note, at + '.excludeFromProgression.note');
+      }
       array(ex.sets, at + '.sets');
       ex.sets.forEach((set, j) => {
         const here = at + '.sets[' + j + ']'; object(set, here);
@@ -2235,8 +2272,9 @@ function normalizeState(s){
       if (bodyweightIds.has(entry.id) || bodyweightDates.has(entry.loggedAt)) return false;
       bodyweightIds.add(entry.id); bodyweightDates.add(entry.loggedAt); return true;
     });
-  s.exercises = (s.exercises || []).map(({ restSeconds, ...e }) => ({ ...e,
+  s.exercises = (s.exercises || []).map(({ restSeconds, group, ...e }) => ({ ...e,
     ...(normalizeRestSeconds(restSeconds) != null ? { restSeconds:normalizeRestSeconds(restSeconds) } : {}),
+    ...(normalizeGroup(group) ? { group } : {}),
     category: normalizeCategory(e.category, e.name),
     unit: normalizedExerciseUnit(isUnit(e.unit) ? e.unit : set.unit, set.unit),
     loadMode: normalizeLoadMode(e.loadMode, isUnit(e.unit) ? e.unit : set.unit),
@@ -3029,11 +3067,26 @@ function restOverride(block){
 /* The rest after a set of `ex`; by default the exercise on screen. A
    warm-up set carries its own rest (Settings → Warm-up sets), which applies
    while it is the latest set logged and work is still open. */
+/* Arriving at an exercise that follows one of its own group starts its clock
+   on what is left of the 3:00, counted from the predecessor's last working
+   set; a wait already spent at a busy station counts. Once per exercise, so a
+   reset clock stays reset. */
+function startGroupGap(){
+  const w = state.activeWorkout;
+  if (!w || workoutHandoff.held() || timer.running || timer.done || timer.remaining < timer.total || timer.key !== currentRestKey()) return;
+  const ex = w.exercises[currentMemberIndex(w)];
+  if (!ex || ex.sets.some(s => s.completed) || ui.groupGapFor === timer.key) return;
+  const left = groupGapSeconds(ex);
+  if (left == null) return;
+  ui.groupGapFor = timer.key;
+  loadTimer(left, true); startTimer();
+  announce('Rest ' + fmtClock(left) + ' before ' + ex.name + ': same group as the last exercise.');
+}
 function currentRestSeconds(ex){
   const w = state.activeWorkout;
   if (ex === undefined) ex = w ? w.exercises[currentMemberIndex(w)] : null;
   const warm = warmupRest(ex);
-  if (warm != null) return warm;
+  if (warm != null){ const gap = groupGapSeconds(ex); return gap != null ? Math.max(warm, gap) : warm; }
   const own = restOverride(ex);
   return own != null ? own : state.settings.defaultRest;
 }
@@ -3064,29 +3117,146 @@ function movementWarmth(w, ex){
   return by ? { family, fresh:false, by } : { family, fresh:true };
 }
 /* The muscle group each fresh group starts on, for the overview's "First
-   Push" chip: index → category. A group is fresh until any of its exercises
-   logs a working set; the chip sits on its first exercise in the current order
-   that is neither done nor skipped, so reordering moves it. Legs and Hinge
-   share the hips and hamstrings, so they count as one group. The category is
-   read from the library, like movementFamilyOf. Core, Cardio and Other get no
-   chip: they are rarely loaded enough to warm up for. */
-const NO_WARMUP_GROUPS = ['Core', 'Cardio', 'Other'];
-function muscleGroupOf(block){
-  const def = block && exerciseById(canonicalExerciseId(block.exerciseId));
-  return normalizeCategory((def && def.category) || (block && block.category), block && block.name);
-}
+   press" chip: index → group. A group is fresh until any of its exercises logs
+   a working set; the chip sits on its first exercise in the current order that
+   is neither done nor skipped, so reordering moves it. The group is the
+   exercise's own (exerciseGroup); group none is never the first of anything. */
 function freshGroupStarts(w){
   const starts = new Map(), worked = new Set(), seen = new Set();
-  const key = c => c === 'Hinge' ? 'Legs' : c;
   for (const ex of w.exercises){
-    if ((ex.sets || []).some(s => s.completed && !isWarmup(s))) worked.add(key(muscleGroupOf(ex)));
+    if ((ex.sets || []).some(s => s.completed && !isWarmup(s))) worked.add(exerciseGroup(ex));
   }
   w.exercises.forEach((ex, i) => {
-    const group = muscleGroupOf(ex), k = key(group);
-    if (NO_WARMUP_GROUPS.includes(group) || worked.has(k) || seen.has(k) || ex.skipped || allSetsDone(ex)) return;
-    seen.add(k); starts.set(i, group);
+    const group = exerciseGroup(ex);
+    if (group === 'none' || worked.has(group) || seen.has(group) || ex.skipped || allSetsDone(ex)) return;
+    seen.add(group); starts.set(i, group);
   });
   return starts;
+}
+/* ---------- performed order and same-group conflicts ----------
+   A workout's exercise list is the plan as rearranged; "Start now" jumps do not
+   move rows, so the order trained is read from when sets were logged. */
+const workTimes = ex => (ex.sets || []).filter(s => s.completed && !isWarmup(s)).map(s => s.completedAt);
+/* Every logged set has a time. Without one anywhere (an imported file), the
+   list order stands in for the order trained. */
+function hasSetTimes(w){
+  return w.exercises.every(ex => (ex.sets || []).every(s => !s.completed || (typeof s.completedAt === 'number' && s.completedAt > 0)));
+}
+function blockStart(ex){
+  const times = (ex.sets || []).filter(s => s.completed).map(s => s.completedAt);
+  return times.length ? Math.min(...times) : null;
+}
+/* The blocks in the order trained: by each one's first logged set of any
+   kind; blocks with nothing logged keep their list order at the end. */
+function performedOrder(w){
+  if (!hasSetTimes(w)) return w.exercises.slice();
+  const at = new Map(w.exercises.map((ex, i) => [ex, i]));
+  return w.exercises.slice().sort((a, b) => {
+    const x = blockStart(a), y = blockStart(b);
+    if (x == null || y == null) return x == null && y == null ? at.get(a) - at.get(b) : x == null ? 1 : -1;
+    return x - y || at.get(a) - at.get(b);
+  });
+}
+/* Whether `ex` follows an exercise of its own group. Its predecessor owns the
+   most recent logged working set before ex's first working set (or before
+   `now`, for an exercise not started yet); exercises in group none are passed
+   over. Two same-group exercises whose working sets interleave (a superset)
+   conflict too, reported on the one that started later. Returns
+   { by, at, kind } where `at` is the predecessor's last working set before
+   ex began, or null. */
+function orderConflict(w, ex, now = Date.now()){
+  const group = exerciseGroup(ex);
+  if (!w || group === 'none') return null;
+  if (!hasSetTimes(w)){
+    const list = w.exercises, i = list.indexOf(ex);
+    for (let j = i - 1; j >= 0; j--){
+      if (exerciseGroup(list[j]) === 'none' || !workTimes(list[j]).length) continue;
+      return exerciseGroup(list[j]) === group ? { by:list[j], at:null, kind:'after' } : null;
+    }
+    return null;
+  }
+  const mine = workTimes(ex), first = mine.length ? Math.min(...mine) : now;
+  let by = null, at = -1;
+  for (const other of w.exercises){
+    if (other === ex || exerciseGroup(other) === 'none') continue;
+    for (const t of workTimes(other)) if (t < first && t > at){ at = t; by = other; }
+  }
+  if (by && exerciseGroup(by) === group) return { by, at, kind:'after' };
+  if (mine.length){
+    const last = Math.max(...mine);
+    for (const other of w.exercises){
+      if (other === ex || exerciseGroup(other) !== group) continue;
+      const t = workTimes(other);
+      if (t.length && Math.min(...t) < first && Math.max(...t) > first && Math.min(...t) < last)
+        return { by:other, at:Math.max(...t.filter(x => x < first)), kind:'overlap' };
+    }
+  }
+  return null;
+}
+/* Rest between two same-group exercises: at least 3:00 from the
+   predecessor's last working set to this exercise's first. Seconds still to
+   wait, or null when no wait applies (no conflict, already waited, or this
+   exercise has logged a working set). */
+const GROUP_GAP_SECONDS = 180;
+function groupGapSeconds(ex){
+  const w = state.activeWorkout;
+  if (!w || !ex || workTimes(ex).length) return null;
+  const c = orderConflict(w, ex);
+  if (!c || !(c.at > 0)) return null;
+  const left = Math.ceil(GROUP_GAP_SECONDS - (Date.now() - c.at) / 1000);
+  return left > 0 ? left : null;
+}
+/* ---------- excluding an exposure from progression ----------
+   A flag on one exercise of one workout: its sets still count for volume,
+   records and history, while the stall check and load suggestions pass over
+   it. Set by hand only; a same-group conflict suggests it. */
+function setExclusion(blocks, value){
+  blocks.forEach(ex => { if (value) ex.excludeFromProgression = { ...value }; else delete ex.excludeFromProgression; });
+}
+function normalizeExclusion(x){
+  if (!x || typeof x !== 'object' || !EXCLUDE_REASONS[x.reason]) return null;
+  const note = typeof x.note === 'string' ? x.note.trim().slice(0, 200) : '';
+  return note ? { reason:x.reason, note } : { reason:x.reason };
+}
+/* Asks for a reason (and an optional note). Resolves to the flag or null. */
+function askExclusion(title, reason){
+  return new Promise(resolve => {
+    const dlg = document.createElement('dialog'); dlg.className = 'numeric-editor'; dlg.setAttribute('aria-label', title);
+    dlg.innerHTML = '<h2>' + esc(title) + '</h2>' +
+      '<p class="desc">The sets stay in volume, records and history. The stall check and load suggestions skip them.</p>' +
+      '<label class="field"><span class="cap">Reason</span><select name="reason">' +
+        Object.entries(EXCLUDE_REASONS).map(([k, v]) => '<option value="' + k + '"' + (k === reason ? ' selected' : '') + '>' + v + '</option>').join('') +
+      '</select></label>' +
+      '<label class="field"><span class="cap">Note (optional)</span><input type="text" name="note" maxlength="200" placeholder="e.g. 5 h sleep"></label>' +
+      '<div class="editor-actions"><div class="editor-pair"><button type="button" class="btn" value="cancel">Cancel</button>' +
+      '<button type="button" class="btn btn-primary" value="ok">Exclude</button></div></div>';
+    let result = null;
+    dlg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      if (b.value === 'ok') result = normalizeExclusion({ reason:dlg.querySelector('[name="reason"]').value, note:dlg.querySelector('[name="note"]').value });
+      dlg.close();
+    }));
+    dlg.addEventListener('close', () => { dlg.remove(); resolve(result); }, { once:true });
+    document.body.append(dlg); dlg.showModal();
+  });
+}
+/* Exclude every exercise of a session at once (sleep, illness), or undo that. */
+function excludeAllButtonHTML(w, scope){
+  const all = w.exercises.length && w.exercises.every(ex => ex.excludeFromProgression);
+  return all
+    ? '<button type="button" class="btn" data-action="include-all" data-scope="' + scope + '">Count all exercises in progression again</button>'
+    : '<button type="button" class="btn" data-action="exclude-all" data-scope="' + scope + '">Exclude all exercises from progression…</button>' +
+      '<p class="hint mt-2">For a session that does not show your level: little sleep, illness, an injury. Sets still count for volume and records.</p>';
+}
+/* For the live overview, which follows the plan: the row above in the list,
+   passing over group-none rows, when it shares this row's group. */
+function plannedConflict(list, i){
+  const group = exerciseGroup(list[i]);
+  if (group === 'none') return null;
+  for (let j = i - 1; j >= 0; j--){
+    if (exerciseGroup(list[j]) === 'none') continue;
+    return exerciseGroup(list[j]) === group ? list[j] : null;
+  }
+  return null;
 }
 function timerLeft(t){
   return t.running ? Math.max(0, (t.endsAt - Date.now())/1000) : t.remaining;
@@ -3421,6 +3591,8 @@ function workoutController(){
     get setTarget(){return setTarget;},
     get workEntries(){return workEntries;},
     get implementSplit(){return implementSplit;},
+    get askExclusion(){return askExclusion;},
+    get setExclusion(){return setExclusion;},
     get isWarmup(){return isWarmup;},
     get setFieldsHTML(){return setFieldsHTML;},
     get lastPerformance(){return lastPerformance;},
@@ -3600,6 +3772,7 @@ function exercisesController(){
     get inferMovementFamily(){return inferMovementFamily;},
     get linksBrokenBy(){return linksBrokenBy;},
     get normalizeCategory(){return normalizeCategory;},
+    get normalizeGroup(){return normalizeGroup;},
     get normalizeLoadMode(){return normalizeLoadMode;},
     get normalizedExerciseName(){return normalizedExerciseName;},
     get normalizedExerciseUnit(){return normalizedExerciseUnit;},
@@ -4115,6 +4288,7 @@ function applyRoutineImport(plan, choices){
       local = { id, name:distinctExerciseName(src.name, m.source), category:normalizeCategory(src.category, src.name),
         unit:normalizedExerciseUnit(m.source.unit, state.settings.unit),
         loadMode:m.source.loadMode, equipmentKey:m.source.equipmentKey.trim(), movementFamily:m.source.movementFamily,
+        ...(normalizeGroup(src.group) ? { group:src.group } : {}),
         archived:!!src.archived, notes:String(src.notes || ''),
         instructions:String(src.instructions || '').slice(0, WorkoutMarkdown.MAX_LENGTH), url:safeUrl(src.url) };
       state.exercises.push(local); addedEx++;
@@ -4242,7 +4416,9 @@ function importFixture(){
       url:'https://en.wikipedia.org/wiki/Squat_(exercise)' },
     { id:'ex-leg-press', name:'Leg Press', category:'Legs', movementFamily:'squat', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-leg-press', archived:false, notes:'', url:'' },
     { id:'ex-leg-curl', name:'Leg Curl', category:'Hinge', movementFamily:'hinge', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-leg-curl', archived:false, notes:'', url:'' },
-    { id:'ex-calf-raise', name:'Calf Raise', category:'Legs', movementFamily:'squat', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-calf-raise', archived:false, notes:'', url:'' },
+    /* group overrides the default from movementFamily (squat: quads); calves
+       do not compete with the main lifts, so this one sits in none */
+    { id:'ex-calf-raise', name:'Calf Raise', category:'Legs', movementFamily:'squat', group:'none', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-calf-raise', archived:false, notes:'', url:'' },
     { id:'ex-plank', name:'Plank', category:'Core', movementFamily:'core', unit:'time', loadMode:'duration', equipmentKey:'', archived:false, notes:'', url:'' },
     { id:'ex-db-bench', name:'Dumbbell Bench Press', category:'Push', movementFamily:'horizontal_push', unit:'kg', loadMode:'total', equipmentKey:'', archived:false, notes:'', url:'' },
     { id:'ex-chest-press', name:'Chest Press', category:'Push', movementFamily:'horizontal_push', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-chest-press', archived:false, notes:'', url:'' }
@@ -4325,6 +4501,8 @@ function importFixture(){
     exercises:[
       { exerciseId:'ex-chest-press', name:'Chest Press', category:'Push', movementFamily:'horizontal_push', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-chest-press',
         plannedSets:2, targetRepsMin:6, targetRepsMax:12, targetRir:1, targetWeight:70, notes:'', skipped:false,
+        /* left out of the stall check and load suggestions; volume keeps it */
+        excludeFromProgression:{ reason:'sleep', note:'5 h of sleep' },
         sets:[
           { id:'st-6', weight:41, reps:8, rir:null, completed:true, completedAt:started - 2 * 86400000 + 60000,
             unit:'kg', countForVolume:false, countForPR:false },
@@ -4358,7 +4536,8 @@ function schemaHelpHTML(){
       'which is why routines travel with the exercises they need. When a name is only similar, or matches an exercise ' +
       'recorded differently, the import asks which of your exercises to use before changing anything. ' +
       'Routines whose name you already have are skipped. An item can carry a <code>setPlan</code> with one entry per set ' +
-      '(the sample\u2019s Upper body routine has two), and <code>implementCount</code> for a load spread over several implements.</p>' +
+      '(the sample\u2019s Upper body routine has two), and <code>implementCount</code> for a load spread over several implements. ' +
+      'An exercise can name its muscle <code>group</code> (the sample\u2019s Calf Raise sets <code>none</code>).</p>' +
     rows([
       ['routines[]', 'required', 'The list. A bare top-level array is accepted too.'],
       ['routines[].name', 'string, required', 'Skipped if missing, or if a routine of that name already exists (for a plan: that name on that day).'],
@@ -4386,7 +4565,8 @@ function schemaHelpHTML(){
       ['exercises[].loadMode', 'enum', '<code>total</code>, <code>per_hand</code>, <code>machine_stack</code>, <code>bodyweight_added</code>, or <code>duration</code>. Same-series analytics require matching load mode and equipment identity.'],
       ['exercises[].movementFamily', 'string', 'A volume grouping such as <code>horizontal_push</code> or <code>vertical_pull</code>. It does not join load progression.'],
       ['exercises[].instructions', 'string', 'How to perform the movement, in Markdown: # headings, **bold**, *italic*, lists nested up to 3 levels, &gt; quotes and --- dividers. Links, images, tables and HTML are shown as typed. At most 10,000 characters.'],
-      ['exercises[].url', 'string', 'A link showing how to perform the movement. Only <code>http</code> and <code>https</code> survive; anything else is dropped.']
+      ['exercises[].url', 'string', 'A link showing how to perform the movement. Only <code>http</code> and <code>https</code> survive; anything else is dropped.'],
+      ['exercises[].group', 'optional enum', EXERCISE_GROUPS.map(g => '<code>' + g + '</code>').join(' \u00b7 ') + '. The muscle group for spacing exercises: two of one group back to back get a warning and a 3:00 rest. Missing means the default from <code>movementFamily</code> (push families: press, pull families: back, squat: quads, hinge: posterior, core: core, anything else: none). <code>none</code> is never part of a conflict (rehab, arm isolation).']
     ]) +
     code(sampleRoutinesFile()) +
 
@@ -4394,7 +4574,8 @@ function schemaHelpHTML(){
     '<p class="desc">Workouts are deduplicated by <code>id</code> \u2014 first write wins, so re-importing the same ' +
       'file adds no second copy. A workout needs an <code>id</code> and a <code>startedAt</code>; without either it is invalid. ' +
       'Historical exercise IDs that no longer exist in Exercises remain visible in Progress and can be linked later. ' +
-      'Sets logged from a set plan keep their <code>role</code> and their own target (the sample\u2019s second workout).</p>' +
+      'Sets logged from a set plan keep their <code>role</code> and their own target, and an exercise can be left out of progression ' +
+      'with <code>excludeFromProgression</code> (both in the sample\u2019s second workout). Exercises are shown in the order trained, read from <code>completedAt</code>.</p>' +
     rows([
       ['workouts[]', 'required', 'The list. A bare top-level array is accepted too.'],
       ['workouts[].id', 'string, required', 'The dedupe key. An identical reused id is reported as already present; different content with the same id is a conflict, and the local copy is kept.'],
@@ -4405,6 +4586,7 @@ function schemaHelpHTML(){
       ['exercises[].targetRepsMin', 'number | null', 'Lower rep or seconds target copied from the routine when the workout starts. Legacy <code>targetReps</code> is accepted as both bounds.'],
       ['exercises[].targetRepsMax', 'number | null', 'Upper rep or seconds target copied from the routine when the workout starts.'],
       ['exercises[].targetRir', 'integer | null', 'Optional prescribed reps in reserve, clamped to 0\u201310.'],
+      ['exercises[].excludeFromProgression', 'optional object', '<code>{ reason, note? }</code>, reason one of ' + Object.keys(EXCLUDE_REASONS).map(k => '<code>' + k + '</code>').join(' \u00b7 ') + '. The exercise\u2019s sets still count for volume, records and history; the stall check and load suggestions skip this session of it. An invalid value is dropped.'],
       ['sets[].setType', 'enum', SET_TYPES.map(t => '<code>' + t + '</code>').join(' · ') + '. Decides which fields carry the measurement.'],
       ['sets[].weight', 'number | null', 'Negative values are dropped.'],
       ['sets[].addedWeight', 'number | null', 'External load for a bodyweight set. Stored with <code>addedWeightUnit</code>; negative values are dropped.'],
@@ -4552,6 +4734,7 @@ function normalizeImportedWorkout(w){
       targetRepsMax:toNum(ex.targetRepsMax == null ? ex.targetReps : ex.targetRepsMax),
       targetRir:toNum(ex.targetRir), targetWeight:toNum(ex.targetWeight),
       notes:typeof ex.notes === 'string' ? ex.notes : '', skipped:!!ex.skipped,
+      ...(normalizeExclusion(ex.excludeFromProgression) ? { excludeFromProgression:normalizeExclusion(ex.excludeFromProgression) } : {}),
       sets:(Array.isArray(ex.sets) ? ex.sets : []).map(s => s ? normalizeImportedSet(s, ex.unit) : null).filter(Boolean)
     };
     const measurementKinds = new Set(block.sets.map(set => exerciseMeasureKind(set.unit)));
@@ -4713,6 +4896,7 @@ function render(){
   syncRestTimer();
   if (state.activeWorkout && !timer.running && !timer.done && timer.remaining >= timer.total &&
       timer.key === currentRestKey() && timer.seconds !== currentRestSeconds()) loadTimer(currentRestSeconds());
+  startGroupGap();
   drawTimer();
   liftToasts();      /* the bar's height changes with the sheet and the set row */
   syncWakeLock();
@@ -5332,8 +5516,9 @@ function htmlCurrentExercise(w, ex){
     '<div class="ex-head">' +
       '<span class="ex-tags">' +
         '<span class="tag">' + esc(targetTagText(ex)) + '</span>' +
-        '<span class="tag">' + icon('timer','ic-inline') + ' rest ' + fmtClock(currentRestSeconds()) +
-          (warmupRest(ex) != null ? ' (warm-up)' : restOverride(ex) != null ? ' (this exercise)' : '') + '</span>' +
+        '<span class="tag">' + icon('timer','ic-inline') + ' rest ' +
+          (groupGapSeconds(ex) != null && !ex.sets.some(s => s.completed) ? fmtClock(GROUP_GAP_SECONDS) + ' (same group)'
+            : fmtClock(currentRestSeconds()) + (warmupRest(ex) != null ? ' (warm-up)' : restOverride(ex) != null ? ' (this exercise)' : '')) + '</span>' +
       '</span>' +
       /* Read from the library rather than from the session's own copy of the
          exercise: a link corrected today should work in a session started
@@ -5342,6 +5527,7 @@ function htmlCurrentExercise(w, ex){
         htmlHowTo((exerciseById(ex.exerciseId) || {}).url, ex.name) + '</span>' +
     '</div>' +
     htmlSupersetNote(w, ex, run) +
+    htmlOrderNote(w, ex) +
     prevHTML +
     (ex.notes ? '<p class="ex-notes">“' + esc(ex.notes) + '”</p>' : '') +
     (cue ? loadCueHTML(cue, ex) : '') +
@@ -5355,6 +5541,18 @@ function htmlCurrentExercise(w, ex){
   '</div>';
 }
 
+/* "Seated Row just done (same group): rest 3:00, expect fewer reps", with the
+   suggested exclusion one tap away. Text only: targets and loads stay. */
+function htmlOrderNote(w, ex){
+  const c = orderConflict(w, ex), x = ex.excludeFromProgression, idx = w.exercises.indexOf(ex);
+  let html = '';
+  if (c && !allSetsDone(ex)) html += '<div class="order-warn" role="note"><p>' + esc(c.by.name) +
+    (c.kind === 'overlap' ? ' alternates with it' : ' just done') + ' (same group): rest 3:00, expect fewer reps.</p>' +
+    (x ? '' : '<button type="button" class="btn btn-sm" data-action="exclude-suggested" data-idx="' + idx + '">Exclude from progression</button>') + '</div>';
+  if (x) html += '<div class="order-warn is-excluded" role="note"><p>Not counted in progression: ' + esc(EXCLUDE_REASONS[x.reason] || 'Other') +
+    (x.note ? ' (' + esc(x.note) + ')' : '') + '.</p><button type="button" class="btn btn-sm" data-action="exclude-clear" data-idx="' + idx + '">Count it again</button></div>';
+  return html;
+}
 /* Warm-ups go above the first working set, so the button that adds them sits
    there too, quiet and small: it is offered only before anything is logged. */
 function warmupButtonHTML(ex){
@@ -5424,9 +5622,12 @@ function overviewSheetHTML(w){
       : allSetsDone(ex) ? '<span class="status-chip ok">' + icon('check','ic-xs') + ' Done</span>' : '';
     const warmChip = fresh.has(i) ? '<span class="status-chip warm" title="First ' + esc(fresh.get(i)) +
       ' exercise in this workout: warm up first">First ' + esc(fresh.get(i)) + '</span> ' : '';
-    const meta = settled && logged.length ? logged.map(s => setSummary(s, ex)).join(', ')
+    const above = plannedConflict(w.exercises, i);
+    const meta = (above ? '<span class="status-chip warm">Same group as ' + esc(above.name) + '</span> ' : '') +
+      (ex.excludeFromProgression ? '<span class="status-chip skip">Not in progression</span> ' : '') +
+      (settled && logged.length ? logged.map(s => setSummary(s, ex)).join(', ')
       : isNow || logged.length ? logged.length + '/' + ex.sets.length + ' sets'
-      : plural(ex.sets.length, 'set') + ' planned';
+      : plural(ex.sets.length, 'set') + ' planned');
     /* The grip is the drag handle and nothing else — a whole draggable row
        would have no way to tell a drag from the scroll it started with, on
        the one surface (a full-screen sheet) that has to scroll. It answers
@@ -5457,6 +5658,7 @@ function overviewSheetHTML(w){
 
   html += htmlSessionSuperset(w);
   html += htmlAddExercise();
+  html += '<div class="pad divider-top">' + excludeAllButtonHTML(w, 'live') + '</div>';
   /* Discard lives here rather than beside "Finish workout": they had the same
      size and adjacency, and a mis-tap costs the whole session. */
   html += '<div class="pad divider-top">' +
@@ -5682,7 +5884,8 @@ function recentSessions(exId, limit){
 }
 function exerciseDetailHTML(e){
   const facts = [['Measured', e.unit === 'bw' ? 'bodyweight + ' + exerciseLoadLabel(e) : exerciseLoadLabel(e)],
-    ['Movement', e.movementFamily.replace(/_/g,' ')]];
+    ['Movement', e.movementFamily.replace(/_/g,' ')],
+    ['Muscle group', exerciseGroup(e) + (normalizeGroup(e.group) ? ' (set by hand)' : ' (from movement)')]];
   if (e.equipmentKey) facts.push(['Equipment', e.equipmentKey]);
   facts.push(['Rest', normalizeRestSeconds(e.restSeconds) != null ? fmtClock(normalizeRestSeconds(e.restSeconds)) + ' (this exercise)' : fmtClock(state.settings.defaultRest) + ' (Settings)']);
   const dl = rows => '<dl class="detail-facts">' + rows.map(([k, v]) => '<dt>' + esc(k) + '</dt><dd>' + v + '</dd>').join('') + '</dl>';
@@ -6056,7 +6259,8 @@ function viewHistoryContent(){
            axis of the list readable without the date fighting the name for
            attention. */
         '<span class="hist-cell hist-title"><b>' + esc(w.routineName) + '</b><br>' +
-          '<span class="k">' + fmtDate(w.startedAt) + ' · ' + relDays(w.startedAt) + '</span>' +
+          '<span class="k">' + fmtDate(w.startedAt) + ' · ' + relDays(w.startedAt) +
+            (w.exercises.some(ex => ex.excludeFromProgression) ? ' · <span class="status-chip skip">Not in progression</span>' : '') + '</span>' +
           (query ? '<br><span class="k">' + esc(w.exercises.filter(ex => normalizedExerciseName(ex.name).includes(query) ||
             normalizedExerciseName((historyExerciseById(canonicalExerciseId(ex.exerciseId)) || {}).name).includes(query))
             .map(ex => ex.name).join(' · ')) + '</span>' : '') + '</span>' +
@@ -6086,6 +6290,17 @@ function viewHistoryExercise(workoutId, index){
 }
 /* The body of a session's detail sheet. The list row hides duration, sets and
    volume on a phone, so the sheet leads with them. */
+/* "After Seated Row (same group: back)": shown on the later exercise. */
+function conflictNoteHTML(w, ex){
+  const c = orderConflict(w, ex);
+  return c ? '<p class="order-note"><span class="status-chip warm">Same group</span> ' + (c.kind === 'overlap' ? 'Alternated with ' : 'After ') +
+    esc(c.by.name) + ' (' + esc(exerciseGroup(ex)) + ')</p>' : '';
+}
+function exclusionNoteHTML(ex){
+  const x = ex.excludeFromProgression;
+  return x ? '<p class="order-note"><span class="status-chip skip">Not in progression</span> ' + esc(EXCLUDE_REASONS[x.reason] || 'Other') +
+    (x.note ? ': ' + esc(x.note) : '') + '</p>' : '';
+}
 function htmlWorkoutDetail(w){
   let html = '<div class="detail-section"><p class="detail-stats">' +
     '<span>' + fmtDuration(workoutDuration(w)) + '</span>' +
@@ -6094,7 +6309,9 @@ function htmlWorkoutDetail(w){
     (w.notes ? '<div class="small mt-3 md-note">' + WorkoutMarkdown.render(w.notes, {links:true}) + '</div>' : '') + '</div>' +
     '<div class="detail-section">';
   let shown = 0;
-  w.exercises.forEach((ex, index) => {
+  /* in the order trained, which a "Start now" jump does not write into the list */
+  performedOrder(w).forEach(ex => {
+    const index = w.exercises.indexOf(ex);
     if(!historyExerciseVisible(ex.exerciseId))return;
     /* every completed set is shown: countForPR only decides what counts as a
        record, it is not a reason to hide work that was actually done */
@@ -6107,6 +6324,7 @@ function htmlWorkoutDetail(w){
       (ex.skipped ? ' <span class="status-chip skip">skipped</span>' : '') +
       (top > 0 ? ' <span class="muted top-e1rm">· top e1RM ' + fmtNum(roundHalf(top)) + ' ' + unitLabel() + '</span>' : '') +
       '</h4>' +
+      conflictNoteHTML(w, ex) + exclusionNoteHTML(ex) +
       '<p class="hist-sets">' +
       (done.length
         ? done.map(s => setSummary(s, ex) + (s.rpe != null ? ' @RPE' + s.rpe : '') + (s.rir != null ? ' @RIR' + s.rir : '') +
@@ -6133,7 +6351,8 @@ function htmlWorkoutEditor(w){
         '<input type="datetime-local" data-change="workout-time" data-field="finishedAt" value="' + toLocalInput(w.finishedAt) + '"></label>' +
       '<label class="field span-all"><span class="cap">Notes</span>' +
         '<textarea rows="4" data-bind="hwo" data-field="notes">' + esc(w.notes || '') + '</textarea></label>' +
-    '</div>';
+    '</div>' +
+    '<div class="mt-3">' + excludeAllButtonHTML(w, 'history') + '</div>';
   w.exercises.forEach((ex, xi) => {
     if(!historyExerciseVisible(ex.exerciseId))return;
     const measurement = ex.unit === 'time' ? 'Timed' : ex.unit === 'bw' ? 'Bodyweight' : 'Weighted';
@@ -6143,6 +6362,11 @@ function htmlWorkoutEditor(w){
           '<input type="text" data-bind="hex" data-idx="' + xi + '" data-field="name" value="' + esc(ex.name) + '"></label>' +
         '<div class="field hedit-unit"><span class="cap">Measurement</span>' +
           '<span class="field-value">' + measurement + '</span></div>' +
+        '<label class="field hedit-progress"><span class="cap">Progression</span><select data-change="hex-exclude" data-idx="' + xi + '">' +
+          '<option value=""' + (ex.excludeFromProgression ? '' : ' selected') + '>Counted</option>' +
+          Object.entries(EXCLUDE_REASONS).map(([k, v]) => '<option value="' + k + '"' +
+            (ex.excludeFromProgression && ex.excludeFromProgression.reason === k ? ' selected' : '') + '>Excluded: ' + v + '</option>').join('') +
+        '</select></label>' +
         '<button type="button" class="btn hset-del" data-action="hex-del" data-idx="' + xi + '" aria-label="Remove ' + esc(ex.name) + ' from this session">' + IC.trash + '</button>' +
       '</div>';
     ex.sets.forEach((s, si) => {
@@ -6392,6 +6616,8 @@ function progressionStatus(exId, workouts = state.workouts){
       ex.sets.some(s => s.completed && !isWarmup(s)));
     if (blockIndex < 0) return;
     const block = w.exercises[blockIndex];
+    /* excluded by hand: neither a gain, a miss nor a new baseline */
+    if (block.excludeFromProgression) return;
     const exposure = progressionExposure(block, w.startedAt);
     if (!exposure) return;
     if (!exposure.comparable){ best = null; streak = 0; latest = null; return; }
@@ -6807,6 +7033,7 @@ function viewExercises(){
       '<span class="list-name">' + esc(e.name) + (e.archived ? ' <span class="tag tag-plain">Archived</span>' : '') + '</span>' +
       '<span class="list-meta" id="' + esc(detailRowId('exercise', e.id) + '-meta') + '"><span class="tag tag-plain">' + esc(e.category) + '</span> ' +
         esc(e.unit === 'bw' ? 'bodyweight + ' + exerciseLoadLabel(e) : exerciseLoadLabel(e)) + ' · ' + esc(e.movementFamily.replace(/_/g,' ')) +
+        ' · ' + (exerciseGroup(e) === 'none' ? 'no group' : esc(exerciseGroup(e)) + ' group') +
         (e.equipmentKey ? ' · ' + esc(e.equipmentKey) : '') + (usedBy ? ' · in ' + plural(usedBy, 'routine') : '') +
         (last ? ' · last ' + relDays(last.date) : '') + '</span>' +
       (e.notes ? '<span class="list-meta quote">“' + esc(e.notes) + '”</span>' : '') + '</span>' + IC.chev + '</button>' +
@@ -6862,6 +7089,8 @@ function htmlExerciseForm(){
         '<label class="field"><span class="cap">Movement family</span><input name="exfamily" list="ex-families" placeholder="horizontal_push">' + movementFamilyDatalist('ex-families') +
           '<span class="hint">Groups training volume across related movements; load progress stays separate.</span></label>' +
         '<label class="field"><span class="cap">Load convention</span><select name="exloadmode">' + loadModeOptions('total') + '</select></label>' +
+        '<label class="field"><span class="cap">Muscle group</span><select name="exgroup">' + groupOptions('', '') + '</select>' +
+          '<span class="hint">Two exercises of one group back to back get a warning. <code>none</code> never does (rehab, arm work).</span></label>' +
         '<label class="field"><span class="cap">Equipment key (optional)</span><input name="exequipment" placeholder="gym-a-leg-press">' +
           '<span class="hint">Use the same stable key only for the same implement or machine.</span></label>' +
       '</div>' +
@@ -6942,6 +7171,8 @@ function htmlExerciseEditRow(e){
         '<label class="field"><span class="cap">Movement family</span><input data-bind="edraft" data-field="movementFamily" value="' + esc(d.movementFamily || '') + '" list="ex-families-edit">' + movementFamilyDatalist('ex-families-edit') +
           '<span class="hint">Groups training volume across related movements; load progress stays separate.</span></label>' +
         '<label class="field"><span class="cap">Load convention</span><select data-bind="edraft" data-field="loadMode">' + loadModeOptions(normalizeLoadMode(d.loadMode,d.unit)) + '</select></label>' +
+        '<label class="field"><span class="cap">Muscle group</span><select data-bind="edraft" data-field="group">' + groupOptions(normalizeGroup(d.group), d.movementFamily) + '</select>' +
+          '<span class="hint">Two exercises of one group back to back get a warning. <code>none</code> never does (rehab, arm work).</span></label>' +
         '<label class="field"><span class="cap">Equipment key (optional)</span><input data-bind="edraft" data-field="equipmentKey" value="' + esc(d.equipmentKey || '') + '" placeholder="gym-a-leg-press">' +
           '<span class="hint">Same key means the same implement or machine.</span></label>' +
       '</div>' +
@@ -7037,6 +7268,28 @@ const actions = {
   'add-set'(){ addSet(); },
   'swap-exercise'(){ openSwapDialog(); },
   'exercise-menu'(){ openExerciseMenu(); },
+  /* the one-tap answer to a same-group conflict; reversible below it */
+  'exclude-suggested'(d){
+    const ex = state.activeWorkout && state.activeWorkout.exercises[Number(d.idx)]; if (!ex) return;
+    setExclusion([ex], { reason:'order-conflict' }); save(); render();
+    toast(ex.name + ' left out of progression: order conflict', { label:'Undo', run:() => { setExclusion([ex], null); save(); render(); } });
+  },
+  'exclude-clear'(d){
+    const ex = state.activeWorkout && state.activeWorkout.exercises[Number(d.idx)]; if (!ex) return;
+    setExclusion([ex], null); save(); render(); toast(ex.name + ' counts in progression again');
+  },
+  'exclude-all'(d){
+    const w = d.scope === 'history' ? editingWorkout() : state.activeWorkout; if (!w) return;
+    askExclusion('Exclude all exercises from progression?', 'sleep').then(value => {
+      if (!value) return;
+      setExclusion(w.exercises, value); save(); render();
+      toast(plural(w.exercises.length, 'exercise') + ' left out of progression', { label:'Undo', run:() => { setExclusion(w.exercises, null); save(); render(); } });
+    });
+  },
+  'include-all'(d){
+    const w = d.scope === 'history' ? editingWorkout() : state.activeWorkout; if (!w) return;
+    setExclusion(w.exercises, null); save(); render(); toast('Every exercise counts in progression again');
+  },
   'add-warmups'(){ addWarmups(); },
   'delete-set'(d){ deleteSet(d.id); },
   'edit-set'(d){ openSetEditor(d.id); },
@@ -7692,6 +7945,11 @@ const changeHandlers = {
     if (!timer.running && !timer.done && timer.remaining >= timer.total) loadTimer(currentRestSeconds());
     toast('Rest between sets: ' + fmtClock(v));
   },
+  'hex-exclude'(t){
+    const w = editingWorkout(), ex = w && w.exercises[Number(t.dataset.idx)]; if (!ex) return;
+    const keep = ex.excludeFromProgression && ex.excludeFromProgression.note;
+    setExclusion([ex], t.value ? normalizeExclusion({ reason:t.value, note:keep }) : null); save();
+  },
   'workout-time'(t){
     const w = editingWorkout(); if (!w) return;
     const field = t.dataset.field;                 /* startedAt | finishedAt */
@@ -7748,7 +8006,7 @@ document.addEventListener('submit', e => {
   else if (kind === 'ex-new'){
     const g = n => { const el = form.elements.namedItem(n); return el ? el.value : ''; };
     saveNewExercise({ name:g('exname'), category:g('excat'), unit:g('exunit'), loadMode:g('exloadmode'),
-      equipmentKey:g('exequipment'), movementFamily:g('exfamily'), notes:g('exnotes'), instructions:g('exinstructions'),
+      equipmentKey:g('exequipment'), movementFamily:g('exfamily'), group:g('exgroup'), notes:g('exnotes'), instructions:g('exinstructions'),
       url:g('exurl'), restSeconds:g('exrest') });
   }
   else if (kind === 'ex-save'){ saveExerciseDraft(); }

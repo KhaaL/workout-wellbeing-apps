@@ -481,6 +481,10 @@ function openExerciseMenu(){
   if (canSwap(ex)) button('Swap for another exercise…', '', openSwapDialog);
   /* Skipped work stays in the plan: the overview marks it and can reopen it. */
   if (!allSetsDone(ex)) button('Skip exercise', '', () => advanceExercise(true, true));
+  /* left out of the stall check and load suggestions; the sets still count */
+  if (ex.excludeFromProgression) button('Count in progression again', '', () => { context.setExclusion([ex], null); context.save(); context.render(); });
+  else button('Exclude from progression…', '', () => context.askExclusion('Exclude ' + ex.name + ' from progression?', 'other')
+    .then(value => { if (value){ context.setExclusion([ex], value); context.save(); context.render(); } }));
   button('Remove exercise…', 'btn-danger', () => confirmExerciseRemoval(w, ex));
   button('Cancel', '', null);
   /* the follow-up runs after focus has gone back, so its own dialog or render owns focus */

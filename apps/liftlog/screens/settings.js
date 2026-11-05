@@ -136,7 +136,7 @@ const LiftlogSettings = (() => {
             '<button type="button" class="icon-btn" data-action="schema-open" ' +
               'aria-label="File format and sample files" title="File format and sample files">' + IC.help + '</button>' +
           '</div>' +
-          '<p class="desc">Imports merge into this browser. Routine imports add missing exercises, and a routine can plan each set: warm-ups, working, top and back-off sets with their own load and target. History reports new workouts, existing copies, invalid entries and ID conflicts separately; local workouts win conflicts.</p>' +
+          '<p class="desc">Imports merge into this browser. Routine imports add missing exercises, and a routine can plan each set: warm-ups, working, top and back-off sets with their own load and target. Exercises carry a muscle group for spacing warnings. History reports new workouts, existing copies, invalid entries and ID conflicts separately; local workouts win conflicts.</p>' +
           '<div class="transfer-grid">' +
             '<div class="transfer-group" role="group" aria-labelledby="transfer-routines-title">' +
               '<h4 id="transfer-routines-title">Routines</h4>' +
