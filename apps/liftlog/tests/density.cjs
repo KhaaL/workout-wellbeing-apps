@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
 
-const ex = (id, name, category) => ({ id, name, category, unit:'kg', loadMode:'total', equipmentKey:'', movementFamily:'other', archived:false, notes:'', url:'' });
+const ex = (id, name, category, family = 'other') => ({ id, name, category, unit:'kg', loadMode:'total', equipmentKey:'', movementFamily:family, archived:false, notes:'', url:'' });
 
 (async () => {
   const browser = await launchBrowser();
@@ -62,7 +62,7 @@ const ex = (id, name, category) => ({ id, name, category, unit:'kg', loadMode:'t
     await start([ex('bench', 'Bench Press', 'Push'), ex('row', 'Row', 'Pull')], ['bench', 'row']);
     await page.locator('#main [data-action="exercise-menu"]').click();
     const menu = page.getByRole('dialog', { name:'More for Bench Press' });
-    assert.deepEqual(await menu.getByRole('button').allTextContents(), ['Swap for another exercise…', 'Skip exercise', 'Remove exercise…', 'Cancel']);
+    assert.deepEqual(await menu.getByRole('button').allTextContents(), ['Swap for another exercise…', 'Skip exercise', 'Exclude from progression…', 'Remove exercise…', 'Cancel']);
     await menu.getByRole('button', { name:'Skip exercise' }).click();
     await page.waitForFunction(() => window.testAPI.state.activeWorkout.currentExerciseIndex === 1, null, { timeout:2000 }).catch(() => {});
     assert.deepEqual(await page.evaluate(() => { const w = window.testAPI.state.activeWorkout; return [w.exercises[0].skipped, w.currentExerciseIndex]; }), [true, 1],
@@ -73,26 +73,26 @@ const ex = (id, name, category) => ({ id, name, category, unit:'kg', loadMode:'t
     assert.equal(await page.locator('#load-step').evaluate(i => i.closest('.setting-block').querySelector('h3').textContent), 'Weights');
 
     /* The overview marks the first exercise of each fresh muscle group. */
-    await start([ex('squat', 'Squat', 'Legs'), ex('rdl', 'Romanian Deadlift', 'Hinge'), ex('bench', 'Bench Press', 'Push'),
-      ex('ohp', 'Overhead Press', 'Push'), ex('row', 'Row', 'Pull'), ex('plank', 'Plank', 'Core')],
+    await start([ex('squat', 'Squat', 'Legs', 'squat'), ex('rdl', 'Romanian Deadlift', 'Hinge', 'hinge'), ex('bench', 'Bench Press', 'Push', 'horizontal_push'),
+      ex('ohp', 'Overhead Press', 'Push', 'vertical_push'), ex('row', 'Row', 'Pull', 'horizontal_pull'), ex('plank', 'Plank', 'Core', 'core')],
       ['squat', 'rdl', 'bench', 'ohp', 'row', 'plank']);
     const chips = () => page.evaluate(() => {
       const t = window.testAPI; t.ui.overviewOpen = true; t.render();
       return [...document.querySelectorAll('.overview-row')].map(r => {
-        const chip = r.querySelector('.status-chip.warm');
+        const chip = [...r.querySelectorAll('.status-chip.warm')].find(c => c.textContent.startsWith('First'));
         return chip ? chip.textContent : '';
       });
     });
-    assert.deepEqual(await chips(), ['First Legs', '', 'First Push', '', 'First Pull', ''],
-      'one chip per group; Hinge shares the Legs chip; Core gets none');
+    assert.deepEqual(await chips(), ['First quads', 'First posterior', 'First press', '', 'First back', 'First core'],
+      'one chip per muscle group, from each exercise\'s group');
     await page.evaluate(() => { const w = window.testAPI.state.activeWorkout; w.exercises.splice(2, 0, w.exercises.splice(3, 1)[0]); });
-    assert.deepEqual((await chips()).slice(2, 4), ['First Push', ''], 'reordering moves the chip to the new first exercise');
+    assert.deepEqual((await chips()).slice(2, 4), ['First press', ''], 'reordering moves the chip to the new first exercise');
     await page.evaluate(() => { const w = window.testAPI.state.activeWorkout; w.exercises[0].sets[0].completed = true; w.exercises[0].sets[0].completedAt = Date.now(); w.exercises[0].sets[0].countForVolume = false; });
-    assert.equal((await chips())[0], 'First Legs', 'a warm-up does not make the group worked');
+    assert.equal((await chips())[0], 'First quads', 'a warm-up does not make the group worked');
     await page.evaluate(() => { const s = window.testAPI.state.activeWorkout.exercises[0].sets[1]; s.completed = true; s.completedAt = Date.now(); s.weight = 100; s.reps = 6; });
-    assert.deepEqual((await chips()).slice(0, 2), ['', ''], 'once a working set is logged the group has no chip');
+    assert.deepEqual((await chips()).slice(0, 2), ['', 'First posterior'], 'once a working set is logged the group has no chip');
     await page.evaluate(() => { window.testAPI.state.activeWorkout.exercises[2].skipped = true; });
-    assert.deepEqual((await chips()).slice(2, 4), ['', 'First Push'], 'a skipped exercise passes the chip on');
+    assert.deepEqual((await chips()).slice(2, 4), ['', 'First press'], 'a skipped exercise passes the chip on');
 
     assert.deepEqual(errors, []);
     console.log('density: 24 checks passed');
