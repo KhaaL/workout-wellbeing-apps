@@ -197,6 +197,12 @@ select{ appearance:none; padding-right:30px; background-image:linear-gradient(45
 
 .form-row{ display:flex; gap:var(--sp-3); flex-wrap:wrap; align-items:flex-end; }
 .form-row .field{ flex:1; min-width:120px; }
+/* Fields with a hint under one of them line up by their labels, so the hint
+   hangs below instead of lifting its input above the others. */
+.form-row.is-top{ align-items:flex-start; }
+/* A native date box keeps its own minimum width on Android and ran past the
+   panel; without the native appearance it takes the column it is given. */
+#routine-planned-for{ -webkit-appearance:none; appearance:none; min-width:0; max-width:100%; }
 .theme-field{ max-width:320px; }
 .form-actions{ display:flex; gap:var(--sp-2); align-items:center; flex-wrap:wrap; }
 .form-footer{ margin-top:var(--sp-5); padding-top:var(--sp-4); border-top:1px solid var(--border); }
@@ -312,9 +318,9 @@ kbd{
 .seg.is-skipped > i{ background:var(--warning); }
 
 .ex-panel{ border-color:var(--accent); border-top:3px solid var(--accent); }
-.ex-head{ display:flex; justify-content:space-between; gap:var(--sp-3); align-items:baseline; flex-wrap:wrap; }
+.ex-head{ display:flex; justify-content:flex-end; gap:var(--sp-3); align-items:baseline; flex-wrap:wrap; }
+.ex-head:not(:has(*:not(:empty))){ display:none; }
 .ex-name{ font-size:var(--fs-lg); font-weight:700; letter-spacing:-.02em; }
-.ex-tags{ display:flex; gap:var(--sp-2); flex-wrap:wrap; }
 /* Deliberately quiet: the link is worth having on the exercise you have not
    done before, and worth ignoring on the hundred you have. It keeps a 44px
    tall tap target on a phone without taking a button's worth of weight. */
@@ -428,8 +434,12 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
   .row-role.is-warm{ color:var(--warning); }
   .set-row.is-current .row-role{ left:var(--sp-3); }
 }
-/* what to pick up when the stored load is a total over several implements */
-.implement-split{ display:block; margin-top:2px; font-size:var(--fs-xs); color:var(--muted); font-variant-numeric:tabular-nums; }
+/* what to pick up when the stored load is a total over several implements:
+   inside the load box, after the number, so the row's boxes stay level */
+.input-wrap{ position:relative; display:block; }
+.implement-split{ position:absolute; right:6px; top:50%; transform:translateY(-50%); pointer-events:none;
+  font-size:var(--fs-xs); color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.input-wrap:has(.implement-split) input{ padding-right:3.4em; }
 .set-summary .set-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .set-summary .set-text.reps-under{ color:var(--warning); }
 .set-summary .set-text.reps-over{ color:var(--success); }
@@ -547,8 +557,8 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .overview-row .item-name,.overview-row .item-actions{ padding-bottom:0; }
 /* Name on one line, state on the next: the logged sets of a finished exercise
    are as long as they are, and wrapping them beside the name squeezed it into
-   a column. The actions sit at the end with the arrows last, so they line up
-   on every row whether or not it has a jump button. */
+   a column. A row with nothing to say under its name (not started yet) is
+   one line. */
 .overview-row .item-name{ display:flex; flex-direction:column; gap:2px; min-width:0; }
 .overview-row .ov-title{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .overview-row .ov-meta{ min-width:0; white-space:normal; color:var(--muted); font-size:var(--fs-xs); font-weight:400; font-variant-numeric:tabular-nums; }
@@ -578,6 +588,8 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
   .overview-row .ov-title{ grid-area:title; }
   .overview-row .ov-meta{ grid-area:meta; align-self:center; }
   .overview-row .item-actions{ grid-area:actions; }
+  /* nothing under the name: one line, name beside its button */
+  .overview-row.no-meta{ grid-template-areas:"grip title actions"; }
 }
 
 /* ============================================================
@@ -3670,7 +3682,6 @@ function isSettledRow(...args){return workoutController().isSettledRow(...args);
 const hasWorkLeft=workoutController().hasWorkLeft;
 function moveSessionExercise(...args){return workoutController().moveSessionExercise(...args);}
 function nextOpenBlock(...args){return workoutController().nextOpenBlock(...args);}
-function overviewStep(...args){return workoutController().overviewStep(...args);}
 function pairSessionExercises(...args){return workoutController().pairSessionExercises(...args);}
 function unpairSessionExercises(...args){return workoutController().unpairSessionExercises(...args);}
 function finishWorkout(...args){return workoutController().finishWorkout(...args);}
@@ -5348,26 +5359,6 @@ function rowRoleBadgeHTML(s){
 function roleWords(s){
   return isWarmup(s) ? ' (warm-up)' : SET_ROLE_MARK[s.role] ? ' (' + SET_ROLE_MARK[s.role][1].toLowerCase() + ')' : '';
 }
-/* The header's target: one figure when every set shares it, else a part per
-   run of sets with the same role and target ("top 1 × 6–8 · RIR 1 · back-off
-   2 × 10–12 · RIR 2"). */
-function targetTagText(ex){
-  const work = ex.sets.filter(s => !isWarmup(s));
-  const parts = [];
-  for (const s of work){
-    const t = setTarget(ex, s), key = (s.role || '') + '|' + targetRangeLabel(t) + '|' + t.targetRir;
-    const last = parts[parts.length - 1];
-    if (last && last.key === key) last.n++;
-    else parts.push({ key, n:1, role:s.role, range:targetRangeLabel(t), rir:t.targetRir });
-  }
-  const label = { top:'top ', backoff:'back-off ' };
-  if (parts.length > 1 || (parts[0] && parts[0].role)) return parts.map(p => (label[p.role] || '') + p.n + ' × ' + p.range +
-    (p.rir != null ? ' · RIR ' + fmtNum(p.rir) : '')).join(' · ');
-  const bodyweight = ex.unit === 'bw', split = implementSplit(ex, ex.targetWeight);
-  return 'target ' + work.length + ' × ' + targetRangeLabel(ex) +
-    (ex.targetWeight != null ? ' @ ' + (bodyweight ? '+' : '') + fmtNum(ex.targetWeight) + ' ' + exerciseLoadLabel(ex) + (split ? ' (' + split + ')' : '') : '') +
-    (ex.targetRir != null ? ' · RIR ' + fmtNum(ex.targetRir) : '');
-}
 /* The effort column a set shows: a prescribed RIR must be recordable even
    when global effort tracking is off. Exercises without one follow the global
    preference. null when the column is off. */
@@ -5388,11 +5379,11 @@ function setFieldsHTML(ex, s, n, metric = setMetric(ex)){
   if (ex.unit !== 'time'){
     const weightField = bodyweight ? 'addedWeight' : 'weight';
     const weightValue = bodyweight ? s.addedWeight : s.weight;
-    html += '<label class="field"><span class="cap">' + esc(wLabel) + '</span>' +
+    html += '<label class="field"><span class="cap">' + esc(wLabel) + '</span><span class="input-wrap">' +
       '<input id="sw-' + esc(s.id) + '" type="number" inputmode="decimal" min="0" step="0.5" ' +
       'aria-label="Set ' + n + (bodyweight ? ' added load' : ' weight') + ' in ' + esc(wLabel) + '" ' +
       'data-bind="set" data-change="set-weight" data-id="' + esc(s.id) + '" data-field="' + weightField + '" ' +
-      'value="' + esc(weightValue != null ? weightValue : '') + '" placeholder="0">' + implementSplitHTML(ex, s) + '</label>';
+      'value="' + esc(weightValue != null ? weightValue : '') + '" placeholder="0">' + implementSplitHTML(ex, s) + '</span></label>';
   }
   const timedField = ex.unit === 'time';
   const midVal = timedField ? setDuration(s) : s.reps;
@@ -5513,13 +5504,9 @@ function htmlCurrentExercise(w, ex){
   });
 
   return '<div class="pad divider-top" id="ex-panel-top" tabindex="-1">' +
+    /* No target or rest tag: each row shows its own target, and the bar below
+       shows the rest. */
     '<div class="ex-head">' +
-      '<span class="ex-tags">' +
-        '<span class="tag">' + esc(targetTagText(ex)) + '</span>' +
-        '<span class="tag">' + icon('timer','ic-inline') + ' rest ' +
-          (groupGapSeconds(ex) != null && !ex.sets.some(s => s.completed) ? fmtClock(GROUP_GAP_SECONDS) + ' (same group)'
-            : fmtClock(currentRestSeconds()) + (warmupRest(ex) != null ? ' (warm-up)' : restOverride(ex) != null ? ' (this exercise)' : '')) + '</span>' +
-      '</span>' +
       /* Read from the library rather than from the session's own copy of the
          exercise: a link corrected today should work in a session started
          yesterday, and the workout block already duplicates enough. */
@@ -5623,18 +5610,18 @@ function overviewSheetHTML(w){
     const warmChip = fresh.has(i) ? '<span class="status-chip warm" title="First ' + esc(fresh.get(i)) +
       ' exercise in this workout: warm up first">First ' + esc(fresh.get(i)) + '</span> ' : '';
     const above = plannedConflict(w.exercises, i);
+    /* A row not started yet is its name alone: the plan's set count was
+       repeated on every row and is on the exercise itself. */
     const meta = (above ? '<span class="status-chip warm">Same group as ' + esc(above.name) + '</span> ' : '') +
       (ex.excludeFromProgression ? '<span class="status-chip skip">Not in progression</span> ' : '') +
       (settled && logged.length ? logged.map(s => setSummary(s, ex)).join(', ')
-      : isNow || logged.length ? logged.length + '/' + ex.sets.length + ' sets'
-      : plural(ex.sets.length, 'set') + ' planned');
+      : isNow || logged.length ? logged.length + '/' + ex.sets.length + ' sets' : '');
     /* The grip is the drag handle and nothing else — a whole draggable row
        would have no way to tell a drag from the scroll it started with, on
        the one surface (a full-screen sheet) that has to scroll. It answers
        the arrow keys too, so the gesture is never the only way to move a
-       row; the buttons beside it stay because a grip does not announce what
-       it can do to anyone who is not already holding it. */
-    html += '<div class="overview-row' + (isNow ? ' is-current-row' : '') + (settled ? ' is-settled' : '') + pairClass + '" data-idx="' + i + '"' +
+       row, and its label says so. */
+    html += '<div class="overview-row' + (meta ? '' : ' no-meta') + (isNow ? ' is-current-row' : '') + (settled ? ' is-settled' : '') + pairClass + '" data-idx="' + i + '"' +
         (isNow ? ' aria-current="step"' : '') + '>' +
       '<button type="button" class="grip" id="ov-grip-' + i + '" data-drag="session-exercises" ' +
         'aria-label="Reorder ' + esc(ex.name) + '. Drag it, or use the up and down arrow keys." ' +
@@ -5643,15 +5630,11 @@ function overviewSheetHTML(w){
         '<span class="ov-title">' + (chip ? chip + ' ' : '') + warmChip + (marker ? marker + ' ' : '') + esc(ex.name) +
           (joined && i < partnerIndex ? '<span class="sr-only">' + (pairKey === 'supersetOf' ? ' in a superset with ' : ' or ') +
             esc(w.exercises[partnerIndex].name) + '</span>' : '') + '</span>' +
-        '<span class="ov-meta">' + meta + '</span></span>' +
+        (meta ? '<span class="ov-meta">' + meta + '</span>' : '') + '</span>' +
       '<span class="item-actions">' +
         /* Nothing to jump to on the exercise you are already on. */
         (isNow ? '' : '<button type="button" class="btn btn-sm" id="ov-jump-' + i + '" data-action="overview-jump" data-idx="' + i + '" ' +
           'aria-label="' + (settled ? 'Reopen ' : 'Start ') + esc(ex.name) + ' now">' + (settled ? 'Reopen' : 'Start now') + '</button>') +
-        '<button type="button" class="icon-btn" id="ov-up-' + i + '" data-action="overview-up" data-idx="' + i + '" ' +
-          'aria-label="Move ' + esc(ex.name) + ' earlier"' + (i === 0 ? ' disabled' : '') + '>' + IC.up + '</button>' +
-        '<button type="button" class="icon-btn" id="ov-down-' + i + '" data-action="overview-down" data-idx="' + i + '" ' +
-          'aria-label="Move ' + esc(ex.name) + ' later"' + (i === last ? ' disabled' : '') + '>' + IC.down + '</button>' +
       '</span>' +
     '</div>';
   });
@@ -6006,7 +5989,7 @@ function htmlRoutineEditor(){
   const groups = routineGroups(d.items);
   let html = '<section class="panel"><div class="pad">' +
     '<form data-form="routine-save" id="routine-form" tabindex="-1">' +
-      '<div class="form-row">' +
+      '<div class="form-row is-top">' +
         '<label class="field flex-2"><span class="cap">Routine name</span>' +
         '<input type="text" data-bind="rdraft" data-field="name" value="' + esc(d.name) + '" placeholder="e.g. Upper Power" required></label>' +
         (d.plan ? '<label class="field"><span class="cap">Planned for</span>' +
@@ -7328,8 +7311,6 @@ const actions = {
     pref.dismissedExposureKey = '';
     save(); render(); toast('Suggestion shown again');
   },
-  'overview-up'(d){ overviewStep(Number(d.idx), -1); },
-  'overview-down'(d){ overviewStep(Number(d.idx), 1); },
   /* Start now and Reopen, one jump — the sheet also closes,
      since the point of jumping is to get back to the main logging flow */
   'overview-jump'(d){ ui.overviewOpen = false; reopenExercise(Number(d.idx)); },

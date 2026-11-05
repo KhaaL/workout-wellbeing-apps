@@ -59,7 +59,7 @@ const fixture={version:14,settings:{lastModifiedAt:1},exercises:[
   await swap.getByRole('button',{name:'Swap',exact:true}).click();
   const swapped=await page.evaluate(()=>testAPI.state.activeWorkout.exercises[0]);assert.equal(swapped.exerciseId,'incline');assert.equal(swapped.sets.length,3);assert.equal(await page.locator('.set-row.is-warmup').count(),0);assert.equal(swapped.targetRepsMax,10);assert.equal(swapped.targetWeight,null);
   assert.equal(await page.evaluate(()=>testAPI.state.routines.find(r=>r.id==='plan').items[0].exerciseId),'press','the routine is unchanged');
-  assert.match(await page.locator('#ex-panel-top .ex-tags').textContent(),/rest 2:30 \(this exercise\)/);
+  assert.match(await page.locator('#timer-panel').textContent(),/2:30/,'the bar shows the exercise\'s own rest');
   // A rest override is set and cleared in the exercise editor.
   await navigate(page,'exercises');await page.locator('#open-exercise-press').click();await page.locator('#detail-edit').click();
   await page.fill('#ex-edit-form [data-field="restSeconds"]','120');await page.locator('#ex-edit-form button[type=submit]').click();

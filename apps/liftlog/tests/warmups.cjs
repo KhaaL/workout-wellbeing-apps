@@ -35,7 +35,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       'warm-ups use the target reps and 50% then 75% of the working load');
     assert.equal(await button.count(), 0, 'the button goes once warm-ups are added');
     assert.equal(await restAfterLogging(0), 60, 'the first warm-up rests 1:00');
-    assert.match(await page.locator('.ex-tags').textContent(), /rest 1:00 \(warm-up\)/);
+    assert.equal(await page.locator('.ex-tags').count(), 0, 'the bar shows the warm-up rest; no tag repeats it');
     assert.equal(await restAfterLogging(1), 120, 'the second warm-up rests 2:00');
     assert.equal(await restAfterLogging(2), 90, 'working sets rest for the normal time');
 

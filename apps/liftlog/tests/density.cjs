@@ -10,7 +10,7 @@ const ex = (id, name, category, family = 'other') => ({ id, name, category, unit
     const page = await browser.newPage({ viewport:{ width:390, height:844 } });
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
-    const html = appWithTestAPI(`{ navigate, render, startRoutine, get ui(){return ui}, get state(){return state} }`);
+    const html = appWithTestAPI(`{ navigate, render, startRoutine, newPlanDraft, get ui(){return ui}, get state(){return state} }`);
     await page.route('https://liftlog.test/**', route => route.fulfill({ contentType:'text/html', body:html }));
     await page.goto('https://liftlog.test/');
     const start = (exercises, ids) => page.evaluate(({ exercises, ids }) => {
@@ -94,7 +94,25 @@ const ex = (id, name, category, family = 'other') => ({ id, name, category, unit
     await page.evaluate(() => { window.testAPI.state.activeWorkout.exercises[2].skipped = true; });
     assert.deepEqual((await chips()).slice(2, 4), ['', 'First press'], 'a skipped exercise passes the chip on');
 
+    /* A row not started yet is one line: its name beside Start now, no set count, no arrow buttons. */
+    const oneLine = await page.evaluate(() => {
+      const row = document.querySelectorAll('.overview-row')[4], name = row.querySelector('.ov-title').getBoundingClientRect(), jump = row.querySelector('[data-action="overview-jump"]').getBoundingClientRect();
+      return { meta:!!row.querySelector('.ov-meta'), arrows:document.querySelectorAll('.overview-row .icon-btn').length,
+        level:Math.abs((name.top + name.bottom) / 2 - (jump.top + jump.bottom) / 2) < 8 };
+    });
+    assert.deepEqual(oneLine, { meta:false, arrows:0, level:true });
+
+    /* The routine editor lines up Routine name and Planned for, and keeps the date inside the panel. */
+    const fields = await page.evaluate(() => {
+      const t = window.testAPI; t.state.activeWorkout = null; t.ui.overviewOpen = false; t.navigate('today');
+      t.ui.routineDraft = t.newPlanDraft(t.state.routines[0]); t.render();
+      const name = document.querySelector('#routine-form [data-field="name"]').getBoundingClientRect(), date = document.querySelector('#routine-planned-for').getBoundingClientRect();
+      const panel = document.querySelector('#routine-form').getBoundingClientRect();
+      return { top:Math.abs(name.top - date.top) < 1, height:Math.abs(name.height - date.height) < 1, inside:date.right <= panel.right + 0.5 };
+    });
+    assert.deepEqual(fields, { top:true, height:true, inside:true });
+
     assert.deepEqual(errors, []);
-    console.log('density: 24 checks passed');
+    console.log('density: 26 checks passed');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });

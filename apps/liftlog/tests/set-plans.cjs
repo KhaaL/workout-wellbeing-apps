@@ -63,9 +63,12 @@ const routinesFile = {
       'warm-ups arrive tagged with load, count and rest; working rows carry load and target');
     const marks = () => page.locator('#main .set-num').evaluateAll(bs => bs.map(b => (b.querySelector('.wu, .role') || {}).textContent || ''));
     assert.deepEqual(await marks(), ['W', 'W', '', '', ''], 'the warm-up rows are marked W');
-    assert.equal(await page.locator('#main .ex-tags .tag').first().textContent(), 'target 3 × 6–10 @ 55 kg (2 × 27.5) · RIR 2');
+    assert.equal(await page.locator('#main .ex-tags').count(), 0, 'no target tag: each row shows its own target');
     assert.equal(await page.locator('#main .sets-head').textContent().then(t => t.includes('RIR')), true, 'a planned RIR shows the RIR column');
     assert.equal(await page.locator('#main .implement-split').first().textContent(), '2 × 15', 'each load says what one implement weighs');
+    assert.ok(await page.evaluate(() => { const row = document.querySelector('#main .set-row:not(.is-done)'), [load, reps] = row.querySelectorAll('input');
+      const a = load.getBoundingClientRect(), b = reps.getBoundingClientRect(), split = row.querySelector('.implement-split').getBoundingClientRect();
+      return Math.abs(a.top - b.top) < 1 && split.top >= a.top && split.bottom <= a.bottom; }), 'the split sits inside the load box, level with the other boxes');
 
     /* A warm-up rests for its own time; warm-ups stay out of volume. */
     await page.locator('.set-done-btn').nth(0).click();
@@ -78,7 +81,8 @@ const routinesFile = {
     assert.deepEqual(await page.locator('#main .row-role').evaluateAll(els => els.filter(e => e.offsetParent).map(e => e.textContent)), ['W', 'W', 'T', 'B', 'B'],
       'below 400px, where the set number is hidden, a badge on each row carries the letter');
     assert.equal(await page.locator('#main .set-done-btn').nth(2).getAttribute('aria-label'), 'Mark set 3 (top set) as done', 'the done button names the role');
-    assert.equal(await page.locator('#main .ex-tags .tag').first().textContent(), 'top 1 × 6–8 · RIR 1 · back-off 2 × 10–12 · RIR 2');
+    assert.deepEqual(await page.locator('#main .set-row [data-field="targetRir"], #main .set-row [data-field="rir"]').evaluateAll(els => els.map(e => e.placeholder)).then(p => p.slice(2)), ['1', '2', '2'],
+      'each row shows its own RIR target');
     const placeholders = await page.locator('#main .set-row [data-field="reps"]').evaluateAll(els => els.map(e => e.placeholder));
     assert.deepEqual(placeholders.slice(2), ['6–8', '10–12', '10–12'], 'each row shows its own range');
     assert.equal(await page.locator('#main .implement-split').count(), 0, 'a machine stack has no implements');
@@ -152,6 +156,6 @@ const routinesFile = {
     assert.equal(await page.locator('#main [data-bind="ritem"][data-idx="1"]').count(), 4, 'its own sets, reps, RIR and load come back');
 
     assert.deepEqual(errors, []);
-    console.log('set-plans: 30 checks passed');
+    console.log('set-plans: 31 checks passed');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });
