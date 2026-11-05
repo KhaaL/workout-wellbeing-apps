@@ -755,18 +755,6 @@ function nextOpenBlock(w){
   }
   return -1;
 }
-/* The arrow buttons are a drag of exactly one place, and they commit the same
-   way — through the list's own drop. All they add is where the focus goes
-   afterwards: it stays on the button being held, unless the move disabled it,
-   in which case the other one takes over. */
-function overviewStep(idx, dir){
-  const w = context.state.activeWorkout; if (!w) return;
-  const to = idx + dir, last = w.exercises.length - 1;
-  if (idx < 0 || idx > last || to < 0 || to > last) return;
-  const atBound = dir < 0 ? to === 0 : to === last;
-  const keep = atBound ? (dir < 0 ? 'ov-down-' : 'ov-up-') : (dir < 0 ? 'ov-up-' : 'ov-down-');
-  context.SORTABLES['session-exercises'].drop(idx, to, keep + to);
-}
 /* A superset made mid-session: the second exercise moves to just after the
    first, and the pair lasts for this workout only — the routine keeps its plan,
    the same as a superset a reorder ends. Both must still have work in them and
@@ -878,6 +866,6 @@ function discardWorkout(){
       context.render(); context.toast('Workout discarded');
     });
 }
-    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,setReps,openSetEditor,canSwap,swapExercise,openSwapDialog,openExerciseMenu,warmupPlan,addWarmups,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,overviewStep,pairSessionExercises,unpairSessionExercises,finishWorkout,confirmFinishWorkout,openWorkSets,discardWorkout};
+    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,setReps,openSetEditor,canSwap,swapExercise,openSwapDialog,openExerciseMenu,warmupPlan,addWarmups,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,pairSessionExercises,unpairSessionExercises,finishWorkout,confirmFinishWorkout,openWorkSets,discardWorkout};
   }
 };

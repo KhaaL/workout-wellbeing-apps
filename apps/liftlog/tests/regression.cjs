@@ -295,8 +295,9 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     await page.locator('[data-action="routine-start"]').first().click();
     let workout = await page.evaluate(() => window.testAPI.state.activeWorkout);
     assert.deepEqual(workout.exercises.map(e => e.name), ['Back Squat', 'Leg Press', 'Plank'], 'both alternatives start in session');
-    assert.match(await page.locator('.ex-tags').innerText(), /target 3 × 5–8 @ 100 kg · RIR 2/,
-      'active workout shows the full double-progression prescription');
+    assert.deepEqual(await page.evaluate(() => { const row = document.querySelector('#main .set-row'), inputs = row.querySelectorAll('input');
+      return [inputs[0].value, inputs[1].placeholder, inputs[2].placeholder]; }), ['100', '5–8', '2'],
+      'active workout shows the full double-progression prescription in its rows');
     assert.equal(await page.getByLabel('Set 1 RIR').count(), 1,
       'a target RIR exposes the logging field even when global effort tracking is off');
     const activeWeight = page.locator('[data-bind="set"][data-field="weight"]').first();
@@ -337,12 +338,14 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
         getComputedStyle(rows[1], '::after').content === '"OR"';
     }), true, 'active workout overview shows the same paired marker');
     await page.locator('#overview-dlg').screenshot({path:'/tmp/liftlog-overview-pair.png'});
-    await page.getByRole('button', {name:'Move Leg Press later'}).click();
+    await page.getByRole('button', {name:/^Reorder Leg Press\./}).focus();
+    await page.keyboard.press('ArrowDown');
     assert.equal(await page.locator('#overview-dlg-body .either-inline').count(), 2,
       'separated alternatives keep individual OR cues');
     assert.equal(await page.locator('#overview-dlg-body .either-pair').count(), 0,
       'bracket does not connect unrelated rows');
-    await page.getByRole('button', {name:'Move Leg Press earlier'}).click();
+    await page.getByRole('button', {name:/^Reorder Leg Press\./}).focus();
+    await page.keyboard.press('ArrowUp');
     assert.equal(await page.locator('#overview-dlg-body .either-pair').count(), 2,
       'bringing alternatives together restores bracket');
     await page.getByRole('button', {name:'Back to workout'}).click();
@@ -925,7 +928,8 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
         rows[1].classList.contains('superset-last') && rows[1].classList.contains('is-current-row') &&
         getComputedStyle(rows[1], '::after').content === '"+"';
     }), true, 'session sheet brackets the superset with a + and marks the member on screen');
-    await ss.getByRole('button', {name:'Move Row later'}).click();
+    await ss.getByRole('button', {name:/^Reorder Row\./}).focus();
+    await ss.keyboard.press('ArrowDown');
     assert.equal(await ss.locator('#overview-dlg-body .superset-pair').count(), 0, 'moving a member out splits the superset');
     await ss.getByRole('button', {name:'Back to workout'}).click();
     await ss.evaluate(() => {
@@ -1020,10 +1024,12 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       return rows.length === 4 && rows.every(r => r.querySelector('.grip')) && rows[0].classList.contains('is-settled');
     }), true, 'every exercise in the sheet is a row with a grip, finished ones included');
     assert.equal(await so.locator('#ov-jump-0').innerText(), 'Reopen', 'a finished row offers Reopen where others offer Start now');
-    await so.getByRole('button', {name:'Move A later'}).click();
+    await so.locator('#ov-grip-0').focus();
+    await so.keyboard.press('ArrowDown');
     assert.deepEqual(await so.locator('#overview-dlg-body .ov-title').allTextContents().then(n => n.map(x => x.trim().replace(/^(Now|Done)\s*/, ''))),
-      ['B', 'A', 'C', 'D'], 'a finished exercise moves with its arrows');
-    assert.equal(await so.evaluate(() => document.activeElement && document.activeElement.id), 'ov-down-1', 'focus stays on the arrow');
+      ['B', 'A', 'C', 'D'], 'a finished exercise moves with the arrow keys on its grip');
+    assert.equal(await so.evaluate(() => document.activeElement && document.activeElement.id), 'ov-grip-1', 'focus stays on the grip');
+    assert.equal(await so.locator('#overview-dlg-body [data-action="overview-up"], #overview-dlg-body [data-action="overview-down"]').count(), 0, 'no arrow buttons');
     await so.locator('#session-superset-open').click();
     const soDialog = so.getByRole('dialog', {name:'Superset'});
     await soDialog.getByLabel('First exercise').selectOption({label:'B · #1'});

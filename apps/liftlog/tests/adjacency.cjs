@@ -139,7 +139,7 @@ const lib = [
     assert.equal(live.note, 'Seated Cable Row just done (same group): rest 3:00, expect fewer reps.');
     assert.ok(live.running && live.seconds > 170 && live.seconds <= 180, 'the clock runs what is left of 3:00: ' + live.seconds);
     assert.deepEqual(live.targets, [12, 15, 20], 'targets and loads stay as planned');
-    assert.match(await page.locator('#main .ex-tags .tag').nth(1).textContent(), /rest 3:00 \(same group\)/, 'the rest tag agrees with the clock');
+    assert.equal(await page.locator('#main .ex-tags').count(), 0, 'no rest tag; the bar below shows the clock');
 
     /* The suggestion is one tap and reversible; nothing is flagged until then. */
     assert.equal(await page.evaluate(() => window.testAPI.state.activeWorkout.exercises[1].excludeFromProgression), undefined, 'never flagged on its own');
