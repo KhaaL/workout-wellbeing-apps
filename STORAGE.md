@@ -14,6 +14,7 @@ from one site share it; each app backs up to its own object path.
 | Object path: Bike Cardio | `bike-cardio-backup.json` |
 | Object path: Tabata | `tabata-backup.json` |
 | Object path: Foodlog | `foodlog-backup.json` |
+| Object path: Check-in | `checkin-backup.json` |
 | Access key ID / secret | A matching pair authorized for the bucket |
 | Addressing | Path-style or virtual-hosted style, as required by the provider |
 | Backup mode | Separate backup files (default) or conditional sync, an explicit choice |

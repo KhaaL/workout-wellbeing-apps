@@ -1,4 +1,4 @@
-// Settings parity across the four apps on one origin: section order, the status
+// Settings parity across the five apps on one origin: section order, the status
 // card, one theme control, and one shared Backups & cloud storage panel with the
 // same parts, fields and cloud buttons for each backup mode and pause state.
 const assert=require('node:assert/strict');
@@ -9,7 +9,8 @@ const APPS={
   liftlog:{ns:'liftlog.v1',order:['Storage','Rest timer','Appearance','Backups & cloud storage','Transfer routines & history','Move workout to another device','App updates','Advanced & destructive actions']},
   'bike-cardio':{ns:'bike-cardio.v1',order:['Storage','Default targets & durations','Appearance','Backups & cloud storage','Move workout to another device','App updates']},
   tabata:{ns:'tabata.v1',order:['Storage','Quick presets','Appearance','Backups & cloud storage','App updates']},
-  foodlog:{ns:'foodlog.v1',order:['Storage','Daily targets','Meals','Appearance','Backups & cloud storage','App updates']}
+  foodlog:{ns:'foodlog.v1',order:['Storage','Daily targets','Meals','Appearance','Backups & cloud storage','App updates']},
+  checkin:{ns:'checkin.v1',order:['Storage','Tracked items','Check-in timing','Appearance','Backups & cloud storage','App updates','Advanced & destructive actions']}
 };
 const FIELDS=['Backup mode','Endpoint URL','Region','Bucket','Backup path · this app','Access key ID','Secret access key'];
 const EXPECTED={

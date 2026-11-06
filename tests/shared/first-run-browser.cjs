@@ -5,7 +5,7 @@ const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
 const site=require('./site-server.cjs');
 const {confirmAction}=require('./confirm-dialog.cjs');
-const SHARED='wellbeing.connection.v1',APPS=['liftlog','bike-cardio','tabata','foodlog'];
+const SHARED='wellbeing.connection.v1',APPS=['liftlog','bike-cardio','tabata','foodlog','checkin'];
 const connection=syncMode=>({endpoint:'https://storage.test',region:'test',bucket:'apps',accessKeyId:'fake',secretAccessKey:'synthetic',pathStyle:true,syncMode});
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 (async()=>{

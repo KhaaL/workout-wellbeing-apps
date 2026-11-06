@@ -1,7 +1,7 @@
 # Check-in: implementation plan
 
 Check-in is a fifth app at `/checkin/` for logging symptoms and mental health
-in two to four taps. It reuses the shared storage engine, shell, themes,
+in one to four taps. It reuses the shared storage engine, shell, themes,
 Settings flows and build pipeline exactly as Tabata and Foodlog do.
 "Check-in" and the `checkin` id are working names; rename before phase 1 lands.
 
@@ -39,7 +39,7 @@ serves as a pattern source for baseline comparison only.
 ```js
 {
   app: 'checkin', version: 1, updatedAt,
-  settings: { dayStart: '04:00', mergeMinutes: 30, scale: 5 },
+  settings: { dayStart: '04:00', mergeMinutes: 30 },
   items: [ // what can be tracked; user-defined, seeded with a small default set
     { id, kind: 'mood'|'symptom'|'number'|'tag', name, pinned, order, archived,
       unit?, min?, max?, step? }       // number items only
@@ -170,9 +170,11 @@ The list matches the files the Foodlog commit (`f339907`) touched.
 
 ## Phases
 
-1. Skeleton: app folder, adapter, build, site card, Settings with shared
-   panels, parity test green. Today with mood and pinned symptoms, merge
-   window, Undo. About 1,200 lines, judged by Foodlog's first commit.
+1. Done. App folder, adapter, build, site card, Settings with shared
+   panels (tracked items, timing, Delete all check-ins…), parity test green.
+   Today with mood, pinned symptoms on a 3-level scale, a note, the merge
+   window and Undo. History lists days and check-ins. About 850 lines with
+   tests.
 2. Usable daily: number and tag items, More… sheet, inline create, edit and
    remove a check-in, earlier days, History list and 7 versus 28 day
    comparison, CSV and JSON export.
@@ -182,9 +184,9 @@ The list matches the files the Foodlog commit (`f339907`) touched.
 
 ## Open decisions
 
-- Name and id (`checkin` is a placeholder).
-- Severity scale: 3 levels (fewer taps, coarser) or 0 to 10 (finer, needs a
-  slider or a second screen). The plan assumes 3.
+- Name and id (`checkin` is a placeholder). Renaming later changes the
+  storage namespace, so it needs a migration once real data exists.
+- Severity scale: decided, 3 levels.
 - Mood scale: 5 faces or labels, or a two-axis mood and energy grid.
 - Backup privacy: the shared engine uploads plain JSON to the user's own
   bucket. Client-side encryption would be a shared-engine change for every

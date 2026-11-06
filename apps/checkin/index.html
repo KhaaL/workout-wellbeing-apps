@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#fbfbf9">
+<meta name="app-version" content="development">
+<meta name="description" content="A local-first check-in log: record mood and symptoms in a few taps.">
+<title>Check-in</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+/* app-ui-styles:start */
+/* app-ui-styles:end */
+*{box-sizing:border-box}body{margin:0}button{touch-action:manipulation;cursor:pointer}button:disabled{opacity:.5;cursor:default}
+.btn{border:1px solid var(--border-strong);padding:12px 16px;background:var(--surface);color:var(--text);min-height:48px;border-radius:var(--radius)}.btn-primary{background:var(--accent-strong);color:var(--on-accent);border-color:var(--accent-strong)}.btn-danger{color:var(--danger);border-color:var(--danger)}.btn-danger-solid{background:var(--danger-strong);color:var(--on-accent);border-color:var(--danger-strong)}
+main{max-width:640px;margin:auto;padding:16px 16px 32px}h1{font-size:var(--fs-xl);line-height:1.2;letter-spacing:-.02em;margin:4px 0 8px}h2{font-size:var(--fs-lg);margin:0}h3{font-size:var(--fs-base);margin:0}p{margin:8px 0}
+.hint{color:var(--muted);font-size:14px}.panel{padding:16px;margin-bottom:16px}.stack{display:grid;gap:12px}
+.field{display:grid;gap:6px;min-width:0;font-size:14px;font-weight:600}.field input,.field select,.field textarea{width:100%;padding:10px 12px;min-width:0;font-weight:400}.field textarea{resize:vertical}
+.check{display:flex;gap:12px;align-items:center;min-height:48px;font-size:15px}.check input{width:22px;height:22px;accent-color:var(--accent-strong);flex:none}
+summary{cursor:pointer;min-height:48px;display:flex;align-items:center;font-weight:650}summary::before{content:'＋';margin-right:10px;color:var(--muted)}details[open]>summary::before{content:'−'}
+.form-actions{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0}.form-actions>*{flex:1}
+.notice{padding:12px 16px;background:var(--warning-soft);color:var(--text);border:1px solid var(--warning);border-radius:var(--radius);font-size:14px;margin-bottom:16px}
+#todayDate{margin:0 0 12px}
+fieldset{min-width:0;border:0;padding:0;margin:0 0 16px}legend{font-weight:650;padding:0;margin-bottom:8px}
+.moods{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.mood{display:grid;gap:2px;justify-items:center;align-content:center;min-height:64px;padding:6px 2px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--surface);color:var(--text);font:inherit}
+.mood strong{font-size:22px;line-height:1;font-variant-numeric:tabular-nums}.mood span{font-size:12px;line-height:1.2;text-align:center;color:var(--muted)}
+.mood[aria-pressed=true]{background:var(--accent-strong);border-color:var(--accent-strong);color:var(--on-accent)}.mood[aria-pressed=true] span{color:var(--on-accent)}
+.symptoms{display:flex;flex-wrap:wrap;gap:8px}
+.symptom{display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:8px 14px;border:1px solid var(--border-strong);border-radius:999px;background:var(--surface);color:var(--text);font:inherit;font-weight:600}
+.symptom .level{font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px}
+.symptom[data-level="1"]{border-color:var(--accent)}.symptom[data-level="1"] .level{background:var(--accent-soft);color:var(--accent)}
+.symptom[data-level="2"]{border-color:var(--warning)}.symptom[data-level="2"] .level{background:var(--warning-soft);color:var(--text)}
+.symptom[data-level="3"]{border-color:var(--danger);background:var(--danger-strong);color:var(--on-accent)}.symptom[data-level="3"] .level{background:var(--surface);color:var(--danger)}
+.window{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.entries,.day-list,.item-list{list-style:none;margin:8px 0;padding:0}
+.entries li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;padding:10px 0;border-bottom:1px solid var(--border);font-size:15px}
+.entries time{font-variant-numeric:tabular-nums;color:var(--muted)}.entries .note{grid-column:2;font-size:14px;color:var(--muted);overflow-wrap:anywhere;white-space:pre-wrap}
+.day-list>li{margin-bottom:16px}.day-list h2{font-size:var(--fs-base)}
+.item-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)}
+.item-row input[type=text]{width:100%;min-height:44px;padding:8px 10px}.item-row .check{min-height:44px;font-size:14px;gap:8px}
+.add-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
+.toast{position:fixed;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);background:var(--text);color:var(--bg);border-radius:var(--radius);padding:8px 8px 8px 16px;z-index:60;box-shadow:var(--shadow-md);font-size:14px;display:flex;align-items:center;gap:12px}
+.toast[hidden]{display:none}.toast button{background:none;border:0;color:var(--bg);font-weight:700;text-decoration:underline;min-height:40px;padding:0 8px}
+.settings-panel details{border-bottom:1px solid var(--border);padding:8px 0}.settings-panel details:last-child{border:0}.settings-panel .btn{font-size:14px}.status-line{font-size:14px;overflow-wrap:anywhere}
+@media(max-width:360px){.mood span{font-size:11px}.item-row{grid-template-columns:minmax(0,1fr) auto}.item-row .archive{grid-column:1/-1}}
+</style>
+<script id="theme-bootstrap" data-app="checkin">
+/* theme-bootstrap:start */
+/* theme-bootstrap:end */
+</script>
+</head>
+<body class="checkin-app">
+<header class="app-header"><div class="header-inner"><nav class="main-nav" aria-label="Main navigation"><ul></ul></nav></div></header>
+<main>
+<p id="storageWarning" class="notice" role="status" hidden></p>
+
+<section id="today" aria-labelledby="todayTitle">
+<h1 id="todayTitle">Today</h1>
+<p id="todayDate" class="hint"></p>
+<div class="panel">
+<p class="window hint" id="windowState" role="status"></p>
+<div id="moodBox"></div>
+<fieldset id="symptomBox"><legend>Symptoms</legend><div id="symptomChips" class="symptoms"></div>
+<p class="hint">Tap a symptom for mild, again for moderate, then severe, then off.</p></fieldset>
+<details id="noteBox"><summary>Note</summary><label class="field">Note for this check-in<textarea id="note" rows="3" maxlength="1000"></textarea></label></details>
+</div>
+<h2 id="dayEntriesTitle">Today’s check-ins</h2>
+<p id="dayEmpty" class="hint">No check-ins yet today. Tap your mood or a symptom to start one.</p>
+<ul id="dayEntries" class="entries" aria-labelledby="dayEntriesTitle"></ul>
+</section>
+
+<section id="history" hidden aria-labelledby="historyTitle">
+<h1 id="historyTitle">History</h1>
+<p id="historyEmpty" class="hint" hidden>No check-ins yet.</p>
+<ul id="dayList" class="day-list" aria-label="Days with check-ins"></ul>
+<button id="olderDays" class="btn" type="button" hidden>Show older days</button>
+</section>
+
+<section id="settings" hidden aria-labelledby="settingsTitle"><h1 id="settingsTitle">Settings</h1>
+<div id="storage-summary"></div>
+<div class="panel settings-panel stack">
+<section class="stack" aria-labelledby="itemsTitle"><h2 id="itemsTitle">Tracked items</h2>
+<p class="hint">Items marked “On Today” show on Today. Archived items leave Today and keep their history.</p>
+<ul id="itemRows" class="item-list" aria-label="Tracked items"></ul>
+<form id="addItemForm" class="add-row"><label class="field">New symptom<input id="newItemName" type="text" maxlength="60" autocomplete="off" required></label><button class="btn" type="submit">Add symptom</button></form>
+<p id="itemsStatus" class="hint" role="status"></p>
+<details id="archivedBox" hidden><summary>Archived items</summary><ul id="archivedRows" class="item-list" aria-label="Archived items"></ul></details>
+</section>
+<section class="stack" aria-labelledby="timingTitle"><h2 id="timingTitle">Check-in timing</h2>
+<label class="field">New day starts at<input id="dayStart" type="time" required></label>
+<p class="hint">Check-ins before this time count toward the previous day.</p>
+<label class="field">Minutes one check-in stays open<input id="mergeMinutes" type="number" inputmode="numeric" min="0" max="240" step="5" required data-stepper></label>
+<p class="hint">Taps within this time of a check-in’s start update it. Later taps start a new check-in.</p>
+</section>
+<h2>Appearance</h2>
+<label class="field">Theme<select id="themeChoice"></select></label>
+<details id="storage-options"><summary>Backups &amp; cloud storage</summary><div id="storagePanel"></div></details>
+<details><summary>App updates</summary><div id="updatesPanel"></div><p class="hint">Add this app to your home screen for a standalone check-in log. After its first online load, it works offline.</p></details>
+<details id="dangerBox"><summary>Advanced &amp; destructive actions</summary>
+<p class="hint">Deletes every check-in after saving a recovery copy. Tracked items and settings are kept. Cloud backups pause until you review the data.</p>
+<button id="deleteAll" class="btn btn-danger" type="button">Delete all check-ins…</button>
+</details>
+</div></section>
+</main>
+
+<div id="toast" class="toast" role="status" hidden><span id="toastText"></span><button id="toastAction" type="button" hidden></button></div>
+<script>
+/* app-foundation:start */
+/* app-foundation:end */
+/* storage-engine:start */
+/* storage-engine:end */
+/* storage-ui:start */
+/* storage-ui:end */
+/* app-updates:start */
+/* app-updates:end */
+/* checkin-core:start */
+/* checkin-core:end */
+/* checkin-storage-adapter:start */
+/* checkin-storage-adapter:end */
+/* checkin-app:start */
+/* checkin-app:end */
+</script>
+</body>
+</html>

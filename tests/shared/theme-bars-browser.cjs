@@ -5,7 +5,7 @@ const themes=['system','light','dark','contrast','lamplight','forest','blossom',
 (async()=>{
  const browser=await chromium.launch({headless:true,...process.env.BROWSER_PATH?{executablePath:process.env.BROWSER_PATH}:{}});
  try{
-  for(const app of ['liftlog','bike-cardio','tabata','foodlog']){
+  for(const app of ['liftlog','bike-cardio','tabata','foodlog','checkin']){
    const html=fs.readFileSync(path.join(root,'dist',app,'index.html'),'utf8');
    const bootOnly=html.replace(/<script\b([^>]*)>[\s\S]*?<\/script>/g,(script,attributes)=>attributes.includes('id="theme-bootstrap"')?script:'');
    const csp=require('./site-headers.cjs').csp(app);
