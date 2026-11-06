@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const {createHash}=require('node:crypto');
 const dist=path.resolve(__dirname,'../../dist');
-const apps={liftlog:'sw.js','bike-cardio':'service-worker.js',tabata:'service-worker.js',foodlog:'service-worker.js'};
+const apps={liftlog:'sw.js','bike-cardio':'service-worker.js',tabata:'service-worker.js',foodlog:'service-worker.js',checkin:'service-worker.js'};
 const read=file=>fs.readFileSync(path.join(dist,file),'utf8');
 const rules=read('_headers').split(/\n\n+/).filter(Boolean).map(block=>{const [pattern,...lines]=block.trim().split('\n');return {pattern,headers:lines.map(line=>line.trim())};});
 // The host applies every matching rule; `*` matches anything, including nothing.

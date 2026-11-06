@@ -1,16 +1,17 @@
 # Wellbeing apps
 
-Four standalone apps with one shared browser storage engine: three workout apps
-(Liftlog, Bike cardio, Tabata) and Foodlog, a food intake log.
+Five standalone apps with one shared browser storage engine: three workout apps
+(Liftlog, Bike cardio, Tabata), Foodlog, a food intake log, and Check-in, a mood
+and symptom log.
 
 See [STORAGE.md](STORAGE.md) for generic S3-compatible backup configuration.
 `npm run build` produces one static site in `dist/`:
 
 - `dist/index.html`: a home page that links to each app
-- `dist/liftlog/`, `dist/bike-cardio/`, `dist/tabata/`, `dist/foodlog/`: one folder per app
+- `dist/liftlog/`, `dist/bike-cardio/`, `dist/tabata/`, `dist/foodlog/`, `dist/checkin/`: one folder per app
 - `dist/_headers`, `dist/_redirects`, `dist/404.html`: site-wide host files
 
-Each app keeps its own address (`/liftlog/`, `/bike-cardio/`, `/tabata/`, `/foodlog/`) and
+Each app keeps its own address (`/liftlog/`, `/bike-cardio/`, `/tabata/`, `/foodlog/`, `/checkin/`) and
 installs as its own home-screen app. See [Deploying](#deploying).
 
 ## Foodlog
@@ -73,6 +74,36 @@ object. Capacity is 5,000 foods and 20,000 logged items (about five years at ten
 items a day). Foodlog data is version 3: entries may have no time, a day may
 keep its own meal order, and foods carry favourites and free sugars marks.
 Version 1 and 2 data load unchanged, and older releases refuse version 3 data.
+
+## Check-in
+
+Check-in records mood and symptoms in a few taps. Today shows a 1 to 5 mood row
+(Very low to Very good) and a chip per symptom. Every tap saves at once, with
+Undo in the toast.
+
+- **Symptoms:** one tap marks a symptom mild, the next moderate, then severe,
+  then off. A symptom with no tap is not recorded, and Check-in never counts it
+  as absent.
+- **One sitting, one check-in:** taps within 30 minutes of a check-in's start
+  update it (adjustable from 0 to 240 minutes). Later taps start a new one.
+  Tapping the chosen mood again clears it, and a check-in with nothing left is
+  removed.
+- **Note:** the collapsed Note box adds text to the open check-in.
+- **Days:** check-ins before 04:00 (adjustable) count toward the previous day.
+  History lists each day's check-ins, latest first.
+- **Tracked items:** Settings adds, renames, hides from Today and archives
+  symptoms. Check-ins refer to items by id, so a rename shows in history and an
+  archived item keeps its history. Adding an archived name restores it.
+- **Delete all check-ins…** under Advanced & destructive actions confirms,
+  keeps tracked items and settings, saves a recovery copy and pauses cloud
+  backups.
+
+Check-in uses the shared local saving, recovery, backup files, cloud backups and
+updates, with its own `checkin.v1` namespace and `checkin-backup.json` default
+object. Capacity is 200 tracked items and 50,000 check-ins. Data version 1
+already validates number and tag items for a later release. Tap counts are in
+[apps/checkin/README.md](apps/checkin/README.md) and the remaining work is in
+[docs/CHECKIN-PLAN.md](docs/CHECKIN-PLAN.md).
 
 ## Tabata timer
 
@@ -202,7 +233,7 @@ per app. The home page has no manifest or service worker; one at `/` would
 control every app's pages.
 
 Cloud backups need the site's origin (no path) in the bucket's CORS rules; see
-[STORAGE.md](STORAGE.md). One origin covers all four apps.
+[STORAGE.md](STORAGE.md). One origin covers all five apps.
 
 ## Source layout
 
@@ -214,6 +245,7 @@ Cloud backups need the site's origin (no path) in the bucket's CORS rules; see
 | `apps/liftlog/screens/settings.js` | Settings templates with explicit state and helper inputs |
 | `apps/tabata/` | Tabata timer composition, timing core, storage adapter and offline shell |
 | `apps/foodlog/` | Foodlog model (`food-core.js`), storage adapter, screens and offline shell |
+| `apps/checkin/` | Check-in model (`checkin-core.js`), storage adapter, screens and offline shell |
 | `apps/bike-cardio/index.html` | Bike interface and app composition |
 | `apps/bike-cardio/controllers/storage.js` | Bike's settings for the shared storage panel, backup reminders and persistence requests |
 | `apps/bike-cardio/targets.js`, `workout-core.js` | Target validation, plans, timing and active-session migration |
@@ -375,7 +407,7 @@ use them. Liftlog's workout format is unchanged.
 
 Browsers keep device data per site address. Moving the apps to a new address
 starts each app empty there: download a full backup (or make a cloud backup) at
-the old address, then restore it at the new one. The four apps share one origin
+the old address, then restore it at the new one. The five apps share one origin
 on the site. Their storage keys, theme keys, service-worker scopes and cache
 prefixes stay separate, and each app reacts only to its own storage events.
 Deployment credentials and personal workout data are not part of this package.
@@ -448,7 +480,7 @@ style or mode hides it. Every app's Settings says that the connection is shared
 and names this app's backup path.
 
 **Backups & cloud storage** is one shared panel
-(`WorkoutStorage.createStoragePanel`) in all four apps, in this order:
+(`WorkoutStorage.createStoragePanel`) in all five apps, in this order:
 
 1. Recovery copies, when present: the previous local copy (download, restore,
    discard) and unreadable saved data (download, discard). Liftlog opens the

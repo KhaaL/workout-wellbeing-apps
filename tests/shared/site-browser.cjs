@@ -4,7 +4,7 @@
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
 const site=require('./site-server.cjs');
-const apps=['liftlog','bike-cardio','tabata','foodlog'];
+const apps=['liftlog','bike-cardio','tabata','foodlog','checkin'];
 (async()=>{
   const server=await site.start(),origin=server.origin;
   const browser=await chromium.launch({headless:true,...process.env.BROWSER_PATH?{executablePath:process.env.BROWSER_PATH}:{}});
@@ -38,15 +38,15 @@ const apps=['liftlog','bike-cardio','tabata','foodlog'];
       scopes:(await navigator.serviceWorker.getRegistrations()).map(reg=>new URL(reg.scope).pathname).sort(),
       caches:(await caches.keys()).map(key=>key.replace(/-shell-.*/,'')).sort(),keys:Object.keys(localStorage)}));
     assert.equal(state.controlled,false,'no app worker controls the home page');
-    assert.deepEqual(state.scopes,['/bike-cardio/','/foodlog/','/liftlog/','/tabata/']);
-    assert.deepEqual(state.caches,['bike-cardio','foodlog','liftlog','tabata'],'one offline cache per app');
+    assert.deepEqual(state.scopes,['/bike-cardio/','/checkin/','/foodlog/','/liftlog/','/tabata/']);
+    assert.deepEqual(state.caches,['bike-cardio','checkin','foodlog','liftlog','tabata'],'one offline cache per app');
     assert.deepEqual(state.keys.filter(key=>!apps.some(app=>key.startsWith(app==='bike-cardio'?'bike-cardio.':app+'.'))),[],'every saved key carries its app prefix');
-    console.log('PASS four workers, four caches and app-prefixed storage share one origin');
+    console.log('PASS five workers, five caches and app-prefixed storage share one origin');
 
     await context.setOffline(true);
     for(const app of apps){
       await page.goto(origin+'/'+app+'/');
-      assert.match(await page.title(),{liftlog:/Liftlog/,'bike-cardio':/Bike|cardio|Zone/i,tabata:/Tabata/,foodlog:/Foodlog/}[app],app+' opens offline');
+      assert.match(await page.title(),{liftlog:/Liftlog/,'bike-cardio':/Bike|cardio|Zone/i,tabata:/Tabata/,foodlog:/Foodlog/,checkin:/Check-in/}[app],app+' opens offline');
     }
     await context.setOffline(false);
     console.log('PASS every app opens offline from its own cache');
