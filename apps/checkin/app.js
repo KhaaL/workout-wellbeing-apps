@@ -41,27 +41,63 @@
     return new Date(date+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'short'});
   }
 
-  /* Every tap saves at once. Undo restores the check-ins as they were before
-     the tap, unless something changed them since. */
+  /* Every tap saves at once. Undo restores the check-ins and tracked items as
+     they were before the tap, unless something changed them since. */
   function change(apply,message){
-    const before=WorkoutStorage.copy(S().entries);
-    try{apply(Date.now());}catch(error){toast(error.message);renderToday();return;}
-    const ok=save(),after=JSON.stringify(S().entries);renderToday();
+    const snapshot=()=>JSON.stringify({entries:S().entries,items:S().items}),before=snapshot();
+    try{apply(Date.now());}catch(error){Object.assign(S(),JSON.parse(before));toast(error.message);renderToday();return;}
+    const ok=save(),after=snapshot();renderToday();
     toast((ok?'':'In memory only: ')+message,{label:'Undo',run:()=>{
-      if(JSON.stringify(S().entries)!==after){toast('Newer changes were kept, so this cannot be undone.');return;}
-      S().entries=before;save();renderToday();toast('Undone.');
+      if(snapshot()!==after){toast('Newer changes were kept, so this cannot be undone.');return;}
+      Object.assign(S(),JSON.parse(before));save();renderToday();toast('Undone.');
     }});
   }
+  const record=(it,value)=>now=>C.setValue(S(),it.id,value,now,()=>newId('c-'));
   function setMood(it,value){
     const cur=C.current(S(),Date.now())?.values[it.id],next=cur===value?null:value;
-    change(now=>C.setValue(S(),it.id,next,now,()=>newId('c-')),next==null?it.name+' cleared.':it.name+' '+C.label(it,next)+' saved.');
+    change(record(it,next),next==null?it.name+' cleared.':it.name+' '+C.label(it,next)+' saved.');
   }
   function stepSymptom(it){
     const next=C.nextSeverity(C.current(S(),Date.now())?.values[it.id]);
-    change(now=>C.setValue(S(),it.id,next,now,()=>newId('c-')),next==null?it.name+' removed.':it.name+': '+C.label(it,next)+'.');
+    change(record(it,next),next==null?it.name+' removed.':it.name+': '+C.label(it,next)+'.');
+  }
+  // Ongoing rows set a level directly. Tapping the chosen level clears it.
+  function setLevel(it,value){
+    const cur=C.current(S(),Date.now())?.values[it.id],next=cur===value?null:value;
+    change(record(it,next),next==null?it.name+' cleared.':next===0?it.name+' marked gone.':it.name+': '+C.label(it,next)+'.');
+  }
+  // A symptom typed on Today is recorded as mild at once. A new name becomes an
+  // item that shows on Today while it is recorded or ongoing.
+  function quickAdd(name){
+    change(now=>{
+      const it=C.findActive(S(),'symptom',name)||C.addItem(S(),{kind:'symptom',name,pinned:false},newId('s-'));
+      const cur=C.current(S(),now)?.values[it.id];
+      if(!cur)C.setValue(S(),it.id,1,now,()=>newId('c-'));
+    },name.trim()+' recorded as mild. Tap it to change the level.');
   }
 
   /* Today. */
+  // Lower-case day words for use inside a sentence.
+  function when(day){
+    const t=today();if(day===t)return 'today';if(day===C.shiftDate(t,-1))return 'yesterday';
+    return 'on '+new Date(day+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
+  }
+  const lastText=last=>'last '+C.LEVELS[last.value].toLowerCase()+' '+when(last.day)+(last.day===today()?' '+clock(last.at):'');
+  function renderOngoing(list){
+    $('ongoingBox').hidden=!list.length;
+    $('ongoingRows').replaceChildren(...list.map(o=>{
+      const it=o.item,group=el('div',{className:'levels'});group.setAttribute('role','group');group.setAttribute('aria-label',it.name+' now');
+      C.LEVELS.forEach((label,value)=>{
+        const button=el('button',{type:'button',className:'level-btn',textContent:label});button.dataset.value=String(value);
+        button.setAttribute('aria-pressed',String(o.value===value));
+        if(o.last.value===value)button.dataset.last='true';
+        button.setAttribute('aria-label',it.name+' '+label.toLowerCase()+(o.last.value===value?' (last recorded)':''));
+        button.addEventListener('click',()=>setLevel(it,value));group.append(button);
+      });
+      const since=o.since===o.last.day?'':'Since '+when(o.since).replace(/^on /,'')+' · ';
+      return el('li',{className:'ongoing'},el('div',{className:'ongoing-head'},el('strong',{textContent:it.name}),el('span',{className:'hint',textContent:since+lastText(o.last)})),group);
+    }));
+  }
   function renderToday(){
     const now=Date.now(),cur=C.current(S(),now),values=cur?.values||{},day=today();
     $('todayDate').textContent=longDate(day);
@@ -78,9 +114,10 @@
       });
       moodBox.append(el('fieldset',{},el('legend',{textContent:it.name}),row));
     }
+    // Ongoing symptoms get their own row and leave the chips.
+    const ongoing=C.ongoing(S(),now),inRow=new Set(ongoing.map(o=>o.item.id));renderOngoing(ongoing);
     const chips=$('symptomChips');chips.replaceChildren();
-    const symptoms=shown('symptom');$('symptomBox').hidden=!symptoms.length;
-    for(const it of symptoms){
+    for(const it of shown('symptom').filter(i=>!inRow.has(i.id))){
       const level=values[it.id],button=el('button',{type:'button',className:'symptom'},it.name);
       if(level){button.dataset.level=String(level);button.append(el('span',{className:'level',textContent:C.SEVERITY[level-1]}));}
       button.setAttribute('aria-pressed',String(!!level));
@@ -88,11 +125,18 @@
       button.setAttribute('aria-label',it.name+(level?', '+C.SEVERITY[level-1].toLowerCase():', not recorded')+'. Tap for '+(next?C.SEVERITY[next-1].toLowerCase():'off')+'.');
       button.addEventListener('click',()=>stepSymptom(it));chips.append(button);
     }
+    const add=el('button',{type:'button',className:'symptom add-symptom',textContent:'+ Other'});add.setAttribute('aria-label','Record another symptom');add.setAttribute('aria-expanded',String(!$('quickAdd').hidden));
+    add.addEventListener('click',()=>{$('quickAdd').hidden=false;add.setAttribute('aria-expanded','true');$('quickName').focus();});chips.append(add);
     if(document.activeElement!==$('note'))$('note').value=cur?.note||'';
     const entries=C.entriesFor(S(),day).slice().reverse();
     $('dayEmpty').hidden=!!entries.length;
     $('dayEntries').replaceChildren(...entries.map(entryRow));
   }
+  $('quickAdd').addEventListener('submit',event=>{
+    event.preventDefault();if(!$('quickAdd').reportValidity())return;
+    const name=$('quickName').value;$('quickName').value='';$('quickAdd').hidden=true;quickAdd(name);
+  });
+  $('quickCancel').addEventListener('click',()=>{$('quickName').value='';$('quickAdd').hidden=true;renderToday();});
   function entryRow(e){
     const parts=C.describe(S(),e);
     return el('li',{},el('time',{dateTime:new Date(e.at).toISOString(),textContent:clock(e.at)}),el('span',{textContent:parts||'Note only'}),e.note?el('span',{className:'note',textContent:e.note}):null);

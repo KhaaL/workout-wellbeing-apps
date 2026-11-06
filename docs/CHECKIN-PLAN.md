@@ -175,9 +175,13 @@ The list matches the files the Foodlog commit (`f339907`) touched.
    Today with mood, pinned symptoms on a 3-level scale, a note, the merge
    window and Undo. History lists days and check-ins. About 850 lines with
    tests.
-2. Usable daily: number and tag items, More… sheet, inline create, edit and
-   remove a check-in, earlier days, History list and 7 versus 28 day
-   comparison, CSV and JSON export.
+   Ongoing symptoms (added after phase 1): symptom value 0 means gone (data
+   version 2). A symptom recorded mild or worse in the last 7 days shows in an
+   Ongoing row with all four levels, so one tap records it each day. **+
+   Other** on Today records a new symptom as mild and adds it unpinned.
+2. Usable daily: number and tag items, More… sheet, edit and remove a
+   check-in, earlier days, a 7 versus 28 day comparison in History, CSV and
+   JSON export.
 3. Candidates after a few weeks of real use: co-occurrence counts, per-item
    strips, optional periodic questionnaires, a home-screen shortcut that
    opens Today with mood focused.
