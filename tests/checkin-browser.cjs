@@ -29,7 +29,8 @@ const csp=require('./shared/site-headers.cjs').csp('checkin');
     assert.equal(await page.textContent('#todayTitle'),'Today');
     assert.match(await page.textContent('#dayEmpty'),/No check-ins yet today/);
     assert.equal(await page.locator('#moodBox .mood').count(),5);
-    assert.deepEqual(await page.locator('#symptomChips .symptom').allTextContents(),['Headache','Fatigue','Anxiety','Low mood','Nausea']);
+    assert.deepEqual(await page.locator('#symptomChips .symptom').allTextContents(),['Headache','Fatigue','Anxiety','Low mood','Nausea','+ Other']);
+    assert.equal(await page.isVisible('#ongoingBox'),false,'nothing is ongoing on a fresh start');
     console.log('PASS Today opens with a 5-point mood row and the default symptoms');
 
     await tap(mood(3));
@@ -88,7 +89,8 @@ const csp=require('./shared/site-headers.cjs').csp('checkin');
     await page.getByLabel('Name of Headache').fill('Migraine');await page.getByLabel('Name of Headache').press('Enter');await page.locator('#itemsStatus').filter({hasText:'Renamed to Migraine'}).waitFor();
     await page.locator('.item-row',{has:page.getByLabel('Name of Low mood')}).getByRole('checkbox').uncheck();
     await nav('today');
-    assert.deepEqual(await page.locator('#symptomChips .symptom').allTextContents(),['Migraine','Fatigue','AnxietyModerate','Dizziness'],'Anxiety keeps its level in the open check-in');
+    assert.deepEqual(await page.locator('#symptomChips .symptom').allTextContents(),['Fatigue','AnxietyModerate','Dizziness','+ Other'],'Anxiety keeps its level in the open check-in');
+    assert.deepEqual(await page.locator('#ongoingRows strong').allTextContents(),['Migraine'],'the 09:00 headache is ongoing under its new name');
     assert.match(await entries().last().textContent(),/Migraine mild/,'history follows the rename');
     console.log('PASS Settings add, rename, hide and archive symptoms; Today and history follow');
 
@@ -117,8 +119,39 @@ const csp=require('./shared/site-headers.cjs').csp('checkin');
     assert.equal((await saved()).entries.length,2);assert.equal(await entries().count(),2,'check-ins survive a reload');
     console.log('PASS a backup file restores and survives a reload');
 
+    // A symptom that lasts days: added on Today, then one tap per day in the Ongoing row.
+    const ongoingRow=name=>page.locator('#ongoingRows .ongoing',{has:page.locator('strong',{hasText:name})});
+    await page.clock.fastForward('15:00');
+    taps=0;await tap(page.locator('.add-symptom'));await page.fill('#quickName','Runny nose');taps++;await page.press('#quickName','Enter');
+    assert.equal(taps,2,'a new symptom takes + Other and Enter');
+    state=await saved();let runny=state.items.find(i=>i.name==='Runny nose');
+    assert.equal(runny.pinned,false,'added from Today, so it shows only while recorded or ongoing');
+    assert.equal(state.entries.at(-1).values[runny.id],1);assert.match(await symptom('Runny nose').textContent(),/Mild/);
+    await page.click('#toastAction');state=await saved();
+    assert.equal(state.items.some(i=>i.name==='Runny nose'),false,'Undo removes the new item too');assert.equal(state.entries.length,2);
+    await tap(page.locator('.add-symptom'));await page.fill('#quickName','Runny nose');await page.press('#quickName','Enter');
+    runny=(await saved()).items.find(i=>i.name==='Runny nose');
+    await page.clock.fastForward('24:00:00');
+    assert.deepEqual(await page.locator('#ongoingRows strong').allTextContents(),['Migraine','Anxiety','Runny nose']);
+    assert.match(await ongoingRow('Runny nose').locator('.hint').textContent(),/^last mild yesterday$/);
+    assert.equal(await ongoingRow('Runny nose').locator('[data-last="true"]').textContent(),'Mild','the last level is outlined');
+    assert.equal(await symptom('Runny nose').count(),0,'an ongoing symptom leaves the chips');
+    taps=0;await tap(ongoingRow('Runny nose').getByRole('button',{name:'Runny nose moderate'}));
+    assert.equal(taps,1,'updating an ongoing symptom takes 1 tap');
+    state=await saved();assert.equal(state.entries.at(-1).values[runny.id],2);assert.equal(state.entries.at(-1).day,'2026-01-21');
+    assert.equal(await ongoingRow('Runny nose').locator('[aria-pressed="true"]').textContent(),'Moderate');
+    await page.clock.fastForward('24:00:00');
+    assert.match(await ongoingRow('Runny nose').locator('.hint').textContent(),/^Since .*20.* · last moderate yesterday$/,'the run started on 20 Jan');
+    await tap(ongoingRow('Runny nose').getByRole('button',{name:/Runny nose gone/}));
+    assert.equal((await saved()).entries.at(-1).values[runny.id],0);
+    assert.match(await entries().first().textContent(),/Runny nose gone/);
+    await page.clock.fastForward('24:00:00');
+    assert.equal(await ongoingRow('Runny nose').count(),0,'gone ends it');assert.equal(await symptom('Runny nose').count(),0,'and it leaves Today');
+    console.log('PASS a lasting symptom: added from Today in 2 taps, then 1 tap a day in Ongoing until marked gone');
+
     await page.setViewportSize({width:320,height:640});
     for(const view of ['today','history','settings']){await nav(view);await fits(view);}
+    await nav('today');await page.locator('.add-symptom').click();await fits('quick add form');
     console.log('PASS every screen fits 320 px');
     assert.deepEqual(errors,[]);await context.close();
   }finally{await browser.close();}

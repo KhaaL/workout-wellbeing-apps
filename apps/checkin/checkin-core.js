@@ -7,7 +7,11 @@ const CheckinCore = (() => {
   // without a schema change. Phase 1 shows mood and symptom items.
   const KINDS = ['mood', 'symptom', 'number', 'tag'];
   const MOOD = ['Very low', 'Low', 'Okay', 'Good', 'Very good'];
-  const SEVERITY = ['Mild', 'Moderate', 'Severe'];
+  // Symptom values: 0 gone (recorded as over), 1 mild, 2 moderate, 3 severe.
+  // An item missing from a check-in is not recorded, which is different from 0.
+  const SEVERITY = ['Mild', 'Moderate', 'Severe'], LEVELS = ['Gone', ...SEVERITY];
+  // A symptom recorded mild or worse within this many days stays ongoing until marked gone.
+  const ONGOING_DAYS = 7;
   const TIME = /^([01]\d|2[0-3]):[0-5]\d$/, DATE = /^\d{4}-\d{2}-\d{2}$/, ID = /^[A-Za-z0-9._-]{1,100}$/;
   const fail = message => { throw new Error(message); };
   const text = (value, max, label) => {
@@ -38,10 +42,10 @@ const CheckinCore = (() => {
     return out;
   }
 
-  // Mood 1 to 5, symptom severity 1 to 3, a number in its range, a tag as true.
+  // Mood 1 to 5, symptom 0 (gone) to 3, a number in its range, a tag as true.
   function valid(it, value){
     if (it.kind === 'mood') return Number.isSafeInteger(value) && value >= 1 && value <= MOOD.length;
-    if (it.kind === 'symptom') return Number.isSafeInteger(value) && value >= 1 && value <= SEVERITY.length;
+    if (it.kind === 'symptom') return Number.isSafeInteger(value) && value >= 0 && value <= SEVERITY.length;
     if (it.kind === 'number') return Number.isFinite(value) && value >= it.min && value <= it.max;
     return value === true;
   }
@@ -139,19 +143,48 @@ const CheckinCore = (() => {
     s.entries.splice(s.entries.indexOf(e), 1);
     return null;
   }
-  // One tap steps a symptom: off, mild, moderate, severe, off.
-  const nextSeverity = value => value == null ? 1 : value >= SEVERITY.length ? null : value + 1;
+  // One tap steps a symptom chip: off, mild, moderate, severe, off. Gone counts as off.
+  const nextSeverity = value => !value ? 1 : value >= SEVERITY.length ? null : value + 1;
+
+  /* Ongoing symptoms: the latest record before the open check-in, within
+     ONGOING_DAYS, is mild or worse. "since" is the first day of that run: it
+     stops at a gone record or at a gap of ONGOING_DAYS days or more. Derived on
+     every read, so no episode record can disagree with the check-ins. */
+  function ongoing(s, now){
+    const cur = current(s, now), from = shiftDate(dayFor(now, s.settings.dayStart), 1 - ONGOING_DAYS), out = [];
+    for (const it of s.items){
+      if (it.kind !== 'symptom' || it.archived) continue;
+      let index = -1;
+      for (let i = s.entries.length - 1; i >= 0; i--){
+        const e = s.entries[i];
+        if (e.day < from) break;
+        if (e !== cur && it.id in e.values){ index = i; break; }
+      }
+      if (index < 0 || s.entries[index].values[it.id] < 1) continue;
+      const last = s.entries[index];
+      let since = last.day;
+      for (let i = index - 1; i >= 0; i--){
+        const e = s.entries[i];
+        if (!(it.id in e.values)) continue;
+        if (e.values[it.id] < 1 || e.day <= shiftDate(since, -ONGOING_DAYS)) break;
+        since = e.day;
+      }
+      out.push({item:it, last:{value:last.values[it.id], at:last.at, day:last.day}, since, value:cur?.values[it.id]});
+    }
+    return out;
+  }
 
   /* Items. */
-  function addItem(s, {kind, name}, id){
+  // Items added from Today are unpinned: they show while recorded or ongoing.
+  function addItem(s, {kind, name, pinned = true}, id){
     const clean = text(name, 60, 'Name');
     if (!clean) fail('Enter a name.');
     if (!['mood', 'symptom'].includes(kind)) fail('Unknown tracked item kind.');
     if (s.items.length >= LIMITS.items) fail('The list holds the maximum of ' + LIMITS.items + ' items.');
     const same = s.items.find(i => i.kind === kind && i.name.toLowerCase() === clean.toLowerCase());
     if (same && !same.archived) fail(clean + ' is already tracked.');
-    if (same){ same.archived = false; same.pinned = true; same.name = clean; return same; }
-    const it = {id, kind, name:clean, pinned:true, archived:false};
+    if (same){ same.archived = false; same.pinned = pinned; same.name = clean; return same; }
+    const it = {id, kind, name:clean, pinned, archived:false};
     s.items.push(it);
     return it;
   }
@@ -171,11 +204,12 @@ const CheckinCore = (() => {
     return it;
   }
   const visible = (s, kind) => s.items.filter(i => i.kind === kind && i.pinned && !i.archived);
+  const findActive = (s, kind, name) => s.items.find(i => i.kind === kind && !i.archived && i.name.toLowerCase() === String(name).trim().toLowerCase()) || null;
 
   /* Reading. */
   function label(it, value){
     if (it.kind === 'mood') return value + ' ' + MOOD[value - 1];
-    if (it.kind === 'symptom') return SEVERITY[value - 1].toLowerCase();
+    if (it.kind === 'symptom') return LEVELS[value].toLowerCase();
     if (it.kind === 'number') return value + (it.unit ? ' ' + it.unit : '');
     return '';
   }
@@ -194,6 +228,6 @@ const CheckinCore = (() => {
     return out.sort().reverse();
   }
 
-  return {LIMITS, KINDS, MOOD, SEVERITY, settings, item, state, defaults, valid, dayFor, shiftDate, localDate, localTime,
+  return {LIMITS, KINDS, MOOD, SEVERITY, LEVELS, ONGOING_DAYS, ongoing, findActive, settings, item, state, defaults, valid, dayFor, shiftDate, localDate, localTime,
     current, setValue, setNote, nextSeverity, addItem, renameItem, archiveItem, visible, label, parts, describe, entriesFor, days};
 })();

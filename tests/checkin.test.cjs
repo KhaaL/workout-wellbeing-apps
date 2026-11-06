@@ -14,7 +14,7 @@ const plain=value=>JSON.parse(JSON.stringify(value));
 const at=iso=>new Date(iso).getTime();
 const fresh=()=>({settings:C.settings(),items:C.defaults(),entries:[]});
 let n=0;const id=()=>'c'+(++n);
-const backup=extra=>({app:'checkin',version:1,updatedAt:5,settings:{dayStart:'04:00',mergeMinutes:30},items:C.defaults(),entries:[],...extra});
+const backup=extra=>({app:'checkin',version:2,updatedAt:5,settings:{dayStart:'04:00',mergeMinutes:30},items:C.defaults(),entries:[],...extra});
 
 test('defaults hold one mood and five symptoms, all on Today',()=>{
   const items=C.defaults();
@@ -59,11 +59,12 @@ test('a symptom steps off, mild, moderate, severe, off',()=>{
   const steps=[];let v=null;for(let i=0;i<4;i++){v=C.nextSeverity(v);steps.push(v);}
   assert.deepEqual(steps,[1,2,3,null]);
   assert.deepEqual(plain(C.SEVERITY),['Mild','Moderate','Severe']);
+  assert.equal(C.nextSeverity(0),1,'a chip treats gone as off');
 });
 
 test('values outside each kind’s range are refused',()=>{
   const s=fresh(),t=at('2026-01-20T09:00:00+01:00');
-  for(const [item,value] of [['mood',0],['mood',6],['mood',2.5],['headache',4],['headache',0],['headache',true]])
+  for(const [item,value] of [['mood',0],['mood',6],['mood',2.5],['headache',4],['headache',-1],['headache',true]])
     assert.throws(()=>C.setValue(s,item,value,t,id),/Invalid value/,item+' '+value);
   assert.throws(()=>C.setValue(s,'nope',1,t,id),/Unknown tracked item/);
   assert.equal(s.entries.length,0);
@@ -107,7 +108,9 @@ test('storage prepare accepts version 1 and rebuilds known fields only',()=>{
 });
 
 test('storage prepare refuses newer versions, other apps and broken rows',()=>{
-  assert.throws(()=>Store.prepare(backup({version:2})),/newer Check-in version/);
+  assert.throws(()=>Store.prepare(backup({version:3})),/newer Check-in version/);
+  assert.equal(Store.prepare(backup({version:1,entries:[{id:'a',at:1,day:'2026-01-20',values:{headache:2}}]})).version,2,'version 1 data loads as version 2');
+  assert.equal(Store.prepare(backup({entries:[{id:'a',at:1,day:'2026-01-20',values:{headache:0}}]})).entries[0].values.headache,0,'gone is a recorded value');
   assert.throws(()=>Store.prepare(backup({app:'foodlog'})),/Not a valid Check-in backup/);
   const bad=[
     [{entries:[{id:'a',at:1,day:'2026-01-20',values:{ghost:1}}]},/unknown item/],
@@ -120,4 +123,48 @@ test('storage prepare refuses newer versions, other apps and broken rows',()=>{
     [{settings:{dayStart:'4am'}},/HH:MM/],
     [{settings:{mergeMinutes:500}},/0 to 240/]];
   for(const [extra,message] of bad)assert.throws(()=>Store.prepare(backup(extra)),message,JSON.stringify(extra));
+});
+
+/* Ongoing symptoms. */
+const day=(d,hh='09:00')=>at('2026-01-'+String(d).padStart(2,'0')+'T'+hh+':00+01:00');
+const names=list=>plain(list.map(o=>o.item.name));
+
+test('a symptom recorded mild or worse stays ongoing for 7 days, until marked gone',()=>{
+  const s=fresh(),runny=C.addItem(s,{kind:'symptom',name:'Runny nose',pinned:false},'s-runny');
+  assert.equal(runny.pinned,false);
+  C.setValue(s,'s-runny',1,day(10),id);
+  assert.deepEqual(names(C.ongoing(s,day(10,'09:10'))),[],'the open check-in itself does not count');
+  let row=C.ongoing(s,day(11))[0];
+  assert.equal(row.item.id,'s-runny');assert.deepEqual(plain(row.last),{value:1,at:day(10),day:'2026-01-10'});assert.equal(row.since,'2026-01-10');assert.equal(row.value,undefined);
+  C.setValue(s,'s-runny',2,day(11),id);
+  row=C.ongoing(s,day(11,'09:05'))[0];assert.equal(row.value,2,'the open check-in value shows as chosen');assert.equal(row.last.value,1,'last stays the earlier record');
+  assert.equal(C.ongoing(s,day(17))[0].last.value,2,'still ongoing 6 days later');
+  assert.deepEqual(names(C.ongoing(s,day(18))),[],'gone from the row after 7 days without a record');
+  C.setValue(s,'s-runny',0,day(12),id);s.entries.sort((a,b)=>a.at-b.at);
+  assert.equal(C.ongoing(s,day(12,'09:05'))[0].value,0,'gone shows while its check-in is open');
+  assert.deepEqual(names(C.ongoing(s,day(13))),[],'gone ends it');
+});
+
+test('since covers the whole run and stops at gone or a 7-day gap',()=>{
+  const s=fresh();
+  for(const [d,v] of [[1,2],[3,0],[4,1],[6,3],[8,2]])C.setValue(s,'headache',v,day(d),id);
+  assert.equal(C.ongoing(s,day(9))[0].since,'2026-01-04','the run starts after the gone record');
+  const t=fresh();for(const [d,v] of [[1,2],[9,1],[12,2]])C.setValue(t,'fatigue',v,day(d),id);
+  assert.equal(C.ongoing(t,day(13))[0].since,'2026-01-09','an 8-day gap starts a new run');
+  const u=fresh();for(const [d,v] of [[1,2],[7,1]])C.setValue(u,'fatigue',v,day(d),id);
+  assert.equal(C.ongoing(u,day(8))[0].since,'2026-01-01','a 6-day gap keeps the run');
+});
+
+test('archived symptoms and moods are never ongoing; other symptoms in a check-in do not disturb the lookup',()=>{
+  const s=fresh();C.setValue(s,'mood',2,day(10),id);C.setValue(s,'nausea',2,day(10),id);C.setValue(s,'anxiety',1,day(10),id);
+  C.setValue(s,'mood',3,day(11),id);
+  assert.deepEqual(names(C.ongoing(s,day(11,'12:00'))),['Anxiety','Nausea'],'list order');
+  C.archiveItem(s,'nausea',true);assert.deepEqual(names(C.ongoing(s,day(12))),['Anxiety']);
+});
+
+test('findActive matches names ignoring case; adding an archived name keeps the requested pin state',()=>{
+  const s=fresh();assert.equal(C.findActive(s,'symptom',' headache ').id,'headache');assert.equal(C.findActive(s,'symptom','Runny nose'),null);
+  C.archiveItem(s,'nausea',true);assert.equal(C.findActive(s,'symptom','Nausea'),null);
+  const back=C.addItem(s,{kind:'symptom',name:'Nausea',pinned:false},'x');assert.equal(back.id,'nausea');assert.equal(back.pinned,false);
+  assert.equal(C.describe(s,{values:{nausea:0}}),'Nausea gone');
 });

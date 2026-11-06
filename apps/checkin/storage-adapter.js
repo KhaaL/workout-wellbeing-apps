@@ -1,12 +1,14 @@
 /* Check-in uses the shared storage engine with its own schema and namespaces. */
 /* exported CheckinStorage */
 const CheckinStorage = (() => {
-  const namespace='checkin.v1',key='checkin.state.v1',VERSION=1;
+  // Version 2 adds symptom value 0 (gone) for ongoing symptoms. Version 1 data
+  // loads unchanged; version 1 apps refuse version 2 data instead of failing on 0.
+  const namespace='checkin.v1',key='checkin.state.v1',VERSION=2;
   const limits={items:CheckinCore.LIMITS.items,entries:CheckinCore.LIMITS.entries};
   function prepare(raw){
     WorkoutStorage.enforceLimits(raw,limits);
     if(raw?.app==='checkin'&&Number.isSafeInteger(raw.version)&&raw.version>VERSION)throw new Error('This backup is from a newer Check-in version. Update the app, then try again.');
-    if(!raw||raw.app!=='checkin'||raw.version!==VERSION||!Number.isSafeInteger(raw.updatedAt)||raw.updatedAt<0)throw new Error('Not a valid Check-in backup.');
+    if(!raw||raw.app!=='checkin'||![1,VERSION].includes(raw.version)||!Number.isSafeInteger(raw.updatedAt)||raw.updatedAt<0)throw new Error('Not a valid Check-in backup.');
     return {app:'checkin',version:VERSION,updatedAt:raw.updatedAt,...CheckinCore.state(raw)};
   }
   function create(options){

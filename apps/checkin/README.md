@@ -17,6 +17,8 @@ Today holds everything. Every tap saves.
 | Mood and a mild symptom | 2 |
 | One severe symptom | 3 |
 | Mood and a moderate symptom | 3 |
+| Update an ongoing symptom | 1 |
+| A symptom not on Today (+ Other, name, Enter) | 2 plus typing |
 | Add a note | 2 plus typing |
 
 - Symptom taps: mild › moderate › severe › off.
@@ -28,3 +30,10 @@ Today holds everything. Every tap saves.
 Taps within 30 minutes of a check-in's start update it. The line above the
 mood row says which check-in is open and until when. After that, the next tap
 starts a new check-in.
+
+## Lasting symptoms
+
+A symptom recorded mild or worse in the last 7 days sits in the Ongoing row:
+Gone, Mild, Moderate, Severe, with the last level outlined. Tap today's level
+each day. Gone ends it. A symptom added through + Other leaves Today once it
+is gone.

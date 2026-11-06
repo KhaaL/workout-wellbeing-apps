@@ -88,6 +88,15 @@ Undo in the toast.
   update it (adjustable from 0 to 240 minutes). Later taps start a new one.
   Tapping the chosen mood again clears it, and a check-in with nothing left is
   removed.
+- **Ongoing symptoms:** a symptom recorded mild or worse in the last 7 days
+  moves from the chips to the Ongoing row. The row shows Gone, Mild, Moderate
+  and Severe with the last level outlined, so one tap records today's level.
+  Gone ends it. The row notes when the run started; a gone record or a gap of
+  7 days starts a new run. Runs are worked out from the check-ins, with no
+  separate record.
+- **Other symptoms:** **+ Other** on Today records a symptom by name as mild.
+  A new name becomes a tracked item that shows on Today only while it is
+  recorded or ongoing.
 - **Note:** the collapsed Note box adds text to the open check-in.
 - **Days:** check-ins before 04:00 (adjustable) count toward the previous day.
   History lists each day's check-ins, latest first.
@@ -100,8 +109,10 @@ Undo in the toast.
 
 Check-in uses the shared local saving, recovery, backup files, cloud backups and
 updates, with its own `checkin.v1` namespace and `checkin-backup.json` default
-object. Capacity is 200 tracked items and 50,000 check-ins. Data version 1
-already validates number and tag items for a later release. Tap counts are in
+object. Capacity is 200 tracked items and 50,000 check-ins. Data version 2 adds
+symptom value 0 (gone). Version 1 data loads unchanged, and version 1 releases
+refuse version 2 data. Number and tag items already validate for a later
+release. Tap counts are in
 [apps/checkin/README.md](apps/checkin/README.md) and the remaining work is in
 [docs/CHECKIN-PLAN.md](docs/CHECKIN-PLAN.md).
 
