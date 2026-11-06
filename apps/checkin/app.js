@@ -57,15 +57,15 @@
     const cur=C.current(S(),Date.now())?.values[it.id],next=cur===value?null:value;
     change(record(it,next),next==null?it.name+' cleared.':it.name+' '+C.label(it,next)+' saved.');
   }
-  function stepSymptom(it){
-    const next=C.nextSeverity(C.current(S(),Date.now())?.values[it.id]);
-    change(record(it,next),next==null?it.name+' removed.':it.name+': '+C.label(it,next)+'.');
-  }
-  // Ongoing rows set a level directly. Tapping the chosen level clears it.
+  // A chip records mild, and the symptom moves to its row of levels.
+  function startSymptom(it){change(record(it,1),it.name+': mild. Pick another level in its row if needed.');}
+  // Row levels only set a level. Tapping the chosen level does nothing, so
+  // trying levels never removes a symptom; × does that.
   function setLevel(it,value){
-    const cur=C.current(S(),Date.now())?.values[it.id],next=cur===value?null:value;
-    change(record(it,next),next==null?it.name+' cleared.':next===0?it.name+' marked gone.':it.name+': '+C.label(it,next)+'.');
+    if(C.current(S(),Date.now())?.values[it.id]===value)return;
+    change(record(it,value),value===0?it.name+' marked gone.':it.name+': '+C.label(it,value)+'.');
   }
+  function removeSymptom(it){change(record(it,null),it.name+' removed from this check-in.');}
   // A symptom typed on Today is recorded as mild at once. A new name becomes an
   // item that shows on Today while it is recorded or ongoing.
   function quickAdd(name){
@@ -73,7 +73,7 @@
       const it=C.findActive(S(),'symptom',name)||C.addItem(S(),{kind:'symptom',name,pinned:false},newId('s-'));
       const cur=C.current(S(),now)?.values[it.id];
       if(!cur)C.setValue(S(),it.id,1,now,()=>newId('c-'));
-    },name.trim()+' recorded as mild. Tap it to change the level.');
+    },name.trim()+' recorded as mild. Pick another level in its row if needed.');
   }
 
   /* Today. */
@@ -83,19 +83,24 @@
     return 'on '+new Date(day+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
   }
   const lastText=last=>'last '+C.LEVELS[last.value].toLowerCase()+' '+when(last.day)+(last.day===today()?' '+clock(last.at):'');
-  function renderOngoing(list){
-    $('ongoingBox').hidden=!list.length;
-    $('ongoingRows').replaceChildren(...list.map(o=>{
-      const it=o.item,group=el('div',{className:'levels'});group.setAttribute('role','group');group.setAttribute('aria-label',it.name+' now');
-      C.LEVELS.forEach((label,value)=>{
+  function renderRows(rows){
+    $('symptomRows').replaceChildren(...rows.map(o=>{
+      const it=o.item,levels=o.last?C.LEVELS.map((label,value)=>[label,value]):C.SEVERITY.map((label,index)=>[label,index+1]);
+      const group=el('div',{className:'levels'+(o.last?'':' three')});group.setAttribute('role','group');group.setAttribute('aria-label',it.name+' now');
+      for(const [label,value] of levels){
         const button=el('button',{type:'button',className:'level-btn',textContent:label});button.dataset.value=String(value);
         button.setAttribute('aria-pressed',String(o.value===value));
-        if(o.last.value===value)button.dataset.last='true';
-        button.setAttribute('aria-label',it.name+' '+label.toLowerCase()+(o.last.value===value?' (last recorded)':''));
+        if(o.last?.value===value)button.dataset.last='true';
+        button.setAttribute('aria-label',it.name+' '+label.toLowerCase()+(o.last?.value===value?' (last recorded)':''));
         button.addEventListener('click',()=>setLevel(it,value));group.append(button);
-      });
-      const since=o.since===o.last.day?'':'Since '+when(o.since).replace(/^on /,'')+' · ';
-      return el('li',{className:'ongoing'},el('div',{className:'ongoing-head'},el('strong',{textContent:it.name}),el('span',{className:'hint',textContent:since+lastText(o.last)})),group);
+      }
+      const hint=o.last?(o.since===o.last.day?'':'Since '+when(o.since).replace(/^on /,'')+' · ')+lastText(o.last):'New in this check-in';
+      const head=el('div',{className:'ongoing-head'},el('strong',{textContent:it.name}),el('span',{className:'hint',textContent:hint}));
+      if(o.value!=null){
+        const remove=el('button',{type:'button',className:'remove-btn',textContent:'×'});remove.setAttribute('aria-label','Remove '+it.name+' from this check-in');
+        remove.addEventListener('click',()=>removeSymptom(it));head.append(remove);
+      }
+      return el('li',{className:'ongoing'},head,group);
     }));
   }
   function renderToday(){
@@ -114,16 +119,12 @@
       });
       moodBox.append(el('fieldset',{},el('legend',{textContent:it.name}),row));
     }
-    // Ongoing symptoms get their own row and leave the chips.
-    const ongoing=C.ongoing(S(),now),inRow=new Set(ongoing.map(o=>o.item.id));renderOngoing(ongoing);
+    // Recorded and ongoing symptoms get a row of levels and leave the chips.
+    const rows=C.symptomRows(S(),now),inRow=new Set(rows.map(o=>o.item.id));renderRows(rows);
     const chips=$('symptomChips');chips.replaceChildren();
     for(const it of shown('symptom').filter(i=>!inRow.has(i.id))){
-      const level=values[it.id],button=el('button',{type:'button',className:'symptom'},it.name);
-      if(level){button.dataset.level=String(level);button.append(el('span',{className:'level',textContent:C.SEVERITY[level-1]}));}
-      button.setAttribute('aria-pressed',String(!!level));
-      const next=C.nextSeverity(level);
-      button.setAttribute('aria-label',it.name+(level?', '+C.SEVERITY[level-1].toLowerCase():', not recorded')+'. Tap for '+(next?C.SEVERITY[next-1].toLowerCase():'off')+'.');
-      button.addEventListener('click',()=>stepSymptom(it));chips.append(button);
+      const button=el('button',{type:'button',className:'symptom'},it.name);button.setAttribute('aria-label','Record '+it.name+' as mild');
+      button.addEventListener('click',()=>startSymptom(it));chips.append(button);
     }
     const add=el('button',{type:'button',className:'symptom add-symptom',textContent:'+ Other'});add.setAttribute('aria-label','Record another symptom');add.setAttribute('aria-expanded',String(!$('quickAdd').hidden));
     add.addEventListener('click',()=>{$('quickAdd').hidden=false;add.setAttribute('aria-expanded','true');$('quickName').focus();});chips.append(add);

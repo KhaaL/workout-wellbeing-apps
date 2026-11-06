@@ -143,8 +143,6 @@ const CheckinCore = (() => {
     s.entries.splice(s.entries.indexOf(e), 1);
     return null;
   }
-  // One tap steps a symptom chip: off, mild, moderate, severe, off. Gone counts as off.
-  const nextSeverity = value => !value ? 1 : value >= SEVERITY.length ? null : value + 1;
 
   /* Ongoing symptoms: the latest record before the open check-in, within
      ONGOING_DAYS, is mild or worse. "since" is the first day of that run: it
@@ -172,6 +170,14 @@ const CheckinCore = (() => {
       out.push({item:it, last:{value:last.values[it.id], at:last.at, day:last.day}, since, value:cur?.values[it.id]});
     }
     return out;
+  }
+  /* Symptom rows on Today: every symptom that is ongoing or recorded in the open
+     check-in, in list order. A row's levels never remove it; only an explicit
+     remove clears its value, so trying levels is safe. */
+  function symptomRows(s, now){
+    const values = current(s, now)?.values || {}, byId = new Map(ongoing(s, now).map(o => [o.item.id, o]));
+    return s.items.filter(it => it.kind === 'symptom' && (byId.has(it.id) || it.id in values))
+      .map(it => byId.get(it.id) || {item:it, last:null, since:null, value:values[it.id]});
   }
 
   /* Items. */
@@ -229,5 +235,5 @@ const CheckinCore = (() => {
   }
 
   return {LIMITS, KINDS, MOOD, SEVERITY, LEVELS, ONGOING_DAYS, ongoing, findActive, settings, item, state, defaults, valid, dayFor, shiftDate, localDate, localTime,
-    current, setValue, setNote, nextSeverity, addItem, renameItem, archiveItem, visible, label, parts, describe, entriesFor, days};
+    current, setValue, setNote, symptomRows, addItem, renameItem, archiveItem, visible, label, parts, describe, entriesFor, days};
 })();

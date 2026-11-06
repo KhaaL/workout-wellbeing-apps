@@ -74,7 +74,7 @@ rebuild state from known fields only.
 ```
 [ Today  ‹ Thu 6 Nov › ]
 Mood     ( 1 )( 2 )( 3 )( 4 )( 5 )        <- one tap saves
-Symptoms [Headache] [Fatigue] [Nausea] [+]  <- tap cycles: off → mild → moderate → severe → off
+Symptoms [Headache] [Fatigue] [Nausea] [+]  <- tap records mild, then a row: Mild Moderate Severe ×
 Context  [Coffee] [Alcohol] [Poor sleep]   <- tag chips, tap toggles
 Sleep    [ − 7.5 h + ]                     <- number items use shared steppers
 ▸ Note
@@ -100,7 +100,7 @@ Tap counts to verify in the browser test:
 |---|---|
 | Mood only | 1 (app open on Today) |
 | Mood and one mild symptom | 2 |
-| One severe symptom | 3 |
+| One severe symptom | 2 |
 | Add a note | 2 plus typing |
 
 ## History
