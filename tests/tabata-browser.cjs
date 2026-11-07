@@ -121,7 +121,7 @@ const csp=require('./shared/site-headers.cjs').csp('tabata');
         resume(){return new Promise(resolve=>{window.resumeAudio=()=>{this.state='running';resolve();};});}
         decodeAudioData(bytes){window.sampleBytes=bytes.byteLength;return Promise.resolve({duration:3});}
         createBufferSource(){const bell={};let timer;const source={connect(){},disconnect(){},start(at){bell.at=at;window.bells.push(bell);timer=setTimeout(()=>source.onended?.(),(at+3)*1000);},stop(){clearTimeout(timer);source.onended?.();}};return source;}
-        createOscillator(){const tone={};return {frequency:{set value(value){tone.frequency=value;}},connect(){},disconnect(){},start(at){tone.at=at;window.tones.push(tone);},stop(at){tone.end=at;}};}
+        createOscillator(){const tone={};let timer;const oscillator={frequency:{set value(value){tone.frequency=value;}},connect(){},disconnect(){},start(at){tone.at=at;window.tones.push(tone);},stop(at){tone.end=at;clearTimeout(timer);timer=setTimeout(()=>oscillator.onended?.(),(at||0)*1000);}};return oscillator;}
         createGain(){return {gain:{setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){}},connect(){},disconnect(){}};}
       };
       localStorage.setItem('tabata.state.v1',JSON.stringify({app:'tabata',version:1,updatedAt:0,settings:{work:4,rest:3,rounds:2,prepare:1,sound:true,keepAwake:false},history:[],active:null}));
@@ -130,25 +130,30 @@ const csp=require('./shared/site-headers.cjs').csp('tabata');
     await soundPage.clock.install({time:new Date('2026-01-01T12:00:00Z')});await soundPage.clock.pauseAt(new Date('2026-01-01T12:00:01Z'));
     await soundPage.goto('https://sound.test/');await soundPage.click('#start');assert.equal(await soundPage.evaluate(()=>window.tones.length),0);
     await soundPage.evaluate(()=>window.resumeAudio());assert.deepEqual(await soundPage.evaluate(()=>window.tones.map(t=>t.frequency)),[660],'Preparation cue waits for audio resume');
+    const cues=()=>soundPage.evaluate(()=>({whistles:window.tones.filter(t=>t.frequency===2800).length,ticks:window.tones.filter(t=>t.frequency===660).length,bells:window.bells.length}));
     await soundPage.clock.fastForward(1000);
-    assert.equal(await soundPage.evaluate(()=>window.bells.length),1,'Work uses one recorded bell strike');
-    assert.equal(await soundPage.evaluate(()=>window.bells.at(-1).at),0);
+    assert.deepEqual(await cues(),{whistles:1,ticks:1,bells:0},'A whistle starts work');
+    assert.deepEqual(await soundPage.evaluate(()=>window.tones.filter(t=>t.frequency===32).length),2,'The whistle trills its pitch and level');
     assert.ok(await soundPage.evaluate(()=>window.sampleBytes)>10000,'A recorded audio sample is decoded');
     await soundPage.clock.fastForward(1000);assert.equal(await soundPage.evaluate(()=>window.tones.at(-1).frequency),660,'Countdown tick');
-    const beforePause=await soundPage.evaluate(()=>({ticks:window.tones.length,bells:window.bells.length}));await soundPage.click('#pause');await soundPage.clock.fastForward(5000);assert.deepEqual(await soundPage.evaluate(()=>({ticks:window.tones.length,bells:window.bells.length})),beforePause,'No cues while paused');
+    await soundPage.click('#pause');assert.deepEqual(await cues(),{whistles:1,ticks:2,bells:1},'Pausing rings one bell strike');
+    await soundPage.clock.fastForward(5000);assert.deepEqual(await cues(),{whistles:1,ticks:2,bells:1},'No cues while paused');
     await soundPage.click('#pause');await soundPage.evaluate(()=>window.resumeAudio());await soundPage.clock.fastForward(3000);
-    assert.equal(await soundPage.evaluate(()=>window.bells.length),4,'Resume rings once and rest rings twice');
-    assert.deepEqual(await soundPage.evaluate(()=>window.bells.slice(-2).map(b=>b.at)),[0,.18],'Double bell uses a rapid 180 ms gap');
-    await soundPage.clock.fastForward(3000);assert.equal(await soundPage.evaluate(()=>window.bells.length),5,'Work resumes with one recorded strike');
-    await soundPage.clock.fastForward(4000);assert.equal(await soundPage.evaluate(()=>window.bells.length),8,'Completion rings the recorded bell three times');
+    const rest=await cues();assert.equal(rest.whistles,2,'Resuming work whistles again');assert.equal(rest.bells,2,'Rest rings one bell strike');
+    await soundPage.clock.fastForward(3000);assert.deepEqual([(await cues()).whistles,(await cues()).bells],[3,2],'The next round starts with a whistle');
+    await soundPage.clock.fastForward(4000);assert.equal((await cues()).bells,5,'Completion rings the recorded bell three times');
     assert.deepEqual(await soundPage.evaluate(()=>window.bells.slice(-3).map(b=>b.at)),[0,.18,.36],'Triple bell completes its strikes within 360 ms');
     await soundPage.click('#again');await soundPage.evaluate(()=>window.resumeAudio());await confirmAction(soundPage,()=>soundPage.click('#end'));
-    assert.equal(await soundPage.evaluate(()=>window.bells.length),11,'Stopping early also rings the recorded bell three times');
+    assert.equal((await cues()).bells,8,'Stopping early also rings the recorded bell three times');
     await soundPage.getByRole('navigation').getByRole('button',{name:'Settings',exact:true}).click();
     await soundPage.click('#testBell');await soundPage.evaluate(()=>window.resumeAudio());
-    assert.equal(await soundPage.evaluate(()=>window.bells.length),12,'Test bell plays without starting a workout');
+    assert.equal((await cues()).bells,9,'Test bell plays without starting a workout');
     assert.match(await soundPage.locator('#bellTestStatus').textContent(),/recorded boxing bell/);
     await soundPage.clock.fastForward(3000);assert.equal(await soundPage.locator('#testBell').isEnabled(),true);
+    await soundPage.click('#testWhistle');await soundPage.evaluate(()=>window.resumeAudio());assert.equal((await cues()).whistles,4,'Test whistle plays without starting a workout');
+    assert.equal(await soundPage.locator('#testBell').isDisabled(),true,'Both previews wait for the playing sound');
+    await soundPage.clock.fastForward(1000);assert.match(await soundPage.locator('#bellTestStatus').textContent(),/Whistle preview finished/);
+    assert.equal(await soundPage.locator('#testWhistle').isEnabled(),true);
     assert.deepEqual(soundErrors,[]);await sounds.close();
     // A denied lock or unavailable audio must leave a usable timer and clear feedback.
     const fallback=await browser.newContext({serviceWorkers:'block'}),fallbackPage=await fallback.newPage();
@@ -195,7 +200,7 @@ const csp=require('./shared/site-headers.cjs').csp('tabata');
       assert.equal(await sourcePage.inputValue('#work'),'60');assert.equal(await sourcePage.inputValue('#rest'),'3');assert.equal(await sourcePage.inputValue('#rounds'),'8');
       assert.deepEqual(await sourcePage.locator('.nav-label').allTextContents(),['Timer','Settings']);
       assert.equal(await sourcePage.locator('#workPresets button,#restPresets button').count(),6);
-      assert.equal(await sourcePage.locator('#setup .numeric-stepper').count(),3);
+      assert.equal(await sourcePage.locator('#setup .numeric-stepper').count(),4,'Work, rest, rounds and rest between pyramid calls');
       assert.match(await sourcePage.locator('body').evaluate(node=>getComputedStyle(node).fontFamily),/sans-serif/,'Source has the shared typeface');
       assert.notEqual(await sourcePage.locator('#totalTime').textContent(),'—');
       await sourcePage.getByRole('navigation').getByRole('button',{name:'Settings',exact:true}).click();await sourcePage.uncheck('#sound');

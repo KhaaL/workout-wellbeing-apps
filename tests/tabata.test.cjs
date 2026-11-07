@@ -55,8 +55,20 @@ for(const [time,kind,partner,swap,remaining,next,completed,key] of [
   [36000,'work','B',2,30000,45000,1,'work-2'],[66000,'work','A',3,45000,45000,2,'work-3'],[156000,'work','A',5,60000,60000,4,'work-5'],
   [396000,'work','B',10,30000,0,9,'work-10'],[426000,'complete',undefined,10,0,undefined,10,'complete']
 ]){const s=C.snapshot(swaps,time);assert.deepEqual([s.kind,s.partner,s.round,s.remainingMs,s.nextMs,s.completedRounds,s.phaseKey],[kind,partner,swap,remaining,next,completed,key],'pyramid at '+time);}
-assert.deepEqual(Array.from(C.parseLadder('30 · 30 · 45,45  60')),[30,30,45,45,60]);
-for(const text of ['30','30 abc','30 0','30 3601','30 1.5',Array(41).fill(30).join(' ')])assert.throws(()=>C.parseLadder(text),undefined,text);
+// A rest between calls follows every call except the last; both partners rest.
+assert.equal(pyramid.ladderRest,0);assert.equal(C.settings().ladderRest,0);
+const rested=C.config({mode:'pyramid',prepare:0,ladder:[2,3,2],ladderRest:4});
+assert.equal(C.duration(rested),15000,'7 s of calls plus two 4 s rests');
+const restSwaps=C.start(rested,0,'rested');
+for(const [time,kind,partner,next,swap,remaining,completed,key] of [
+  [0,'work','A','B',1,2000,0,'work-1'],[2000,'rest',undefined,'B',1,4000,1,'rest-1'],[6000,'work','B','A',2,3000,1,'work-2'],
+  [9000,'rest',undefined,'A',2,4000,2,'rest-2'],[13000,'work','A','B',3,2000,2,'work-3'],[15000,'complete',undefined,undefined,3,0,3,'complete']
+]){const s=C.snapshot(restSwaps,time);assert.deepEqual([s.kind,s.partner,s.nextPartner,s.round,s.remainingMs,s.completedRounds,s.phaseKey],[kind,partner,next,swap,remaining,completed,key],'rested pyramid at '+time);}
+assert.equal(C.snapshot(restSwaps,13000).nextMs,0,'No rest or call after the last call');
+assert.throws(()=>C.config({mode:'pyramid',ladderRest:-1}),/Rest between calls/);
+assert.equal(C.config({ladderRest:4}).ladderRest,undefined,'Interval sessions carry no pyramid rest');
+assert.deepEqual(Array.from(C.parseLadder('30, 30,45 ,45  60')),[30,30,45,45,60]);
+for(const text of ['30','30, abc','30 · 45','30, 0','30, 3601','30, 1.5',Array(41).fill(30).join(', ')])assert.throws(()=>C.parseLadder(text),undefined,text);
 for(const invalid of [{mode:'ladder'},{mode:'pyramid',ladder:[30]},{mode:'pyramid',ladder:'30 30'},{mode:'pyramid',ladder:[30,-1]}])assert.throws(()=>C.config(invalid));
 const pyramidRow={id:'pyramid',config:pyramid,startedAt:1000,elapsedMs:425000,outcome:'complete'};
 const v3=S.prepare({...raw,version:3,active:null,settings:{...config,mode:'pyramid',ladder:[20,20,40,40]},history:[pyramidRow]});
