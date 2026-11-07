@@ -4,11 +4,13 @@ const TabataStorage = (() => {
   const namespace='tabata.v1',key='tabata.state.v1';
   // Version 2 adds settings.instructions. Version 1 apps rebuild settings from the
   // fields they know and would drop the text, so they refuse version 2 data.
-  const VERSION=2;
+  // Version 3 adds the pyramid mode and its swap calls. Version 2 apps would read a
+  // pyramid session as rounds of work and rest, so they refuse version 3 data.
+  const VERSION=3;
   function prepare(raw){
     WorkoutStorage.enforceLimits(raw,{history:10000});
     if(raw?.app==='tabata'&&Number.isSafeInteger(raw.version)&&raw.version>VERSION)throw new Error('This backup is from a newer Tabata version. Update the app, then try again.');
-    if(!raw||raw.app!=='tabata'||![1,VERSION].includes(raw.version)||!Array.isArray(raw.history)||!Number.isSafeInteger(raw.updatedAt)||raw.updatedAt<0)throw new Error('Not a valid Tabata backup.');
+    if(!raw||raw.app!=='tabata'||![1,2,VERSION].includes(raw.version)||!Array.isArray(raw.history)||!Number.isSafeInteger(raw.updatedAt)||raw.updatedAt<0)throw new Error('Not a valid Tabata backup.');
     const ids=new Set();
     const history=raw.history.map(row=>{
       if(!row||typeof row.id!=='string'||!row.id||row.id.length>100||ids.has(row.id)||!['complete','ended'].includes(row.outcome))throw new Error('Invalid Tabata history.');

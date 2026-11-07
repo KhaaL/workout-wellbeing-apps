@@ -36,12 +36,32 @@ assert.throws(()=>S.prepare({...raw,history:[finished,finished]}),'Duplicate his
 assert.throws(()=>S.prepare({...raw,active:{...session,id:'finished'},history:[finished]}),'Active timer cannot duplicate history');
 // Instructions are optional settings text; version 1 data upgrades and newer data is refused.
 assert.equal(C.settings().instructions,'');assert.equal(S.prepare(raw).settings.instructions,'','Version 1 backups get empty instructions');
-assert.equal(S.prepare(raw).version,2,'Prepared data is version 2');
+assert.equal(S.prepare(raw).version,3,'Prepared data is version 3');
 const steps='# Circuit\n1. Burpees\n2. Squats';
 const withSteps=S.prepare({...raw,version:2,settings:{...config,instructions:steps}});
 assert.equal(withSteps.settings.instructions,steps);assert.equal(withSteps.active.config.instructions,undefined,'The running plan never copies instructions');
 assert.equal(C.settings({instructions:'x'.repeat(10000)}).instructions.length,10000);
 for(const instructions of ['x'.repeat(10001),42,['a']])assert.throws(()=>C.settings({instructions}),/Instructions must be text/);
-assert.throws(()=>S.prepare({...raw,version:3}),/newer Tabata version/);
+assert.throws(()=>S.prepare({...raw,version:4}),/newer Tabata version/);
+// Partner pyramid: swap calls alternate partners A and B, with no separate rest.
+assert.equal(C.config().mode,'intervals');assert.equal(C.config().ladder,undefined,'Interval sessions carry no ladder');
+assert.deepEqual(Array.from(C.settings().ladder),[30,30,45,45,60,60,45,45,30,30],'Settings remember the standard pyramid');
+const pyramid=C.config({mode:'pyramid',prepare:5});
+assert.deepEqual(Array.from(pyramid.ladder),[30,30,45,45,60,60,45,45,30,30]);
+assert.equal(C.duration(pyramid),425000,'Total is get-ready plus every swap call');assert.equal(C.intervals(pyramid),10);
+const swaps=C.start(pyramid,1000,'pyramid');
+for(const [time,kind,partner,swap,remaining,next,completed,key] of [
+  [1000,'prepare',undefined,1,5000,undefined,0,'prepare'],[6000,'work','A',1,30000,30000,0,'work-1'],[35999,'work','A',1,1,30000,0,'work-1'],
+  [36000,'work','B',2,30000,45000,1,'work-2'],[66000,'work','A',3,45000,45000,2,'work-3'],[156000,'work','A',5,60000,60000,4,'work-5'],
+  [396000,'work','B',10,30000,0,9,'work-10'],[426000,'complete',undefined,10,0,undefined,10,'complete']
+]){const s=C.snapshot(swaps,time);assert.deepEqual([s.kind,s.partner,s.round,s.remainingMs,s.nextMs,s.completedRounds,s.phaseKey],[kind,partner,swap,remaining,next,completed,key],'pyramid at '+time);}
+assert.deepEqual(Array.from(C.parseLadder('30 · 30 · 45,45  60')),[30,30,45,45,60]);
+for(const text of ['30','30 abc','30 0','30 3601','30 1.5',Array(41).fill(30).join(' ')])assert.throws(()=>C.parseLadder(text),undefined,text);
+for(const invalid of [{mode:'ladder'},{mode:'pyramid',ladder:[30]},{mode:'pyramid',ladder:'30 30'},{mode:'pyramid',ladder:[30,-1]}])assert.throws(()=>C.config(invalid));
+const pyramidRow={id:'pyramid',config:pyramid,startedAt:1000,elapsedMs:425000,outcome:'complete'};
+const v3=S.prepare({...raw,version:3,active:null,settings:{...config,mode:'pyramid',ladder:[20,20,40,40]},history:[pyramidRow]});
+assert.equal(v3.settings.mode,'pyramid');assert.deepEqual(Array.from(v3.settings.ladder),[20,20,40,40]);assert.equal(v3.history[0].config.ladder.length,10);
+assert.throws(()=>S.prepare({...raw,history:[{...pyramidRow,elapsedMs:235000}]}),/Invalid completed session/,'A completed pyramid must cover every swap call');
+assert.equal(S.prepare({...raw,active:C.start(pyramid,1000,'p')}).active.config.mode,'pyramid','A running pyramid survives a reload');
 for(const version of [0,'2',null])assert.throws(()=>S.prepare({...raw,version}),/Not a valid Tabata backup/);
-console.log('PASS Tabata: phase boundaries, delayed callbacks, zero rest, pause/resume, checkpoints, instructions and backup validation');
+console.log('PASS Tabata: phase boundaries, delayed callbacks, zero rest, pause/resume, checkpoints, instructions, partner pyramids and backup validation');
