@@ -55,11 +55,18 @@ test('clearing the last value removes the check-in, and clearing with none open 
   C.setNote(s,'',t0+1000,id);assert.equal(s.entries.length,0,'a note-only check-in goes with its note');
 });
 
-test('a symptom steps off, mild, moderate, severe, off',()=>{
-  const steps=[];let v=null;for(let i=0;i<4;i++){v=C.nextSeverity(v);steps.push(v);}
-  assert.deepEqual(steps,[1,2,3,null]);
-  assert.deepEqual(plain(C.SEVERITY),['Mild','Moderate','Severe']);
-  assert.equal(C.nextSeverity(0),1,'a chip treats gone as off');
+test('symptom rows hold recorded and ongoing symptoms in list order, and only removal clears one',()=>{
+  const s=fresh(),t0=at('2026-01-20T09:00:00+01:00');
+  assert.deepEqual(plain(C.symptomRows(s,t0)),[]);
+  C.setValue(s,'nausea',1,t0,id);C.setValue(s,'headache',3,t0,id);
+  let rows=C.symptomRows(s,t0+60000);
+  assert.deepEqual(plain(rows.map(r=>[r.item.id,r.value,r.last])),[['headache',3,null],['nausea',1,null]],'new in this check-in, so no last record');
+  const next=t0+86400000;C.setValue(s,'fatigue',2,next,id);
+  rows=C.symptomRows(s,next+60000);
+  assert.deepEqual(plain(rows.map(r=>[r.item.id,r.value??null,r.last?.value??null])),[['headache',null,3],['fatigue',2,null],['nausea',null,1]],'ongoing rows carry the last record');
+  C.setValue(s,'fatigue',null,next+120000,id);
+  assert.deepEqual(plain(C.symptomRows(s,next+180000).map(r=>r.item.id)),['headache','nausea'],'a removed new symptom leaves the rows');
+  assert.deepEqual(plain(C.SEVERITY),['Mild','Moderate','Severe']);assert.deepEqual(plain(C.LEVELS),['Gone','Mild','Moderate','Severe']);
 });
 
 test('values outside each kind’s range are refused',()=>{

@@ -81,16 +81,18 @@ Check-in records mood and symptoms in a few taps. Today shows a 1 to 5 mood row
 (Very low to Very good) and a chip per symptom. Every tap saves at once, with
 Undo in the toast.
 
-- **Symptoms:** one tap marks a symptom mild, the next moderate, then severe,
-  then off. A symptom with no tap is not recorded, and Check-in never counts it
-  as absent.
+- **Symptoms:** tapping a chip records the symptom as mild and moves it to a
+  row of levels (Mild, Moderate, Severe). Tapping a level sets it; tapping the
+  chosen level changes nothing, so trying levels never removes the symptom.
+  Only **×** on the row removes it from the check-in, with Undo. A symptom with
+  no tap is not recorded, and Check-in never counts it as absent.
 - **One sitting, one check-in:** taps within 30 minutes of a check-in's start
   update it (adjustable from 0 to 240 minutes). Later taps start a new one.
   Tapping the chosen mood again clears it, and a check-in with nothing left is
   removed.
 - **Ongoing symptoms:** a symptom recorded mild or worse in the last 7 days
-  moves from the chips to the Ongoing row. The row shows Gone, Mild, Moderate
-  and Severe with the last level outlined, so one tap records today's level.
+  keeps its row in later check-ins. The row adds Gone and outlines the last
+  level, so one tap records today's level.
   Gone ends it. The row notes when the run started; a gone record or a gap of
   7 days starts a new run. Runs are worked out from the check-ins, with no
   separate record.
