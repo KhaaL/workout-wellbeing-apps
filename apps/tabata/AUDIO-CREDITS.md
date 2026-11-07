@@ -17,3 +17,9 @@ https://cdn.freesound.org/previews/66/66952_634166-hq.mp3
 
 The title, author, source, license and modifications are also credited in Settings.
 No endorsement by the recording's author is implied.
+
+# Whistle
+
+The start whistle is synthesized with the Web Audio API at play time and uses
+no recording: a 2.8 kHz tone whose pitch and level flutter at 32 Hz for 0.6
+seconds.

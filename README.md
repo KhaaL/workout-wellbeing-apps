@@ -124,19 +124,23 @@ Tabata is a separate mobile interval timer. Set work/rest seconds and round coun
 with large touch steppers or the numeric keyboard, or choose a quick setup.
 The last setup is remembered. Settings includes an optional get-ready countdown,
 sound cues, screen stay-awake and the same appearance themes as the other apps.
-Work/rest/end cues use a bundled recording of a real boxing bell; Settings →
-**Test bell** previews it without starting a session. Attribution and processing
-notes are in [Tabata audio credits](apps/tabata/AUDIO-CREDITS.md).
+A whistle starts each work interval and swap call. One bell strike marks a rest
+or a pause, and three strikes end the session. The whistle is synthesized with
+Web Audio; the bell is a bundled recording of a real boxing bell. Settings →
+**Test bell** and **Test whistle** preview them without starting a session.
+Attribution and processing notes are in
+[Tabata audio credits](apps/tabata/AUDIO-CREDITS.md).
 The total includes preparation and rests between rounds, with no final rest.
 
 The setup's **Timer** choice switches between **Work & rest** and **Partner
-pyramid**. A pyramid is a list of swap calls in seconds, standard
-`30 · 30 · 45 · 45 · 60 · 60 · 45 · 45 · 30 · 30`. Partners alternate: Partner A
-takes odd calls, Partner B even calls, so one partner's turn is the other's
-rest. One bell strike calls each swap, and the run screen shows the active
-partner, the swap number and the next call. Spaces, commas or `·` separate
-the calls; 2 to 40 calls of 1 to 3600 seconds each are accepted. Both setups
-are remembered, and cues for the drill itself belong in **Instructions**.
+pyramid**. A pyramid is a comma separated list of swap calls in seconds,
+standard `30, 30, 45, 45, 60, 60, 45, 45, 30, 30`. Partners alternate: Partner
+A takes odd calls, Partner B even calls, so one partner's turn is the other's
+rest. An optional **Rest between calls** (default 0 s) follows every call
+except the last, and both partners rest. The run screen shows the active
+partner, the swap number and the next call or rest. 2 to 40 calls of 1 to
+3600 seconds each are accepted. Both setups are remembered, and cues for the
+drill itself belong in **Instructions**.
 
 During a session, large digits show the current interval, round and remaining
 workout time. Pause/Resume and End stay within reach; ending asks for confirmation

@@ -26,7 +26,7 @@
   function fillSetup(){
     for(const key of ['work','rest','rounds'])$(key).value=storage.state.settings[key];
     for(const radio of document.querySelectorAll('input[name=mode]'))radio.checked=radio.value===storage.state.settings.mode;
-    $('ladder').value=formatLadder(storage.state.settings.ladder);renderMode();
+    $('ladder').value=formatLadder(storage.state.settings.ladder);$('ladderRest').value=storage.state.settings.ladderRest;renderMode();
     $('instructions').value=storage.state.settings.instructions;WorkoutMarkdown.setPreview($('instructionsPreview'),$('instructions'),$('instructions-preview'),false);
     renderPresets();renderPlan();renderInstructions();
   }
@@ -45,7 +45,7 @@
       }
     }
   }
-  const formatLadder=ladder=>ladder.join(' · ');
+  const formatLadder=ladder=>ladder.join(', ');
   function setupMode(){return document.querySelector('input[name=mode]:checked')?.value||'intervals';}
   // Hidden fields are disabled so the form validates only the visible mode.
   function renderMode(){
@@ -56,14 +56,14 @@
   }
   function readSetup(){
     // The mode that is not shown keeps its saved values.
-    if(setupMode()==='pyramid')return C.config({...storage.state.settings,mode:'pyramid',ladder:C.parseLadder($('ladder').value)});
+    if(setupMode()==='pyramid')return C.config({...storage.state.settings,mode:'pyramid',ladder:C.parseLadder($('ladder').value),ladderRest:$('ladderRest').valueAsNumber});
     return C.config({...storage.state.settings,mode:'intervals',...Object.fromEntries(['work','rest','rounds'].map(key=>[key,$(key).valueAsNumber]))});
   }
   function planText(c){
     const ready=c.prepare?c.prepare+'s to get ready · ':'';
     if(c.mode!=='pyramid')return `${ready}${c.rounds} × ${c.work}s work${c.rest?' / '+c.rest+'s rest':' · no rest'}. No rest after the final round.`;
     const turns=partner=>format(c.ladder.filter((_,index)=>index%2===partner).reduce((total,value)=>total+value,0)*1000);
-    return `${ready}${c.ladder.length} swap calls. Partner A works ${turns(0)}, Partner B works ${turns(1)}.`;
+    return `${ready}${c.ladder.length} swap calls${c.ladderRest?' / '+c.ladderRest+'s rest':''}. Partner A works ${turns(0)}, Partner B works ${turns(1)}.`;
   }
   function renderPlan(){
     for(const key of ['work','rest'])for(const button of $(key+'Presets').querySelectorAll('button'))button.setAttribute('aria-pressed',String($(key).valueAsNumber===Number(button.dataset.seconds)));
@@ -135,8 +135,26 @@
       return true;
     }catch(error){$('audioStatus').textContent='Sound unavailable. Follow the on-screen timer.';return false;}
   }
+  // A pea whistle: a high tone whose pitch and level flutter as the pea spins.
+  function whistle(preview=false,onEnded){
+    if(!preview&&(!active()?.config.sound||document.hidden))return true;
+    if(!audio||audio.state!=='running')return false;
+    try{
+      const at=audio.currentTime+.01,end=at+.6,tone=audio.createOscillator(),trill=audio.createOscillator(),flutter=audio.createOscillator();
+      const depth=audio.createGain(),flutterDepth=audio.createGain(),body=audio.createGain(),out=audio.createGain(),sources=[trill,flutter,tone];
+      tone.type='sine';tone.frequency.value=2800;trill.frequency.value=32;flutter.frequency.value=32;
+      depth.gain.value=160;flutterDepth.gain.value=.25;body.gain.value=.75;
+      out.gain.setValueAtTime(.001,at);out.gain.linearRampToValueAtTime(.35,at+.03);out.gain.setValueAtTime(.35,end-.08);out.gain.exponentialRampToValueAtTime(.001,end);
+      trill.connect(depth);depth.connect(tone.frequency);flutter.connect(flutterDepth);flutterDepth.connect(body.gain);
+      tone.connect(body);body.connect(out);out.connect(audio.destination);
+      tone.onended=()=>{for(const node of [...sources,depth,flutterDepth,body,out]){bellSources.delete(node);node.disconnect();}onEnded?.();};
+      for(const source of sources){bellSources.add(source);source.start(at);source.stop(end);}
+      return true;
+    }catch(error){$('audioStatus').textContent='Sound unavailable. Follow the on-screen timer.';return false;}
+  }
+  // Whistle starts work, one bell strike marks a rest or pause, three end the session.
   function soundCue(kind){
-    return kind==='prepare'?beep(660,.12):boxingBell(kind==='work'?1:kind==='rest'?2:3);
+    return kind==='prepare'?beep(660,.12):kind==='work'?whistle():boxingBell(kind==='rest'||kind==='pause'?1:3);
   }
   async function releaseWake(){
     const previous=wake;wake=null;if(previous)try{await previous.release();}catch(error){}
@@ -182,15 +200,15 @@
     const session=active();if(!session)return;
     const now=Date.now(),s=C.snapshot(session,now),paused=session.status==='paused';
     if(s.kind==='complete'){finish('complete');return;}
-    const c=session.config,pyramid=c.mode==='pyramid',label=s.partner?'Partner '+s.partner:names[s.kind];
+    const c=session.config,pyramid=c.mode==='pyramid',label=s.partner?'Partner '+s.partner:names[s.kind],nextCall=()=>`Next: Partner ${s.nextPartner} · ${s.nextMs/1000}s`;
     const phaseText=paused?'Paused · '+label:label;
     if($('phaseName').textContent!==phaseText)$('phaseName').textContent=phaseText;
     $('timerPanel').dataset.phase=s.kind;$('timerPanel').dataset.partner=s.partner||'';$('timerPanel').dataset.paused=String(paused);
     $('clock').textContent=format(s.remainingMs);
-    $('roundLabel').textContent=pyramid?`Swap ${s.round} of ${c.ladder.length} · ${c.ladder[s.round-1]}s`:`Round ${s.round} of ${c.rounds}`;
+    $('roundLabel').textContent=pyramid?s.kind==='rest'?`After swap ${s.round} of ${c.ladder.length}`:`Swap ${s.round} of ${c.ladder.length} · ${c.ladder[s.round-1]}s`:`Round ${s.round} of ${c.rounds}`;
     $('progress').value=s.elapsedMs/s.totalMs;$('remainingTotal').textContent=format(s.totalMs-s.elapsedMs)+' total left';
     $('nextPhase').textContent=pyramid
-      ?s.kind==='prepare'?`Next: Partner A · ${c.ladder[0]}s`:s.nextMs?`Next: Partner ${s.partner==='A'?'B':'A'} · ${s.nextMs/1000}s`:'Next: Finish'
+      ?s.kind==='prepare'?`Next: Partner A · ${c.ladder[0]}s`:s.kind==='rest'?nextCall():!s.nextMs?'Next: Finish':c.ladderRest?`Next: Rest · ${c.ladderRest}s`:nextCall()
       :s.kind==='prepare'?'Next: Work':s.kind==='work'?s.round===c.rounds?'Next: Finish':c.rest?'Next: Rest':'Next: Work':'Next: Work';
     $('pause').textContent=paused?'Resume':'Pause';
     const seconds=Math.ceil(s.remainingMs/1000),cue=s.phaseKey+'-'+seconds;
@@ -205,7 +223,7 @@
   function pauseOrResume(){
     if(!active())return;
     $('recovered').hidden=true;
-    if(active().status==='running'){storage.state.active=C.pause(active(),Date.now());stopBells();}
+    if(active().status==='running'){storage.state.active=C.pause(active(),Date.now());stopBells();soundCue('pause');}
     else{storage.state.active=C.resume(active(),Date.now());primeAudio();lastPhase='';lastCue='';}
     checkpoint();requestWake();renderTimer();
   }
@@ -238,7 +256,7 @@
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>WorkoutUI.applyTheme(themeSelect.value));
   WorkoutUI.attachSteppers($('setupForm'));WorkoutUI.attachSteppers($('settings'));
   fillSetup();fillSettings();localStatus();
-  for(const key of ['work','rest','rounds','ladder']){$(key).addEventListener('input',renderPlan);$(key).addEventListener('change',saveSetup);}
+  for(const key of ['work','rest','rounds','ladder','ladderRest']){$(key).addEventListener('input',renderPlan);$(key).addEventListener('change',saveSetup);}
   for(const radio of document.querySelectorAll('input[name=mode]'))radio.addEventListener('change',()=>{renderMode();saveSetup();});
   $('standardLadder').addEventListener('click',()=>{$('ladder').value=formatLadder(C.pyramidDefault);saveSetup();});
   $('presetForm').addEventListener('submit',event=>{
@@ -258,14 +276,15 @@
     if(!$('prepare').reportValidity())return;
     storage.state.settings=C.settings({...storage.state.settings,prepare:$('prepare').valueAsNumber,sound:$('sound').checked,keepAwake:$('keepAwake').checked});storage.save();renderPlan();
   });
-  $('testBell').addEventListener('click',async()=>{
-    $('testBell').disabled=true;$('bellTestStatus').textContent='Loading bell…';
-    const done=()=>{$('testBell').disabled=false;$('bellTestStatus').textContent='Bell preview finished.';};
+  for(const [id,name,play,playing] of [['testBell','Bell',boxingBell.bind(null,1),'Playing the recorded boxing bell.'],['testWhistle','Whistle',whistle,'Playing the whistle.']])$(id).addEventListener('click',async()=>{
+    const buttons=[$('testBell'),$('testWhistle')],enable=()=>{for(const button of buttons)button.disabled=false;};
+    for(const button of buttons)button.disabled=true;$('bellTestStatus').textContent='Loading sound…';
+    const done=()=>{enable();$('bellTestStatus').textContent=name+' preview finished.';};
     try{
       await readyAudio();stopBells();
-      if(!boxingBell(1,true,done))throw new Error('Playback unavailable');
-      $('bellTestStatus').textContent='Playing the recorded boxing bell.';
-    }catch(error){$('testBell').disabled=false;$('bellTestStatus').textContent='Sound unavailable. Check your browser audio settings.';}
+      if(!play(true,done))throw new Error('Playback unavailable');
+      $('bellTestStatus').textContent=playing;
+    }catch(error){enable();$('bellTestStatus').textContent='Sound unavailable. Check your browser audio settings.';}
   });
   $('instructions').maxLength=WorkoutMarkdown.MAX_LENGTH;
   $('instructions').addEventListener('input',saveInstructions);
