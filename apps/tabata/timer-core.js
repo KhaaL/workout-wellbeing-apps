@@ -3,6 +3,8 @@
 const TabataTimer = (() => {
   const defaults={work:60,rest:3,rounds:8,prepare:5,sound:true,keepAwake:true};
   const presetDefaults={workPresets:[60,150,180],restPresets:[3,60,120]};
+  // A pyramid is a list of swap calls: partners alternate, so one partner's turn is the other's rest.
+  const pyramidDefault=[30,30,45,45,60,60,45,45,30,30],PYRAMID_MIN=2,PYRAMID_MAX=40;
   function integer(value,label,min,max){
     if(!Number.isSafeInteger(value)||value<min||value>max)throw new Error(`${label} must be a whole number from ${min} to ${max}.`);
     return value;
@@ -15,11 +17,31 @@ const TabataTimer = (() => {
       if(raw[name]!=null&&typeof raw[name]!=='boolean')throw new Error('Invalid '+name+' setting.');
       result[name]=raw[name]??defaults[name];
     }
+    const mode=raw.mode??'intervals';
+    if(!['intervals','pyramid'].includes(mode))throw new Error('Invalid timer mode.');
+    result.mode=mode;
+    // Interval sessions carry no ladder, so their history rows stay unchanged.
+    if(mode==='pyramid')result.ladder=ladder(raw.ladder??pyramidDefault);
     return result;
   }
-  function duration(c){return (c.prepare+c.rounds*c.work+(c.rounds-1)*c.rest)*1000;}
+  function ladder(values){
+    if(!Array.isArray(values)||values.length<PYRAMID_MIN||values.length>PYRAMID_MAX)throw new Error(`Enter ${PYRAMID_MIN} to ${PYRAMID_MAX} swap calls.`);
+    return values.map(value=>integer(value,'Each swap call',1,3600));
+  }
+  // Accepts "30 · 30 · 45", "30, 30, 45" or "30 30 45".
+  function parseLadder(text){
+    const parts=String(text).split(/[\s,;·/]+/).filter(Boolean);
+    if(parts.some(part=>!/^\d+$/.test(part)))throw new Error('Swap calls are whole seconds separated by spaces or commas.');
+    return ladder(parts.map(Number));
+  }
+  function sum(values){return values.reduce((total,value)=>total+value,0);}
+  function duration(c){return (c.prepare+(c.mode==='pyramid'?sum(c.ladder):c.rounds*c.work+(c.rounds-1)*c.rest))*1000;}
+  // Number of intervals a finished or ended session reports: rounds, or swap calls in a pyramid.
+  function intervals(c){return c.mode==='pyramid'?c.ladder.length:c.rounds;}
   function settings(raw={}){
     const result=config(raw);
+    // The setup remembers its last ladder while the timer is in interval mode.
+    result.ladder=result.ladder??ladder(raw.ladder??pyramidDefault);
     for(const [name,min] of [['workPresets',1],['restPresets',0]]){
       const values=raw[name]??presetDefaults[name];
       if(!Array.isArray(values)||values.length!==3)throw new Error('Provide three '+(name==='workPresets'?'work':'rest')+' presets.');
@@ -34,8 +56,15 @@ const TabataTimer = (() => {
   function elapsed(session,now){return Math.min(duration(session.config),Math.max(0,session.elapsedMs+(session.status==='running'?Math.max(0,now-session.anchorAt):0)));}
   function snapshot(session,now){
     const c=session.config,ms=elapsed(session,now),total=duration(c);
-    if(ms>=total)return {kind:'complete',round:c.rounds,remainingMs:0,elapsedMs:total,totalMs:total,completedRounds:c.rounds,phaseKey:'complete'};
+    if(ms>=total)return {kind:'complete',round:intervals(c),remainingMs:0,elapsedMs:total,totalMs:total,completedRounds:intervals(c),phaseKey:'complete'};
     if(ms<c.prepare*1000)return {kind:'prepare',round:1,remainingMs:c.prepare*1000-ms,elapsedMs:ms,totalMs:total,completedRounds:0,phaseKey:'prepare'};
+    if(c.mode==='pyramid'){
+      // Every swap call is a work interval for one partner: A takes odd calls, B even calls.
+      let left=ms-c.prepare*1000,index=0;
+      while(left>=c.ladder[index]*1000){left-=c.ladder[index]*1000;index++;}
+      return {kind:'work',partner:index%2?'B':'A',round:index+1,intervalMs:c.ladder[index]*1000,nextMs:index+1<c.ladder.length?c.ladder[index+1]*1000:0,
+        remainingMs:c.ladder[index]*1000-left,elapsedMs:ms,totalMs:total,completedRounds:index,phaseKey:'work-'+(index+1)};
+    }
     const training=ms-c.prepare*1000,cycle=(c.work+c.rest)*1000,round=Math.floor(training/cycle)+1,inCycle=training%cycle;
     const kind=inCycle<c.work*1000?'work':'rest';
     return {kind,round,remainingMs:(kind==='work'?c.work*1000:cycle)-inCycle,elapsedMs:ms,totalMs:total,
@@ -53,5 +82,5 @@ const TabataTimer = (() => {
     if(raw.status==='running')integer(raw.anchorAt,'Timer timestamp',1,8640000000000000);
     return {id:raw.id,config:c,startedAt:raw.startedAt,elapsedMs:raw.elapsedMs,anchorAt:raw.status==='running'?raw.anchorAt:null,status:raw.status};
   }
-  return {defaults,settings,config,duration,elapsed,snapshot,start,pause,resume,checkpoint,validateSession};
+  return {defaults,pyramidDefault,settings,config,parseLadder,intervals,duration,elapsed,snapshot,start,pause,resume,checkpoint,validateSession};
 })();

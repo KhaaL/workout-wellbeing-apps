@@ -25,6 +25,8 @@
   function active(){return storage.state.active;}
   function fillSetup(){
     for(const key of ['work','rest','rounds'])$(key).value=storage.state.settings[key];
+    for(const radio of document.querySelectorAll('input[name=mode]'))radio.checked=radio.value===storage.state.settings.mode;
+    $('ladder').value=formatLadder(storage.state.settings.ladder);renderMode();
     $('instructions').value=storage.state.settings.instructions;WorkoutMarkdown.setPreview($('instructionsPreview'),$('instructions'),$('instructions-preview'),false);
     renderPresets();renderPlan();renderInstructions();
   }
@@ -43,11 +45,34 @@
       }
     }
   }
-  function readSetup(){return C.config({...storage.state.settings,...Object.fromEntries(['work','rest','rounds'].map(key=>[key,$(key).valueAsNumber]))});}
+  const formatLadder=ladder=>ladder.join(' · ');
+  function setupMode(){return document.querySelector('input[name=mode]:checked')?.value||'intervals';}
+  // Hidden fields are disabled so the form validates only the visible mode.
+  function renderMode(){
+    for(const field of document.querySelectorAll('#setup [data-mode]')){
+      const shown=field.dataset.mode===setupMode();field.hidden=!shown;
+      for(const input of field.querySelectorAll('input'))input.disabled=!shown;
+    }
+  }
+  function readSetup(){
+    // The mode that is not shown keeps its saved values.
+    if(setupMode()==='pyramid')return C.config({...storage.state.settings,mode:'pyramid',ladder:C.parseLadder($('ladder').value)});
+    return C.config({...storage.state.settings,mode:'intervals',...Object.fromEntries(['work','rest','rounds'].map(key=>[key,$(key).valueAsNumber]))});
+  }
+  function planText(c){
+    const ready=c.prepare?c.prepare+'s to get ready · ':'';
+    if(c.mode!=='pyramid')return `${ready}${c.rounds} × ${c.work}s work${c.rest?' / '+c.rest+'s rest':' · no rest'}. No rest after the final round.`;
+    const turns=partner=>format(c.ladder.filter((_,index)=>index%2===partner).reduce((total,value)=>total+value,0)*1000);
+    return `${ready}${c.ladder.length} swap calls. Partner A works ${turns(0)}, Partner B works ${turns(1)}.`;
+  }
   function renderPlan(){
     for(const key of ['work','rest'])for(const button of $(key+'Presets').querySelectorAll('button'))button.setAttribute('aria-pressed',String($(key).valueAsNumber===Number(button.dataset.seconds)));
-    try{const c=readSetup();$('totalTime').textContent=format(C.duration(c));$('planHint').textContent=`${c.prepare?c.prepare+'s to get ready · ':''}${c.rounds} × ${c.work}s work${c.rest?' / '+c.rest+'s rest':' · no rest'}. No rest after the final round.`;$('start').disabled=!!active();}
-    catch(error){$('totalTime').textContent='—';$('planHint').textContent=error.message;$('start').disabled=true;}
+    $('ladder').setCustomValidity('');
+    try{const c=readSetup();$('totalTime').textContent=format(C.duration(c));$('planHint').textContent=planText(c);$('start').disabled=!!active();}
+    catch(error){
+      if(setupMode()==='pyramid')$('ladder').setCustomValidity(error.message);
+      $('totalTime').textContent='—';$('planHint').textContent=error.message;$('start').disabled=true;
+    }
   }
   function saveSetup(){
     renderPlan();if(!$('setupForm').checkValidity())return;
@@ -149,7 +174,7 @@
     storage.state.history=[lastResult,...storage.state.history];storage.state.active=null;
     const saved=storage.save();releaseWake();
     $('completeTitle').textContent=outcome==='complete'?'Nicely done.':'Session ended';
-    $('completeSummary').textContent=`${C.snapshot({...session,elapsedMs,anchorAt:null,status:'paused'},Date.now()).completedRounds} of ${session.config.rounds} rounds · ${format(elapsedMs)} total`;
+    $('completeSummary').textContent=`${C.snapshot({...session,elapsedMs,anchorAt:null,status:'paused'},Date.now()).completedRounds} of ${C.intervals(session.config)} ${session.config.mode==='pyramid'?'swap calls':'rounds'} · ${format(elapsedMs)} total`;
     $('completeSaveStatus').textContent=saved?'Session saved on this device.':'Session is in memory only. Download a backup before closing.';
     fillSetup();navigate('complete');$('again').focus();
   }
@@ -157,12 +182,16 @@
     const session=active();if(!session)return;
     const now=Date.now(),s=C.snapshot(session,now),paused=session.status==='paused';
     if(s.kind==='complete'){finish('complete');return;}
-    const phaseText=paused?'Paused · '+names[s.kind]:names[s.kind];
+    const c=session.config,pyramid=c.mode==='pyramid',label=s.partner?'Partner '+s.partner:names[s.kind];
+    const phaseText=paused?'Paused · '+label:label;
     if($('phaseName').textContent!==phaseText)$('phaseName').textContent=phaseText;
-    $('timerPanel').dataset.phase=s.kind;$('timerPanel').dataset.paused=String(paused);
-    $('clock').textContent=format(s.remainingMs);$('roundLabel').textContent=`Round ${s.round} of ${session.config.rounds}`;
+    $('timerPanel').dataset.phase=s.kind;$('timerPanel').dataset.partner=s.partner||'';$('timerPanel').dataset.paused=String(paused);
+    $('clock').textContent=format(s.remainingMs);
+    $('roundLabel').textContent=pyramid?`Swap ${s.round} of ${c.ladder.length} · ${c.ladder[s.round-1]}s`:`Round ${s.round} of ${c.rounds}`;
     $('progress').value=s.elapsedMs/s.totalMs;$('remainingTotal').textContent=format(s.totalMs-s.elapsedMs)+' total left';
-    $('nextPhase').textContent=s.kind==='prepare'?'Next: Work':s.kind==='work'?s.round===session.config.rounds?'Next: Finish':session.config.rest?'Next: Rest':'Next: Work':'Next: Work';
+    $('nextPhase').textContent=pyramid
+      ?s.kind==='prepare'?`Next: Partner A · ${c.ladder[0]}s`:s.nextMs?`Next: Partner ${s.partner==='A'?'B':'A'} · ${s.nextMs/1000}s`:'Next: Finish'
+      :s.kind==='prepare'?'Next: Work':s.kind==='work'?s.round===c.rounds?'Next: Finish':c.rest?'Next: Rest':'Next: Work':'Next: Work';
     $('pause').textContent=paused?'Resume':'Pause';
     const seconds=Math.ceil(s.remainingMs/1000),cue=s.phaseKey+'-'+seconds;
     if(!paused){
@@ -171,7 +200,7 @@
       lastCue=cue;
       if(lastSavedPhase!==s.phaseKey||now-lastCheckpoint>=5000){lastSavedPhase=s.phaseKey;checkpoint();}
     }
-    document.title=`${paused?'Paused':names[s.kind]} ${format(s.remainingMs)} · Tabata`;
+    document.title=`${paused?'Paused':label} ${format(s.remainingMs)} · Tabata`;
   }
   function pauseOrResume(){
     if(!active())return;
@@ -209,7 +238,9 @@
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>WorkoutUI.applyTheme(themeSelect.value));
   WorkoutUI.attachSteppers($('setupForm'));WorkoutUI.attachSteppers($('settings'));
   fillSetup();fillSettings();localStatus();
-  for(const key of ['work','rest','rounds']){$(key).addEventListener('input',renderPlan);$(key).addEventListener('change',saveSetup);}
+  for(const key of ['work','rest','rounds','ladder']){$(key).addEventListener('input',renderPlan);$(key).addEventListener('change',saveSetup);}
+  for(const radio of document.querySelectorAll('input[name=mode]'))radio.addEventListener('change',()=>{renderMode();saveSetup();});
+  $('standardLadder').addEventListener('click',()=>{$('ladder').value=formatLadder(C.pyramidDefault);saveSetup();});
   $('presetForm').addEventListener('submit',event=>{
     event.preventDefault();if(!$('presetForm').reportValidity())return;
     try{

@@ -24,7 +24,7 @@ const steps='# Circuit\nTwo moves, alternate each round.\n\n1. **Burpees**\n   -
     assert.equal(await box.getAttribute('maxlength'),'10000');
     await box.fill(steps);
     assert.equal(await page.textContent('#instructionsState'),'Added');
-    assert.equal((await saved()).settings.instructions,steps,'typing saves the instructions');assert.equal((await saved()).version,2);
+    assert.equal((await saved()).settings.instructions,steps,'typing saves the instructions');assert.equal((await saved()).version,3);
     await toggle.click();
     assert.equal(await box.isVisible(),false);assert.equal(await preview.isVisible(),true);
     assert.match(await preview.innerHTML(),/<h3>Circuit<\/h3><p>Two moves, alternate each round\.<\/p><ol><li><strong>Burpees<\/strong><ul><li>chest to floor<\/li><\/ul><\/li><li>Jump squats<\/li><\/ol>/);
