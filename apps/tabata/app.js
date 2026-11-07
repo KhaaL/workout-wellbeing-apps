@@ -136,7 +136,7 @@
       return true;
     }catch(error){$('audioStatus').textContent='Sound unavailable. Follow the on-screen timer.';return false;}
   }
-  // Plays the rendered pea whistle sample once.
+  // Plays the recorded referee whistle once.
   function whistle(preview=false,onEnded){
     if(!preview&&(!active()?.config.sound||document.hidden))return true;
     if(!audio||audio.state!=='running'||!whistleBuffer)return false;

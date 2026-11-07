@@ -125,11 +125,11 @@ with large touch steppers or the numeric keyboard, or choose a quick setup.
 The last setup is remembered. Settings includes an optional get-ready countdown,
 sound cues, screen stay-awake and the same appearance themes as the other apps.
 A whistle starts each work interval and pyramid set. One bell strike marks a
-rest or a pause, and three strikes end the session. The whistle is a pea
-whistle rendered by `scripts/tabata-whistle.mjs`; the bell is a bundled
-recording of a real boxing bell. Settings → **Test bell** and **Test whistle**
-preview them without starting a session. Attribution and processing notes are
-in [Tabata audio credits](apps/tabata/AUDIO-CREDITS.md).
+rest or a pause, and three strikes end the session. Both are bundled
+recordings: a referee whistle blown in a gymnasium and a real boxing bell.
+Settings → **Test bell** and **Test whistle** preview them without starting a
+session. Sources, licences and processing notes are in
+[Tabata audio credits](apps/tabata/AUDIO-CREDITS.md).
 The total includes preparation and rests between rounds, with no final rest.
 
 The setup's **Timer** choice switches between **Work & rest** and **Partner
