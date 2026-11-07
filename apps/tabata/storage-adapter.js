@@ -4,7 +4,7 @@ const TabataStorage = (() => {
   const namespace='tabata.v1',key='tabata.state.v1';
   // Version 2 adds settings.instructions. Version 1 apps rebuild settings from the
   // fields they know and would drop the text, so they refuse version 2 data.
-  // Version 3 adds the pyramid mode and its swap calls. Version 2 apps would read a
+  // Version 3 adds the pyramid mode and its sets. Version 2 apps would read a
   // pyramid session as rounds of work and rest, so they refuse version 3 data.
   const VERSION=3;
   function prepare(raw){

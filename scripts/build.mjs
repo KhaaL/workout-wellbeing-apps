@@ -27,7 +27,7 @@ const appModules={
     ['bluetooth.js','bike-bluetooth'],['plans.js','bike-plans'],['workout-core.js','bike-workout-core'],['history.js','bike-history']
   ],
   liftlog:[['controllers/exercises.js','liftlog-exercises-controller'],['controllers/routines.js','liftlog-routines-controller'],['controllers/workout.js','liftlog-workout-controller'],['storage-adapter.js','liftlog-storage-adapter'],['screens/settings.js','liftlog-settings-screen'],['comparisons.js','liftlog-comparisons']],
-  tabata:[['bell-audio.js','tabata-bell-audio'],['timer-core.js','tabata-timer-core'],['storage-adapter.js','tabata-storage-adapter'],['app.js','tabata-app']],
+  tabata:[['bell-audio.js','tabata-bell-audio'],['whistle-audio.js','tabata-whistle-audio'],['timer-core.js','tabata-timer-core'],['storage-adapter.js','tabata-storage-adapter'],['app.js','tabata-app']],
   foodlog:[['food-core.js','foodlog-core'],['storage-adapter.js','foodlog-storage-adapter'],['app.js','foodlog-app']],
   checkin:[['checkin-core.js','checkin-core'],['storage-adapter.js','checkin-storage-adapter'],['app.js','checkin-app']]
 };

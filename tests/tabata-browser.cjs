@@ -115,12 +115,13 @@ const csp=require('./shared/site-headers.cjs').csp('tabata');
     const sounds=await browser.newContext({serviceWorkers:'block'}),soundPage=await sounds.newPage();
     const soundErrors=[];soundPage.on('pageerror',error=>soundErrors.push(error.message));
     await sounds.addInitScript(()=>{
-      window.tones=[];window.bells=[];
+      window.tones=[];window.bells=[];window.whistles=[];window.decoded=[];
       window.AudioContext=class {
         constructor(){this.state='suspended';this.currentTime=0;this.destination={};}
         resume(){return new Promise(resolve=>{window.resumeAudio=()=>{this.state='running';resolve();};});}
-        decodeAudioData(bytes){window.sampleBytes=bytes.byteLength;return Promise.resolve({duration:3});}
-        createBufferSource(){const bell={};let timer;const source={connect(){},disconnect(){},start(at){bell.at=at;window.bells.push(bell);timer=setTimeout(()=>source.onended?.(),(at+3)*1000);},stop(){clearTimeout(timer);source.onended?.();}};return source;}
+        // The app decodes the bell first, then the whistle.
+        decodeAudioData(bytes){const name=window.decoded.length?'whistle':'bell';window.decoded.push({name,bytes:bytes.byteLength});return Promise.resolve({name,duration:name==='bell'?3:.9});}
+        createBufferSource(){let timer;const source={connect(){},disconnect(){},start(at){(source.buffer.name==='bell'?window.bells:window.whistles).push({at});timer=setTimeout(()=>source.onended?.(),(at+source.buffer.duration)*1000);},stop(){clearTimeout(timer);source.onended?.();}};return source;}
         createOscillator(){const tone={};let timer;const oscillator={frequency:{set value(value){tone.frequency=value;}},connect(){},disconnect(){},start(at){tone.at=at;window.tones.push(tone);},stop(at){tone.end=at;clearTimeout(timer);timer=setTimeout(()=>oscillator.onended?.(),(at||0)*1000);}};return oscillator;}
         createGain(){return {gain:{setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){}},connect(){},disconnect(){}};}
       };
@@ -130,11 +131,11 @@ const csp=require('./shared/site-headers.cjs').csp('tabata');
     await soundPage.clock.install({time:new Date('2026-01-01T12:00:00Z')});await soundPage.clock.pauseAt(new Date('2026-01-01T12:00:01Z'));
     await soundPage.goto('https://sound.test/');await soundPage.click('#start');assert.equal(await soundPage.evaluate(()=>window.tones.length),0);
     await soundPage.evaluate(()=>window.resumeAudio());assert.deepEqual(await soundPage.evaluate(()=>window.tones.map(t=>t.frequency)),[660],'Preparation cue waits for audio resume');
-    const cues=()=>soundPage.evaluate(()=>({whistles:window.tones.filter(t=>t.frequency===2800).length,ticks:window.tones.filter(t=>t.frequency===660).length,bells:window.bells.length}));
+    const cues=()=>soundPage.evaluate(()=>({whistles:window.whistles.length,ticks:window.tones.filter(t=>t.frequency===660).length,bells:window.bells.length}));
     await soundPage.clock.fastForward(1000);
     assert.deepEqual(await cues(),{whistles:1,ticks:1,bells:0},'A whistle starts work');
-    assert.deepEqual(await soundPage.evaluate(()=>window.tones.filter(t=>t.frequency===32).length),2,'The whistle trills its pitch and level');
-    assert.ok(await soundPage.evaluate(()=>window.sampleBytes)>10000,'A recorded audio sample is decoded');
+    const decoded=await soundPage.evaluate(()=>window.decoded);
+    assert.deepEqual(decoded.map(d=>d.name),['bell','whistle']);assert.ok(decoded.every(d=>d.bytes>10000),'Both embedded samples are decoded');
     await soundPage.clock.fastForward(1000);assert.equal(await soundPage.evaluate(()=>window.tones.at(-1).frequency),660,'Countdown tick');
     await soundPage.click('#pause');assert.deepEqual(await cues(),{whistles:1,ticks:2,bells:1},'Pausing rings one bell strike');
     await soundPage.clock.fastForward(5000);assert.deepEqual(await cues(),{whistles:1,ticks:2,bells:1},'No cues while paused');
@@ -200,7 +201,7 @@ const csp=require('./shared/site-headers.cjs').csp('tabata');
       assert.equal(await sourcePage.inputValue('#work'),'60');assert.equal(await sourcePage.inputValue('#rest'),'3');assert.equal(await sourcePage.inputValue('#rounds'),'8');
       assert.deepEqual(await sourcePage.locator('.nav-label').allTextContents(),['Timer','Settings']);
       assert.equal(await sourcePage.locator('#workPresets button,#restPresets button').count(),6);
-      assert.equal(await sourcePage.locator('#setup .numeric-stepper').count(),4,'Work, rest, rounds and rest between pyramid calls');
+      assert.equal(await sourcePage.locator('#setup .numeric-stepper').count(),4,'Work, rest, rounds and rest between pyramid sets');
       assert.match(await sourcePage.locator('body').evaluate(node=>getComputedStyle(node).fontFamily),/sans-serif/,'Source has the shared typeface');
       assert.notEqual(await sourcePage.locator('#totalTime').textContent(),'—');
       await sourcePage.getByRole('navigation').getByRole('button',{name:'Settings',exact:true}).click();await sourcePage.uncheck('#sound');
