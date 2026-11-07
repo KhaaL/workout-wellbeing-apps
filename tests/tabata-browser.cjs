@@ -223,6 +223,16 @@ const csp=require('./shared/site-headers.cjs').csp('tabata');
     });
     assert.ok(audioQuality.duration>2.9&&audioQuality.duration<3.2,'Real bell recording decodes');
     assert.ok(audioQuality.peak<1&&audioQuality.rms>.03,'Recorded triple bell is audible and does not clip');
+    const whistleQuality=await offlinePage.evaluate(async()=>{
+      const context=new OfflineAudioContext(1,44100,44100),bytes=Uint8Array.from(atob(TabataWhistleAudio),character=>character.charCodeAt(0));
+      const buffer=await context.decodeAudioData(bytes.buffer),source=context.createBufferSource(),gain=context.createGain();
+      source.buffer=buffer;gain.gain.value=.5;source.connect(gain);gain.connect(context.destination);source.start(0);
+      const samples=(await context.startRendering()).getChannelData(0);let peak=0,sum=0;
+      for(const sample of samples){peak=Math.max(peak,Math.abs(sample));sum+=sample*sample;}
+      return {duration:buffer.duration,peak,rms:Math.sqrt(sum/samples.length)};
+    });
+    assert.ok(whistleQuality.duration>.55&&whistleQuality.duration<.7,'Recorded whistle decodes as one 0.6 s blast');
+    assert.ok(whistleQuality.peak<1&&whistleQuality.rms>.03,'Recorded whistle is audible and does not clip');
 
     await offlinePage.evaluate(async()=>{await navigator.serviceWorker.ready;});await offlinePage.reload();
     await offline.setOffline(true);await offlinePage.reload();assert.equal(await offlinePage.locator('#start').isVisible(),true,'Offline shell starts');

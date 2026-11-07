@@ -18,19 +18,18 @@ https://cdn.freesound.org/previews/66/66952_634166-hq.mp3
 The title, author, source, license and modifications are also credited in Settings.
 No endorsement by the recording's author is implied.
 
-# Whistle
+# Whistle recording
 
-The start whistle uses no recording. `scripts/tabata-whistle.mjs` renders it
-from a model of a pea whistle and writes `whistle-audio.js`:
+The start whistle encoded in `whistle-audio.js` is
+[“Referee whistle blow, gymnasium” by SpliceSound](https://freesound.org/people/SpliceSound/sounds/218318/),
+dedicated to the public domain under
+[Creative Commons Zero 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
+No credit is required; it is listed here for provenance.
 
-- Blowing pressure rises over 18 ms, sags 8 % and tails off over 110 ms. It
-  sets the pitch (about 3.15 kHz at full pressure) and the loudness.
-- The spinning pea chops the airflow at about 38 Hz. Each pass dips the level
-  by up to 80 % and bends the pitch by 2.5 %.
-- Breath noise resonates in the chamber through a band-pass that follows the
-  pitch, 9 dB below the tone, with a hiss that is strongest at the start.
-- A 60 ms room tail at -20 dB follows the dry sound.
-
-A fixed random seed makes the output identical on every run. The 0.91 s result
-is encoded with ffmpeg (libmp3lame, 128 kbit/s mono) and embedded as base64,
-like the bell. Run `node scripts/tabata-whistle.mjs` to regenerate it.
+It is a single pea whistle blast recorded in a gymnasium. The copy used was an
+Ogg Vorbis encode (`assets/audio/sfx/whistle/fs218318.ogg`, commit
+`98642ec720a4`) from the public `robwizzie/fetch` repository, which credits the
+same Freesound source as CC0 1.0. This app converts it to mono, trims silence
+before the blast and after the room tail (below -55 dBFS), fades the last
+20 ms, sets the peak to -1.5 dBFS and encodes 0.60 seconds at 128 kbit/s MP3.
+It is embedded as base64 like the bell and plays once at reduced gain.
