@@ -40,8 +40,8 @@ main{max-width:640px;margin:auto;padding:24px 20px 32px}h1{font-size:var(--fs-xl
 <form id="setupForm">
 <div class="panel setup-fields">
 <div class="setup-field"><fieldset class="mode-choice"><legend>Timer</legend><div class="segments"><label><input type="radio" name="mode" value="intervals"><span>Work &amp; rest</span></label><label><input type="radio" name="mode" value="pyramid"><span>Partner pyramid</span></label></div></fieldset></div>
-<div class="setup-field" data-mode="pyramid" hidden><label class="field">Swap calls · seconds<textarea id="ladder" rows="2" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="30, 45, 60, 45, 30" required></textarea></label><div class="presets"><button id="standardLadder" class="btn" type="button">Standard pyramid</button></div></div>
-<div class="setup-field" data-mode="pyramid" hidden><label class="field">Rest between calls · seconds<input id="ladderRest" type="number" min="0" max="3600" step="1" data-stepper data-increment="5" inputmode="numeric" required></label></div>
+<div class="setup-field" data-mode="pyramid" hidden><label class="field">Sets · seconds<textarea id="ladder" rows="2" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="30, 45, 60, 45, 30" required></textarea></label><div class="presets"><button id="standardLadder" class="btn" type="button">Standard pyramid</button></div></div>
+<div class="setup-field" data-mode="pyramid" hidden><label class="field">Rest between sets · seconds<input id="ladderRest" type="number" min="0" max="3600" step="1" data-stepper data-increment="5" inputmode="numeric" required></label></div>
 <div class="setup-field" data-mode="intervals"><label class="field">Work · seconds<input id="work" type="number" min="1" max="3600" step="1" data-stepper data-increment="5" inputmode="numeric" required></label><div id="workPresets" class="presets" role="group" aria-label="Work presets"></div></div>
 <div class="setup-field" data-mode="intervals"><label class="field">Rest · seconds<input id="rest" type="number" min="0" max="3600" step="1" data-stepper data-increment="5" inputmode="numeric" required></label><div id="restPresets" class="presets" role="group" aria-label="Rest presets"></div></div>
 <div class="setup-field" data-mode="intervals"><label class="field">Rounds<input id="rounds" type="number" min="1" max="99" step="1" data-stepper inputmode="numeric" required></label></div>
@@ -77,8 +77,8 @@ main{max-width:640px;margin:auto;padding:24px 20px 32px}h1{font-size:var(--fs-xl
 <div class="panel settings-panel stack">
 <form id="presetForm" class="stack"><h2>Quick presets</h2><p class="hint">Choose any work and rest preset independently on the timer. Values are in seconds.</p><fieldset class="preset-settings"><legend>Work presets · seconds</legend><div class="preset-grid"><label class="field">Preset 1<input id="workPreset1" aria-label="Work preset 1 · seconds" type="number" min="1" max="3600" step="1" inputmode="numeric" required></label><label class="field">Preset 2<input id="workPreset2" aria-label="Work preset 2 · seconds" type="number" min="1" max="3600" step="1" inputmode="numeric" required></label><label class="field">Preset 3<input id="workPreset3" aria-label="Work preset 3 · seconds" type="number" min="1" max="3600" step="1" inputmode="numeric" required></label></div></fieldset><fieldset class="preset-settings"><legend>Rest presets · seconds</legend><div class="preset-grid"><label class="field">Preset 1<input id="restPreset1" aria-label="Rest preset 1 · seconds" type="number" min="0" max="3600" step="1" inputmode="numeric" required></label><label class="field">Preset 2<input id="restPreset2" aria-label="Rest preset 2 · seconds" type="number" min="0" max="3600" step="1" inputmode="numeric" required></label><label class="field">Preset 3<input id="restPreset3" aria-label="Rest preset 3 · seconds" type="number" min="0" max="3600" step="1" inputmode="numeric" required></label></div></fieldset><div class="form-actions"><button class="btn" type="submit">Save presets</button><button id="resetPresets" class="btn" type="button">Reset presets</button></div><p id="presetStatus" class="hint" role="status"></p></form>
 <label class="field">Get ready · seconds<input id="prepare" type="number" min="0" max="60" step="1" inputmode="numeric" data-stepper required></label>
-<label class="check"><input id="sound" type="checkbox">Sound cues</label><p class="hint">A whistle starts each work interval and swap call. One bell strike marks a rest or a pause, and three strikes end the session. Short ticks mark the last 3 seconds. Keep the app visible for reliable sound.</p>
-<div class="form-actions"><button id="testBell" class="btn" type="button">Test bell</button><button id="testWhistle" class="btn" type="button">Test whistle</button></div><p id="bellTestStatus" class="hint" role="status"></p><p class="hint">The whistle is synthesized in the browser. Bell recording: <a href="https://freesound.org/people/Benboncan/sounds/66952/" target="_blank" rel="noreferrer">“Boxing Bell 1.wav” by Benboncan</a>, trimmed and faded, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>.</p>
+<label class="check"><input id="sound" type="checkbox">Sound cues</label><p class="hint">A whistle starts each work interval and pyramid set. One bell strike marks a rest or a pause, and three strikes end the session. Short ticks mark the last 3 seconds. Keep the app visible for reliable sound.</p>
+<div class="form-actions"><button id="testBell" class="btn" type="button">Test bell</button><button id="testWhistle" class="btn" type="button">Test whistle</button></div><p id="bellTestStatus" class="hint" role="status"></p><p class="hint">The whistle is synthesized for this app and uses no recording. Bell recording: <a href="https://freesound.org/people/Benboncan/sounds/66952/" target="_blank" rel="noreferrer">“Boxing Bell 1.wav” by Benboncan</a>, trimmed and faded, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>.</p>
 <label class="check"><input id="keepAwake" type="checkbox">Keep screen awake during a session</label><p class="hint">Requires a supported browser and HTTPS. Your device may release stay-awake in power-saving mode. Check its status during your timer.</p>
 <p id="settingsNote" class="hint">Changes apply to the next timer.</p>
 <h2>Appearance</h2>
@@ -100,6 +100,8 @@ main{max-width:640px;margin:auto;padding:24px 20px 32px}h1{font-size:var(--fs-xl
 /* app-updates:end */
 /* tabata-bell-audio:start */
 /* tabata-bell-audio:end */
+/* tabata-whistle-audio:start */
+/* tabata-whistle-audio:end */
 /* tabata-timer-core:start */
 /* tabata-timer-core:end */
 /* tabata-storage-adapter:start */
@@ -120,6 +122,7 @@ main{max-width:640px;margin:auto;padding:24px 20px 32px}h1{font-size:var(--fs-xl
 <script data-source-only src="../../packages/storage-ui/panel.js"></script>
 <script data-source-only src="../../packages/app-ui/updates.js"></script>
 <script data-source-only src="bell-audio.js"></script>
+<script data-source-only src="whistle-audio.js"></script>
 <script data-source-only src="timer-core.js"></script>
 <script data-source-only src="storage-adapter.js"></script>
 <script data-source-only src="app.js"></script>

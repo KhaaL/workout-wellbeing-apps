@@ -5,7 +5,7 @@
   const format=ms=>{const s=Math.ceil(ms/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
   const names={prepare:'Get ready',work:'Work',rest:'Rest',complete:'Complete'};
   let storage=null,shell=null,updates=null,view='setup',lastPhase='',lastCue='',lastCheckpoint=0,lastSavedPhase='',toastTimer=0;
-  let wake=null,wakePending=false,audio=null,bellBuffer=null,bellDecode=null,cloudBusy=false,remoteStatus='',panel=null,lastResult=null;
+  let wake=null,wakePending=false,audio=null,bellBuffer=null,whistleBuffer=null,bellDecode=null,cloudBusy=false,remoteStatus='',panel=null,lastResult=null;
   const bellSources=new Set();
   function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,6000);}
   function localStatus(){
@@ -63,7 +63,7 @@
     const ready=c.prepare?c.prepare+'s to get ready · ':'';
     if(c.mode!=='pyramid')return `${ready}${c.rounds} × ${c.work}s work${c.rest?' / '+c.rest+'s rest':' · no rest'}. No rest after the final round.`;
     const turns=partner=>format(c.ladder.filter((_,index)=>index%2===partner).reduce((total,value)=>total+value,0)*1000);
-    return `${ready}${c.ladder.length} swap calls${c.ladderRest?' / '+c.ladderRest+'s rest':''}. Partner A works ${turns(0)}, Partner B works ${turns(1)}.`;
+    return `${ready}${c.ladder.length} sets${c.ladderRest?' / '+c.ladderRest+'s rest':''}. Partner A works ${turns(0)}, Partner B works ${turns(1)}.`;
   }
   function renderPlan(){
     for(const key of ['work','rest'])for(const button of $(key+'Presets').querySelectorAll('button'))button.setAttribute('aria-pressed',String($(key).valueAsNumber===Number(button.dataset.seconds)));
@@ -97,8 +97,9 @@
     // Resume inside the user's tap, before awaiting sample decoding.
     const resumed=audio.resume();
     if(!bellDecode){
-      const bytes=Uint8Array.from(atob(TabataBellAudio),character=>character.charCodeAt(0));
-      bellDecode=audio.decodeAudioData(bytes.buffer).then(buffer=>{bellBuffer=buffer;}).catch(error=>{bellDecode=null;throw error;});
+      // Both samples decode together; the bell decodes first.
+      const decode=base64=>audio.decodeAudioData(Uint8Array.from(atob(base64),character=>character.charCodeAt(0)).buffer);
+      bellDecode=Promise.all([decode(TabataBellAudio),decode(TabataWhistleAudio)]).then(([bell,whistleSample])=>{bellBuffer=bell;whistleBuffer=whistleSample;}).catch(error=>{bellDecode=null;throw error;});
     }
     await Promise.all([resumed,bellDecode]);
     if(audio.state!=='running')throw new Error('Audio suspended');
@@ -135,20 +136,15 @@
       return true;
     }catch(error){$('audioStatus').textContent='Sound unavailable. Follow the on-screen timer.';return false;}
   }
-  // A pea whistle: a high tone whose pitch and level flutter as the pea spins.
+  // Plays the rendered pea whistle sample once.
   function whistle(preview=false,onEnded){
     if(!preview&&(!active()?.config.sound||document.hidden))return true;
-    if(!audio||audio.state!=='running')return false;
+    if(!audio||audio.state!=='running'||!whistleBuffer)return false;
     try{
-      const at=audio.currentTime+.01,end=at+.6,tone=audio.createOscillator(),trill=audio.createOscillator(),flutter=audio.createOscillator();
-      const depth=audio.createGain(),flutterDepth=audio.createGain(),body=audio.createGain(),out=audio.createGain(),sources=[trill,flutter,tone];
-      tone.type='sine';tone.frequency.value=2800;trill.frequency.value=32;flutter.frequency.value=32;
-      depth.gain.value=160;flutterDepth.gain.value=.25;body.gain.value=.75;
-      out.gain.setValueAtTime(.001,at);out.gain.linearRampToValueAtTime(.35,at+.03);out.gain.setValueAtTime(.35,end-.08);out.gain.exponentialRampToValueAtTime(.001,end);
-      trill.connect(depth);depth.connect(tone.frequency);flutter.connect(flutterDepth);flutterDepth.connect(body.gain);
-      tone.connect(body);body.connect(out);out.connect(audio.destination);
-      tone.onended=()=>{for(const node of [...sources,depth,flutterDepth,body,out]){bellSources.delete(node);node.disconnect();}onEnded?.();};
-      for(const source of sources){bellSources.add(source);source.start(at);source.stop(end);}
+      const source=audio.createBufferSource(),gain=audio.createGain();source.buffer=whistleBuffer;gain.gain.value=.5;
+      source.connect(gain);gain.connect(audio.destination);bellSources.add(source);
+      source.onended=()=>{bellSources.delete(source);source.disconnect();gain.disconnect();onEnded?.();};
+      source.start(audio.currentTime);
       return true;
     }catch(error){$('audioStatus').textContent='Sound unavailable. Follow the on-screen timer.';return false;}
   }
@@ -192,7 +188,7 @@
     storage.state.history=[lastResult,...storage.state.history];storage.state.active=null;
     const saved=storage.save();releaseWake();
     $('completeTitle').textContent=outcome==='complete'?'Nicely done.':'Session ended';
-    $('completeSummary').textContent=`${C.snapshot({...session,elapsedMs,anchorAt:null,status:'paused'},Date.now()).completedRounds} of ${C.intervals(session.config)} ${session.config.mode==='pyramid'?'swap calls':'rounds'} · ${format(elapsedMs)} total`;
+    $('completeSummary').textContent=`${C.snapshot({...session,elapsedMs,anchorAt:null,status:'paused'},Date.now()).completedRounds} of ${C.intervals(session.config)} ${session.config.mode==='pyramid'?'sets':'rounds'} · ${format(elapsedMs)} total`;
     $('completeSaveStatus').textContent=saved?'Session saved on this device.':'Session is in memory only. Download a backup before closing.';
     fillSetup();navigate('complete');$('again').focus();
   }
@@ -200,15 +196,15 @@
     const session=active();if(!session)return;
     const now=Date.now(),s=C.snapshot(session,now),paused=session.status==='paused';
     if(s.kind==='complete'){finish('complete');return;}
-    const c=session.config,pyramid=c.mode==='pyramid',label=s.partner?'Partner '+s.partner:names[s.kind],nextCall=()=>`Next: Partner ${s.nextPartner} · ${s.nextMs/1000}s`;
+    const c=session.config,pyramid=c.mode==='pyramid',label=s.partner?'Partner '+s.partner:names[s.kind],nextSet=()=>`Next: Partner ${s.nextPartner} · ${s.nextMs/1000}s`;
     const phaseText=paused?'Paused · '+label:label;
     if($('phaseName').textContent!==phaseText)$('phaseName').textContent=phaseText;
     $('timerPanel').dataset.phase=s.kind;$('timerPanel').dataset.partner=s.partner||'';$('timerPanel').dataset.paused=String(paused);
     $('clock').textContent=format(s.remainingMs);
-    $('roundLabel').textContent=pyramid?s.kind==='rest'?`After swap ${s.round} of ${c.ladder.length}`:`Swap ${s.round} of ${c.ladder.length} · ${c.ladder[s.round-1]}s`:`Round ${s.round} of ${c.rounds}`;
+    $('roundLabel').textContent=pyramid?s.kind==='rest'?`After set ${s.round} of ${c.ladder.length}`:`Set ${s.round} of ${c.ladder.length} · ${c.ladder[s.round-1]}s`:`Round ${s.round} of ${c.rounds}`;
     $('progress').value=s.elapsedMs/s.totalMs;$('remainingTotal').textContent=format(s.totalMs-s.elapsedMs)+' total left';
     $('nextPhase').textContent=pyramid
-      ?s.kind==='prepare'?`Next: Partner A · ${c.ladder[0]}s`:s.kind==='rest'?nextCall():!s.nextMs?'Next: Finish':c.ladderRest?`Next: Rest · ${c.ladderRest}s`:nextCall()
+      ?s.kind==='prepare'?`Next: Partner A · ${c.ladder[0]}s`:s.kind==='rest'?nextSet():!s.nextMs?'Next: Finish':c.ladderRest?`Next: Rest · ${c.ladderRest}s`:nextSet()
       :s.kind==='prepare'?'Next: Work':s.kind==='work'?s.round===c.rounds?'Next: Finish':c.rest?'Next: Rest':'Next: Work':'Next: Work';
     $('pause').textContent=paused?'Resume':'Pause';
     const seconds=Math.ceil(s.remainingMs/1000),cue=s.phaseKey+'-'+seconds;

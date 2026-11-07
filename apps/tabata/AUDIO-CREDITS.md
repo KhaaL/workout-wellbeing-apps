@@ -20,6 +20,17 @@ No endorsement by the recording's author is implied.
 
 # Whistle
 
-The start whistle is synthesized with the Web Audio API at play time and uses
-no recording: a 2.8 kHz tone whose pitch and level flutter at 32 Hz for 0.6
-seconds.
+The start whistle uses no recording. `scripts/tabata-whistle.mjs` renders it
+from a model of a pea whistle and writes `whistle-audio.js`:
+
+- Blowing pressure rises over 18 ms, sags 8 % and tails off over 110 ms. It
+  sets the pitch (about 3.15 kHz at full pressure) and the loudness.
+- The spinning pea chops the airflow at about 38 Hz. Each pass dips the level
+  by up to 80 % and bends the pitch by 2.5 %.
+- Breath noise resonates in the chamber through a band-pass that follows the
+  pitch, 9 dB below the tone, with a hiss that is strongest at the start.
+- A 60 ms room tail at -20 dB follows the dry sound.
+
+A fixed random seed makes the output identical on every run. The 0.91 s result
+is encoded with ffmpeg (libmp3lame, 128 kbit/s mono) and embedded as base64,
+like the bell. Run `node scripts/tabata-whistle.mjs` to regenerate it.
