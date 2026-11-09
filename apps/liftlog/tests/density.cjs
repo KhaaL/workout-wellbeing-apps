@@ -31,7 +31,7 @@ const ex = (id, name, category, family = 'other') => ({ id, name, category, unit
     const done = rows.nth(0);
     assert.ok(await done.evaluate(r => r.classList.contains('is-compact')), 'a logged set is drawn compact');
     assert.equal(await done.locator('input').count(), 0, 'a logged set has no inputs');
-    assert.equal((await done.locator('.set-summary').textContent()).trim(), '1100 × 6', 'the line reads number, load and the logged count, without the unit');
+    assert.equal((await done.locator('.set-summary').textContent()).trim(), '100 × 6', 'the line reads load and the logged count, without a set number or the unit');
     assert.equal(await rows.nth(1).locator('input').count(), 3, 'an open set keeps weight, reps and RPE');
     const doneHeight = await done.evaluate(r => r.getBoundingClientRect().height);
     assert.ok(doneHeight <= openHeight - 10, 'the logged row is shorter: ' + doneHeight + 'px against ' + openHeight + 'px');

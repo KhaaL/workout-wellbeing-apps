@@ -61,7 +61,7 @@ const routinesFile = {
       [30, 8, 45, 'W', null, null, null], [45, 4, 90, 'W', null, null, null],
       [55, null, null, '', 6, 10, 2], [55, null, null, '', 6, 10, 2], [55, null, null, '', 6, 10, 2]],
       'warm-ups arrive tagged with load, count and rest; working rows carry load and target');
-    const marks = () => page.locator('#main .set-num').evaluateAll(bs => bs.map(b => (b.querySelector('.wu, .role') || {}).textContent || ''));
+    const marks = () => page.locator('#main .set-row:not(.is-done) .set-mark').evaluateAll(bs => bs.map(b => (b.querySelector('.wu, .role') || {}).textContent || ''));
     assert.deepEqual(await marks(), ['W', 'W', '', '', ''], 'the warm-up rows are marked W');
     assert.equal(await page.locator('#main .ex-tags').count(), 0, 'no target tag: each row shows its own target');
     assert.equal(await page.locator('#main .sets-head').textContent().then(t => t.includes('RIR')), true, 'a planned RIR shows the RIR column');
@@ -78,8 +78,21 @@ const routinesFile = {
     await page.evaluate(() => { const t = window.testAPI; t.state.activeWorkout.currentExerciseIndex = 1; t.render(); });
     assert.deepEqual((await rows()).slice(2), [[70, null, null, 'top', 6, 8, 1], [59, null, null, 'backoff', 10, 12, 2], [59, null, null, 'backoff', 10, 12, 2]]);
     assert.deepEqual(await marks(), ['W', 'W', 'T', 'B', 'B'], 'top and back-off rows are marked T and B');
-    assert.deepEqual(await page.locator('#main .row-role').evaluateAll(els => els.filter(e => e.offsetParent).map(e => e.textContent)), ['W', 'W', 'T', 'B', 'B'],
-      'below 400px, where the set number is hidden, a badge on each row carries the letter');
+    assert.deepEqual(await page.locator('#main .set-mark').evaluateAll(els => els.filter(e => e.offsetParent).map(e => e.textContent)), ['W', 'W', 'T', 'B', 'B'],
+      'at 390px the gutter shows each letter');
+    assert.equal(await page.locator('#main .set-row .n, #main .set-num').count(), 0, 'rows carry no set number');
+    /* Every load starts on one line: the Weight head, each typed load and each logged one. */
+    const lefts = await page.evaluate(() => {
+      const t = window.testAPI, x = el => Math.round(el.getBoundingClientRect().left);
+      t.state.activeWorkout.currentExerciseIndex = 0; t.render();
+      const head = x(document.querySelectorAll('#main .sets-head span')[1]);
+      const typed = [...document.querySelectorAll('#main .set-row:not(.is-done) input[data-field="weight"]')].map(x);
+      const logged = [...document.querySelectorAll('#main .set-row.is-done .set-text')].map(x);
+      t.state.activeWorkout.currentExerciseIndex = 1; t.render();
+      return { head, typed, logged };
+    });
+    assert.ok(lefts.logged.length && lefts.typed.length, 'a logged and a typed row to compare');
+    assert.ok([...lefts.typed, ...lefts.logged].every(l => Math.abs(l - lefts.head) <= 1), 'loads align under the head: ' + JSON.stringify(lefts));
     assert.equal(await page.locator('#main .set-done-btn').nth(2).getAttribute('aria-label'), 'Mark set 3 (top set) as done', 'the done button names the role');
     assert.deepEqual(await page.locator('#main .set-row [data-field="targetRir"], #main .set-row [data-field="rir"]').evaluateAll(els => els.map(e => e.placeholder)).then(p => p.slice(2)), ['1', '2', '2'],
       'each row shows its own RIR target');
@@ -156,6 +169,6 @@ const routinesFile = {
     assert.equal(await page.locator('#main [data-bind="ritem"][data-idx="1"]').count(), 4, 'its own sets, reps, RIR and load come back');
 
     assert.deepEqual(errors, []);
-    console.log('set-plans: 31 checks passed');
+    console.log('set-plans: 34 checks passed');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });

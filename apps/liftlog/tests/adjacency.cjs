@@ -1,4 +1,4 @@
-// Same-group adjacency: exercise groups, performed order, conflicts, the 3:00 rest, and the exclude-from-progression flag. node tests/adjacency.cjs after npm run build.
+// Same-group spacing: exercise groups, performed order, conflicts timed against the group's 3:00 rest, the group-labelled clock, and the exclude-from-progression flag. node tests/adjacency.cjs after npm run build.
 const assert = require('node:assert/strict');
 const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
 
@@ -27,13 +27,13 @@ const lib = [
       const t = window.testAPI;
       t.state.exercises = lib; t.state.routines = []; t.state.workouts = []; t.state.activeWorkout = null;
       t.state.settings.autoRest = true;
-      /* A finished workout from [exerciseId, warm-ups, working sets] steps, two minutes a set.
+      /* A finished workout from [exerciseId, warm-ups, working sets] steps, two minutes a set (opts.step, in seconds, to change it).
          `order` lists the stored rows when they differ from the order trained ("Start now" jumps). */
       window.mk = (id, day, steps, opts = {}) => {
         const start = Date.parse(day + 'T17:00:00Z'); let k = 0;
         const blocks = new Map();
         const set = warm => ({ id:id + '-' + k, weight:40, reps:8, rir:2, unit:'kg', completed:true,
-          completedAt:opts.noTimes ? 0 : start + (k++) * 120000, ...(warm ? { countForVolume:false, countForPR:false } : {}) });
+          completedAt:opts.noTimes ? 0 : start + (k++) * (opts.step || 120) * 1000, ...(warm ? { countForVolume:false, countForPR:false } : {}) });
         for (const [exId, warm, work] of steps){
           if (!blocks.has(exId)){ const def = lib.find(e => e.id === exId);
             blocks.set(exId, { exerciseId:exId, name:def.name, unit:'kg', loadMode:'total', equipmentKey:'', movementFamily:def.movementFamily,
@@ -62,16 +62,22 @@ const lib = [
       return t.performedOrder(w).map(ex => { const c = t.orderConflict(w, ex); return [ex.name, c ? c.by.name : null]; });
     }, w);
 
-    /* 2. A 5 Nov shape: row then face pull conflicts, leg curl then hip thrust too; OHP last follows face pull (back), no conflict. */
+    /* 2. A 5 Nov shape: face pull starts 2:00 after the row, inside the back group's 3:00. Hip thrust starts 4:00 after the
+       leg curl (a warm-up in between), so posterior has rested. OHP last: press last worked long before, no conflict. */
     const nov5 = await page.evaluate(() => window.mk('nov5', '2026-11-05', [['leg-curl', 1, 3], ['hip-thrust', 1, 3], ['db-bench', 2, 3], ['row', 1, 3], ['face-pull', 0, 3], ['ohp', 1, 3]]));
-    assert.deepEqual(await conflicts(nov5), [['Prone Leg Curl', null], ['Hip Thrust', 'Prone Leg Curl'], ['DB Bench Press', null],
+    assert.deepEqual(await conflicts(nov5), [['Prone Leg Curl', null], ['Hip Thrust', null], ['DB Bench Press', null],
       ['Seated Cable Row', null], ['Face Pull', 'Seated Cable Row'], ['DB Overhead Press', null]]);
 
-    /* 3. Rehab is group none: face pull then single-arm row warns nothing, and a band pull-apart between row and face pull is passed over. */
+    /* 3. Rehab is group none: face pull then single-arm row warns nothing. Time decides, not the list: an exercise in
+       between hides nothing when the group's last set is under 3:00 old, and a 6:00 gap clears it. */
     const sep30 = await page.evaluate(() => window.mk('sep30', '2026-09-30', [['face-pull', 0, 3], ['sa-row', 0, 2]]));
     assert.deepEqual(await conflicts(sep30), [['Face Pull', null], ['Single Arm Cable Row', null]]);
-    const between = await page.evaluate(() => window.mk('between', '2026-10-01', [['row', 0, 3], ['band-pa', 0, 2], ['face-pull', 0, 3]]));
+    const between = await page.evaluate(() => window.mk('between', '2026-10-01', [['row', 0, 3], ['band-pa', 0, 2], ['face-pull', 0, 3]], { step:50 }));
     assert.deepEqual((await conflicts(between))[2], ['Face Pull', 'Seated Cable Row'], 'a group-none exercise in between does not break the conflict');
+    const pressBetween = await page.evaluate(() => window.mk('press-between', '2026-10-01', [['row', 0, 3], ['db-bench', 0, 1], ['face-pull', 0, 3]], { step:40 }));
+    assert.deepEqual((await conflicts(pressBetween))[2], ['Face Pull', 'Seated Cable Row'], 'a press set in between does not hide back worked 1:20 earlier');
+    const rested = await page.evaluate(() => window.mk('rested', '2026-10-01', [['row', 0, 3], ['band-pa', 0, 2], ['face-pull', 0, 3]]));
+    assert.deepEqual((await conflicts(rested))[2], ['Face Pull', null], '6:00 after the row, back has rested');
 
     /* 4. Performed order comes from set times: OHP second on 28 Oct although its row is stored last. */
     const oct28 = await page.evaluate(() => window.mk('oct28', '2026-10-28', [['sl-rdl', 1, 3], ['ohp', 1, 3], ['pulldown', 1, 3], ['db-bench', 1, 3]],
@@ -124,7 +130,9 @@ const lib = [
       t.startRoutine('r-pull'); t.navigate('today');
       t.ui.overviewOpen = true; t.render();
     });
-    assert.equal(await page.locator('.overview-row').nth(1).locator('.status-chip.warm').first().textContent(), 'Same group as Seated Cable Row');
+    assert.equal(await page.locator('.overview-row').nth(1).locator('.status-chip.warm').first().textContent(), 'back again: same muscle group as Seated Cable Row');
+    await page.evaluate(() => { const t = window.testAPI; t.ui.overviewOpen = false; t.render(); });
+    assert.equal(await page.locator('#main .next-up').textContent(), 'Next: Face Pull (back again)', 'the Next line warns ahead');
     await page.evaluate(() => {
       const t = window.testAPI; t.ui.overviewOpen = false;
       const row = t.state.activeWorkout.exercises[0];
@@ -133,10 +141,12 @@ const lib = [
     const live = await page.evaluate(() => {
       const t = window.testAPI, fp = t.state.activeWorkout.exercises[1];
       return { current:t.state.activeWorkout.currentExerciseIndex, running:t.timer.running, seconds:t.timer.seconds,
-        note:(document.querySelector('#main .order-warn p') || {}).textContent, targets:[fp.targetRepsMin, fp.targetRepsMax, fp.sets[0].weight] };
+        note:(document.querySelector('#main .order-warn') || {}).textContent, bar:document.querySelector('#timer-label').textContent,
+        targets:[fp.targetRepsMin, fp.targetRepsMax, fp.sets[0].weight] };
     });
     assert.equal(live.current, 1);
-    assert.equal(live.note, 'Seated Cable Row just done (same group): rest 3:00, expect fewer reps.');
+    assert.equal(live.note, 'backAfter Seated Cable Row · fewer reps likelyDon’t count', 'one line: the group, what came before, the exclusion');
+    assert.equal(live.bar, 'Rest · back group', 'the bar names the group while its wait runs');
     assert.ok(live.running && live.seconds > 170 && live.seconds <= 180, 'the clock runs what is left of 3:00: ' + live.seconds);
     assert.deepEqual(live.targets, [12, 15, 20], 'targets and loads stay as planned');
     assert.equal(await page.locator('#main .ex-tags').count(), 0, 'no rest tag; the bar below shows the clock');
@@ -184,7 +194,7 @@ const lib = [
     assert.deepEqual(await sheet.locator('.hist-ex h4').evaluateAll(hs => hs.map(h => h.childNodes[0].textContent.trim())),
       ['Prone Leg Curl', 'Hip Thrust', 'DB Bench Press', 'Seated Cable Row', 'Face Pull', 'DB Overhead Press'], 'the order trained, not the stored order');
     assert.deepEqual(await sheet.locator('.order-note').allTextContents(),
-      ['Same group After Prone Leg Curl (posterior)', 'Same group After Seated Cable Row (back)', 'Not in progression Order conflict']);
+      ['Same group After Seated Cable Row (back)', 'Not in progression Order conflict']);
     assert.match(await page.locator('.hist-row').first().textContent(), /Not in progression/, 'the History row carries a marker');
     await page.evaluate(() => { const t = window.testAPI; t.ui.detail = null; t.ui.editWorkoutId = 'nov5'; t.render(); });
     const select = page.locator('[data-change="hex-exclude"]').nth(0);
@@ -212,6 +222,6 @@ const lib = [
     assert.deepEqual(kept.sort(), ['order-conflict', 'sleep']);
 
     assert.deepEqual(errors, []);
-    console.log('adjacency: 34 checks passed');
+    console.log('adjacency: 39 checks passed');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });

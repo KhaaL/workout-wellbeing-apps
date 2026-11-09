@@ -279,7 +279,7 @@ function toggleWarmup(setId, focusId){
   const s = ex.sets.find(x => x.id === setId); if (!s) return;
   const on = !context.isWarmup(s);
   context.trackChange(context.setUndoTarget(context.state.activeWorkout,ex,s),'Edited set type',()=>{context.setWarmup(s,on);context.save({changed:['activeWorkout']});});
-  context.ui.focus = focusId || 'sn-' + setId;
+  context.ui.focus = focusId || 'sd-' + setId;
   context.render();
   context.announce(on ? 'Marked as a warm-up: it no longer counts toward volume or records.'
               : 'Marked as a working set.');
@@ -647,7 +647,7 @@ function addWarmups(){
   });
   ex.sets.unshift(...rows);
   context.save({changed:['activeWorkout']});
-  context.ui.focus = 'sn-' + rows[0].id;
+  context.ui.focus = 'sd-' + rows[0].id;
   context.render();
   context.toast('Added ' + context.plural(rows.length, 'warm-up set') + '. They count toward neither volume nor records.');
 }

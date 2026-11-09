@@ -86,11 +86,10 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
   .bike-app .toast{bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px)}
 }
 @media(max-width:400px){
-  .sets{--sets-cols:minmax(0,1.4fr) minmax(0,1fr) 44px 48px 48px;gap:4px}
-  .sets.no-rpe{--sets-cols:minmax(0,1.4fr) minmax(0,1fr) 48px 48px}
-  .sets.no-weight{--sets-cols:minmax(0,1fr) 44px 48px 48px}
-  .sets.no-weight.no-rpe{--sets-cols:minmax(0,1fr) 48px 48px}
-  .sets .set-num,.sets-head span:first-child{display:none}
+  .sets{--mark-w:10px;--sets-cols:var(--mark-w) minmax(0,1.2fr) minmax(0,1fr) 44px 48px 48px;gap:4px}
+  .sets.no-rpe{--sets-cols:var(--mark-w) minmax(0,1.2fr) minmax(0,1fr) 48px 48px}
+  .sets.no-weight{--sets-cols:var(--mark-w) minmax(0,1fr) 44px 48px 48px}
+  .sets.no-weight.no-rpe{--sets-cols:var(--mark-w) minmax(0,1fr) 48px 48px}
   .sets-head,.set-row{gap:4px}
   .set-row input{padding-inline:4px}
   .set-done-btn{min-width:48px}
