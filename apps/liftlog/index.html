@@ -369,28 +369,31 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 /* sets table — the column template varies with what the exercise needs
    (a bodyweight/timed movement has no weight field, RPE is optional), so it
    lives in one custom property rather than four grid declarations. */
-.sets{ --sets-cols:52px 1fr 1fr 76px 60px 48px; }
-.sets.no-rpe{ --sets-cols:52px 1fr 1fr 60px 48px; }
-.sets.no-weight{ --sets-cols:52px 1fr 76px 60px 48px; }
-.sets.no-weight.no-rpe{ --sets-cols:52px 1fr 60px 48px; }
+.sets{ --mark-w:52px; --sets-cols:var(--mark-w) 1fr 1fr 76px 60px 48px; }
+.sets.no-rpe{ --sets-cols:var(--mark-w) 1fr 1fr 60px 48px; }
+.sets.no-weight{ --sets-cols:var(--mark-w) 1fr 76px 60px 48px; }
+.sets.no-weight.no-rpe{ --sets-cols:var(--mark-w) 1fr 60px 48px; }
 .sets-head,.set-row{
   display:grid; grid-template-columns:var(--sets-cols); gap:var(--sp-2); align-items:end;
 }
-.sets-head{ padding:0 2px var(--sp-1); }
+.sets-head{ padding:0 0 var(--sp-1); }
 .sets-head span{ font-size:10.5px; font-weight:650; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
 .set-row{ padding:var(--sp-2) 0; border-top:1px solid var(--border); }
 .set-row.is-current{ background:var(--accent-soft); margin:0 calc(-1 * var(--sp-3)); padding-left:var(--sp-3); padding-right:var(--sp-3); border-radius:var(--radius); border-top-color:transparent; }
-.set-row.is-done .n,.set-row.is-done input{ color:var(--muted); }
+.set-row.is-done input{ color:var(--muted); }
 .set-row.is-done input{ background:var(--surface-2); border-color:var(--border); }
-.set-num{
+/* Rows carry no set number: position in the list says which set it is, and
+   each input names itself ("Set 3 weight in kg"). The first column is a
+   narrow gutter for the W/T/B letter, so every load, typed or logged, starts
+   on the same line under the Weight head. Wide screens add last session's
+   figure under the letter. */
+.set-mark{
   display:flex; flex-direction:column; justify-content:center; align-items:flex-start; gap:1px;
-  padding-bottom:8px; min-height:44px; background:none; border:0; border-radius:var(--radius);
-  font:inherit; color:inherit; text-align:left; cursor:pointer; overflow:hidden;
+  padding-bottom:8px; min-height:44px; min-width:0; overflow:hidden;
 }
-.set-num .wu{ font-size:10px; font-weight:650; line-height:1.2; color:var(--warning); white-space:nowrap; max-width:100%; }
+.set-mark .wu{ font-size:10px; font-weight:650; line-height:1.2; color:var(--warning); white-space:nowrap; max-width:100%; }
 /* Performed, but out of the totals — so it reads as present and discounted
    rather than as an ordinary set. */
-.set-row.is-warmup .n{ color:var(--muted); }
 .set-row.is-warmup input{ opacity:.7; }
 /* Where a typed count sits against the target range: short of it, or past the
    top (the double-progression signal). Inside the range needs no mark. */
@@ -398,8 +401,7 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .set-row input.reps-over{ border-color:var(--success); color:var(--success); }
 .hset-warm{ min-height:44px; min-width:34px; padding-inline:8px; justify-content:center; font-weight:700; color:var(--muted); }
 .hset-warm[aria-pressed="true"]{ background:var(--warning-soft); border-color:var(--warning); color:var(--warning); }
-.set-num .n{ font-weight:700; font-variant-numeric:tabular-nums; font-size:var(--fs-md); line-height:1; }
-.set-num .prev{ font-size:10.5px; color:var(--muted); font-variant-numeric:tabular-nums; line-height:1.2; }
+.set-mark .prev{ font-size:10.5px; color:var(--muted); font-variant-numeric:tabular-nums; line-height:1.2; }
 /* The done cell is also the warm-up control: a long press toggles it, so the
    press must not start a selection or open the platform's callout menu. */
 .set-done-btn{
@@ -408,8 +410,7 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 }
 .set-done-btn[aria-pressed="true"]{ background:var(--success-soft); border-color:var(--success); color:var(--success); }
 /* Marked from here, so marked here too — and this cell survives every
-   breakpoint, unlike the set number, which is dropped below 360px when an
-   effort column is on. Outranks the "done" colours above on specificity, so a
+   breakpoint. Outranks the "done" colours above on specificity, so a
    completed warm-up still reads as a warm-up. */
 .set-row.is-warmup .set-done-btn{ border-color:var(--warning); color:var(--warning); }
 .numeric-editor .editor-pair{ display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-2); }
@@ -419,21 +420,12 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
    floor stays on the open row's Done, the control aimed at between sets. */
 .set-row.is-compact{ align-items:center; padding:var(--sp-1) 0; }
 .set-summary{
-  grid-column:1 / -3; display:flex; align-items:center; gap:var(--sp-2); min-width:0; min-height:36px;
-  padding:0 2px; background:none; border:0; border-radius:var(--radius);
+  grid-column:1 / -3; display:flex; align-items:center; gap:inherit; min-width:0; min-height:36px;
+  padding:0; background:none; border:0; border-radius:var(--radius);
   font:inherit; font-size:var(--fs-sm); color:var(--muted); text-align:left; cursor:pointer; font-variant-numeric:tabular-nums;
 }
-.set-summary .n{ font-weight:700; min-width:1.4em; }
-.set-summary .wu{ font-size:10px; font-weight:650; color:var(--warning); }
-.set-num .role,.set-summary .role{ font-size:10px; font-weight:650; line-height:1.2; color:var(--accent); white-space:nowrap; }
-.row-role{ display:none; }
-@media (max-width:400px){
-  .set-row{ position:relative; }
-  .row-role{ display:block; position:absolute; top:0; left:0; z-index:1; padding:0 4px; border-radius:99px; border:1px solid currentColor;
-    background:var(--surface); color:var(--accent); font-size:10px; font-weight:700; line-height:14px; }
-  .row-role.is-warm{ color:var(--warning); }
-  .set-row.is-current .row-role{ left:var(--sp-3); }
-}
+.set-summary .set-mark{ flex:none; width:var(--mark-w); min-height:0; padding-bottom:0; }
+.set-mark .role{ font-size:10px; font-weight:650; line-height:1.2; color:var(--accent); white-space:nowrap; }
 /* what to pick up when the stored load is a total over several implements:
    inside the load box, after the number, so the row's boxes stay level */
 .input-wrap{ position:relative; display:block; }
@@ -535,10 +527,9 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 /* an outline, so it never reads as the filled Skipped chip in the same colour */
 .status-chip.warm{ border:1px solid var(--warning); color:var(--warning); }
 .order-note{ margin:var(--sp-1) 0 0; font-size:var(--fs-xs); color:var(--muted); }
-.order-warn{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--sp-2); margin-top:var(--sp-3); padding:var(--sp-2) var(--sp-3);
-  border-left:3px solid var(--warning); background:var(--warning-soft); border-radius:var(--radius); font-size:var(--fs-sm); }
-.order-warn p{ margin:0; flex:1 1 200px; }
-.order-warn.is-excluded{ border-left-color:var(--border-strong); background:var(--surface-2); }
+.order-warn{ display:flex; align-items:center; gap:var(--sp-2); margin-top:var(--sp-2); font-size:var(--fs-sm); color:var(--muted); }
+.order-warn p{ margin:0; flex:1 1 auto; min-width:0; }
+.order-warn .btn{ flex:none; }
 
 /* session overview drawer */
 .overview-toggle .chev{ transition:transform .15s ease; }
@@ -1143,18 +1134,18 @@ pre.code code{ background:none; border:0; padding:0; font-size:inherit; white-sp
   .ex-notes{ display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
   /* weight and reps are not the same size problem: "142.5" needs room, "12"
      does not, and the fixed columns leave little to share out at 320px */
-  .sets{ --sets-cols:34px 1.4fr 1fr 50px 46px 40px; gap:6px; }
-  .sets.no-rpe{ --sets-cols:34px 1.4fr 1fr 46px 40px; }
-  .sets.no-weight{ --sets-cols:34px 1fr 50px 46px 40px; }
-  .sets.no-weight.no-rpe{ --sets-cols:34px 1fr 46px 40px; }
+  .sets{ --mark-w:12px; --sets-cols:var(--mark-w) 1.4fr 1fr 50px 46px 40px; gap:6px; }
+  .sets.no-rpe{ --sets-cols:var(--mark-w) 1.4fr 1fr 46px 40px; }
+  .sets.no-weight{ --sets-cols:var(--mark-w) 1fr 50px 46px 40px; }
+  .sets.no-weight.no-rpe{ --sets-cols:var(--mark-w) 1fr 46px 40px; }
   .sets-head,.set-row{ gap:6px; }
   /* the head row already names the columns; repeating them on every row cost
      ~19px per set for nothing. Inputs carry an explicit aria-label instead. */
   .set-row .field > .cap{ display:none; }
   /* the previous-session figure cannot fit a 40px column without wrapping to
      three lines, and .prev-perf above already lists the whole last session */
-  .set-num .prev{ display:none; }
-  .set-num{ padding-bottom:0; }
+  .set-mark .prev{ display:none; }
+  .set-mark{ padding-bottom:0; }
   .set-row{ padding:6px 0; }
   .set-row input{ min-height:40px; }
   .set-done-btn{ padding-inline:0; }
@@ -1173,25 +1164,10 @@ pre.code code{ background:none; border:0; padding:0; font-size:inherit; white-sp
      which is a whole extra row's worth every three sets */
   .set-row .field > .cap{ display:none; }
   .set-row{ padding:5px 0; }
-  .set-num .prev{ display:none; }
+  .set-mark .prev{ display:none; }
 }
-/* At 320px the sets grid has 256px to work with once .wrap and .pad take
-   their padding, so the fixed columns get trimmed rather than the weight
-   field. 36x44 for delete still clears the WCAG 2.2 minimum comfortably; it
-   is the Done control beside it that stays a full 44 wide, because that is
-   the one aimed at between sets. */
-@media (max-width:400px){
-  .sets{ --sets-cols:30px 1.4fr 1fr 46px 44px 36px; }
-  .sets.no-rpe{ --sets-cols:30px 1.4fr 1fr 44px 36px; }
-  .sets.no-weight{ --sets-cols:30px 1fr 46px 44px 36px; }
-  .sets.no-weight.no-rpe{ --sets-cols:30px 1fr 44px 36px; }
-  .set-done-btn{ min-width:0; padding-inline:0; }
-}
-/* Six columns do not fit the 256px a 320px screen leaves once .wrap and .pad
-   have taken their padding. Where RPE is switched on at that width, the set
-   number is what goes: its position in the list already says which set it is,
-   and every input names itself ("Set 3 weight in kg") for anyone not reading
-   position. Only here — 360px up keeps the number in every configuration. */
+/* At 400px and below the set columns come from the shared stylesheet
+   (packages/app-ui/components.css), which loads after this one. */
 @media (max-width:360px){
   /* Four controls on the bar's one row need 316px at 320px wide, so the play
      icon and the countdown next to it carry the toggle on their own — the
@@ -1199,10 +1175,6 @@ pre.code code{ background:none; border:0; padding:0; font-size:inherit; white-sp
   #timer-toggle span{ display:none; }
   #timer-toggle{ min-width:44px; padding-inline:10px; }
   .ab-time{ min-width:64px; font-size:23px; }
-  .sets{ --sets-cols:1.4fr 1fr 46px 44px 36px; }
-  .sets.no-weight{ --sets-cols:1fr 46px 44px 36px; }
-  .sets:not(.no-rpe) .set-num,
-  .sets:not(.no-rpe) .sets-head span:first-child{ display:none; }
 }
 @media (max-width:480px){
   /* detail that a 320px-wide head cannot afford: the start time (elapsed time
@@ -1230,7 +1202,6 @@ pre.code code{ background:none; border:0; padding:0; font-size:inherit; white-sp
   .strip-step:hover:not([disabled]){ background:var(--surface-2); border-color:var(--muted); }
   .strip-step.is-last:hover{ background:var(--accent-strong); filter:brightness(1.07); }
   .strip-num:hover{ background:var(--surface-2); border-color:var(--border); }
-  .set-num:hover{ background:var(--surface-2); }
   .hset-del:hover{ color:var(--danger); border-color:var(--danger); }
   .list-row:not(.is-editing):hover{ background:var(--surface-2); }
   .hist-row:hover{ background:var(--surface-2); }
@@ -1270,7 +1241,7 @@ pre.code code{ background:none; border:0; padding:0; font-size:inherit; white-sp
 /* The platform's own tap flash fights .btn:active, and double-tap-to-zoom puts
    a delay on every control that sits close to its neighbour by design. */
 button,input,select,textarea,label,a{ -webkit-tap-highlight-color:transparent; }
-button,.btn,.icon-btn,.nav-btn,.strip-step,.strip-num,.set-num,.hist-row,.list-open{
+button,.btn,.icon-btn,.nav-btn,.strip-step,.strip-num,.hist-row,.list-open{
   touch-action:manipulation;
 }
 /* After the coarse-pointer block above, which grows the tabs: on a landscape
@@ -1342,8 +1313,8 @@ button,.btn,.icon-btn,.nav-btn,.strip-step,.strip-num,.set-num,.hist-row,.list-o
     <div id="help-shortcuts"></div>
     <p class="mt-3">Shortcuts are disabled while you are typing in a field.</p>
     <p class="mt-3 muted small">In a workout, a set is logged from its own box in the Done
-      column — hold that box to mark the set a warm-up instead. Tapping the set number does
-      the same, for anyone without a long press.</p>
+      column — hold that box to mark the set a warm-up instead. The set editor (the pencil)
+      has the same toggle, for anyone without a long press.</p>
   </div>
   <div class="dlg-actions">
     <button type="button" class="btn" data-action="help-close">Close</button>
@@ -1724,8 +1695,8 @@ function inferMovementFamily(name, category){
   if (c === 'Cardio') return 'cardio';
   return 'other';
 }
-/* The muscle group an exercise loads, for spacing exercises apart: two in the
-   same group back to back is a conflict. The default comes from the movement
+/* The muscle group an exercise loads, for spacing exercises apart: one that
+   starts less than 3:00 after its group's last working set is a conflict. The default comes from the movement
    family; an exercise's own `group` overrides it. `none` takes an exercise out
    of every rule (rehab work, arm isolation). Unclassified families default to
    none, so an unknown movement never raises a warning. */
@@ -2060,7 +2031,7 @@ function validateBackup(s){
       fail(path + '.supersetSide', 'a nonnegative integer');
     const restTimer = (t, at) => {
       object(t, at);
-      fields(t, at, ['key', 'label'], text);
+      fields(t, at, ['key', 'label', 'group'], text);
       fields(t, at, ['seconds', 'total', 'remaining', 'endsAt'], number);
       fields(t, at, ['running', 'done'], bool);
     };
@@ -2603,6 +2574,7 @@ function navigate(view, detail){
   /* Routines used to have a tab of their own; their list is the Workout tab now. */
   if (view === 'routines') view = 'today';
   if (ui.view !== view){
+    if (view === 'today') focusReadyMember();
     ui.cueMenuId = null;
     ui.routineDraft = null; ui.routineError = '';
     ui.exerciseDraft = null; ui.showExerciseForm = false; ui.exerciseFormError = '';
@@ -2870,11 +2842,11 @@ function confirmDlg(title, body, confirmLabel, danger){return WorkoutUI.confirm(
    Moving to another exercise sets that clock aside in `restTimers`, still
    counting, and brings the new exercise's own back (syncRestTimer). A clock
    that was never touched is not kept: it is rebuilt at the rest length. */
-const timer = { key:'', label:'', seconds:90, total:90, remaining:90, running:false, endsAt:0, done:false, beepScheduled:false };
+const timer = { key:'', label:'', group:'', seconds:90, total:90, remaining:90, running:false, endsAt:0, done:false, beepScheduled:false };
 const restTimers = new Map();
 
 function timerRecord(t){
-  return { key:t.key, label:t.label, seconds:t.seconds, total:t.total, remaining:Math.round(t.remaining),
+  return { key:t.key, label:t.label, group:t.group || '', seconds:t.seconds, total:t.total, remaining:Math.round(t.remaining),
     running:t.running, endsAt:t.endsAt, done:t.done };
 }
 function persistTimer(){
@@ -2894,6 +2866,7 @@ function timerNum(v, fallback){
 function readTimer(t, into){
   into.key = t && typeof t.key === 'string' ? t.key : '';
   into.label = t && typeof t.label === 'string' ? t.label : '';
+  into.group = t && typeof t.group === 'string' ? t.group : '';
   into.running = false; into.endsAt = 0;
   into.seconds = timerNum(t && t.seconds, state.settings.defaultRest);
   into.remaining = timerNum(t && t.remaining, into.seconds);
@@ -2973,11 +2946,35 @@ function syncRestTimer(own){
   if (kept) Object.assign(timer, kept);
   else {
     timer.seconds = timer.total = timer.remaining = currentRestSeconds();
-    timer.running = false; timer.done = false; timer.endsAt = 0; timer.beepScheduled = false;
+    timer.running = false; timer.done = false; timer.endsAt = 0; timer.beepScheduled = false; timer.group = '';
   }
   timer.key = key;
   if (key === cur) timer.label = label;
   persistTimer();
+  return true;
+}
+/* Coming back to a superset (closing the overview, returning to the Workout
+   tab or to the app) shows a member that can be trained now. When the member
+   on screen is resting and a partner with sets left is not (its own clock is
+   stopped or finished, and no same-group wait is due), the partner comes to
+   the front. A choice made by hand stands while both are ready or both rest.
+   Returns whether the member on screen changed. */
+function clockFor(key){ return key === timer.key ? timer : restTimers.get(key); }
+function memberResting(w, i){
+  const t = clockFor(restKey(w, i));
+  if (t && t.running && timerLeft(t) > 0) return true;
+  return groupGapSeconds(w.exercises[i]) != null;
+}
+function focusReadyMember(){
+  const w = state.activeWorkout;
+  if (!w || workoutHandoff.held()) return false;
+  const run = supersetRun(w, w.currentExerciseIndex), cur = currentMemberIndex(w);
+  if (run.length < 2 || !memberResting(w, cur)) return false;
+  const ready = run.find(i => i !== cur && hasWorkLeft(w.exercises[i]) && !memberResting(w, i));
+  if (ready == null) return false;
+  pointAt(w, ready);
+  save({changed:['activeWorkout']});
+  announce('Now: ' + w.exercises[ready].name + '. ' + w.exercises[cur].name + ' is resting.');
   return true;
 }
 /* Reloads a full, stopped rest — for the exercise on screen, unless `keep`
@@ -2989,7 +2986,7 @@ function loadTimer(sec, keep){
   timer.seconds = sec || state.settings.defaultRest;
   timer.total = timer.seconds;
   timer.remaining = timer.seconds;
-  timer.running = false; timer.done = false; timer.beepScheduled = false;
+  timer.running = false; timer.done = false; timer.beepScheduled = false; timer.group = '';
   persistTimer(); drawTimer();
 }
 /* After an exercise's last set there is no next set to rest for, so its own
@@ -3079,9 +3076,11 @@ function restOverride(block){
 /* The rest after a set of `ex`; by default the exercise on screen. A
    warm-up set carries its own rest (Settings → Warm-up sets), which applies
    while it is the latest set logged and work is still open. */
-/* Arriving at an exercise that follows one of its own group starts its clock
-   on what is left of the 3:00, counted from the predecessor's last working
-   set; a wait already spent at a busy station counts. Once per exercise, so a
+/* Rest is tied to the muscle group as well as the exercise. Arriving at an
+   exercise whose group worked less than 3:00 ago (by any other exercise, in
+   any order) starts its clock on what is left of the 3:00, counted from that
+   group's last working set; a wait already spent at a busy station counts.
+   The bar names the group while that clock runs. Once per exercise, so a
    reset clock stays reset. */
 function startGroupGap(){
   const w = state.activeWorkout;
@@ -3091,8 +3090,8 @@ function startGroupGap(){
   const left = groupGapSeconds(ex);
   if (left == null) return;
   ui.groupGapFor = timer.key;
-  loadTimer(left, true); startTimer();
-  announce('Rest ' + fmtClock(left) + ' before ' + ex.name + ': same group as the last exercise.');
+  loadTimer(left, true); timer.group = exerciseGroup(ex); startTimer();
+  announce('Rest ' + fmtClock(left) + ' before ' + ex.name + ': ' + exerciseGroup(ex) + ' group worked under 3:00 ago.');
 }
 function currentRestSeconds(ex){
   const w = state.activeWorkout;
@@ -3169,13 +3168,16 @@ function performedOrder(w){
     return x - y || at.get(a) - at.get(b);
   });
 }
-/* Whether `ex` follows an exercise of its own group. Its predecessor owns the
-   most recent logged working set before ex's first working set (or before
-   `now`, for an exercise not started yet); exercises in group none are passed
-   over. Two same-group exercises whose working sets interleave (a superset)
-   conflict too, reported on the one that started later. Returns
-   { by, at, kind } where `at` is the predecessor's last working set before
-   ex began, or null. */
+/* Whether `ex` began while its muscle group was still resting: another
+   exercise of the group logged a working set less than GROUP_GAP_SECONDS
+   before ex's first working set (or before `now`, for an exercise not started
+   yet). Time decides, so other exercises in between (a superset, a quick
+   accessory) do not hide the conflict, and a full rest clears it. Two
+   same-group exercises whose working sets interleave (a superset) conflict
+   too, reported on the one that started later. Without set times (an imported
+   file) the list order stands in: the nearest earlier exercise outside group
+   none. Returns { by, at, kind } where `at` is the group's last working set
+   before ex began, or null. */
 function orderConflict(w, ex, now = Date.now()){
   const group = exerciseGroup(ex);
   if (!w || group === 'none') return null;
@@ -3190,10 +3192,10 @@ function orderConflict(w, ex, now = Date.now()){
   const mine = workTimes(ex), first = mine.length ? Math.min(...mine) : now;
   let by = null, at = -1;
   for (const other of w.exercises){
-    if (other === ex || exerciseGroup(other) === 'none') continue;
+    if (other === ex || exerciseGroup(other) !== group) continue;
     for (const t of workTimes(other)) if (t < first && t > at){ at = t; by = other; }
   }
-  if (by && exerciseGroup(by) === group) return { by, at, kind:'after' };
+  if (by && first - at < GROUP_GAP_SECONDS * 1000) return { by, at, kind:'after' };
   if (mine.length){
     const last = Math.max(...mine);
     for (const other of w.exercises){
@@ -3259,6 +3261,12 @@ function excludeAllButtonHTML(w, scope){
     : '<button type="button" class="btn" data-action="exclude-all" data-scope="' + scope + '">Exclude all exercises from progression…</button>' +
       '<p class="hint mt-2">For a session that does not show your level: little sleep, illness, an injury. Sets still count for volume and records.</p>';
 }
+/* Whether the exercise after this one in the list shares its group, for the
+   "Next:" line: a heads-up before the bar starts the group's wait. */
+function sameGroupNext(ex, next){
+  const group = exerciseGroup(ex);
+  return !!next && group !== 'none' && exerciseGroup(next) === group;
+}
 /* For the live overview, which follows the plan: the row above in the list,
    passing over group-none rows, when it shares this row's group. */
 function plannedConflict(list, i){
@@ -3307,8 +3315,10 @@ function drawTimer(){
   const toggle = $('#timer-toggle');
   /* the clock names whose rest it is, so a countdown never reads as the wrong exercise's */
   const label = $('#timer-label');
-  if (label) label.textContent = timer.label ? 'Rest · ' + timer.label : 'Rest';
-  timeEl.setAttribute('aria-label', 'Rest time remaining' + (timer.label ? ' for ' + timer.label : ''));
+  /* a same-group wait names the group: its clock counts from the group's last set */
+  const named = timer.group && timer.running ? timer.group + ' group' : timer.label;
+  if (label) label.textContent = named ? 'Rest · ' + named : 'Rest';
+  timeEl.setAttribute('aria-label', 'Rest time remaining' + (named ? ' for ' + named : ''));
   const others = $('#timer-others');
   if (others){
     others.innerHTML = otherRests().map(t =>
@@ -4577,7 +4587,7 @@ function schemaHelpHTML(){
       ['exercises[].movementFamily', 'string', 'A volume grouping such as <code>horizontal_push</code> or <code>vertical_pull</code>. It does not join load progression.'],
       ['exercises[].instructions', 'string', 'How to perform the movement, in Markdown: # headings, **bold**, *italic*, lists nested up to 3 levels, &gt; quotes and --- dividers. Links, images, tables and HTML are shown as typed. At most 10,000 characters.'],
       ['exercises[].url', 'string', 'A link showing how to perform the movement. Only <code>http</code> and <code>https</code> survive; anything else is dropped.'],
-      ['exercises[].group', 'optional enum', EXERCISE_GROUPS.map(g => '<code>' + g + '</code>').join(' \u00b7 ') + '. The muscle group for spacing exercises: two of one group back to back get a warning and a 3:00 rest. Missing means the default from <code>movementFamily</code> (push families: press, pull families: back, squat: quads, hinge: posterior, core: core, anything else: none). <code>none</code> is never part of a conflict (rehab, arm isolation).']
+      ['exercises[].group', 'optional enum', EXERCISE_GROUPS.map(g => '<code>' + g + '</code>').join(' \u00b7 ') + '. The muscle group for spacing exercises: an exercise that starts less than 3:00 after another of its group gets a warning and the rest of the 3:00. Missing means the default from <code>movementFamily</code> (push families: press, pull families: back, squat: quads, hinge: posterior, core: core, anything else: none). <code>none</code> is never part of a conflict (rehab, arm isolation).']
     ]) +
     code(sampleRoutinesFile()) +
 
@@ -4987,7 +4997,7 @@ function wireSheets(){
 }
 function closeOverview(){
   ui.overviewOpen = false;
-  ui.focus = 'overview-toggle-btn';
+  ui.focus = focusReadyMember() ? 'ex-panel-top' : 'overview-toggle-btn';
   render();
 }
 /* The session strip sticks directly under the header, so the header's real
@@ -5349,13 +5359,6 @@ function setRoleMarkHTML(s){
   const mark = SET_ROLE_MARK[s.role];
   return mark ? '<span class="role" title="' + mark[1] + '">' + mark[0] + '</span>' : '';
 }
-/* Below 400px the shared set table hides the set-number cell, and the W/T/B
-   letter with it; this badge, pinned to the row's top-left corner, takes over
-   there. Screen readers get the role from the done button instead. */
-function rowRoleBadgeHTML(s){
-  const warm = isWarmup(s), mark = warm ? ['W'] : SET_ROLE_MARK[s.role];
-  return mark ? '<span class="row-role' + (warm ? ' is-warm' : '') + '" aria-hidden="true">' + mark[0] + '</span>' : '';
-}
 function roleWords(s){
   return isWarmup(s) ? ' (warm-up)' : SET_ROLE_MARK[s.role] ? ' (' + SET_ROLE_MARK[s.role][1].toLowerCase() + ')' : '';
 }
@@ -5405,8 +5408,8 @@ function setFieldsHTML(ex, s, n, metric = setMetric(ex)){
   }
   return html;
 }
-/* A logged set is a record to read, so it is one line of text: number, load
-   × count, effort. The line opens the set editor, which holds every field and
+/* A logged set is a record to read, so it is one line of text: role letter,
+   load × count, effort. The line opens the set editor, which holds every field and
    the warm-up toggle; the done box beside it still un-logs the set, and a long
    press on it still marks a warm-up. A row is 44px tall instead of 56px or
    more, and has no input borders. */
@@ -5425,8 +5428,7 @@ function htmlDoneSetRow(ex, s, n, metric){
   return '<div class="set-row is-done is-compact' + (warm ? ' is-warmup' : '') + '">' +
     '<button type="button" class="set-summary" data-action="edit-set" data-id="' + esc(s.id) + '" ' +
       'aria-label="Edit set ' + n + (warm ? ', warm-up' : SET_ROLE_MARK[s.role] ? ', ' + SET_ROLE_MARK[s.role][1].toLowerCase() : '') + ': ' + setSummary(s, ex) + tail + '" title="Edit set ' + n + '">' +
-      '<span class="n">' + n + '</span>' +
-      setRoleMarkHTML(s) +
+      '<span class="set-mark">' + setRoleMarkHTML(s) + '</span>' +
       '<span class="set-text' + (range ? ' ' + range.cls : '') + '">' + doneSetText(s, ex) + tail + '</span>' +
     '</button>' +
     '<button type="button" id="sd-' + esc(s.id) + '" class="btn set-done-btn" data-action="toggle-set" ' +
@@ -5459,7 +5461,7 @@ function htmlCurrentExercise(w, ex){
 
   let setsHTML =
     '<div class="sets-head" aria-hidden="true">' +
-      '<span>Set</span>' +
+      '<span></span>' +
       (showWeight ? '<span>' + (bodyweight ? 'Added' : 'Weight') + '<span class="narrow-hide"> (' + esc(wLabel) + ')</span></span>' : '') +
       '<span>' + esc(repsLabel) + '</span>' +
       (metric ? '<span>' + metric.label + '</span>' : '') +
@@ -5477,23 +5479,19 @@ function htmlCurrentExercise(w, ex){
     const n = i + 1;
     const warm = isWarmup(s);
     if (s.completed){ setsHTML += htmlDoneSetRow(ex, s, n, metric); return; }
-    /* The set number doubles as the warm-up toggle: the row is already five or
-       six columns wide and has no room for another one, and "is this a warm-up"
-       is the set's identity rather than another field. The cell is 34px at
-       480px and 30px at 400px, so the marker is a letter and takes the place of
-       the previous-session figure — which is itself hidden below 480px, where
-       .prev-perf above already lists the whole of the last session. */
+    /* The gutter holds the W/T/B letter, else (on wide screens) last session's
+       figure for this set; .prev-perf above lists the whole last session
+       where the figure is hidden. Screen readers get the role from the done
+       button. */
     setsHTML += '<div class="set-row' + (isCur ? ' is-current' : '') +
         (warm ? ' is-warmup' : '') + '">' +
-      '<button type="button" id="sn-' + esc(s.id) + '" class="set-num" data-action="toggle-warmup" data-id="' + esc(s.id) + '" ' +
-        'aria-pressed="' + warm + '" aria-label="Set ' + n +
-        (warm ? ' is a warm-up. Mark it as a working set' : ' is a working set. Mark it as a warm-up') + '">' +
-        '<span class="n">' + n + '</span>' +
+      '<span class="set-mark" aria-hidden="true">' +
         (setRoleMarkHTML(s) || (prevSet ? '<span class="prev" title="Previous session">' + prevSet + '</span>' : '')) +
-      '</button>' + rowRoleBadgeHTML(s) + setFieldsHTML(ex, s, n, metric);
+      '</span>' + setFieldsHTML(ex, s, n, metric);
     /* A long press here toggles the warm-up flag (data-longpress); a tap still
-       logs the set. The set number keeps the same toggle as a plain button, so
-       the gesture is never the only way in — a keyboard has no long press. */
+       logs the set. The set editor (pencil) holds the same toggle as a plain
+       button, so the gesture is never the only way in: a keyboard has no long
+       press. */
     setsHTML += '<button type="button" id="sd-' + esc(s.id) + '" class="btn set-done-btn" data-action="toggle-set" ' +
       'data-longpress="toggle-warmup" data-id="' + esc(s.id) + '" ' +
       'aria-pressed="false" aria-label="Mark set ' + n + roleWords(s) + ' as done" title="Mark set ' + n + ' as done · hold to mark it a warm-up">' +
@@ -5523,21 +5521,25 @@ function htmlCurrentExercise(w, ex){
     '<div class="sets-foot">' +
       '<button type="button" class="btn" data-action="add-set">' + IC.plus + '<span>Add set</span></button>' +
       '<button type="button" class="btn" data-action="exercise-menu" aria-haspopup="dialog" aria-label="More actions for ' + esc(ex.name) + '">More…</button>' +
-      (next ? '<span class="next-up muted small">Next: ' + esc(next.name) + '</span>' : '') +
+      (next ? '<span class="next-up muted small">Next: ' + esc(next.name) + (sameGroupNext(ex, next) ? ' (' + esc(exerciseGroup(next)) + ' again)' : '') + '</span>' : '') +
     '</div>' +
   '</div>';
 }
 
-/* "Seated Row just done (same group): rest 3:00, expect fewer reps", with the
-   suggested exclusion one tap away. Text only: targets and loads stay. */
+/* One line: "[back] after Seated Row · fewer reps likely", with the suggested
+   exclusion one tap away. The wait itself is on the rest bar, which names the
+   group while it counts down what is left of 3:00. Text only: targets and
+   loads stay. */
 function htmlOrderNote(w, ex){
   const c = orderConflict(w, ex), x = ex.excludeFromProgression, idx = w.exercises.indexOf(ex);
   let html = '';
-  if (c && !allSetsDone(ex)) html += '<div class="order-warn" role="note"><p>' + esc(c.by.name) +
-    (c.kind === 'overlap' ? ' alternates with it' : ' just done') + ' (same group): rest 3:00, expect fewer reps.</p>' +
-    (x ? '' : '<button type="button" class="btn btn-sm" data-action="exclude-suggested" data-idx="' + idx + '">Exclude from progression</button>') + '</div>';
-  if (x) html += '<div class="order-warn is-excluded" role="note"><p>Not counted in progression: ' + esc(EXCLUDE_REASONS[x.reason] || 'Other') +
-    (x.note ? ' (' + esc(x.note) + ')' : '') + '.</p><button type="button" class="btn btn-sm" data-action="exclude-clear" data-idx="' + idx + '">Count it again</button></div>';
+  if (c && !allSetsDone(ex)) html += '<div class="order-warn" role="note">' +
+    '<span class="status-chip warm">' + esc(exerciseGroup(ex)) + '</span>' +
+    '<p>' + (c.kind === 'overlap' ? 'Alternates with ' : 'After ') + esc(c.by.name) + ' · fewer reps likely</p>' +
+    (x ? '' : '<button type="button" class="btn btn-sm btn-quiet" data-action="exclude-suggested" data-idx="' + idx + '" ' +
+      'aria-label="Do not count ' + esc(ex.name) + ' in progression">Don’t count</button>') + '</div>';
+  if (x) html += '<div class="order-warn is-excluded" role="note"><p>Not in progression: ' + esc(EXCLUDE_REASONS[x.reason] || 'Other') +
+    (x.note ? ' (' + esc(x.note) + ')' : '') + '</p><button type="button" class="btn btn-sm btn-quiet" data-action="exclude-clear" data-idx="' + idx + '">Count it again</button></div>';
   return html;
 }
 /* Warm-ups go above the first working set, so the button that adds them sits
@@ -5549,8 +5551,10 @@ function warmupButtonHTML(ex){
   /* whether this movement has worked yet in the session, the main reason to warm up */
   const warmth = movementWarmth(state.activeWorkout, ex), family = warmth && warmth.family.replace(/_/g, ' ');
   const said = !warmth ? '' : warmth.fresh ? '. First ' + family + ' in this workout' : '. ' + family + ' already worked by ' + warmth.by;
+  /* the group line above already says what was just worked */
+  const quiet = orderConflict(state.activeWorkout, ex);
   return '<div class="warmup-add">' +
-    (warmth && !warmth.fresh ? '<span class="warmup-note" aria-hidden="true">' + esc(family) + ' worked: ' + esc(warmth.by) + '</span>' : '') +
+    (warmth && !warmth.fresh && !quiet ? '<span class="warmup-note" aria-hidden="true">' + esc(family) + ' worked: ' + esc(warmth.by) + '</span>' : '') +
     '<button type="button" class="btn btn-sm btn-quiet" data-action="add-warmups" ' +
     'aria-label="Add ' + plural(plan.length, 'warm-up set') + ' to ' + esc(ex.name) + ': ' + esc(what) + esc(said) + '">' +
     IC.plus + '<span>' + plural(plan.length, 'warm-up set') + (warmth && warmth.fresh ? ' · first ' + esc(family) : '') + '</span></button></div>';
@@ -5612,7 +5616,8 @@ function overviewSheetHTML(w){
     const above = plannedConflict(w.exercises, i);
     /* A row not started yet is its name alone: the plan's set count was
        repeated on every row and is on the exercise itself. */
-    const meta = (above ? '<span class="status-chip warm">Same group as ' + esc(above.name) + '</span> ' : '') +
+    const meta = (above ? '<span class="status-chip warm" title="Same muscle group as ' + esc(above.name) + '">' + esc(exerciseGroup(ex)) + ' again' +
+        '<span class="sr-only">: same muscle group as ' + esc(above.name) + '</span></span> ' : '') +
       (ex.excludeFromProgression ? '<span class="status-chip skip">Not in progression</span> ' : '') +
       (settled && logged.length ? logged.map(s => setSummary(s, ex)).join(', ')
       : isNow || logged.length ? logged.length + '/' + ex.sets.length + ' sets' : '');
@@ -7073,7 +7078,7 @@ function htmlExerciseForm(){
           '<span class="hint">Groups training volume across related movements; load progress stays separate.</span></label>' +
         '<label class="field"><span class="cap">Load convention</span><select name="exloadmode">' + loadModeOptions('total') + '</select></label>' +
         '<label class="field"><span class="cap">Muscle group</span><select name="exgroup">' + groupOptions('', '') + '</select>' +
-          '<span class="hint">Two exercises of one group back to back get a warning. <code>none</code> never does (rehab, arm work).</span></label>' +
+          '<span class="hint">Starting one within 3:00 of another in its group gets a warning and a wait. <code>none</code> never does (rehab, arm work).</span></label>' +
         '<label class="field"><span class="cap">Equipment key (optional)</span><input name="exequipment" placeholder="gym-a-leg-press">' +
           '<span class="hint">Use the same stable key only for the same implement or machine.</span></label>' +
       '</div>' +
@@ -7155,7 +7160,7 @@ function htmlExerciseEditRow(e){
           '<span class="hint">Groups training volume across related movements; load progress stays separate.</span></label>' +
         '<label class="field"><span class="cap">Load convention</span><select data-bind="edraft" data-field="loadMode">' + loadModeOptions(normalizeLoadMode(d.loadMode,d.unit)) + '</select></label>' +
         '<label class="field"><span class="cap">Muscle group</span><select data-bind="edraft" data-field="group">' + groupOptions(normalizeGroup(d.group), d.movementFamily) + '</select>' +
-          '<span class="hint">Two exercises of one group back to back get a warning. <code>none</code> never does (rehab, arm work).</span></label>' +
+          '<span class="hint">Starting one within 3:00 of another in its group gets a warning and a wait. <code>none</code> never does (rehab, arm work).</span></label>' +
         '<label class="field"><span class="cap">Equipment key (optional)</span><input data-bind="edraft" data-field="equipmentKey" value="' + esc(d.equipmentKey || '') + '" placeholder="gym-a-leg-press">' +
           '<span class="hint">Same key means the same implement or machine.</span></label>' +
       '</div>' +
@@ -8159,6 +8164,9 @@ function init(){
     if (timer.running && (timer.endsAt - Date.now()) / 1000 <= 0) completeRest();
     else drawTimer();
     if (!workoutHandoff.held()) completeOtherRests();
+    /* back in the app on a superset: the ready member, unless a field is being edited */
+    const editing = document.activeElement && document.activeElement.matches('input,textarea,select');
+    if (ui.view === 'today' && !ui.overviewOpen && !document.querySelector('dialog[open]') && !editing && focusReadyMember()) render();
   });
   window.addEventListener('pagehide', () => { flushSave(); if (readRemoteWork()) autoRemoteBackup(); });
   window.addEventListener('online', ()=>{renderStorageStatus();remoteStartupSync();});

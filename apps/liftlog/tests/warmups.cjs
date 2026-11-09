@@ -85,6 +85,9 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     assert.equal((await warmAdd.textContent()).trim(), '2 warm-up sets · first horizontal push', 'a warm-up is not work');
     await goTo(0); await page.locator('.set-done-btn').nth(2).click();
     await goTo(1);
+    assert.equal(await warmAdd.locator('.warmup-note').count(), 0, 'right after, the same-group line says it; the warm-up note stays quiet');
+    assert.equal(await page.locator('#main .order-warn').count(), 1);
+    await page.evaluate(() => { const t = window.testAPI; t.state.activeWorkout.exercises[0].sets.forEach(s => { if (s.completedAt) s.completedAt -= 200000; }); t.render(); });
     assert.equal(await warmAdd.locator('.warmup-note').textContent(), 'horizontal push worked: Bench Press', 'after a working set the family is worked');
     assert.equal((await button.textContent()).trim(), '2 warm-up sets');
     assert.match(await button.getAttribute('aria-label'), /horizontal push already worked by Bench Press$/);
@@ -92,6 +95,6 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     assert.equal((await warmAdd.textContent()).trim(), '2 warm-up sets', 'an unclassified exercise says nothing');
 
     assert.deepEqual(errors, []);
-    console.log('warmups: 25 checks passed');
+    console.log('warmups: 27 checks passed');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });
