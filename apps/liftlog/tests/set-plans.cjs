@@ -36,7 +36,7 @@ const routinesFile = {
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     const html = appWithTestAPI(`{ navigate, render, startRoutine, planRoutineImport, applyRoutineImport, validateBackup, prepareBackup, cascadeWeight,
-      loadCueFor, progressionStatus, workoutVolume, routineById, newRoutineDraft, get timer(){return timer}, get ui(){return ui}, get state(){return state} }`);
+      loadCueFor, progressionStatus, workoutVolume, routineById, newRoutineDraft, flushSave, get timer(){return timer}, get ui(){return ui}, get state(){return state} }`);
     await page.route('https://liftlog.test/**', route => route.fulfill({ contentType:'text/html', body:html }));
     await page.goto('https://liftlog.test/');
 
@@ -168,7 +168,17 @@ const routinesFile = {
     assert.equal(await page.evaluate(() => window.testAPI.ui.routineDraft.items[1].setPlan), undefined);
     assert.equal(await page.locator('#main [data-bind="ritem"][data-idx="1"]').count(), 4, 'its own sets, reps, RIR and load come back');
 
+    /* Saved set plans load at startup. The data check runs before most of the
+       app's module-level names exist, and once read one too early: the app set
+       the saved data aside and started from the seed. */
+    await page.evaluate(() => window.testAPI.flushSave());
+    await page.reload();
+    assert.equal(await page.locator('#save-banner').isHidden(), true, 'saving stays enabled');
+    assert.equal(await page.evaluate(() => localStorage.getItem('liftlog.v1.unreadable')), null, 'nothing set aside');
+    assert.deepEqual(await page.evaluate(() => window.testAPI.routineById('rt-push').items[0].setPlan.map(e => e.type)),
+      ['warmup', 'warmup', 'working', 'working', 'working'], 'the plan is still there after a reload');
+
     assert.deepEqual(errors, []);
-    console.log('set-plans: 34 checks passed');
+    console.log('set-plans: 37 checks passed');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });
