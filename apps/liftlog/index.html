@@ -2006,7 +2006,10 @@ function validateBackup(s){
         array(it.setPlan, at + '.setPlan');
         it.setPlan.forEach((e, k) => {
           const here = at + '.setPlan[' + k + ']'; object(e, here);
-          if (!SET_PLAN_TYPES.includes(e.type)) fail(here + '.type', 'one of ' + SET_PLAN_TYPES.join(', '));
+          /* through the controller: saved data is checked at startup, before
+             the module-level copies further down this file exist */
+          const types = routinesController().SET_PLAN_TYPES;
+          if (!types.includes(e.type)) fail(here + '.type', 'one of ' + types.join(', '));
           fields(e, here, ['weight', 'reps', 'repsMin', 'repsMax', 'targetRir', 'restSec'], number);
         });
         const work = it.setPlan.filter(e => e.type !== 'warmup').length;
