@@ -21,7 +21,7 @@ const BikePlanUI = {
         el('td', {textContent:p.title}),
         el('td', {textContent:p.duration != null ? span(p.duration) : `HR ${p.gate === 'cool' ? 'below' : '≤'} ${p.gateBpm}, at least ${span(p.min)}`}),
         el('td', {textContent:p.res}),
-        el('td', {textContent:[p.hr !== 'No target' && p.hr, p.rpm !== '—' && `${p.rpm} rpm`, p.cue, p.adjust && rule(p.adjust)].filter(Boolean).join(' · ')})));
+        el('td', {textContent:[p.hr !== 'No target' && p.hr, p.rpm !== '—' && `${p.rpm} rpm`, p.cue, p.adjust && rule(p.adjust), p.check && `Asks: ${p.check.prompt}`].filter(Boolean).join(' · ')})));
       return el('div', {className:'plan-table'}, el('table', {}, el('thead', {}, head), el('tbody', {}, ...body)));
     }
     const rule = a => ['Next effort', a.cadenceAbove != null && `+${a.add} if cadence goes above ${a.cadenceAbove}`, a.cadenceBelow != null && `−${a.subtract} if it falls below ${a.cadenceBelow} before ${a.beforeSeconds} s`].filter(Boolean).join(' ');
@@ -31,6 +31,7 @@ const BikePlanUI = {
       if (plan.conditions.length) parts.push(el('p', {className:'small', textContent:'Conditions: ' + plan.conditions.map(c => c.value ? `${c.label} ${c.value}` : c.label).join(', ') + '.'}));
       parts.push(table(plan));
       if (phases.some(p => p.adjust)) parts.push(el('p', {className:'small', textContent:'During each recovery the app asks for the resistance you used and how cadence went, then sets the next effort.'}));
+      if (phases.some(p => p.check)) parts.push(el('p', {className:'small', textContent:`In the last ${BikePlans.CHECK_LEAD_MS / 1000} s of each step marked "Asks", the app asks the question and saves your answer.` + (plan.result === 'zone2Ceiling' ? ' After the ride, the highest step passed proposes your zone 2 ceiling.' : '')}));
       return el('div', {className:'plan-preview'}, ...parts);
     }
     function dialog(title) {

@@ -43,6 +43,13 @@ export interface PlanStep {
   minSeconds?: number; // 1..3600, default 60, for HR-gated steps
   resistance?: Target; rpm?: Target; hr?: string; hrBelow?: number; cue?: string; // cue max 200 characters
   adjust?: { cadenceAbove?: number; add?: number; cadenceBelow?: number; beforeSeconds?: number; subtract?: number }; // effort with numeric resistance only
+  hrRange?: [number, number]; // bpm 40..230, rising; warmup, settle, recovery or cooldown only; not with hrBelow
+  check?: StepCheck; // timed steps only; not primer or effort
+}
+export interface StepCheck {
+  prompt: string; // max 80 characters
+  options: string[]; // 2..5 different texts, max 24 characters each
+  pass?: string[]; // answers that pass, a subset of options; needed for result zone2Ceiling
 }
 export interface PlanRepeat { repeat: number; step: PlanStep; between?: PlanStep } // repeat 2..20
 export interface Plan {
@@ -52,6 +59,7 @@ export interface Plan {
   conditions?: Array<{ label: string; value?: string }>; // up to 10
   record?: Array<'effortResistance' | 'effortWatts5s' | 'recovery60' | 'timeOfDay' | 'hoursSinceLifting' | 'fed' | 'note'>;
   notes?: string; // max 1000 characters
+  result?: 'zone2Ceiling'; // talk test: needs a step with hrRange and check.pass
   steps: Array<PlanStep | PlanRepeat>; // 1..40; expands to at most 200 phases and 20 efforts
   hash?: string; // computed on import from resistanceCues and steps; supplied values are replaced
 }
@@ -60,6 +68,13 @@ export interface EffortRecord {
   resistance?: number | null; cadenceFlag?: 'high' | 'ok' | 'low' | null;
   watts5s?: number | null; peakWatts?: number | null; // W, 0..2500
   peakCadence?: number | null; wattsSource?: 'sensor' | 'manual' | null;
+}
+export interface StepCheckRecord {
+  title: string; prompt: string; // max 80 characters each
+  options: string[]; answer: string | null; pass?: string[];
+  hrRange?: [number, number];
+  averageHR: number | null; // bpm over the step's last 30 s, when the strap covered half of it
+  outcome: PhaseOutcome;
 }
 export interface RideConditions {
   timeOfDay?: 'morning' | 'midday' | 'afternoon' | 'evening' | 'night' | null;
@@ -125,6 +140,7 @@ export interface HistoryEntry {
   hr?: HeartRateSummary | null;
   power?: PowerSummary | null;
   efforts?: EffortRecord[] | null; conditions?: RideConditions | null; baseline?: boolean; // v5
+  checks?: StepCheckRecord[] | null; // v5, up to 200: plan step questions as answered
   editedAt?: EpochMs;
   [extension: string]: unknown; // no defined recording/nextSeq/sampleCount contract
 }

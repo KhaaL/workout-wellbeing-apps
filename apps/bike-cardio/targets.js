@@ -25,9 +25,20 @@ const BikeTargets = (() => {
       bpm=p=>Math.round(rest+(max-rest)*p/100);bands=[[50,60],[60,70],[70,80],[80,90],[90,100]];
     }else throw new Error('Choose maximum HR, heart-rate reserve or threshold HR.');
     const zones=bands.map(([low,high],i)=>({zone:i+1,min:bpm(low),max:bpm(high)}));
-    const low=zones[1].min,high=zones[1].max,w=high-low,at=share=>Math.round(low+w*share);
-    const targetMin=at(0.3),targetMax=at(0.88);
-    return {zones,targets:normalize({zoneMin:low,zoneMax:high,adjustBelow:at(0.18),targetMin,targetMax,comparisonHR:Math.round((targetMin+targetMax)/2)})};
+    return {zones,targets:zone2(zones[1].min,zones[1].max)};
   }
-  return {defaults,normalize,methods,fromProfile};
+  function zone2(low,high){
+    const w=high-low,at=share=>Math.round(low+w*share),targetMin=at(0.3),targetMax=at(0.88);
+    return normalize({zoneMin:low,zoneMax:high,adjustBelow:at(0.18),targetMin,targetMax,comparisonHR:Math.round((targetMin+targetMax)/2)});
+  }
+  /* A measured zone 2 maximum (a talk test) with the zone minimum kept: the
+     working band, add-below point and comparison HR are rebuilt inside the
+     new zone in the same proportions as above. */
+  function withCeiling(targets,max){
+    const t=normalize(targets);
+    if(!Number.isInteger(max)||max>300)throw new Error('The zone 2 ceiling must be a whole number of bpm.');
+    if(max<t.zoneMin+5)throw new Error(`The zone 2 ceiling must be at least 5 above the zone minimum (${t.zoneMin}).`);
+    return zone2(t.zoneMin,max);
+  }
+  return {defaults,normalize,methods,fromProfile,withCeiling};
 })();

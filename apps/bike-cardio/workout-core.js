@@ -65,8 +65,19 @@ const WorkoutCore = (() => {
   const timeOfDay = at => { const h = new Date(at).getHours(); return h < 5 ? 'night' : h < 11 ? 'morning' : h < 14 ? 'midday' : h < 18 ? 'afternoon' : h < 22 ? 'evening' : 'night'; };
   const phase = s => build(s.config)[s.index];
   function create(input, now, id) {
-    return {version:VERSION,id,config:config(input),startedAt:now,lastAt:now,status:'running',index:0,phaseMs:0,activeMs:0,mainMs:0,finishedPhases:[],pending:false,hadInterruption:false,pauseReason:'',nextCheckMs:CHECK_MS,settleEndMs:0,steering:'',endedAt:null,hr:HeartRateCore.createStats(config(input).targets),power:PowerCore.createStats(),efforts:[],confirmed:[]};
+    return {version:VERSION,id,config:config(input),startedAt:now,lastAt:now,status:'running',index:0,phaseMs:0,activeMs:0,mainMs:0,finishedPhases:[],pending:false,hadInterruption:false,pauseReason:'',nextCheckMs:CHECK_MS,settleEndMs:0,steering:'',endedAt:null,hr:HeartRateCore.createStats(config(input).targets),power:PowerCore.createStats(),efforts:[],confirmed:[],checks:[],checkCued:[]};
   }
+  /* A plan step's check: its question opens CHECK_LEAD_MS before a timed step
+     ends (checkWindow) and the rider's answer is kept by phase id. */
+  const checkWindow = p => p?.check && p.duration != null ? Math.max(0, p.duration - BikePlans.CHECK_LEAD_MS) : null;
+  function answerCheck(s, id, answer) {
+    const p = build(s.config)[id];
+    if (!p?.check || (answer !== null && !p.check.options.includes(answer))) return false;
+    s.checks = (s.checks || []).filter(c => c.id !== id);
+    if (answer !== null) s.checks.push({id, answer});
+    return true;
+  }
+  const checkAnswer = (s, id) => (s.checks || []).find(c => c.id === id)?.answer ?? null;
   function accrue(s,ms) {s.phaseMs+=ms;s.activeMs+=ms;if(phase(s).kind==='main')s.mainMs+=ms;}
   function next(s,outcome='complete') {
     const p=phase(s);s.finishedPhases.push({id:p.id,kind:p.kind,title:p.title,ms:s.phaseMs,outcome});s.index++;s.phaseMs=0;s.pending=false;s.settleEndMs=0;s.steering='';
@@ -92,6 +103,8 @@ const WorkoutCore = (() => {
       events.push(next(s));if(s.status==='finished'){s.endedAt=now;break;}
       if(left<=0)break;
     }
+    const open=s.status==='running'?phase(s):null,from=checkWindow(open);
+    if(from!=null&&s.phaseMs>=from&&!(s.checkCued||[]).includes(open.id)){s.checkCued=[...(s.checkCued||[]),open.id];events.push({type:'checkDue',id:open.id});}
     if(s.status==='running' && phase(s).kind==='main') {
       if(s.settleEndMs && s.activeMs>=s.settleEndMs){s.settleEndMs=0;s.steering='One minute has passed. Check HR again.';s.nextCheckMs=s.mainMs+CHECK_MS;events.push({type:'settled'});}
       else if(!s.settleEndMs && s.mainMs>=s.nextCheckMs){s.nextCheckMs=s.mainMs+CHECK_MS;events.push({type:'check'});}
@@ -120,6 +133,8 @@ const WorkoutCore = (() => {
     s.version=VERSION;s.config=config(s.config);if(s.hr?.targets&&JSON.stringify(BikeTargets.normalize(s.hr.targets))!==JSON.stringify(s.config.targets))return null;s.hr=HeartRateCore.restoreStats(s.hr,s.config.targets);s.power=PowerCore.restoreStats(s.power);
     const logged=Array.isArray(s.efforts)?s.efforts.slice(0,20):[];s.efforts=[];logged.forEach((entry,i)=>logEffort(s,i+1,entry&&typeof entry==='object'?entry:{}));
     s.confirmed=Array.isArray(s.confirmed)?s.confirmed.filter(item=>typeof item==='string').slice(0,10).map(item=>item.slice(0,110)):[];
+    const answers=Array.isArray(s.checks)?s.checks:[];s.checks=[];for(const c of answers)if(c&&Number.isInteger(c.id))answerCheck(s,c.id,typeof c.answer==='string'?c.answer:null);
+    s.checkCued=Array.isArray(s.checkCued)?s.checkCued.filter(Number.isInteger):[];
     for(const key of ['startedAt','lastAt','index','phaseMs','activeMs','mainMs','nextCheckMs','settleEndMs'])if(!Number.isFinite(s[key])||s[key]<0)return null;
     if(!Number.isInteger(s.index)||!phase(s)||s.finishedPhases.length!==s.index)return null;
     if(s.status==='running'){advance(s,now,{visible:false});if(s.status==='running'){s.status='paused';s.pauseReason='Session restored. Elapsed time was recovered using the saved clock. Check your current phase and any watch recording before resuming.';}s.hadInterruption=true;}
@@ -134,8 +149,14 @@ const WorkoutCore = (() => {
     // Each effort ridden: the resistance and cadence flag logged during the ride, and the bike sensor's readings for its span.
     const efforts=effortSpans(s,phases).map(span=>{const logged=s.efforts?.[span.effort-1]||{},m=PowerCore.effortReadings(s.power,span.from,span.to,span.adjust);
       return {effort:span.effort,outcome:span.outcome,resistance:logged.resistance??null,cadenceFlag:logged.cadenceFlag??m?.flag??null,watts5s:m?.watts5s??null,peakWatts:m?.peakWatts??null,peakCadence:m?.peakCadence??null,wattsSource:m?.watts5s!=null?'sensor':null};});
+    // Each check step ridden: the answer and the HR measured over its check window.
+    const trace=HeartRateCore.restoreStats(s.hr).trace;let at=0;
+    const checks=s.finishedPhases.flatMap(f=>{const p=phases[f.id],from=at,to=at+f.ms;at=to;if(!p?.check)return [];
+      const window=BikeTrace.range(trace,Math.max(from,to-BikePlans.CHECK_LEAD_MS),to);
+      return [{title:p.title,prompt:p.check.prompt,options:p.check.options,...(p.check.pass?{pass:p.check.pass}:{}),...(p.hrRange?{hrRange:p.hrRange}:{}),
+        answer:checkAnswer(s,f.id),averageHR:window.coverage>=0.5?Math.round(window.average*10)/10:null,outcome:f.outcome}];});
     return {id:s.id,startedAt:s.startedAt,endedAt:s.endedAt,config:s.config,activeMs:s.activeMs,mainMs:s.mainMs,outcome:complete?'complete':'partial',hadInterruption:s.hadInterruption,effortsCompleted:s.finishedPhases.filter(p=>p.kind==='effort'&&p.outcome==='complete').length,phases:s.finishedPhases,hr:{...HeartRateCore.summary(s.hr,s.activeMs),...analysis},...(power?{power}:{}),metrics,
-      ...(efforts.length?{efforts}:{}),conditions:{timeOfDay:timeOfDay(s.startedAt),hoursSinceLifting:null,fed:null,note:'',confirmed:s.confirmed||[]}};
+      ...(efforts.length?{efforts}:{}),...(checks.length?{checks}:{}),conditions:{timeOfDay:timeOfDay(s.startedAt),hoursSinceLifting:null,fed:null,note:'',confirmed:s.confirmed||[]}};
   }
-  return {bikeCues,config,templateSteps,build,effortSpans,effortTarget,logEffort,timeOfDay,phase,create,advance,pause,resume,gate,skip,end,steer,restore,record};
+  return {bikeCues,config,templateSteps,build,effortSpans,effortTarget,logEffort,checkWindow,answerCheck,checkAnswer,timeOfDay,phase,create,advance,pause,resume,gate,skip,end,steer,restore,record};
 })();

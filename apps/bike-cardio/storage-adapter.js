@@ -70,6 +70,19 @@ globalThis.BikeStorage = (() => {
             if(e.wattsSource!=null&&!['sensor','manual'].includes(e.wattsSource))fail('Invalid effort watts source');
           }
         }
+        if(r.checks!=null){
+          // Plan step questions (a talk test): the answer, the step's HR band and the HR over the check window.
+          if(!Array.isArray(r.checks)||r.checks.length>200)fail('Invalid step checks');
+          const short=(v,max)=>typeof v==='string'&&v.length>0&&v.length<=max;
+          for(const c of r.checks){
+            if(!c||typeof c!=='object'||!short(c.title,80)||!short(c.prompt,80)||!['complete','skipped','ended'].includes(c.outcome))fail('Invalid step check');
+            if(!Array.isArray(c.options)||c.options.length<2||c.options.length>5||c.options.some(o=>!short(o,24)))fail('Invalid step check options');
+            if(c.answer!=null&&!c.options.includes(c.answer))fail('Invalid step check answer');
+            if(c.pass!=null&&(!Array.isArray(c.pass)||c.pass.some(o=>!c.options.includes(o))))fail('Invalid step check pass answers');
+            if(c.hrRange!=null&&(!Array.isArray(c.hrRange)||c.hrRange.length!==2||c.hrRange.some(n=>!Number.isInteger(n)||n<40||n>230)||c.hrRange[0]>=c.hrRange[1]))fail('Invalid step check HR range');
+            optional(c.averageHR,'Step check HR',1,300);
+          }
+        }
         if(r.conditions!=null){
           const c=r.conditions;if(typeof c!=='object'||Array.isArray(c))fail('Invalid ride conditions');
           if(c.timeOfDay!=null&&!['morning','midday','afternoon','evening','night'].includes(c.timeOfDay))fail('Invalid time of day');
