@@ -1,0 +1,13 @@
+{
+  "name": "Zone 2 ride",
+  "scheduledFor": "2026-11-16",
+  "order": 1,
+  "resistanceCues": "levels",
+  "conditions": [{"label": "Incline", "value": "2–3%"}],
+  "notes": "A steady ride under the zone 2 ceiling in Settings. After a talk test, set the ceiling from its summary first. The day after a leg session, easy cycling helps recovery. On a lifting day, ride after the lifting.",
+  "steps": [
+    {"kind": "warmup", "title": "Warm-up", "seconds": 300, "rpm": [80, 90], "resistance": "easy", "cue": "Start easy and build gradually."},
+    {"kind": "main", "title": "Zone 2", "seconds": 2100, "rpm": [80, 90], "resistance": "Start around 8", "cue": "Stay under the ceiling. Adjust resistance only; keep cadence steady."},
+    {"kind": "cooldown", "title": "Cool-down", "seconds": 300, "resistance": "easy", "cue": "Spin easily, then stop any watch recording."}
+  ]
+}

@@ -102,3 +102,60 @@ test('any heart-rate strap and any standard bike sensor can connect',async()=>{
   const none=sensor(BikeConnection,{});await none.connection.connect();assert.equal(none.connection.state,'disconnected');assert.match(none.connection.error,/Could not connect to the bike/);
   const plain=new BikeConnection({secure:false,protocol:'https:'});await plain.connect();assert.match(plain.error,/HTTPS/);
 });
+const talkTest=JSON.parse(fs.readFileSync(path.join(__dirname,'../examples/bike-plan-talk-test.json'),'utf8'));
+test('plan steps take a checked HR band and a question; a talk-test plan names its result',()=>{
+  const {P}=vm.runInContext('({P:BikePlans})',ctx);
+  const plan=P.normalize({id:'t',...talkTest}),phases=P.expand(plan.steps),stages=phases.filter(p=>p.check);
+  assert.equal(plan.result,'zone2Ceiling');
+  const json=JSON.stringify;
+  assert.equal(json(stages.map(p=>[p.title,p.hr,p.hrRange.join('-')])),json([['Step 1','115–120','115-120'],['Step 2','120–125','120-125'],['Step 3','125–130','125-130']]));
+  assert.equal(json(stages[0].check),json({prompt:'Count aloud to 20',options:['Smooth','Broken','Could not'],pass:['Smooth']}));
+  const bad=(step,pattern)=>assert.throws(()=>P.normalize({id:'b',name:'b',steps:[step]}),pattern);
+  bad({kind:'main',seconds:60,hrRange:[110,120]},/hrRange is for warmup, settle, recovery, cooldown/);
+  bad({kind:'settle',seconds:60,hrRange:[120,120]},/must rise/);
+  bad({kind:'settle',seconds:60,hrRange:[110,120],hrBelow:120},/not both/);
+  bad({kind:'settle',untilHrBelow:100,check:{prompt:'x',options:['a','b']}},/timed step/);
+  bad({kind:'effort',seconds:30,check:{prompt:'x',options:['a','b']}},/cannot hold a check/);
+  bad({kind:'settle',seconds:60,check:{prompt:'x',options:['a']}},/2 to 5 options/);
+  bad({kind:'settle',seconds:60,check:{prompt:'x',options:['a','a']}},/must differ/);
+  bad({kind:'settle',seconds:60,check:{prompt:'x',options:['a','b'],pass:['c']}},/pass must list/);
+  assert.throws(()=>P.normalize({id:'r',name:'r',result:'zone2Ceiling',steps:[{kind:'settle',seconds:60}]}),/needs a step with an hrRange/);
+  assert.throws(()=>P.normalize({id:'r',name:'r',result:'vo2max',steps:[{kind:'settle',seconds:60}]}),/result must be zone2Ceiling/);
+});
+test('the talk test proposes a ceiling: highest step passed, measured HR first, and whether the limit was found',()=>{
+  const {P}=vm.runInContext('({P:BikePlans})',ctx);
+  const c=(title,range,answer,averageHR=null)=>({title,hrRange:range,pass:['Smooth'],options:['Smooth','Broken','Could not'],answer,averageHR});
+  const json=JSON.stringify;
+  assert.equal(json(P.ceilingFrom([c('Step 1',[115,120],'Smooth',118.4),c('Step 2',[120,125],'Smooth',123.6),c('Step 3',[125,130],'Broken',128)])),
+    json({value:124,measured:true,title:'Step 2',hrRange:[120,125],limitFound:true}));
+  assert.equal(json(P.ceilingFrom([c('Step 1',[115,120],'Smooth'),c('Step 2',[120,125],null)])),json({value:120,measured:false,title:'Step 1',hrRange:[115,120],limitFound:false}),'no strap: the top of the band; unanswered steps say nothing');
+  assert.equal(P.ceilingFrom([c('Step 1',[115,120],'Could not')]),null);
+  assert.equal(P.ceilingFrom(undefined),null);
+});
+test('a new ceiling keeps the zone minimum and rebuilds the working band in proportion',()=>{
+  const T=vm.runInContext('BikeTargets',ctx);
+  assert.equal(JSON.stringify(T.withCeiling(T.defaults,122)),JSON.stringify(T.defaults),'the default zone comes back unchanged');
+  assert.equal(JSON.stringify(T.withCeiling(T.defaults,126)),JSON.stringify({zoneMin:105,zoneMax:126,targetMin:111,targetMax:123,adjustBelow:109,comparisonHR:117}));
+  assert.throws(()=>T.withCeiling(T.defaults,108),/at least 5 above the zone minimum \(105\)/);
+});
+test('a check opens 30 s before its step ends, cues once, keeps its answer and records the HR over its window',()=>{
+  const {C,H}=vm.runInContext('({C:WorkoutCore,H:HeartRateCore})',ctx);
+  const s=C.create({plan:{id:'t',...talkTest}},0,'ride');
+  const step1=C.build(s.config).find(p=>p.title==='Step 1');
+  assert.equal(C.checkWindow(step1),210000);
+  s.index=step1.id;s.finishedPhases=C.build(s.config).slice(0,step1.id).map(p=>({id:p.id,kind:p.kind,title:p.title,ms:p.duration,outcome:'complete'}));s.activeMs=480000;s.lastAt=0;
+  let events=C.advance(s,200000);assert.equal(events.filter(e=>e.type==='checkDue').length,0);
+  // A strap reading of 118 bpm every second through the check window.
+  const cues=[];
+  for(let t=201000;t<=240000;t+=1000){events=C.advance(s,t);if(events.some(e=>e.type==='checkDue'))cues.push(s.phaseMs);H.sample(s.hr,{bpm:118,valid:true,at:t},t,s.activeMs);}
+  assert.equal(JSON.stringify(cues),'[210000]','cued once, when the window opens');
+  assert.equal((s.checkCued||[]).length,1);
+  assert.equal(C.answerCheck(s,step1.id,'Maybe'),false,'only its own options');
+  assert.equal(C.answerCheck(s,step1.id,'Smooth'),true);assert.equal(C.checkAnswer(s,step1.id),'Smooth');
+  const restored=C.restore(JSON.parse(JSON.stringify(s)),241000);assert.equal(C.checkAnswer(restored,step1.id),'Smooth','an answer survives a reload');
+  const r=C.record(C.end(s,241000)&&s);const check=r.checks[0];
+  assert.deepEqual([check.title,check.answer,check.hrRange.join('-'),Math.round(check.averageHR)],['Step 1','Smooth','115-120',118]);
+  assert.equal(r.checks.length,2,'the step cut short by ending is listed too');
+  assert.equal(H.rangeAdvice({bpm:121,valid:true,at:1},1,[115,120]).text,'Above 120 · ease one level');
+  assert.equal(H.rangeAdvice({bpm:117,valid:true,at:1},1,[115,120]).action,'hold');
+});

@@ -8,6 +8,8 @@ internally, so a plan runs through the same timer, HR gates, cues and history.
 - Runtime authority: `apps/bike-cardio/plans.js` (`BikePlans.normalize`, `expand`)
 - Types: `apps/bike-cardio/history-types.d.ts` (`Plan`, `PlanStep`)
 - [Example: sprint baseline](../examples/bike-plan-sprint.json)
+- [Example: talk test](../examples/bike-plan-talk-test.json) (HR bands, a question per step, `result`)
+- [Example: Zone 2 ride](../examples/bike-plan-zone2.json) (a `main` block steered by the Settings targets)
 
 ## Workflow
 
@@ -68,6 +70,7 @@ Deleting a plan keeps the rides done with it; each ride stores its own copy.
 | `resistanceCues` | `levels` (default) when numbers name console levels, `feel` otherwise. |
 | `conditions` | Up to 10 `{label, value}` pairs confirmed before the ride starts. |
 | `record` | Optional subset of `effortResistance`, `effortWatts5s`, `recovery60`, `timeOfDay`, `hoursSinceLifting`, `fed`, `note`; all by default. |
+| `result` | Optional. `zone2Ceiling`: after the ride the summary proposes a zone 2 maximum from the steps' checks (see below). Needs a step with `hrRange` and a `check` with `pass`. |
 | `notes` | Up to 1000 characters of Markdown, shown formatted with the plan. Links may use `https://`, `http://` or `mailto:`. |
 | `steps` | 1 to 40 steps or repeat blocks; at most 200 phases and 20 efforts after expansion. |
 
@@ -81,6 +84,8 @@ Deleting a plan keeps the rides done with it; each ride stores its own copy.
 | `untilHrAtMost`, `untilHrBelow` | 40..230 bpm. The phase continues until HR is at most, or below, this value, after `minSeconds` (default 60, 1..3600). Not allowed for `primer` or `effort`. |
 | `resistance`, `rpm` | A number, a `[low, high]` pair or a label of up to 40 characters. |
 | `hr`, `hrBelow` | An HR label, or `hrBelow` (40..230) shown as "Under N". |
+| `hrRange` | `[low, high]`, 40..230 bpm, rising. The app checks a live strap reading against it ("Above 120 · ease one level") and shows it on the HR bar. Only on `warmup`, `settle`, `recovery` and `cooldown`: `main` steers from the Settings targets. Not with `hrBelow`. |
+| `check` | `{"prompt": up to 80 characters, "options": 2..5 different texts of up to 24, "pass": [some options]}`. Timed steps only, not `primer` or `effort`. The question opens, with a beep and the prompt spoken, 30 s before the step ends and stays answerable during the next step. The answer is saved with the ride and editable in the summary. |
 | `cue` | Up to 200 characters, spoken at the start of the phase. |
 | `adjust` | Efforts with a numeric resistance only. `cadenceAbove` with `add`, and `cadenceBelow` with `subtract` and `beforeSeconds` (default: the effort length). |
 
@@ -88,6 +93,21 @@ A repeat block is `{"repeat": 2..20, "step": STEP, "between": STEP}`. `between`
 runs between repeats and never after the last. Without `{i}`, repeated titles get
 "1 of 4" and between titles get "1". A 5-second countdown runs before every primer
 and effort.
+
+### A talk test (`result: zone2Ceiling`)
+
+Steps with an `hrRange` and a `check` that lists `pass` answers form a talk test.
+After the ride the summary lists each step's band, the HR the strap measured over
+its last 30 s and the answer. The highest step (by the top of its band) with a
+passing answer proposes the zone 2 maximum: the measured HR when the strap
+covered at least half the window, else the top of the band. The summary says
+whether a higher step failed (the limit was found) or every answered step passed
+(the limit may be higher).
+
+**Set zone 2 ceiling to N** writes Settings → HR targets: the zone minimum stays,
+and the working band, add-below point and comparison HR are rebuilt inside the
+new zone in the proportions the zone calculator uses. Rides with new targets start
+a new progress series. **Undo** in the confirmation puts the old targets back.
 
 ### The adjust rule
 

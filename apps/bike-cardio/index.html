@@ -21,7 +21,7 @@ button{border:1px solid var(--line);background:var(--panel);color:var(--ink);pad
 #run{padding-top:calc(env(safe-area-inset-top) + 14px)}.phase-title{font-size:clamp(23px,6.6vw,34px);line-height:1.1;margin:5px 0}.controls{display:flex;gap:6px;flex-shrink:0}.icon{width:48px;padding:0;display:grid;place-items:center}.icon svg{width:22px;height:22px;fill:currentColor}.clock{text-align:center;padding:24px 0 18px}#timer{font-size:clamp(76px,26vw,144px);font-weight:750;line-height:1;letter-spacing:-.055em;font-variant-numeric:tabular-nums}#timerNote{margin-top:8px;color:var(--muted)}.progress{width:100%;height:7px;background:var(--line);border-radius:10px;overflow:hidden}.progress span{display:block;height:100%;background:var(--phase,var(--accent));width:0}.targets{margin:18px 0;display:grid;grid-template-columns:1fr 1fr;gap:16px}.targets div:last-child{grid-column:1/-1}.targets dt{font-size:13px;color:var(--muted)}.targets dd{margin:3px 0 0;font-size:clamp(24px,7vw,32px);line-height:1.15;font-weight:700}.targets dd small{font-size:15px;font-weight:400;color:var(--muted)}#cue{font-size:16px}#coaching{border-color:var(--accent);margin:16px 0}#checkStatus{font-size:18px;font-weight:700;margin:0 0 8px}.steering{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.steering button{padding:12px 5px;font-size:13px}.steering strong{display:block;font-size:18px;margin-top:3px}.steering .high{color:var(--red)}#gateArea .check{align-items:flex-start}#gateArea{margin:18px 0}.run-foot{margin-top:20px;padding-top:14px;border-top:1px solid var(--line);font-size:14px;color:var(--muted)}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}.stats dt{font-size:12px;color:var(--muted)}.stats dd{font-size:27px;font-weight:700;margin:3px 0}.history-item{display:block;width:100%;text-align:left;margin:12px 0}.history-item strong{display:block;font-size:17px}.history-item span{display:block;font-size:14px;color:var(--muted);margin-top:5px}dialog{position:fixed;width:min(92vw,460px);padding:26px}dialog h2{font-size:30px}dialog button{margin-top:12px}.dialog-actions{display:grid;gap:8px}.save-status{color:var(--accent);font-size:14px;min-height:21px}details summary{cursor:pointer;min-height:48px;padding-top:12px;color:var(--muted)}body[data-kind=main]{--phase:var(--success)}body[data-kind=warmup]{--phase:var(--accent)}body[data-kind=cooldown]{--phase:var(--either)}body[data-kind=effort]{--phase:var(--danger)}body[data-kind=ready],body[data-kind=primer]{--phase:var(--warning)}
 .sensor-actions{display:flex;align-items:center;gap:8px}.sensor-actions button:first-child{flex:1}.sensor-number{font-size:34px;font-weight:750;line-height:1.2;font-variant-numeric:tabular-nums;white-space:nowrap}.sensor-number small{font-size:14px;color:var(--muted);font-weight:400}.live-heart{display:flex;gap:14px;align-items:center;border-bottom:1px solid var(--line);padding:12px 0;margin-top:6px}.live-heart .sensor-number{font-size:42px}.heart-detail{flex:1;text-align:right;min-width:0}.heart-detail p{margin:3px 0}.heart-detail .small{font-size:12px}.heart-detail button{min-height:38px;padding:6px;font-size:13px}.steering button.recommended{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}.steering #lowHR{background:var(--success-soft);color:var(--success);border-color:var(--success)}.steering #highHR{background:var(--danger-soft);color:var(--danger);border-color:var(--danger)}.steering #lowHR.recommended,.steering #highHR.recommended{outline:2px solid var(--ink);outline-offset:2px}.live-heart[data-alert=high] #liveAdvice{color:var(--red)}.live-heart[data-alert=low] #liveAdvice{color:var(--warm)}
 #sensors h2{margin-bottom:4px}.sensor-row{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}.sensor-row h3{margin:0;font-size:17px}.sensor-row .small{margin:2px 0 0}.sensor-row .sensor-number{font-size:28px}.sensor-row .sensor-actions{grid-column:1/-1}.sensor-actions[hidden]{display:none}
-fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compact span{padding:11px 6px}.effort-log-title{font-weight:700;margin:0 0 8px}#effortTable h3{margin:4px 0 8px}#logForm>*{min-width:0}#effortTable input{width:4.5em;padding:8px}.conditions{margin:4px 0 8px}#effortLog{border-color:var(--accent);margin:12px 0}#effortLog .segments label[hidden]{display:none}
+fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compact span{padding:11px 6px}.effort-log-title{font-weight:700;margin:0 0 8px}#effortTable h3{margin:4px 0 8px}#logForm>*{min-width:0}#effortTable input{width:4.5em;padding:8px}.conditions{margin:4px 0 8px}#effortLog{border-color:var(--accent);margin:12px 0}#stepCheck{border-color:var(--accent);margin:12px 0}#stepCheckOptions button{flex:1;min-height:48px;font-weight:650}#stepCheckOptions button[aria-pressed=true]{background:var(--accent-strong);color:var(--on-accent);border-color:var(--accent-strong)}.ceiling-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}#effortLog .segments label[hidden]{display:none}
 .live-heart{flex-wrap:wrap}.hr-bar{position:relative;flex-basis:100%;height:14px;margin:4px 0 16px;border-radius:7px;background:var(--line)}.hr-zone,.hr-target{position:absolute;top:0;bottom:0;border-radius:7px}.hr-zone{background:var(--success-soft)}.hr-target{background:var(--success);opacity:.6}.hr-marker{position:absolute;top:-4px;bottom:-4px;width:4px;margin-left:-2px;border-radius:2px;background:var(--ink)}.hr-bar[data-alert=high] .hr-marker{background:var(--danger)}.hr-bar[data-alert=low] .hr-marker{background:var(--warning)}.hr-tick{position:absolute;top:16px;font-size:11px;line-height:1;color:var(--muted);transform:translateX(-50%)}
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px}.tiles>div{min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:12px}.tiles dt{font-size:13px;color:var(--muted)}.tiles dd{margin:2px 0 0}.tiles .sensor-number{font-size:26px}.tiles dd.small{font-size:12px}
 .plan-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}.plan-item{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line);padding-top:8px}.plan-item.is-selected .plan-info strong{color:var(--accent)}.plan-info{flex:1;min-width:0;text-align:left;background:none;border:0;padding:6px 0}.plan-info strong,.plan-info span{display:block}.plan-info strong{font-size:17px}.plan-info span{margin-top:3px}
@@ -135,6 +135,7 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
   <p id="cue"></p>
   <div id="coaching" class="card" hidden><p id="checkStatus" role="status" aria-live="polite"></p><div class="steering"><button id="lowHR">Below 108<strong>+1 level</strong></button><button id="holdHR">108–122<strong>Hold</strong></button><button id="highHR" class="high">Above 122<strong>−1 level</strong></button></div><p id="steeringNote" class="small">Read HR on your watch or HR app. Keep cadence steady.</p><p class="small">Talk test: full sentences. If you cannot, ease off.</p></div>
   <div id="effortLog" class="card" hidden><p id="effortLogTitle" class="effort-log-title"></p><label class="field">Resistance used<input id="effortResistance" type="number" inputmode="decimal" min="0" max="100" step="1" data-stepper></label><fieldset id="cadenceFlags" class="field" hidden><legend id="cadenceLegend">Cadence</legend><div class="segments compact"><label id="flagHighOption"><input type="radio" name="cadenceFlag" value="high"><span id="flagHigh">Above</span></label><label><input type="radio" name="cadenceFlag" value="ok"><span>Steady</span></label><label id="flagLowOption"><input type="radio" name="cadenceFlag" value="low"><span id="flagLow">Below early</span></label></div></fieldset><p id="sensorFlagNote" class="small"></p><p id="nextEffort" class="small" role="status"></p></div>
+  <div id="stepCheck" class="card" hidden><p id="stepCheckTitle" class="effort-log-title"></p><div id="stepCheckOptions" class="segments compact" role="group" aria-labelledby="stepCheckTitle"></div><p id="stepCheckNote" class="small"></p></div>
   <div id="gateArea" hidden><label class="check"><input id="gateConfirm" type="checkbox"><span id="gateLabel"></span></label><p id="gateNote" class="small"></p></div>
   <footer class="run-foot"><div class="row"><span id="elapsed"></span><span id="mainElapsed"></span></div><p id="next"></p><button id="runDisconnectH10" class="text-button" hidden>Disconnect strap</button></footer>
 <div id="runActions" class="workout-actions"><button id="gate" class="primary" disabled></button><div class="actions-row"><button id="mute" class="icon" aria-label="Mute sound" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zm12 3a4 4 0 0 0-2-3.5v7a4 4 0 0 0 2-3.5zM14 3v2a7 7 0 0 1 0 14v2a9 9 0 0 0 0-18z"/></svg></button><button id="pause" class="btn primary" aria-label="Pause session">Pause</button><button id="skip" class="icon" aria-label="Skip current phase"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l9 7-9 7V5zm10 0h3v14h-3z"/></svg></button></div></div>
@@ -151,7 +152,7 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
   <p id="summaryCaution" class="notice" hidden></p><p class="notice">If a watch or another app recorded this ride, stop its recording when you finish spinning.</p>
   <form id="logForm" class="card stack">
     <h2>Add or edit readings</h2><p class="small">Optional readings from a watch or HR app stay separate from the strap measurements above. Check that its zone boundaries match this ride’s recorded targets. Add resistance, cadence and watts from the bike; a connected bike fills main-block watts and cadence.</p>
-    <div id="plannedReadings"><div id="effortTable" hidden></div>
+    <div id="plannedReadings"><div id="effortTable" hidden></div><div id="checkTable" hidden></div><div id="ceilingBox" class="card" hidden><h3>Zone 2 ceiling</h3><p id="ceilingText"></p><div class="ceiling-actions"><button id="applyCeiling" type="button" class="primary" hidden></button></div><p id="ceilingNote" class="small"></p></div>
     <details id="conditionsBox" class="conditions"><summary>Conditions</summary><p id="conditionsConfirmed" class="small" hidden></p><div class="grid">
       <label class="field">Time of day<select id="condTime"><option value="">Unknown</option><option value="morning">Morning</option><option value="midday">Midday</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option><option value="night">Night</option></select></label>
       <label class="field">Hours since lifting<input id="condHours" type="number" inputmode="decimal" min="0" max="2000" step="0.5"></label>
@@ -433,7 +434,9 @@ function maybeRemindBackup(...args){return storageController().maybeRemindBackup
   }
   /* Places the live reading on a scale 15 bpm either side of the recorded zone. */
   function renderHRBar(live){
-    const bar=$('hrBar'),t=currentTargets();bar.hidden=!live||!session;if(bar.hidden)return;
+    const bar=$('hrBar'),zone2=currentTargets(),band=session&&C.phase(session)?.hrRange;bar.hidden=!live||!session;if(bar.hidden)return;
+    // A step with its own band shows that band as both zone and target.
+    const t=band?{zoneMin:band[0],zoneMax:band[1],targetMin:band[0],targetMax:band[1]}:zone2;
     const lo=t.zoneMin-15,hi=t.zoneMax+15,at=bpm=>Math.min(100,Math.max(0,(bpm-lo)/(hi-lo)*100))+'%';
     const zone=bar.querySelector('.hr-zone'),target=bar.querySelector('.hr-target'),min=bar.querySelector('.hr-min'),max=bar.querySelector('.hr-max');
     zone.style.left=at(t.zoneMin);zone.style.right='calc(100% - '+at(t.zoneMax)+')';target.style.left=at(t.targetMin);target.style.right='calc(100% - '+at(t.targetMax)+')';
@@ -444,10 +447,11 @@ function maybeRemindBackup(...args){return storageController().maybeRemindBackup
     const live=H.fresh(h10.reading,Date.now()),advice=H.advice(h10.reading,Date.now(),currentTargets()),busy=h10.busy,message=sensorMessage();
     for(const id of ['setupHR','liveHR']){const el=$(id),value=live?String(h10.reading.bpm):'—';if(el.dataset.reading===value)continue;el.dataset.reading=value;el.replaceChildren(document.createTextNode(live?String(h10.reading.bpm)+' ':'— '));const unit=document.createElement('small');unit.textContent='bpm';el.append(unit);}
     if($('sensorStatus').textContent!==message)$('sensorStatus').textContent=message;$('runSensorStatus').textContent=H.fresh(h10.reading,Date.now())?'Connected':!h10.supported?'Manual HR':h10.state==='connected'?(h10.error||'No fresh HR · check strap'):message;
-    $('liveAdvice').textContent=advice?(session&&C.phase(session)?.kind==='effort'?'HR lags short sprints · judge effort by feel':session&&C.phase(session)?.kind==='main'?advice.text:session&&C.phase(session)?.gate==='cool'?(h10.reading.bpm<C.phase(session).gateBpm?`Below ${C.phase(session).gateBpm} · finish after cool-down`:'Keep spinning easily'):h10.reading.bpm<=currentTargets().comparisonHR?'Build gradually · easy spinning':'Spin easily · let HR settle'):'Read HR on your watch';
+    const band=session&&C.phase(session)?.hrRange,inBand=band&&H.rangeAdvice(h10.reading,Date.now(),band);
+    $('liveAdvice').textContent=band?(inBand?inBand.text:`Hold ${band[0]}–${band[1]} · read HR on your watch`):advice?(session&&C.phase(session)?.kind==='effort'?'HR lags short sprints · judge effort by feel':session&&C.phase(session)?.kind==='main'?advice.text:session&&C.phase(session)?.gate==='cool'?(h10.reading.bpm<C.phase(session).gateBpm?`Below ${C.phase(session).gateBpm} · finish after cool-down`:'Keep spinning easily'):h10.reading.bpm<=currentTargets().comparisonHR?'Build gradually · easy spinning':'Spin easily · let HR settle'):'Read HR on your watch';
     const notice=sensorNotice();if($('sensorNotice').textContent!==notice)$('sensorNotice').textContent=notice;$('sensorNotice').hidden=!notice;
     $('sensorSetup').querySelector('.sensor-actions').hidden=!h10.supported;$('setupHR').hidden=!h10.supported;renderHRBar(live);
-    document.querySelector('.live-heart').dataset.alert=session&&C.phase(session)?.kind==='main'?advice?.action||'':'';
+    document.querySelector('.live-heart').dataset.alert=band?(inBand&&inBand.action!=='hold'?inBand.action:''):session&&C.phase(session)?.kind==='main'?advice?.action||'':'';
     for(const id of ['connectH10','runConnectH10']){const el=$(id);el.disabled=!h10.supported||busy||live;el.textContent=busy?'Connecting…':live?'Strap connected':h10.device?'Reconnect strap':'Connect strap';el.hidden=id==='runConnectH10'&&(live||!h10.supported);}
     for(const id of ['disconnectH10','runDisconnectH10'])$(id).hidden=!h10.device||h10.state==='idle';
     renderPower();
@@ -522,6 +526,27 @@ function maybeRemindBackup(...args){return storageController().maybeRemindBackup
     const next=phases.find(x=>x.kind==='effort'&&x.effort===k+1),target=next?C.effortTarget(session,k+1,phases):null;
     $('nextEffort').textContent=!next?'That was the last effort.':target!=null?`Next effort: resistance ${target}.`:'';
   }
+  /* A plan step's question: open from 30 s before its timed step ends, and
+     into the next step until that step's own question opens, so a missed
+     moment can still be answered. One tap saves; tapping again changes it. */
+  let stepCheckId=null;
+  function stepCheckPhase(){
+    if(!session)return null;const phases=C.build(session.config),p=C.phase(session),from=C.checkWindow(p);
+    if(from!=null&&session.phaseMs>=from)return p;
+    if(p?.check)return null;
+    const last=session.finishedPhases.at(-1),done=last&&phases[last.id];return done?.check?done:null;
+  }
+  function renderStepCheck(){
+    const p=stepCheckPhase(),box=$('stepCheck');box.hidden=!p;if(!p){stepCheckId=null;return;}
+    const answer=C.checkAnswer(session,p.id);
+    if(stepCheckId!==p.id||box.dataset.answer!==String(answer)){
+      stepCheckId=p.id;box.dataset.answer=String(answer);
+      $('stepCheckTitle').textContent=`${p.title}${p.hrRange?` · ${p.hrRange[0]}–${p.hrRange[1]}`:''}: ${p.check.prompt}`;
+      $('stepCheckOptions').replaceChildren(...p.check.options.map(option=>{const b=document.createElement('button');b.type='button';b.textContent=option;b.setAttribute('aria-pressed',String(option===answer));
+        b.addEventListener('click',()=>{if(!session||storage.handoff.held())return;C.answerCheck(session,p.id,option===C.checkAnswer(session,p.id)?null:option);save(true);renderStepCheck();});return b;}));
+      $('stepCheckNote').textContent=answer!=null?`Saved: ${answer}. Tap it again to clear.`:'Answer at the end of the step. You can still answer during the next step.';
+    }
+  }
   function logEffortInput(entry){if(!session||!effortLogK||storage.handoff.held())return;C.logEffort(session,effortLogK,entry);save(true);renderEffortLog();}
   function handle(events){if(!session)return;if(session.status==='finished'){finish();return;}if(session.status==='paused'){H.breakSeries(session.hr);save(true);render();openPause();return;}
     const newPhase=events.some(e=>e.type==='phase');if(newPhase){$('gateConfirm').checked=false;phaseAnnounce();}
@@ -533,11 +558,12 @@ function maybeRemindBackup(...args){return storageController().maybeRemindBackup
         say((e.type==='settled'?'One minute has passed. ':'')+(advice?`Heart rate ${h10.reading.bpm}. ${advice.text}.`:'Check your heart rate.')+' Keep cadence steady.');
       }
       if(e.type==='adjust')say(session.steering+' Wait one minute before judging.');
+      if(e.type==='checkDue'){const p=C.build(session.config)[e.id];beep(740);say(p.check.prompt+'.');}
     }
     render();save(newPhase||events.length>0);
   }
   function render(){renderSensors();if(!session)return;const p=C.phase(session);if(!p)return;document.body.dataset.kind=p.kind;const key=session.id+':'+session.index;
-    if(phaseKey!==key){phaseKey=key;$('gateConfirm').checked=false;$('phaseTitle').textContent=p.title;$('targetHR').textContent=p.hr;$('targetRPM').textContent=p.rpm;$('targetResistance').textContent=resistanceFor(p);$('cue').textContent=p.cue;$('workoutLabel').textContent=session.config.mode==='zone2'?'Zone 2':'Sprint intervals';}
+    if(phaseKey!==key){phaseKey=key;$('gateConfirm').checked=false;$('phaseTitle').textContent=p.title;$('targetHR').textContent=p.hr;$('targetRPM').textContent=p.rpm;$('targetResistance').textContent=resistanceFor(p);$('cue').textContent=p.cue;$('workoutLabel').textContent=session.config.plan?.name||(session.config.mode==='zone2'?'Zone 2':'Sprint intervals');}
     const target=p.duration??p.target;$('timer').textContent=fmt(Math.max(0,target-session.phaseMs));$('timerNote').textContent=session.phaseMs<target?(p.gate?'minimum / preparation time left':'left in this phase'):`${fmt(session.phaseMs)} in this phase · waiting for confirmation`;
     if(p.gate&&session.phaseMs>=target)$('timer').textContent=fmt(session.phaseMs);
     const percentage=Math.min(100,session.phaseMs/target*100);$('progressFill').style.width=percentage+'%';document.querySelector('.progress').setAttribute('aria-valuenow',String(Math.round(percentage)));
@@ -558,7 +584,7 @@ function maybeRemindBackup(...args){return storageController().maybeRemindBackup
       const after=C.build(session.config)[session.index+1];$('gate').textContent=!after?'Finish & save session':['ready','effort'].includes(after.kind)?'Start next effort':'Continue';$('gate').disabled=!ready||!passed||session.status!=='running';
       $('gateNote').textContent=!ready?`Available after ${fmt(p.min-session.phaseMs)}. Keep spinning easily.`:live?(passed?'The strap confirms the HR target. Continue when ready.':'HR is still above the target. Keep spinning easily.'):'No fresh strap reading. Check HR on your watch and confirm it to continue.';
     }
-    renderEffortLog();$('elapsed').textContent=`Active ${fmt(session.activeMs)}`;$('mainElapsed').textContent=session.config.mode==='zone2'?`Main ${fmt(session.mainMs)} / ${fmt(session.config.mainMinutes*60000)}`:'';const next=C.build(session.config)[session.index+1];$('next').textContent=next?`Next: ${next.title.toLowerCase()}`:'Next: save your session readings';
+    renderEffortLog();renderStepCheck();$('elapsed').textContent=`Active ${fmt(session.activeMs)}`;const mainTotal=C.build(session.config).reduce((sum,x)=>sum+(x.kind==='main'?x.duration??0:0),0);$('mainElapsed').textContent=session.config.mode==='zone2'&&mainTotal?`Main ${fmt(session.mainMs)} / ${fmt(mainTotal)}`:'';const next=C.build(session.config)[session.index+1];$('next').textContent=next?`Next: ${next.title.toLowerCase()}`:'Next: save your session readings';
   }
   function tick(){if(storage.handoff.held())return;if(session?.status==='running')handle(C.advance(session,Date.now(),{visible:!document.hidden}));else renderSensors();}
   function openPause(){if(!session||session.status!=='paused')return;release();cancelVoice();$('pauseTitle').textContent=session.hadInterruption&&session.pauseReason.startsWith('A phase')?'Review next phase':'Paused';$('pauseMessage').textContent=session.pauseReason;$('resume').textContent=session.pending?`Continue to ${C.build(session.config)[session.index+1]?.title.toLowerCase()||'summary'}`:'Resume';if(!$('pauseDialog').open)$('pauseDialog').showModal();}
@@ -606,29 +632,68 @@ function maybeRemindBackup(...args){return storageController().maybeRemindBackup
       const heading=document.createElement('h3'),note=document.createElement('p'),wrap=document.createElement('div');heading.textContent='Efforts';note.className='small';wrap.className='plan-table';wrap.append(table);
       note.textContent='Watts come from the bike sensor when it measured the effort. Otherwise type the console reading.';box.append(heading,wrap,note);
     }
+    renderCheckTable(r);renderCeiling(r);
     const c=r.conditions||{};$('condTime').value=c.timeOfDay||'';$('condHours').value=c.hoursSinceLifting??'';$('condFed').value=c.fed||'';$('condNote').value=c.note||'';
     $('conditionsConfirmed').hidden=!c.confirmed?.length;$('conditionsConfirmed').textContent=c.confirmed?.length?'Confirmed at the start: '+c.confirmed.join(', ')+'.':'';
     $('baselineField').hidden=!r.config.plan;$('condBaseline').checked=!!r.baseline;$('conditionsBox').hidden=r.config.mode==='external';$('conditionsBox').open=!!r.config.plan;
     $('plannedReadings').dataset.ride=r.id;
+  }
+  /* The plan's step questions as ridden: the step, its band, the HR measured
+     over the check window and the answer, which stays editable here. */
+  function renderCheckTable(r){
+    const checks=r.checks||[],box=$('checkTable');box.hidden=!checks.length;box.replaceChildren();if(!checks.length)return;
+    const cell=(content,tag='td')=>{const c=document.createElement(tag);if(tag==='th')c.scope='col';c.append(content);return c;};
+    const head=document.createElement('tr');head.append(...['Step · band','HR','Answer'].map(text=>cell(text,'th')));
+    const rows=checks.map((c,i)=>{const row=document.createElement('tr'),select=document.createElement('select');select.id='check-'+i;select.setAttribute('aria-label',`${c.title}: ${c.prompt}`);
+      select.append(new Option('Not answered',''),...c.options.map(o=>new Option(o,o)));select.value=c.answer??'';
+      const step=document.createElement('span'),band=document.createElement('small');step.textContent=c.title+(c.outcome==='complete'?'':' (cut short)');band.className='small';band.textContent=c.hrRange?`${c.hrRange[0]}–${c.hrRange[1]}`:'';
+      const name=document.createElement('div');name.append(step,...(c.hrRange?[document.createElement('br'),band]:[]));
+      row.append(cell(name),cell(c.averageHR!=null?String(Math.round(c.averageHR)):'—'),cell(select));return row;});
+    const table=document.createElement('table'),thead=document.createElement('thead'),tbody=document.createElement('tbody');thead.append(head);tbody.append(...rows);table.append(thead,tbody);
+    const heading=document.createElement('h3'),note=document.createElement('p'),wrap=document.createElement('div');heading.textContent=checks[0].prompt===checks.at(-1).prompt?checks[0].prompt:'Step checks';note.className='small';wrap.className='plan-table';wrap.append(table);
+    note.textContent=`HR is the strap average in bpm over the last ${BikePlans.CHECK_LEAD_MS/1000} s of each step.`;box.append(heading,wrap,note);
+  }
+  /* A talk-test plan (result zone2Ceiling) proposes the zone 2 maximum from
+     the highest step passed. Applying it rewrites the Settings targets with
+     the zone minimum kept (BikeTargets.withCeiling); Undo puts them back. */
+  function renderCeiling(r){
+    const box=$('ceilingBox'),wanted=r?.config.plan?.result==='zone2Ceiling';box.hidden=!wanted;if(!wanted)return;
+    const proposal=BikePlans.ceilingFrom(r.checks),button=$('applyCeiling'),current=C.config(read(KEYS.settings,{})).targets;
+    button.hidden=!proposal||current.zoneMax===proposal.value;$('ceilingNote').textContent='';
+    if(!proposal){$('ceilingText').textContent='No step was answered with a passing answer, so this ride proposes no ceiling. Answer the steps above, or repeat the test easier.';return;}
+    $('ceilingText').textContent=`Highest step passed: ${proposal.title} (${proposal.hrRange[0]}–${proposal.hrRange[1]}), ${proposal.measured?`measured ${proposal.value} bpm`:'no strap reading, so the top of its band'}. `+
+      (proposal.limitFound?'The next step up failed, so this is your ceiling.':'Every step you answered passed, so the limit may be higher.');
+    button.textContent=`Set zone 2 ceiling to ${proposal.value}`;
+    if(current.zoneMax===proposal.value)$('ceilingNote').textContent=`Settings already use zone 2 ${current.zoneMin}–${current.zoneMax} bpm.`;
+  }
+  function applyCeiling(){
+    const proposal=selected&&BikePlans.ceilingFrom(selected.checks);if(!proposal)return;
+    const saved=read(KEYS.settings,{}),previous=C.config(saved).targets;let targets;
+    try{targets=BikeTargets.withCeiling(previous,proposal.value);}catch(error){$('ceilingNote').textContent=error.message;return;}
+    const put=value=>{const ok=write(KEYS.settings,{...read(KEYS.settings,{}),targets:value},{atomic:true});if(ok){applySavedSettings();buildDefaultFields();}renderCeiling(selected);return ok;};
+    if(!put(targets)){$('ceilingNote').textContent='Settings could not be saved. Try again or download a backup.';return;}
+    $('ceilingNote').textContent=`Zone 2 is now ${targets.zoneMin}–${targets.zoneMax} bpm, working band ${targets.targetMin}–${targets.targetMax}. Rides with these targets start a new progress series.`;
+    toast(`Zone 2 ceiling set to ${targets.zoneMax}`,{label:'Undo',run:()=>{put(previous);toast(`Zone 2 back to ${previous.zoneMin}–${previous.zoneMax}`);}});
   }
   function plannedValues(r){
     const read=id=>{const value=$(id)?.value.trim();return value==null||value===''?null:Number(value);};
     const efforts=r.efforts?.map((e,i)=>{const watts=read('effortWatts-'+i);return {...e,resistance:read('effortRes-'+i),watts5s:watts,wattsSource:watts==null?null:watts===e.watts5s&&e.wattsSource?e.wattsSource:'manual'};});
     const conditions={timeOfDay:$('condTime').value||null,hoursSinceLifting:read('condHours'),fed:$('condFed').value||null,note:$('condNote').value.trim(),confirmed:r.conditions?.confirmed||[]};
     const keep=r.conditions||conditions.timeOfDay||conditions.hoursSinceLifting!=null||conditions.fed||conditions.note;
-    return {...(efforts?{efforts}:{}),...(keep?{conditions}:{}),baseline:!!r.config.plan&&$('condBaseline').checked};
+    const checks=r.checks?.map((c,i)=>{const value=$('check-'+i)?.value;return {...c,answer:value?value:null};});
+    return {...(efforts?{efforts}:{}),...(checks?{checks}:{}),...(keep?{conditions}:{}),baseline:!!r.config.plan&&$('condBaseline').checked};
   }
   const withoutBaseline=({baseline,...rest})=>rest;
   function saveMetrics(report=false){
     if(!selected)return;const form=$('logForm');if(!form.checkValidity()){$('logStatus').textContent='Check the value outside its allowed range before saving.';if(report)form.reportValidity();return false;}
     const before=WorkoutStorage.copy(selected),metrics={...selected.metrics};for(const key of fields){const value=$(key).value.trim();if(value!==String(metrics[key]??'')){if(value==='')delete metrics[key];else metrics[key]=value;}}
-    const extra=$('plannedReadings').dataset.ride===selected.id?plannedValues(selected):{},pick=r=>JSON.stringify([r.metrics,r.efforts??null,r.conditions??null,!!r.baseline]);
+    const extra=$('plannedReadings').dataset.ride===selected.id?plannedValues(selected):{},pick=r=>JSON.stringify([r.metrics,r.efforts??null,r.checks??null,r.conditions??null,!!r.baseline]);
     let updated={...withoutBaseline(selected),metrics,...extra};if(!updated.baseline)updated=withoutBaseline(updated);
     if(pick(updated)===pick(selected))return !storage.local.failed;
     updated.editedAt=Date.now();
     // One baseline per plan: marking this ride clears it from the others.
     const hash=updated.config.plan?.hash,next=records.map(r=>r.id===selected.id?updated:updated.baseline&&r.baseline&&r.config.plan?.hash===hash?withoutBaseline(r):r),ok=write(KEYS.history,next,{atomic:true});
-    if(ok){records=next;selected=updated;recordEdit(before,updated,'Edited session readings',false,true);if(read(KEYS.active,null)?.id===selected.id)remove(KEYS.active);renderSummaryComparison();}
+    if(ok){records=next;selected=updated;recordEdit(before,updated,'Edited session readings',false,true);if(read(KEYS.active,null)?.id===selected.id)remove(KEYS.active);renderSummaryComparison();renderCeiling(selected);}
     $('logStatus').textContent=ok?'Saved on this device.':'Saving failed. Keep this page open and download a backup.';return ok;
   }
 
@@ -712,6 +777,7 @@ function maybeRemindBackup(...args){return storageController().maybeRemindBackup
   $('resumeSaved').addEventListener('click',()=>$('restoreSession').click());
   $('restoreSession').addEventListener('click',()=>{if(storage.handoff.held())return;session=C.restore(read(KEYS.active,null),Date.now());if(!session){toast('This saved session could not be recovered.');return;}phaseKey='';show('run');render();save(true);clearInterval(interval);interval=setInterval(tick,250);openPause();});
   $('endSaved').addEventListener('click',()=>{if(storage.handoff.held())return;const saved=C.restore(read(KEYS.active,null),Date.now());if(!saved){remove(KEYS.active);updateRestore();return;}session=saved;C.end(session,Date.now());finish();});
+  $('applyCeiling').addEventListener('click',applyCeiling);
   $('logForm').addEventListener('submit',e=>e.preventDefault());$('plannedReadings').addEventListener('input',()=>saveMetrics());for(const id of fields)$(id).addEventListener('input',()=>saveMetrics());
   $('notesPreview').addEventListener('click',()=>WorkoutMarkdown.togglePreview($('notesPreview'),$('notes'),$('notes-preview'),{links:true}));
   $('editSession').addEventListener('click',openEdit);$('editForm').addEventListener('submit',saveDetails);$('cancelEdit').addEventListener('click',()=>$('editDialog').close());

@@ -14,7 +14,7 @@ Exports now use version **5**. Version 1 to 4 files remain importable; normaliza
 upgrades them without changing their recorded times or inventing a new revision.
 Version 5 adds planned sessions ([plan contract](BIKE-PLAN.md)): a `plans` list in
 full backups, `config.plan` on rides of a plan, and optional `efforts`,
-`conditions` and `baseline` on any ride.
+`checks`, `conditions` and `baseline` on any ride.
 Version 4 changes only `config.bike` (and machine profiles' `bike`): it records how
 resistance cues read instead of a machine model. Older files map `touchscreen` to
 `feel` and any other code to `levels`.
@@ -66,6 +66,7 @@ comparisons withhold progress differences.
 |---|---|
 | `config.plan` | The plan ridden, as in [BIKE-PLAN.md](BIKE-PLAN.md). It sets `config.mode` (`sprint` when it has efforts) and `config.n` (its effort count). |
 | `efforts[]` | One per effort ridden: `effort` 1..20, `outcome`, `resistance` 0..100, `cadenceFlag` `high`/`ok`/`low`, `watts5s` and `peakWatts` 0..2500 W, `peakCadence` 0..250 rpm, `wattsSource` `sensor`/`manual`. Unknown values are `null`. |
+| `checks[]` | One per plan step with a `check`, in ride order (up to 200): `title` and `prompt` up to 80 characters, `options` 2..5 texts of up to 24, `answer` one of them or `null`, optional `pass` (a subset of `options`), optional `hrRange` `[low, high]` 40..230 bpm, `averageHR` 1..300 over the step's last 30 s or `null`, and `outcome`. |
 | `conditions` | `timeOfDay` `morning`/`midday`/`afternoon`/`evening`/`night`, `hoursSinceLifting` 0..2000, `fed` `fed`/`fasted`, `note` up to 500 characters, `confirmed` up to 10 texts. |
 | `baseline` | `true` on at most one ride per plan in the app; imports do not enforce it. |
 

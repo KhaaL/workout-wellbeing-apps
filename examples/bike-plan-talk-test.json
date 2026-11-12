@@ -1,0 +1,22 @@
+{
+  "name": "Talk test",
+  "scheduledFor": "2026-11-14",
+  "order": 1,
+  "resistanceCues": "levels",
+  "result": "zone2Ceiling",
+  "conditions": [
+    {"label": "Incline", "value": "2–3%"},
+    {"label": "Lifting today", "value": "None"}
+  ],
+  "notes": "Finds the zone 2 ceiling on a day without lifting, so the readings are fresh. Each step holds one heart-rate band; at the end of it, count aloud to 20. The highest step where counting stays smooth sets the ceiling. Finish 1.5–2 hours before other training.",
+  "steps": [
+    {"kind": "warmup", "title": "Warm-up", "seconds": 480, "rpm": [80, 90], "hrBelow": 112, "resistance": "easy", "cue": "Build gradually. Sit upright with a loose grip."},
+    {"kind": "settle", "title": "Step 1", "seconds": 240, "rpm": [80, 90], "hrRange": [115, 120], "cue": "Settle into 115 to 120. Adjust resistance, keep cadence.",
+     "check": {"prompt": "Count aloud to 20", "options": ["Smooth", "Broken", "Could not"], "pass": ["Smooth"]}},
+    {"kind": "settle", "title": "Step 2", "seconds": 240, "rpm": [80, 90], "hrRange": [120, 125], "cue": "Add a level. Settle into 120 to 125.",
+     "check": {"prompt": "Count aloud to 20", "options": ["Smooth", "Broken", "Could not"], "pass": ["Smooth"]}},
+    {"kind": "settle", "title": "Step 3", "seconds": 240, "rpm": [80, 90], "hrRange": [125, 130], "cue": "Add a level. Settle into 125 to 130.",
+     "check": {"prompt": "Count aloud to 20", "options": ["Smooth", "Broken", "Could not"], "pass": ["Smooth"]}},
+    {"kind": "cooldown", "title": "Cool-down", "seconds": 300, "resistance": "easy", "cue": "Spin easily, then stop any watch recording."}
+  ]
+}
