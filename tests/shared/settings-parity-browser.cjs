@@ -71,6 +71,17 @@ const EXPECTED={
     for(const list of themes)assert.deepEqual(list,themes[0]);assert.equal(themes[0].length,14);
     for(const [index,shape] of panels.entries())assert.deepEqual(shape,panels[0],Object.keys(APPS)[index]+' panel matches Liftlog\'s');
     assert.ok(panels[0].length>30,'the panel shape covers its controls');
+    // The phone title row is the same shell in every app: the menu (three lines, named "Menu") first, the app name beside it, an empty action slot.
+    const phone=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'}),small=await phone.newPage();small.on('pageerror',error=>errors.push(error.message));
+    for(const app of Object.keys(APPS)){
+      await small.goto(origin+'/'+app+'/');
+      const row=await small.evaluate(()=>{const t=document.querySelector('.shell-title'),kids=[...t.children];
+        return {order:kids.map(k=>k.className.split(' ').pop()),label:t.querySelector('.shell-menu-button').getAttribute('aria-label'),icon:!!t.querySelector('.shell-menu-button svg'),
+          slot:t.querySelector('.shell-actions').childElementCount,shown:getComputedStyle(t).display};});
+      assert.equal(JSON.stringify(row),JSON.stringify({order:['shell-menu-button','','shell-actions'],label:'Menu',icon:true,slot:0,shown:'flex'}),app+' title row: '+JSON.stringify(row));
+    }
+    await phone.close();
+    console.log('PASS every app has the same phone title row: menu first, name beside it, an empty action slot');
     assert.deepEqual(errors,[]);
     console.log('PASS every app offers the same backup modes, theme list and storage panel');
   }finally{await browser.close();await server.close();}

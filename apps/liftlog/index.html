@@ -781,7 +781,13 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 }
 .superset-last::after{ content:"+"; font-size:13px; }
 .routine-pair-toolbar{ display:flex; flex-wrap:wrap; gap:var(--sp-2); }
-.superset-note{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--sp-2); margin-top:var(--sp-3); font-size:var(--fs-sm); }
+.superset-note{ display:flex; flex-wrap:nowrap; align-items:center; gap:var(--sp-2); margin-top:var(--sp-3); font-size:var(--fs-sm); min-width:0; }
+.superset-note .superset-inline,.superset-note .superset-label{ flex:none; }
+.superset-switch{ flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
+/* the shell's title row carries Finish on a phone (syncShellActions) */
+@media (max-width:700px),(max-height:550px) and (pointer:coarse){
+  html.workout-screen .workout-head-actions{ display:none; }
+}
 .item-name{ font-weight:600; font-size:var(--fs-sm); padding-bottom:9px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .routine-pair-toolbar{ margin:0 0 var(--sp-3); }
 .routine-pair-fields{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--sp-3); margin-top:var(--sp-3); }
@@ -4916,6 +4922,7 @@ function render(){
   document.documentElement.classList.toggle('session-active',
     !!state.activeWorkout && ui.view === 'today');
   appShell?.update(ui.view,!!state.activeWorkout,!!state.activeWorkout && ui.view==='today');
+  syncShellActions();
   if (switched){ window.scrollTo(0,0); if(!ui.focus) main.focus({preventScroll:true}); }
   /* An untouched timer shows the rest the current exercise will use, so the
      clock and the rest tag agree when an exercise sets its own length. */
@@ -5203,6 +5210,15 @@ function loadCueActionsHTML(cue, name){
     '<button type="button" class="btn btn-sm" data-action="cue-dismiss" data-id="' + esc(cue.id) + '">Hide until next session</button>' +
     '<button type="button" class="btn btn-sm" data-action="cue-off" data-id="' + esc(cue.id) + '">Stop for ' + esc(name) + '</button>' +
   '</div>';
+}
+/* On a phone the workout's Finish sits in the shell's title row, top right;
+   wider screens hide that row and keep it beside the exercise name. Rebuilt
+   only when it changes, so a render never takes focus from it. */
+const SHELL_FINISH = '<button type="button" class="btn btn-primary btn-sm" data-action="finish-workout" aria-label="Finish workout">' + IC.flag + '<span>Finish</span></button>';
+function syncShellActions(){
+  const slot = appShell && appShell.actions; if (!slot) return;
+  const want = state.activeWorkout && ui.view === 'today' && !workoutHandoff.held() ? SHELL_FINISH : '';
+  if (slot.dataset.html !== want){ slot.innerHTML = want; slot.dataset.html = want; }
 }
 function htmlActiveWorkout(w){
   const ex = currentExercise();
@@ -5569,21 +5585,21 @@ function warmupButtonHTML(ex){
     'aria-label="Add ' + plural(plan.length, 'warm-up set') + ' to ' + esc(ex.name) + ': ' + esc(what) + esc(said) + '">' +
     IC.plus + '<span>' + plural(plan.length, 'warm-up set') + (warmth && warmth.fresh ? ' · first ' + esc(family) : '') + '</span></button></div>';
 }
-/* Which superset this is and how to switch to its partner. Logging a set
-   switches on its own; the button is for doing things out of order. */
+/* Which superset this is and how to switch to its partner, on one row:
+   "Superset: <partner>", the name cut short to fit. Logging a set switches
+   on its own; the button is for doing things out of order. Its spoken label
+   and tooltip keep the full name and the partner's sets done. */
 function htmlSupersetNote(w, ex, run){
   if (run.length < 2) return '';
   const others = run.filter(i => w.exercises[i] !== ex);
   return '<div class="superset-note"><span class="superset-inline" aria-hidden="true">+</span>' +
-    '<span>Superset with</span>' +
+    '<span class="superset-label">Superset:</span>' +
     others.map(i => {
       const o = w.exercises[i];
-      const done = o.sets.filter(sx => sx.completed).length;
-      return '<button type="button" class="btn btn-sm" id="ss-switch-' + i + '" data-action="superset-switch" data-idx="' + i + '" ' +
-        'aria-label="Switch to ' + esc(o.name) + ', ' + done + ' of ' + o.sets.length + ' sets done">' +
-        esc(o.name) + ' <span class="muted xs">' + done + '/' + o.sets.length + '</span></button>';
-    }).join('') +
-    '<span class="muted xs">Each rests on its own timer</span></div>';
+      const done = o.sets.filter(sx => sx.completed).length, said = 'Switch to ' + o.name + ', ' + done + ' of ' + o.sets.length + ' sets done';
+      return '<button type="button" class="btn btn-sm superset-switch" id="ss-switch-' + i + '" data-action="superset-switch" data-idx="' + i + '" ' +
+        'aria-label="' + esc(said) + '" title="' + esc(said) + '">' + esc(o.name) + '</button>';
+    }).join('') + '</div>';
 }
 
 /* What is inside the session-overview sheet: every exercise in the workout, in

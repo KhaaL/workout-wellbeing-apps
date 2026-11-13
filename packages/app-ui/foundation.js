@@ -35,8 +35,15 @@ const WorkoutUI = (() => {
       const label=document.createElement('span');label.className='nav-label';label.textContent=item.label;button.append(svg,label);li.append(button);list.append(li);
       button.addEventListener('click',event=>{event.stopPropagation();onNavigate(item.id);});
     }
+    /* Phone title row: the menu (three lines) first, the app name beside it,
+       and a slot on the right an app fills with the screen's own action
+       (Lift Log's Finish during a workout). Empty in every other case. */
     const title=document.createElement('div');title.className='shell-title';const brand=document.createElement('strong');brand.textContent=name;
-    const menuButton=document.createElement('button');menuButton.type='button';menuButton.className='btn shell-menu-button';menuButton.textContent='Menu';title.append(brand,menuButton);header.prepend(title);
+    const menuButton=document.createElement('button');menuButton.type='button';menuButton.className='btn shell-menu-button';menuButton.setAttribute('aria-label','Menu');menuButton.setAttribute('aria-haspopup','dialog');
+    const bars=document.createElementNS('http://www.w3.org/2000/svg','svg');bars.setAttribute('viewBox','0 0 24 24');bars.setAttribute('aria-hidden','true');bars.classList.add('shell-menu-icon');
+    const barsPath=document.createElementNS(bars.namespaceURI,'path');barsPath.setAttribute('d','M4 7h16M4 12h16M4 17h16');bars.append(barsPath);menuButton.append(bars);
+    const actions=document.createElement('div');actions.className='shell-actions';
+    title.append(menuButton,brand,actions);header.prepend(title);
     const menu=document.createElement('dialog');menu.className='shell-menu';menu.setAttribute('aria-label','Workout menu');const h=document.createElement('h2');h.textContent='Workout menu';menu.append(h);
     const links=document.createElement('div');links.className='menu-items';menu.append(links);
     for(const item of items){const button=document.createElement('button');button.type='button';button.className='btn';button.textContent=item.label;button.addEventListener('click',()=>{menu.close();onNavigate(item.id);});links.append(button);}
@@ -64,7 +71,7 @@ const WorkoutUI = (() => {
       root.classList.toggle('keyboard-open',!!input&&touch&&(!vv||vv.scale===1)&&(Math.max(fullHeight,innerHeight)-height>150));
     };
     vv?.addEventListener('resize',keyboard);window.addEventListener('resize',keyboard);document.addEventListener('focusin',keyboard);document.addEventListener('focusout',()=>{root.classList.remove('keyboard-open');});
-    return {update,measure};
+    return {update,measure,actions};
   }
   let numericId=0;
   function attachSteppers(container){
