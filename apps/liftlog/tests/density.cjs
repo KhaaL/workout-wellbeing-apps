@@ -62,7 +62,7 @@ const ex = (id, name, category, family = 'other') => ({ id, name, category, unit
     await start([ex('bench', 'Bench Press', 'Push'), ex('row', 'Row', 'Pull')], ['bench', 'row']);
     await page.locator('#main [data-action="exercise-menu"]').click();
     const menu = page.getByRole('dialog', { name:'More for Bench Press' });
-    assert.deepEqual(await menu.getByRole('button').allTextContents(), ['Swap for another exercise…', 'Skip exercise', 'Exclude from progression…', 'Remove exercise…', 'Cancel']);
+    assert.deepEqual(await menu.getByRole('button').allTextContents(), ['Edit exercise…', 'Swap for another exercise…', 'Skip exercise', 'Exclude from progression…', 'Remove exercise…', 'Cancel']);
     await menu.getByRole('button', { name:'Skip exercise' }).click();
     await page.waitForFunction(() => window.testAPI.state.activeWorkout.currentExerciseIndex === 1, null, { timeout:2000 }).catch(() => {});
     assert.deepEqual(await page.evaluate(() => { const w = window.testAPI.state.activeWorkout; return [w.exercises[0].skipped, w.currentExerciseIndex]; }), [true, 1],

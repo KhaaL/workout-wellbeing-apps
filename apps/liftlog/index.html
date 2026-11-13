@@ -3609,6 +3609,8 @@ function workoutController(){
     get currentRestSeconds(){return currentRestSeconds;},
     get deleteRecoverableSet(){return deleteRecoverableSet;},
     get dialog(){return dialog;},
+    get canonicalExerciseId(){return canonicalExerciseId;},
+    get openExerciseEditSheet(){return openExerciseEditSheet;},
     get exerciseById(){return exerciseById;},
     get fmtNum(){return fmtNum;},
     get inferMovementFamily(){return inferMovementFamily;},
@@ -5024,7 +5026,12 @@ function trackHeaderHeight(){
    that can dangle (a deleted routine, a deleted trend exercise, the item a
    detail sheet was showing) settle here. */
 function normalizeSelections(){
-  if (ui.detail && (!detailItem(ui.detail) || DETAIL_SHEETS[ui.detail.kind].view !== ui.view)) ui.detail = null;
+  if (ui.detail && (!detailItem(ui.detail) || DETAIL_SHEETS[ui.detail.kind].view !== ui.view)){
+    /* Save in the workout's exercise editor clears the draft: the sheet goes
+       and the exercise it edited takes the focus. */
+    if (ui.detail.kind === 'exerciseEdit' && !ui.focus) ui.focus = 'ex-panel-top';
+    ui.detail = null;
+  }
   const trendable = trendCandidates();
   if (trendable.length && !trendable.some(e => e.id === ui.trendExId))
     ui.trendExId = trendable[0].id;
@@ -5768,6 +5775,16 @@ const DETAIL_SHEETS = {
     body:e => '<div class="detail-section">' + WorkoutMarkdown.render(e.instructions) + '</div>',
     actions:() => '<button type="button" class="btn btn-primary" data-action="detail-close">Back to workout</button>'
   },
+  /* More… → Edit exercise… in a workout: the library entry's own editor, over
+     the session. It lives while the draft is this exercise's, so Save and
+     Cancel close it by clearing the draft. */
+  exerciseEdit:{
+    view:'today', noun:'editor', find:id => ui.exerciseDraft && ui.exerciseDraft.id === id ? exerciseById(id) : null,
+    title:e => 'Edit ' + e.name, sub:() => 'Library exercise · changes apply to this workout and every routine',
+    body:() => '<div class="detail-section">' + htmlExerciseEditForm() + '</div>',
+    actions:() => '<button type="submit" class="btn btn-primary" form="ex-edit-form">Save</button>' +
+      '<button type="button" class="btn" data-action="detail-close">Cancel</button>'
+  },
   workout:{
     view:'history', noun:'session', find:id => state.workouts.find(w => w.id === id),
     title:w => w.routineName, sub:w => fmtDate(w.startedAt) + ' · ' + relDays(w.startedAt),
@@ -5798,7 +5815,13 @@ function closeDetail(){
   ui.detail = null;
   if (d && d.kind === 'workout') ui.historyHighlight = null;
   if (d) ui.focus = detailRowId(d.kind, d.id);
+  if (d && d.kind === 'exerciseEdit'){ ui.exerciseDraft = null; ui.focus = 'ex-panel-top'; }
   render();
+}
+function openExerciseEditSheet(block){
+  const e = exerciseById(canonicalExerciseId(block.exerciseId)); if (!e) return;
+  ui.mergeExerciseId = null; ui.exerciseDraft = Object.assign({ url:'', instructions:'' }, deepCopy(e));
+  openDetail('exerciseEdit', e.id);
 }
 /* Edit hands over to the page: the sheet closes and the item's own editor
    opens where its row is, focused so that it is scrolled into view too. The
@@ -7012,7 +7035,7 @@ function viewExercises(){
   const shown = (ui.showArchivedExercises ? state.exercises : active).filter(matches).sort(compareExerciseNames);
   html += '<ul class="list" id="ex-list">';
   shown.forEach(e => {
-    if (ui.exerciseDraft && ui.exerciseDraft.id === e.id){ html += htmlExerciseEditRow(e); return; }
+    if (ui.exerciseDraft && ui.exerciseDraft.id === e.id){ html += htmlExerciseEditRow(); return; }
     if (ui.mergeExerciseId === e.id){ html += htmlExerciseMergeRow(e); return; }
     const usedBy = state.routines.filter(r => r.items.some(it => it.exerciseId === e.id)).length;
     const last = lastPerformance(e.id);
@@ -7147,10 +7170,18 @@ function restField(attrs, value){
     'value="' + esc(value == null ? '' : String(value)) + '" placeholder="' + state.settings.defaultRest + ' (Settings)">' +
     '<span class="hint">For movements that need longer or shorter rest in every routine.</span></label>';
 }
-function htmlExerciseEditRow(e){
+function htmlExerciseEditRow(){
+  return '<li class="list-row is-editing">' + htmlExerciseEditForm(
+    '<div class="form-actions mt-3">' +
+      '<button type="submit" class="btn btn-primary btn-sm">Save</button>' +
+      '<button type="button" class="btn btn-sm" data-action="ex-edit-cancel">Cancel</button>' +
+    '</div>') + '</li>';
+}
+/* The library editor's fields; `actions` is its own buttons in the list, or
+   nothing in the workout's sheet, whose action row submits the form by id. */
+function htmlExerciseEditForm(actions = ''){
   const d = ui.exerciseDraft;
-  return '<li class="list-row is-editing">' +
-    '<form data-form="ex-save" id="ex-edit-form" tabindex="-1">' +
+  return '<form data-form="ex-save" id="ex-edit-form" tabindex="-1">' +
       '<div class="ex-edit-grid">' +
         '<label class="field"><span class="cap">Name</span><input type="text" data-bind="edraft" data-field="name" value="' + esc(d.name) + '" required></label>' +
         '<label class="field"><span class="cap">Category</span><select data-bind="edraft" data-field="category">' + categoryOptions(d.category) + '</select>' +
@@ -7176,11 +7207,8 @@ function htmlExerciseEditRow(e){
         '<input type="text" inputmode="url" autocomplete="url" spellcheck="false" ' +
         'data-bind="edraft" data-field="url" value="' + esc(d.url || '') + '" ' +
         'placeholder="https://… a video or page showing the movement"></label>' +
-      '<div class="form-actions mt-3">' +
-        '<button type="submit" class="btn btn-primary btn-sm">Save</button>' +
-        '<button type="button" class="btn btn-sm" data-action="ex-edit-cancel">Cancel</button>' +
-      '</div>' +
-    '</form></li>';
+      actions +
+    '</form>';
 }
 
 /* ---------- SETTINGS ---------- */
