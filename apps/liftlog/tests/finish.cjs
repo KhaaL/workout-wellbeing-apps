@@ -20,8 +20,18 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       t.state.settings.autoRest = false;
       t.startRoutine('r1'); t.navigate('today');
     });
-    const finish = page.locator('#main [data-action="finish-workout"]').first();
+    /* On a phone Finish sits top right in the title row; the one beside the exercise name is hidden there. */
+    const finish = page.locator('.shell-actions [data-action="finish-workout"]');
     const ask = page.getByRole('dialog', { name:'Finish workout?' });
+    await start();
+    const where = await page.evaluate(() => { const b = document.querySelector('.shell-actions [data-action="finish-workout"]').getBoundingClientRect(),
+      panel = document.querySelector('#main .workout-head-actions [data-action="finish-workout"]');
+      return { right:Math.round(innerWidth - b.right), top:Math.round(b.top), panelShown:!!panel.getClientRects().length,
+        menuFirst:document.querySelector('.shell-title').firstElementChild.classList.contains('shell-menu-button') }; });
+    assert.ok(where.right <= 24 && where.top <= 16 && !where.panelShown && where.menuFirst, 'Finish top right, menu top left: ' + JSON.stringify(where));
+    await page.evaluate(() => window.testAPI.navigate('history'));
+    assert.equal(await page.locator('.shell-actions [data-action="finish-workout"]').count(), 0, 'only on the workout screen');
+    await page.evaluate(() => window.testAPI.navigate('today'));
 
     /* Planned sets left: Finish asks first, and Cancel keeps the workout going. */
     await page.evaluate(() => { const t = window.testAPI; t.state.workouts = []; });
@@ -75,6 +85,6 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     assert.equal(await page.locator('#main .prev-perf .pp-k').first().textContent(), day);
 
     assert.deepEqual(errors, []);
-    console.log('finish: 13 checks passed');
+    console.log('finish: 15 checks passed');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });

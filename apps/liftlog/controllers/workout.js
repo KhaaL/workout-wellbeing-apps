@@ -478,6 +478,8 @@ function openExerciseMenu(){
   let next = null;
   const button = (text, css, action) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + css; b.textContent = text;
     b.addEventListener('click', () => { next = action; dialog.close(); }); actions.append(b); };
+  /* the library entry itself (name, setup notes, rest, how-to), edited in a sheet over the session */
+  if (context.exerciseById(context.canonicalExerciseId(ex.exerciseId))) button('Edit exercise…', '', () => context.openExerciseEditSheet(ex));
   if (canSwap(ex)) button('Swap for another exercise…', '', openSwapDialog);
   /* Skipped work stays in the plan: the overview marks it and can reopen it. */
   if (!allSetsDone(ex)) button('Skip exercise', '', () => advanceExercise(true, true));

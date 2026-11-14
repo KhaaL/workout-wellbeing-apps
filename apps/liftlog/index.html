@@ -781,7 +781,13 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 }
 .superset-last::after{ content:"+"; font-size:13px; }
 .routine-pair-toolbar{ display:flex; flex-wrap:wrap; gap:var(--sp-2); }
-.superset-note{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--sp-2); margin-top:var(--sp-3); font-size:var(--fs-sm); }
+.superset-note{ display:flex; flex-wrap:nowrap; align-items:center; gap:var(--sp-2); margin-top:var(--sp-3); font-size:var(--fs-sm); min-width:0; }
+.superset-note .superset-inline,.superset-note .superset-label{ flex:none; }
+.superset-switch{ flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
+/* the shell's title row carries Finish on a phone (syncShellActions) */
+@media (max-width:700px),(max-height:550px) and (pointer:coarse){
+  html.workout-screen .workout-head-actions{ display:none; }
+}
 .item-name{ font-weight:600; font-size:var(--fs-sm); padding-bottom:9px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .routine-pair-toolbar{ margin:0 0 var(--sp-3); }
 .routine-pair-fields{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--sp-3); margin-top:var(--sp-3); }
@@ -3609,6 +3615,8 @@ function workoutController(){
     get currentRestSeconds(){return currentRestSeconds;},
     get deleteRecoverableSet(){return deleteRecoverableSet;},
     get dialog(){return dialog;},
+    get canonicalExerciseId(){return canonicalExerciseId;},
+    get openExerciseEditSheet(){return openExerciseEditSheet;},
     get exerciseById(){return exerciseById;},
     get fmtNum(){return fmtNum;},
     get inferMovementFamily(){return inferMovementFamily;},
@@ -4914,6 +4922,7 @@ function render(){
   document.documentElement.classList.toggle('session-active',
     !!state.activeWorkout && ui.view === 'today');
   appShell?.update(ui.view,!!state.activeWorkout,!!state.activeWorkout && ui.view==='today');
+  syncShellActions();
   if (switched){ window.scrollTo(0,0); if(!ui.focus) main.focus({preventScroll:true}); }
   /* An untouched timer shows the rest the current exercise will use, so the
      clock and the rest tag agree when an exercise sets its own length. */
@@ -5024,7 +5033,12 @@ function trackHeaderHeight(){
    that can dangle (a deleted routine, a deleted trend exercise, the item a
    detail sheet was showing) settle here. */
 function normalizeSelections(){
-  if (ui.detail && (!detailItem(ui.detail) || DETAIL_SHEETS[ui.detail.kind].view !== ui.view)) ui.detail = null;
+  if (ui.detail && (!detailItem(ui.detail) || DETAIL_SHEETS[ui.detail.kind].view !== ui.view)){
+    /* Save in the workout's exercise editor clears the draft: the sheet goes
+       and the exercise it edited takes the focus. */
+    if (ui.detail.kind === 'exerciseEdit' && !ui.focus) ui.focus = 'ex-panel-top';
+    ui.detail = null;
+  }
   const trendable = trendCandidates();
   if (trendable.length && !trendable.some(e => e.id === ui.trendExId))
     ui.trendExId = trendable[0].id;
@@ -5196,6 +5210,15 @@ function loadCueActionsHTML(cue, name){
     '<button type="button" class="btn btn-sm" data-action="cue-dismiss" data-id="' + esc(cue.id) + '">Hide until next session</button>' +
     '<button type="button" class="btn btn-sm" data-action="cue-off" data-id="' + esc(cue.id) + '">Stop for ' + esc(name) + '</button>' +
   '</div>';
+}
+/* On a phone the workout's Finish sits in the shell's title row, top right;
+   wider screens hide that row and keep it beside the exercise name. Rebuilt
+   only when it changes, so a render never takes focus from it. */
+const SHELL_FINISH = '<button type="button" class="btn btn-primary btn-sm" data-action="finish-workout" aria-label="Finish workout">' + IC.flag + '<span>Finish</span></button>';
+function syncShellActions(){
+  const slot = appShell && appShell.actions; if (!slot) return;
+  const want = state.activeWorkout && ui.view === 'today' && !workoutHandoff.held() ? SHELL_FINISH : '';
+  if (slot.dataset.html !== want){ slot.innerHTML = want; slot.dataset.html = want; }
 }
 function htmlActiveWorkout(w){
   const ex = currentExercise();
@@ -5562,21 +5585,21 @@ function warmupButtonHTML(ex){
     'aria-label="Add ' + plural(plan.length, 'warm-up set') + ' to ' + esc(ex.name) + ': ' + esc(what) + esc(said) + '">' +
     IC.plus + '<span>' + plural(plan.length, 'warm-up set') + (warmth && warmth.fresh ? ' · first ' + esc(family) : '') + '</span></button></div>';
 }
-/* Which superset this is and how to switch to its partner. Logging a set
-   switches on its own; the button is for doing things out of order. */
+/* Which superset this is and how to switch to its partner, on one row:
+   "Superset: <partner>", the name cut short to fit. Logging a set switches
+   on its own; the button is for doing things out of order. Its spoken label
+   and tooltip keep the full name and the partner's sets done. */
 function htmlSupersetNote(w, ex, run){
   if (run.length < 2) return '';
   const others = run.filter(i => w.exercises[i] !== ex);
   return '<div class="superset-note"><span class="superset-inline" aria-hidden="true">+</span>' +
-    '<span>Superset with</span>' +
+    '<span class="superset-label">Superset:</span>' +
     others.map(i => {
       const o = w.exercises[i];
-      const done = o.sets.filter(sx => sx.completed).length;
-      return '<button type="button" class="btn btn-sm" id="ss-switch-' + i + '" data-action="superset-switch" data-idx="' + i + '" ' +
-        'aria-label="Switch to ' + esc(o.name) + ', ' + done + ' of ' + o.sets.length + ' sets done">' +
-        esc(o.name) + ' <span class="muted xs">' + done + '/' + o.sets.length + '</span></button>';
-    }).join('') +
-    '<span class="muted xs">Each rests on its own timer</span></div>';
+      const done = o.sets.filter(sx => sx.completed).length, said = 'Switch to ' + o.name + ', ' + done + ' of ' + o.sets.length + ' sets done';
+      return '<button type="button" class="btn btn-sm superset-switch" id="ss-switch-' + i + '" data-action="superset-switch" data-idx="' + i + '" ' +
+        'aria-label="' + esc(said) + '" title="' + esc(said) + '">' + esc(o.name) + '</button>';
+    }).join('') + '</div>';
 }
 
 /* What is inside the session-overview sheet: every exercise in the workout, in
@@ -5768,6 +5791,16 @@ const DETAIL_SHEETS = {
     body:e => '<div class="detail-section">' + WorkoutMarkdown.render(e.instructions) + '</div>',
     actions:() => '<button type="button" class="btn btn-primary" data-action="detail-close">Back to workout</button>'
   },
+  /* More… → Edit exercise… in a workout: the library entry's own editor, over
+     the session. It lives while the draft is this exercise's, so Save and
+     Cancel close it by clearing the draft. */
+  exerciseEdit:{
+    view:'today', noun:'editor', find:id => ui.exerciseDraft && ui.exerciseDraft.id === id ? exerciseById(id) : null,
+    title:e => 'Edit ' + e.name, sub:() => 'Library exercise · changes apply to this workout and every routine',
+    body:() => '<div class="detail-section">' + htmlExerciseEditForm() + '</div>',
+    actions:() => '<button type="submit" class="btn btn-primary" form="ex-edit-form">Save</button>' +
+      '<button type="button" class="btn" data-action="detail-close">Cancel</button>'
+  },
   workout:{
     view:'history', noun:'session', find:id => state.workouts.find(w => w.id === id),
     title:w => w.routineName, sub:w => fmtDate(w.startedAt) + ' · ' + relDays(w.startedAt),
@@ -5798,7 +5831,13 @@ function closeDetail(){
   ui.detail = null;
   if (d && d.kind === 'workout') ui.historyHighlight = null;
   if (d) ui.focus = detailRowId(d.kind, d.id);
+  if (d && d.kind === 'exerciseEdit'){ ui.exerciseDraft = null; ui.focus = 'ex-panel-top'; }
   render();
+}
+function openExerciseEditSheet(block){
+  const e = exerciseById(canonicalExerciseId(block.exerciseId)); if (!e) return;
+  ui.mergeExerciseId = null; ui.exerciseDraft = Object.assign({ url:'', instructions:'' }, deepCopy(e));
+  openDetail('exerciseEdit', e.id);
 }
 /* Edit hands over to the page: the sheet closes and the item's own editor
    opens where its row is, focused so that it is scrolled into view too. The
@@ -7012,7 +7051,7 @@ function viewExercises(){
   const shown = (ui.showArchivedExercises ? state.exercises : active).filter(matches).sort(compareExerciseNames);
   html += '<ul class="list" id="ex-list">';
   shown.forEach(e => {
-    if (ui.exerciseDraft && ui.exerciseDraft.id === e.id){ html += htmlExerciseEditRow(e); return; }
+    if (ui.exerciseDraft && ui.exerciseDraft.id === e.id){ html += htmlExerciseEditRow(); return; }
     if (ui.mergeExerciseId === e.id){ html += htmlExerciseMergeRow(e); return; }
     const usedBy = state.routines.filter(r => r.items.some(it => it.exerciseId === e.id)).length;
     const last = lastPerformance(e.id);
@@ -7147,10 +7186,18 @@ function restField(attrs, value){
     'value="' + esc(value == null ? '' : String(value)) + '" placeholder="' + state.settings.defaultRest + ' (Settings)">' +
     '<span class="hint">For movements that need longer or shorter rest in every routine.</span></label>';
 }
-function htmlExerciseEditRow(e){
+function htmlExerciseEditRow(){
+  return '<li class="list-row is-editing">' + htmlExerciseEditForm(
+    '<div class="form-actions mt-3">' +
+      '<button type="submit" class="btn btn-primary btn-sm">Save</button>' +
+      '<button type="button" class="btn btn-sm" data-action="ex-edit-cancel">Cancel</button>' +
+    '</div>') + '</li>';
+}
+/* The library editor's fields; `actions` is its own buttons in the list, or
+   nothing in the workout's sheet, whose action row submits the form by id. */
+function htmlExerciseEditForm(actions = ''){
   const d = ui.exerciseDraft;
-  return '<li class="list-row is-editing">' +
-    '<form data-form="ex-save" id="ex-edit-form" tabindex="-1">' +
+  return '<form data-form="ex-save" id="ex-edit-form" tabindex="-1">' +
       '<div class="ex-edit-grid">' +
         '<label class="field"><span class="cap">Name</span><input type="text" data-bind="edraft" data-field="name" value="' + esc(d.name) + '" required></label>' +
         '<label class="field"><span class="cap">Category</span><select data-bind="edraft" data-field="category">' + categoryOptions(d.category) + '</select>' +
@@ -7176,11 +7223,8 @@ function htmlExerciseEditRow(e){
         '<input type="text" inputmode="url" autocomplete="url" spellcheck="false" ' +
         'data-bind="edraft" data-field="url" value="' + esc(d.url || '') + '" ' +
         'placeholder="https://… a video or page showing the movement"></label>' +
-      '<div class="form-actions mt-3">' +
-        '<button type="submit" class="btn btn-primary btn-sm">Save</button>' +
-        '<button type="button" class="btn btn-sm" data-action="ex-edit-cancel">Cancel</button>' +
-      '</div>' +
-    '</form></li>';
+      actions +
+    '</form>';
 }
 
 /* ---------- SETTINGS ---------- */
