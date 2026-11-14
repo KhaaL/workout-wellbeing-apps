@@ -1,7 +1,7 @@
 # Wellbeing apps
 
 Five standalone apps with one shared browser storage engine: three workout apps
-(Liftlog, Bike cardio, Tabata), Foodlog, a food intake log, and Check-in, a mood
+(Liftlog, Bike Cardio, Tabata), Foodlog, a food intake log, and Check-in, a mood
 and symptom log.
 
 See [STORAGE.md](STORAGE.md) for generic S3-compatible backup configuration.

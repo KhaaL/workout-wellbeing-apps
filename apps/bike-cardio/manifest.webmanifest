@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Bike cardio",
-  "short_name": "Bike cardio",
+  "name": "Bike Cardio",
+  "short_name": "Bike Cardio",
   "description": "Indoor cycling with live Polar H10 heart rate, Zone 2, sprint intervals and local workout logs.",
   "start_url": "./",
   "scope": "./",
