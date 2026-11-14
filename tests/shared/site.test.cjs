@@ -54,9 +54,10 @@ test('every app ships the same system-bar colour hints',()=>{
   for(const [index,hint] of hints.entries())assert.deepEqual(hint,hints[0],Object.keys(apps)[index]+' matches Liftlog');
   assert.deepEqual(hints[0],['#0d1824','#0d1824','#fbfbf9']);
 });
-test('the home page links every app and installs nothing itself',()=>{
-  const home=read('index.html');
-  for(const app of Object.keys(apps))assert.match(home,new RegExp('href="'+app+'/"'),app+' link');
+test('the home page links the featured apps and installs nothing itself',()=>{
+  const home=read('index.html'),homeApps=['liftlog','bike-cardio','tabata','checkin'];
+  for(const app of homeApps)assert.match(home,new RegExp('href="'+app+'/"'),app+' link');
+  assert.doesNotMatch(home,/href="foodlog\/"/,'Foodlog is not featured on the home page');
   for(const src of home.match(/src="[^"]+"/g))assert.ok(fs.existsSync(path.join(dist,src.slice(5,-1))),src);
   assert.doesNotMatch(home,/rel="manifest"|serviceWorker|<script/);
   assert.match(read('404.html'),/Content-Security-Policy" content="default-src 'none'/);

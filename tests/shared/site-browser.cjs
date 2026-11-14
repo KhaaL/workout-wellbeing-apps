@@ -4,7 +4,7 @@
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
 const site=require('./site-server.cjs');
-const apps=['liftlog','bike-cardio','tabata','foodlog','checkin'];
+const apps=['liftlog','bike-cardio','tabata','foodlog','checkin'],homeApps=['liftlog','bike-cardio','tabata','checkin'];
 (async()=>{
   const server=await site.start(),origin=server.origin;
   const browser=await chromium.launch({headless:true,...process.env.BROWSER_PATH?{executablePath:process.env.BROWSER_PATH}:{}});
@@ -15,11 +15,11 @@ const apps=['liftlog','bike-cardio','tabata','foodlog','checkin'];
 
     await page.goto(origin+'/');
     assert.equal(await page.title(),'Wellbeing apps');
-    assert.deepEqual(await page.locator('.app').evaluateAll(links=>links.map(a=>new URL(a.href).pathname)),apps.map(app=>'/'+app+'/'));
+    assert.deepEqual(await page.locator('.app').evaluateAll(links=>links.map(a=>new URL(a.href).pathname)),homeApps.map(app=>'/'+app+'/'));
     assert.equal(await page.locator('.app img').evaluateAll(images=>images.every(img=>img.complete&&img.naturalWidth>0)),true,'app icons load under the home policy');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'the home page fits 390 px');
     assert.equal(await page.locator('link[rel="manifest"]').count(),0,'the home page offers no install of its own');
-    console.log('PASS the home page lists every app with its icon and installs nothing itself');
+    console.log('PASS the home page lists the featured apps with their icons and installs nothing itself');
 
     for(const app of apps){
       const response=await page.goto(origin+'/'+app);

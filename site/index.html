@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<meta name="description" content="Liftlog, Bike cardio, Tabata, Foodlog and Check-in: local-first workout, food and wellbeing apps that work offline.">
+<meta name="description" content="Liftlog, Bike cardio, Tabata and Check-in: local-first workout and wellbeing apps that work offline.">
 <title>Wellbeing apps</title>
 <link rel="icon" href="tabata/icon.svg" type="image/svg+xml">
 <!-- The home page links to the apps only. It has no manifest and no service
@@ -19,13 +19,14 @@ h1{font-size:var(--fs-xl);line-height:1.2;margin:0 0 8px}
 h2{font-size:var(--fs-lg);margin:32px 0 8px}
 p{margin:0 0 8px}
 .note{color:var(--muted);font-size:var(--fs-sm)}
-.apps{list-style:none;margin:24px 0 0;padding:0;display:grid;gap:12px}
-.app{display:flex;gap:16px;align-items:center;min-height:88px;padding:16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);color:inherit;text-decoration:none}
+.apps{list-style:none;margin:24px 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.app{display:flex;flex-direction:column;gap:12px;min-height:88px;padding:16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);color:inherit;text-decoration:none}
 .app:hover{border-color:var(--border-strong)}
 .app:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 .app img{width:56px;height:56px;border-radius:14px;flex:none}
 .app strong{display:block;font-size:var(--fs-lg)}
 .app .note{display:block;margin:0}
+footer{margin:32px 0 0}
 </style>
 </head>
 <body>
@@ -36,12 +37,12 @@ p{margin:0 0 8px}
 <li><a class="app" href="liftlog/"><img src="liftlog/icons/icon-192.png" alt=""><span><strong>Liftlog</strong><span class="note">Comprehensive companion for the gym.</span></span></a></li>
 <li><a class="app" href="bike-cardio/"><img src="bike-cardio/icon-192.png" alt=""><span><strong>Bike cardio</strong><span class="note">Bike-cardio companion app.</span></span></a></li>
 <li><a class="app" href="tabata/"><img src="tabata/icon-192.png" alt=""><span><strong>Tabata</strong><span class="note">Touch-friendly tabata timer.</span></span></a></li>
-<li><a class="app" href="foodlog/"><img src="foodlog/icon-192.png" alt=""><span><strong>Foodlog</strong><span class="note">Log meals from your own food catalog and see the day against your targets.</span></span></a></li>
 <li><a class="app" href="checkin/"><img src="checkin/icon-192.png" alt=""><span><strong>Check-in</strong><span class="note">Mood and symptoms logger.</span></span></a></li>
 </ul>
 <h2>Installation</h2>
 <p class="note">Open an app, then choose Install in a desktop browser or Add to Home Screen on a phone. Each app installs on its own, with its own icon and offline copy.</p>
 <p class="note">Apps on this site share the same S3 storage details.</p>
+<footer class="note">Made with &lt;3 by khalid.se</footer>
 </main>
 </body>
 </html>
