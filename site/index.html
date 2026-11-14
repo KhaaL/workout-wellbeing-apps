@@ -19,14 +19,16 @@ h1{font-size:var(--fs-xl);line-height:1.2;margin:0 0 8px}
 h2{font-size:var(--fs-lg);margin:32px 0 8px}
 p{margin:0 0 8px}
 .note{color:var(--muted);font-size:var(--fs-sm)}
-.apps{list-style:none;margin:20px 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.app{display:grid;grid-template-columns:40px minmax(0,1fr);grid-template-areas:"icon title" "note note";align-items:center;column-gap:10px;row-gap:4px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);color:inherit;text-decoration:none;transition:border-color .15s ease}
+.apps{list-style:none;margin:20px auto 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:480px}
+.app{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;aspect-ratio:1;padding:14px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);color:inherit;text-align:center;text-decoration:none;transition:border-color .15s ease}
 .app:hover{border-color:var(--border-strong)}
 .app:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
-.app img{grid-area:icon;width:40px;height:40px;border-radius:10px}
-.app strong{grid-area:title;font-size:var(--fs-md)}
-.app .note{grid-area:note;margin:0;line-height:1.35}
-footer{margin:28px 0 0}
+.app img{width:clamp(48px,34%,80px);height:auto;aspect-ratio:1;border-radius:18%}
+.app strong{font-size:var(--fs-md)}
+.app .note{margin:0;line-height:1.35}
+footer{margin:28px 0 0;text-align:center}
+footer .heart{color:var(--danger)}
+footer a{color:inherit;text-decoration:underline;text-underline-offset:2px}
 </style>
 </head>
 <body>
@@ -42,7 +44,7 @@ footer{margin:28px 0 0}
 <h2>Installation</h2>
 <p class="note">Open an app, then choose Install in a desktop browser or Add to Home Screen on a phone. Each app installs on its own, with its own icon and offline copy.</p>
 <p class="note">Apps on this site share the same S3 storage details.</p>
-<footer class="note">Made with &lt;3 by khalid.se</footer>
+<footer class="note">Made with <span class="heart">&lt;3</span> by <a href="https://khalid.se">khalid.se</a></footer>
 </main>
 </body>
 </html>
