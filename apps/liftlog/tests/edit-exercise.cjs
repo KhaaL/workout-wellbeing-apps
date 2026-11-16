@@ -54,10 +54,23 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     await menu(); await page.getByRole('button', { name:'Edit exercise…' }).click();
     await again.locator('[data-field="notes"]').fill('changed again');
     await page.keyboard.press('Escape');
-    await page.waitForFunction(() => !document.querySelector('#detail-dlg').open);
+    /* the dialog's close event, which drops the draft, fires a task after open turns false */
+    await page.waitForFunction(() => !document.querySelector('#detail-dlg').open && !window.testAPI.ui.exerciseDraft);
     assert.deepEqual(await page.evaluate(() => [window.testAPI.exerciseById('press').notes, window.testAPI.ui.exerciseDraft]), ['Seat 4, handles 2', null]);
 
-    /* 4. A block whose library entry is gone has nothing to edit. */
+    /* 4. A block under an earlier ID linked to the entry shows the saved notes too. */
+    await page.evaluate(() => { const t = window.testAPI;
+      t.state.exerciseLinks = [{ sourceId:'old-press', targetId:'press' }];
+      t.state.activeWorkout.exercises[0].exerciseId = 'old-press'; t.render(); });
+    await menu(); await page.getByRole('button', { name:'Edit exercise…' }).click();
+    await again.locator('[data-field="notes"]').fill('Seat 5');
+    await again.getByRole('button', { name:'Save', exact:true }).click();
+    await page.waitForFunction(() => !document.querySelector('#detail-dlg').open);
+    assert.deepEqual(await page.evaluate(() => [window.testAPI.exerciseById('press').notes, window.testAPI.state.activeWorkout.exercises[0].notes,
+      document.querySelector('#main .ex-notes').textContent]), ['Seat 5', 'Seat 5', '“Seat 5”']);
+    await page.evaluate(() => { const t = window.testAPI; t.state.exerciseLinks = []; t.state.activeWorkout.exercises[0].exerciseId = 'press'; t.render(); });
+
+    /* 5. A block whose library entry is gone has nothing to edit. */
     await page.evaluate(() => { const t = window.testAPI; t.state.exercises = t.state.exercises.filter(e => e.id !== 'press'); t.render(); });
     await menu();
     assert.equal(await page.getByRole('button', { name:'Edit exercise…' }).count(), 0);
@@ -65,6 +78,6 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
 
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.deepEqual(errors, []);
-    console.log('edit-exercise: 8 checks passed');
+    console.log('edit-exercise: 9 checks passed');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });
