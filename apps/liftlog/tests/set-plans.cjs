@@ -65,10 +65,10 @@ const routinesFile = {
     assert.deepEqual(await marks(), ['W', 'W', '', '', ''], 'the warm-up rows are marked W');
     assert.equal(await page.locator('#main .ex-tags').count(), 0, 'no target tag: each row shows its own target');
     assert.equal(await page.locator('#main .sets-head').textContent().then(t => t.includes('RIR')), true, 'a planned RIR shows the RIR column');
-    assert.equal(await page.locator('#main .implement-split').first().textContent(), '2 × 15', 'each load says what one implement weighs');
-    assert.ok(await page.evaluate(() => { const row = document.querySelector('#main .set-row:not(.is-done)'), [load, reps] = row.querySelectorAll('input');
-      const a = load.getBoundingClientRect(), b = reps.getBoundingClientRect(), split = row.querySelector('.implement-split').getBoundingClientRect();
-      return Math.abs(a.top - b.top) < 1 && split.top >= a.top && split.bottom <= a.bottom; }), 'the split sits inside the load box, level with the other boxes');
+    assert.deepEqual(await page.locator('#main .set-row input[data-field="weight"]').evaluateAll(els => els.map(e => e.value)), ['15', '22.5', '27.5', '27.5', '27.5'],
+      'each load box shows what one implement weighs; the total stays in state');
+    assert.equal(await page.locator('#main .sets-head span').nth(1).evaluate(e => e.firstChild.textContent), 'Each', 'the load column says the figures are per implement');
+    assert.equal(await page.locator('#main .set-row .input-wrap > :not(input)').count(), 0, 'nothing is drawn over the number in the load box');
 
     /* A warm-up rests for its own time; warm-ups stay out of volume. */
     await page.locator('.set-done-btn').nth(0).click();
@@ -98,7 +98,7 @@ const routinesFile = {
       'each row shows its own RIR target');
     const placeholders = await page.locator('#main .set-row [data-field="reps"]').evaluateAll(els => els.map(e => e.placeholder));
     assert.deepEqual(placeholders.slice(2), ['6–8', '10–12', '10–12'], 'each row shows its own range');
-    assert.equal(await page.locator('#main .implement-split').count(), 0, 'a machine stack has no implements');
+    assert.equal(await page.locator('#main .sets-head span').nth(1).evaluate(e => e.firstChild.textContent), 'Weight', 'a machine stack has no implements');
 
     /* A load typed on the top set never fills a blank back-off row. */
     const kept = await page.evaluate(() => {
@@ -115,11 +115,20 @@ const routinesFile = {
     const logged = await page.evaluate(() => window.testAPI.state.activeWorkout.exercises[1].sets.map(s => [s.completed, s.reps]));
     assert.deepEqual(logged, [[true, 8], [true, 3], [true, 6], [true, 10], [true, 10]], 'warm-ups keep their count; others log their own lower bound');
 
-    /* The dumbbell total updates its split as it is typed. */
-    await page.evaluate(() => { const t = window.testAPI; t.state.activeWorkout.currentExerciseIndex = 2; t.render(); });
-    await page.locator('#main .set-row input[data-field="weight"]').first().fill('50');
+    /* A dumbbell load is typed per dumbbell and stored as the total. */
+    await page.evaluate(() => { const t = window.testAPI; t.state.activeWorkout.currentExerciseIndex = 2;
+      t.state.activeWorkout.exercises[2].sets.forEach((s, i) => { if (i) s.weight = null; }); t.render(); });
+    await page.locator('#main .set-row input[data-field="weight"]').first().fill('25');
     await page.locator('#main .set-row input[data-field="weight"]').first().press('Tab');
-    assert.deepEqual(await page.locator('#main .implement-split').allTextContents(), ['2 × 25', '2 × 22.5', '2 × 22.5']);
+    assert.deepEqual(await page.evaluate(() => window.testAPI.state.activeWorkout.exercises[2].sets.map(s => s.weight)), [50, 50, 50], 'stored as totals, and the load flows down');
+    assert.deepEqual(await page.locator('#main .set-row input[data-field="weight"]').evaluateAll(els => els.map(e => e.value)), ['25', '25', '25'], 'the rows below show it per dumbbell');
+    await page.locator('#main .set-done-btn').first().click();
+    assert.match(await page.locator('#main .set-row.is-done .set-text').first().textContent(), /^25 × /, 'a logged row reads per dumbbell');
+    await page.locator('#main .set-row.is-done .set-summary').first().click();
+    const editor = page.locator('dialog.numeric-editor');
+    await editor.locator('input[data-field="weight"]').fill('27.5');
+    await editor.getByRole('button', { name:'Save changes' }).click();
+    assert.equal(await page.evaluate(() => window.testAPI.state.activeWorkout.exercises[2].sets[0].weight), 55, 'the set editor takes one dumbbell too');
 
     /* Volume counts top and back-off sets and leaves the warm-ups out. */
     const volume = await page.evaluate(() => {
@@ -179,6 +188,6 @@ const routinesFile = {
       ['warmup', 'warmup', 'working', 'working', 'working'], 'the plan is still there after a reload');
 
     assert.deepEqual(errors, []);
-    console.log('set-plans: 37 checks passed');
+    console.log('set-plans: 40 checks passed');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });

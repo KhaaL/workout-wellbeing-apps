@@ -426,12 +426,9 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 }
 .set-summary .set-mark{ flex:none; width:var(--mark-w); min-height:0; padding-bottom:0; }
 .set-mark .role{ font-size:10px; font-weight:650; line-height:1.2; color:var(--accent); white-space:nowrap; }
-/* what to pick up when the stored load is a total over several implements:
-   inside the load box, after the number, so the row's boxes stay level */
+/* A load over several implements is typed per implement. The column head
+   says "Each": a label inside a box about 70px wide on a phone covers the number. */
 .input-wrap{ position:relative; display:block; }
-.implement-split{ position:absolute; right:6px; top:50%; transform:translateY(-50%); pointer-events:none;
-  font-size:var(--fs-xs); color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap; }
-.input-wrap:has(.implement-split) input{ padding-right:3.4em; }
 .set-summary .set-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .set-summary .set-text.reps-under{ color:var(--warning); }
 .set-summary .set-text.reps-over{ color:var(--success); }
@@ -1539,6 +1536,11 @@ function clamp(n, lo, hi){ return Math.min(hi, Math.max(lo, n)); }
 /* Every path that can create or edit a set uses these bounds: live logging,
    history editing, transfer import and full-backup restore. HTML min/max is
    only a keyboard hint and cannot be the data invariant. */
+/* A load box with data-per holds one implement's weight; state keeps the total. */
+function inputLoad(t){
+  const n = toNum(t.value), per = Number(t.dataset.per) || 1;
+  return n == null || per === 1 ? t.value : Math.round(n * per * 100) / 100;
+}
 function normalizeSetNumber(field, raw){
   const n = toNum(raw);
   if (n == null) return null;
@@ -3623,7 +3625,7 @@ function workoutController(){
     get isPlan(){return isPlan;},
     get setTarget(){return setTarget;},
     get workEntries(){return workEntries;},
-    get implementSplit(){return implementSplit;},
+    get perImplement(){return perImplement;},
     get askExclusion(){return askExclusion;},
     get setExclusion(){return setExclusion;},
     get isWarmup(){return isWarmup;},
@@ -3636,6 +3638,7 @@ function workoutController(){
     get navigate(){return navigate;},
     get normalizeLoadMode(){return normalizeLoadMode;},
     get normalizeSetNumber(){return normalizeSetNumber;},
+    get inputLoad(){return inputLoad;},
     get plural(){return plural;},
     get render(){return render;},
     get requestPersistence(){return requestPersistence;},
@@ -4592,7 +4595,7 @@ function schemaHelpHTML(){
       ['setPlan[].repsMin / repsMax', 'integer', 'Non-warm-up sets: the set\u2019s own target range. <code>reps</code> is accepted as both bounds.'],
       ['setPlan[].targetRir', 'integer | null', 'Non-warm-up sets: the set\u2019s own RIR target. Load suggestions hold each set to its own range and RIR.'],
       ['setPlan[].restSec', 'integer', 'Warm-ups: the rest after that set, in seconds.'],
-      ['items[].implementCount', 'integer', 'Optional, 1\u201310. The planned load is a total over this many implements (two dumbbells), and logging shows what each one weighs: 45 with 2 shows \u201c2 \u00d7 22.5\u201d. Ignored for per-hand, bodyweight and timed exercises.'],
+      ['items[].implementCount', 'integer', 'Optional, 1\u201310. The planned load is a total over this many implements (two dumbbells), and the workout shows and takes what each one weighs: 45 with 2 shows 22.5 under \u201cEach\u201d. Ignored for per-hand, bodyweight and timed exercises.'],
       ['exercises[]', 'optional', 'Definitions for the ids above, including broad <code>category</code>, <code>movementFamily</code>, <code>loadMode</code>, optional <code>equipmentKey</code>, <code>archived</code>, notes and URL.'],
       ['exercises[].unit', 'enum', 'One of ' + units + '. <code>kg</code> and <code>lb</code> both mean weighted; a created Library exercise follows this browser’s global weight unit.'],
       ['exercises[].loadMode', 'enum', '<code>total</code>, <code>per_hand</code>, <code>machine_stack</code>, <code>bodyweight_added</code>, or <code>duration</code>. Same-series analytics require matching load mode and equipment identity.'],
@@ -5365,18 +5368,24 @@ function bestBits(stats, ex){
   if (ex.unit === 'time' && stats.duration > 0) out.push(['Best hold', stats.duration + ' s']);
   return out;
 }
-/* The load per implement, for an item planned with implementCount (two
-   dumbbells): the stored figure is the total, and "2 × 22.5" says what to
-   pick up. Per-hand, bodyweight and timed exercises already state their own
-   convention, so they get none. */
-function implementSplit(ex, total){
-  const n = ex && ex.implementCount, load = toNum(total);
-  if (!(n > 1) || load == null || load <= 0 || ex.unit === 'bw' || ex.unit === 'time' || ex.loadMode === 'per_hand') return '';
-  return n + ' × ' + fmtNum(Math.round(load / n * 100) / 100);
+/* How many implements a stored load is spread over, for an item planned
+   with implementCount (two dumbbells); 1 otherwise. Per-hand, bodyweight and
+   timed exercises already state their own convention. */
+function implementCountOf(ex){
+  const n = ex && ex.implementCount;
+  return n > 1 && ex.unit !== 'bw' && ex.unit !== 'time' && ex.loadMode !== 'per_hand' ? n : 1;
 }
-function implementSplitHTML(ex, s){
-  if (!(ex.implementCount > 1) || ex.unit === 'bw' || ex.unit === 'time' || ex.loadMode === 'per_hand') return '';
-  return '<span class="implement-split" id="split-' + esc(s.id) + '" aria-live="off">' + esc(implementSplit(ex, s.weight)) + '</span>';
+/* The stored figure stays the total, which volume, records and history add
+   up. A workout row shows and takes what one implement weighs. */
+function perImplement(ex, total){
+  const load = toNum(total), n = implementCountOf(ex);
+  return load == null ? null : Math.round(load / n * 100) / 100;
+}
+/* "2 × 22.5", for the routine's set plan summary. */
+function implementSplit(ex, total){
+  const n = implementCountOf(ex), load = toNum(total);
+  if (n === 1 || load == null || load <= 0) return '';
+  return n + ' × ' + fmtNum(perImplement(ex, load));
 }
 /* Which planned role a set has, as the letter its row shows: W for a warm-up,
    T for a top set, B for a back-off set. Working sets show none. */
@@ -5408,12 +5417,14 @@ function setFieldsHTML(ex, s, n, metric = setMetric(ex)){
   let html = '';
   if (ex.unit !== 'time'){
     const weightField = bodyweight ? 'addedWeight' : 'weight';
-    const weightValue = bodyweight ? s.addedWeight : s.weight;
+    const per = bodyweight ? 1 : implementCountOf(ex);
+    const weightValue = bodyweight ? s.addedWeight : perImplement(ex, s.weight);
     html += '<label class="field"><span class="cap">' + esc(wLabel) + '</span><span class="input-wrap">' +
       '<input id="sw-' + esc(s.id) + '" type="number" inputmode="decimal" min="0" step="0.5" ' +
-      'aria-label="Set ' + n + (bodyweight ? ' added load' : ' weight') + ' in ' + esc(wLabel) + '" ' +
+      'aria-label="Set ' + n + (bodyweight ? ' added load' : per > 1 ? ' weight of each of ' + per : ' weight') + ' in ' + esc(wLabel) + '" ' +
       'data-bind="set" data-change="set-weight" data-id="' + esc(s.id) + '" data-field="' + weightField + '" ' +
-      'value="' + esc(weightValue != null ? weightValue : '') + '" placeholder="0">' + implementSplitHTML(ex, s) + '</span></label>';
+      (per > 1 ? 'data-per="' + per + '" ' : '') +
+      'value="' + esc(weightValue != null ? weightValue : '') + '" placeholder="0"></span></label>';
   }
   const timedField = ex.unit === 'time';
   const midVal = timedField ? setDuration(s) : s.reps;
@@ -5447,7 +5458,8 @@ function doneSetText(s, ex){
   const reps = s.reps != null ? s.reps : '–', dur = setDuration(s);
   if (ex.unit === 'time' || dur != null) return dur != null ? dur + ' s' : '–';
   if (ex.unit === 'bw') return (toNum(s.addedWeight) > 0 ? 'BW +' + fmtNum(s.addedWeight) : 'BW') + ' × ' + reps;
-  return fmtNum(s.weight) + ' × ' + reps;
+  /* per implement, as the load column's "Each" head says */
+  return fmtNum(perImplement(ex, s.weight)) + ' × ' + reps;
 }
 function htmlDoneSetRow(ex, s, n, metric){
   const warm = isWarmup(s), effort = metric && s[metric.field] != null ? metric.label + ' ' + fmtNum(s[metric.field]) : '';
@@ -5489,7 +5501,7 @@ function htmlCurrentExercise(w, ex){
   let setsHTML =
     '<div class="sets-head" aria-hidden="true">' +
       '<span></span>' +
-      (showWeight ? '<span>' + (bodyweight ? 'Added' : 'Weight') + '<span class="narrow-hide"> (' + esc(wLabel) + ')</span></span>' : '') +
+      (showWeight ? '<span>' + (bodyweight ? 'Added' : implementCountOf(ex) > 1 ? 'Each' : 'Weight') + '<span class="narrow-hide"> (' + esc(wLabel) + ')</span></span>' : '') +
       '<span>' + esc(repsLabel) + '</span>' +
       (metric ? '<span>' + metric.label + '</span>' : '') +
       '<span>Done</span><span></span>' +
@@ -7867,7 +7879,7 @@ const binders = {
     if(workoutHandoff.held())return;
     const ex = currentExercise(); if (!ex) return;
     const s = ex.sets.find(x => x.id === t.dataset.id); if (!s) return;
-    s[t.dataset.field] = normalizeSetNumber(t.dataset.field, t.value);
+    s[t.dataset.field] = normalizeSetNumber(t.dataset.field, inputLoad(t));
     save({changed:['activeWorkout']});
   },
   wnotes(t){
@@ -7997,7 +8009,7 @@ const changeHandlers = {
     toast(adjusted ? 'Time updated — the end cannot be before the start' :
       (field === 'startedAt' ? 'Start time updated' : 'End time updated'));
   },
-  'set-weight'(t){ cascadeWeight(t.dataset.id, normalizeSetNumber(t.dataset.field, t.value)); },
+  'set-weight'(t){ cascadeWeight(t.dataset.id, normalizeSetNumber(t.dataset.field, inputLoad(t))); },
   'set-reps'(t){
     const ex = currentExercise();
     setReps(t.dataset.id, normalizeSetNumber(ex && ex.unit === 'time' ? 'durationSeconds' : 'reps', t.value));
