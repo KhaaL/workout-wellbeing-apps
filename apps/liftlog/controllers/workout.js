@@ -284,16 +284,46 @@ function toggleWarmup(setId, focusId){
   context.announce(on ? 'Marked as a warm-up: it no longer counts toward volume or records.'
               : 'Marked as a working set.');
 }
+/* Figures that are probably a typo: more than twice the planned maximum
+   (12 typed for a 6 max is a slip; 30 for a 10 max is a missing key), or no
+   reps with an RIR recorded. A placeholder RIR is not a value. Timed sets
+   have no rep target to compare with. Returns one sentence per doubt. */
+function setDoubts(ex, s){
+  if (ex.unit === 'time') return [];
+  const reps = context.toNum(s.reps), rir = context.toNum(s.rir);
+  const max = context.toNum(context.setTarget(ex, s).targetRepsMax), out = [];
+  if (reps != null && max > 0 && reps > 2 * max)
+    out.push(reps + ' reps is more than twice the planned maximum of ' + max + '.');
+  if (reps === 0 && rir != null) out.push('0 reps is recorded with RIR ' + rir + '.');
+  return out;
+}
+/* Asks before a doubtful set is kept; resolves true when there is no doubt. */
+function confirmSetFigures(ex, s, number, label){
+  const doubts = setDoubts(ex, s);
+  if (!doubts.length) return Promise.resolve(true);
+  return context.confirmDlg('Check set ' + number, doubts.join(' ') + ' Keep these figures?', label);
+}
 /* The one way a set is logged: its own box in the done column. It therefore
    also owns what used to hang off the "Set N done" button — the announcement
    and the auto-rest that starts the moment a set lands. */
-function toggleSet(setId){
+function toggleSet(setId, checked){
   if(context.workoutHandoff.held())return;
   const ex = currentExercise(); if (!ex) return;
   const i = ex.sets.findIndex(x => x.id === setId);
   if (i === -1) return;
   const s = ex.sets[i];
   const w = context.state.activeWorkout;
+  /* Checked as it would be logged, after an untouched count takes its lower bound. */
+  if (!s.completed && !checked){
+    const preview = { ...s }; fillSetDefaults(ex, preview);
+    if (setDoubts(ex, preview).length){
+      confirmSetFigures(ex, preview, i + 1, 'Log set').then(ok => {
+        if (ok && !s.completed && currentExercise() === ex) toggleSet(setId, true);
+        else { context.ui.focus = 'sd-' + setId; context.render(); }
+      });
+      return;
+    }
+  }
   s.completed = !s.completed;
   if (s.completed){ s.completedAt = Date.now(); fillSetDefaults(ex, s); }
   else s.completedAt = null;
@@ -422,7 +452,11 @@ function openSetEditor(setId){
   const button=(text,css,action,into=actions)=>{const b=document.createElement('button');b.type='button';b.className='btn '+css;b.textContent=text;b.addEventListener('click',action);into.append(b);};
   const pair=document.createElement('div');pair.className='editor-pair';actions.append(pair);
   button('Cancel','',()=>dialog.close(),pair);
-  button('Save changes','btn-primary',()=>{if(inputs.some(({input})=>!input.reportValidity()))return;context.trackChange(context.setUndoTarget(context.state.activeWorkout,ex,set),'Edited set',()=>{for(const {input,field}of inputs)set[field]=context.normalizeSetNumber(field,context.inputLoad(input));context.save();});dialog.close();context.ui.focus='sd-'+setId;context.render();},pair);
+  button('Save changes','btn-primary',async()=>{if(inputs.some(({input})=>!input.reportValidity()))return;
+    /* a logged set's new figures get the same typo check as logging it */
+    const draft={...set};for(const {input,field}of inputs)draft[field]=context.normalizeSetNumber(field,context.inputLoad(input));
+    if(set.completed&&!(await confirmSetFigures(ex,draft,number,'Save changes')))return;
+    context.trackChange(context.setUndoTarget(context.state.activeWorkout,ex,set),'Edited set',()=>{for(const {input,field}of inputs)set[field]=context.normalizeSetNumber(field,context.inputLoad(input));context.save();});dialog.close();context.ui.focus='sd-'+setId;context.render();},pair);
   actions.append(document.createElement('hr'));
   button(context.isWarmup(set)?'Mark as working set':'Mark as warm-up','',()=>{dialog.close();toggleWarmup(setId);});
   button('Delete set '+number+'…','btn-danger',()=>{dialog.close();deleteSet(setId);});
