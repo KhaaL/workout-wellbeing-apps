@@ -39,16 +39,16 @@ function saveNewExercise(form){
    may already contain work, so that unit change begins with the next workout;
    kg/lb remain the same weighted measurement kind and are safe to refresh. */
 function syncExerciseDefinitionToActiveWorkout(previous, updated){
-  if(context.workoutHandoff.held())return;
-  if(context.workoutHandoff.held())return;
   const w = context.state.activeWorkout;
-  if (!w) return { updated:0, unitDeferred:false, loadDeferred:false };
+  if (!w || context.workoutHandoff.held()) return { updated:0, unitDeferred:false, loadDeferred:false };
   const sameMeasure = context.exerciseMeasureKind(previous.unit) === context.exerciseMeasureKind(updated.unit);
   const sameLoadIdentity = context.normalizeLoadMode(previous.loadMode, previous.unit) === context.normalizeLoadMode(updated.loadMode, updated.unit) &&
     String(previous.equipmentKey || '').trim().toLowerCase() === String(updated.equipmentKey || '').trim().toLowerCase();
   let count = 0, unitDeferred = false, loadDeferred = false;
   w.exercises.forEach(ex => {
-    if (ex.exerciseId !== updated.id) return;
+    /* A block can carry an earlier ID linked to this entry; the editor opened
+       it through the link, so its save reaches it the same way. */
+    if (context.canonicalExerciseId(ex.exerciseId) !== updated.id) return;
     ex.name = updated.name;
     ex.category = updated.category;
     ex.notes = updated.notes;
