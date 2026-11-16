@@ -372,7 +372,7 @@ function cascadeSetField(setId, field, value, elPrefix, unitSuffix){
     if (s.completed || s[field] != null || kind(s) !== kind(ex.sets[i])) continue;
     s[field] = value;
     const el = document.getElementById(elPrefix + s.id);
-    if (el) el.value = value;
+    if (el) el.value = el.dataset.per ? context.perImplement(ex, value) : value;
     changed++;
   }
   context.save({changed:['activeWorkout']});
@@ -384,8 +384,6 @@ function cascadeWeight(setId, value){
   const field = ex.unit === 'bw' ? 'addedWeight' : 'weight';
   if (ex.unit === 'bw') ex.sets.forEach(s => { s.addedWeightUnit = context.unitLabel(); });
   cascadeSetField(setId, field, value, 'sw-', context.unitLabel());
-  /* the per-implement figure under each load follows without a re-render */
-  ex.sets.forEach(s => { const el = document.getElementById('split-' + s.id); if (el) el.textContent = context.implementSplit(ex, s.weight); });
 }
 /* The count belongs to its own row only; see cascadeSetField. */
 function setReps(setId, value){
@@ -424,7 +422,7 @@ function openSetEditor(setId){
   const button=(text,css,action,into=actions)=>{const b=document.createElement('button');b.type='button';b.className='btn '+css;b.textContent=text;b.addEventListener('click',action);into.append(b);};
   const pair=document.createElement('div');pair.className='editor-pair';actions.append(pair);
   button('Cancel','',()=>dialog.close(),pair);
-  button('Save changes','btn-primary',()=>{if(inputs.some(({input})=>!input.reportValidity()))return;context.trackChange(context.setUndoTarget(context.state.activeWorkout,ex,set),'Edited set',()=>{for(const {input,field}of inputs)set[field]=context.normalizeSetNumber(field,input.value);context.save();});dialog.close();context.ui.focus='sd-'+setId;context.render();},pair);
+  button('Save changes','btn-primary',()=>{if(inputs.some(({input})=>!input.reportValidity()))return;context.trackChange(context.setUndoTarget(context.state.activeWorkout,ex,set),'Edited set',()=>{for(const {input,field}of inputs)set[field]=context.normalizeSetNumber(field,context.inputLoad(input));context.save();});dialog.close();context.ui.focus='sd-'+setId;context.render();},pair);
   actions.append(document.createElement('hr'));
   button(context.isWarmup(set)?'Mark as working set':'Mark as warm-up','',()=>{dialog.close();toggleWarmup(setId);});
   button('Delete set '+number+'…','btn-danger',()=>{dialog.close();deleteSet(setId);});
