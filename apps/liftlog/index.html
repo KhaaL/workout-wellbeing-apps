@@ -5970,14 +5970,16 @@ function workoutDetailActions(w){
 /* ---------- ROUTINES ---------- */
 function viewRoutines(){
   const plans = sortedPlans(), routines = stableRoutines();
+  /* With no routines the header is just the title: the empty state below
+     carries New routine and Import. */
+  const noRoutines = !state.routines.length;
   const head = '<div class="view-head"><div><h1>Workout</h1>' +
-    '<p class="view-sub">' + plural(routines.length, 'routine') + (plans.length ? ' · ' + plural(plans.length, 'plan') : '') +
-      ' · start one, or open it to see and edit it</p></div>' +
-    (ui.routineDraft ? '' : '<div class="view-actions">' +
+    (noRoutines ? '' : '<p class="view-sub">' + plural(routines.length, 'routine') + (plans.length ? ' · ' + plural(plans.length, 'plan') : '') +
+      ' · start one, or open it to see and edit it</p>') + '</div>' +
+    (ui.routineDraft || noRoutines ? '' : '<div class="view-actions">' +
       /* Start is this screen's main action, so New routine stays secondary */
       '<button type="button" class="btn" data-action="routine-new">' + IC.plus + '<span>New routine</span></button>' +
-      /* the empty state below offers its own, larger import */
-      (!state.routines.length ? '' : '<label class="file-btn is-quiet"><span>' + IC.up + ' Import</span><input type="file" accept=".json,application/json" data-change="import-routines" aria-label="Import routines from a JSON file"></label>') +
+      '<label class="file-btn is-quiet"><span>' + IC.up + ' Import</span><input type="file" accept=".json,application/json" data-change="import-routines" aria-label="Import routines from a JSON file"></label>' +
       '</div>') +
   '</div>';
   if (ui.routineDraft) return head + htmlRoutineEditor();
