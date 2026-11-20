@@ -5285,7 +5285,6 @@ function htmlSessionStrip(w){
   const total = w.exercises.length;
   const idx = currentMemberIndex(w);
   const cur = w.exercises[idx];
-  const run = supersetRun(w, w.currentExerciseIndex);
   const mins = sessionEstimate(w);
 
   const where = cur ? '<span class="ex-of">' + (idx+1) + '/' + total + '</span>'
@@ -5303,9 +5302,9 @@ function htmlSessionStrip(w){
   /* On the last exercise, forward means wrap up rather than "next" — the
      button says so in its label and carries the finish icon, so the arrow is
      never a lie about what is on the other side of it. */
-  const canPrev = Math.min(w.currentExerciseIndex, total) > 0;
+  const canPrev = Math.min(idx, total) > 0;
   const atEnd = idx >= total;
-  const last = !!cur && run[run.length - 1] + 1 >= total;
+  const last = !!cur && idx + 1 >= total;
 
   return '<div class="session-strip">' +
     '<div class="strip-line">' +

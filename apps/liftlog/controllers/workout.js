@@ -700,11 +700,15 @@ function advanceExercise(markSkipped, toOpen){
     if (open < 0){ w.currentExerciseIndex = w.exercises.length; w.supersetSide = 0; }
     else enterAt(w, open);
   } else {
-    /* the cursor moves a superset at a time, so "next" is past its last member */
-    const run = supersetRun(w, w.currentExerciseIndex);
-    const next = run[run.length - 1] + 1;
+    /* Next steps through the session list one block at a time, supersets or
+       not. Skipping or finishing leaves the superset's partners their turn
+       (supersetTurn) and then moves past the last member. */
+    const next = markSkipped
+      ? supersetRun(w, w.currentExerciseIndex).slice(-1)[0] + 1
+      : currentMemberIndex(w) + 1;
     if (next >= w.exercises.length){ w.currentExerciseIndex = w.exercises.length; w.supersetSide = 0; }
-    else enterAt(w, next);
+    else if (markSkipped) enterAt(w, next);
+    else pointAt(w, next);
   }
   context.save();
   if (!markSkipped && w.currentExerciseIndex < w.exercises.length)
@@ -719,7 +723,9 @@ function advanceExercise(markSkipped, toOpen){
 function goToPreviousExercise(){
   if(context.workoutHandoff.held())return;
   const w = context.state.activeWorkout; if (!w) return;
-  const i = Math.min(w.currentExerciseIndex, w.exercises.length) - 1;
+  /* one block back in the session list: from the second member of a
+     superset that is the first member, not the block before the superset */
+  const i = Math.min(currentMemberIndex(w), w.exercises.length) - 1;
   if (i < 0) return;
   reopenExercise(i);
   context.announce('Back to ' + w.exercises[i].name + '.');
