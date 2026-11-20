@@ -66,6 +66,7 @@ const LiftlogSettings = (() => {
 
     function viewSettings(){
       const s = state.settings;
+      const canLockOrientation = !!(window.screen && screen.orientation && typeof screen.orientation.lock === 'function');
       return '<div class="view-head"><div><h1>Settings</h1><p class="view-sub">Preferences, data</p></div></div>' +
       '<div id="storage-summary"></div>' +
       '<section class="panel" aria-label="Preferences">' +
@@ -117,6 +118,16 @@ const LiftlogSettings = (() => {
           '</div>' +
         '</div>' +
         warmupSettingsHTML() +
+        '<div class="setting-block">' +
+          '<h3>Screen</h3>' +
+          '<div class="switch-row">' +
+            '<label for="sw-portrait"><strong>Lock to portrait</strong><br><span class="hint">' +
+              (canLockOrientation ? 'Keeps the app upright on this device. Android accepts it in the installed app, not in a browser tab'
+                                          : 'This browser cannot lock the screen. iOS has no orientation lock for web apps') + '</span></label>' +
+            '<span class="switch"><input type="checkbox" id="sw-portrait" data-change="setting" data-field="portraitLock"' +
+              (s.portraitLock ? ' checked' : '') + (canLockOrientation ? '' : ' disabled') + '><span class="track" aria-hidden="true"></span></span>' +
+          '</div>' +
+        '</div>' +
         '<div class="setting-block">' +
           '<h3>Appearance</h3><p class="desc">Theme follows your system by default. Color themes apply instantly and are remembered on this device.</p>' +
           '<label class="field theme-field"><span class="cap">Theme</span><select id="themeChoice" data-change="theme">' +
