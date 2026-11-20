@@ -23,6 +23,8 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     /* With no routines, the empty state carries the one import button. */
     assert.equal(await pickers.count(), 1, 'the empty Routines tab shows one import button');
     assert.equal(await page.locator('.empty .file-btn').textContent(), ' Import routines');
+    assert.equal(await page.locator('.view-head .view-sub, .view-head [data-action="routine-new"]').count(), 0, 'the empty header has no count line and no New routine button');
+    assert.equal(await page.locator('.empty [data-action="routine-new"]').count(), 1, 'the empty state keeps New routine');
     await pickers.first().setInputFiles(file);
     await page.waitForFunction(() => window.testAPI.state.routines.length === 3);
     assert.match(await page.locator('#toast-region').textContent(), /Imported 3 routines/);
@@ -43,6 +45,6 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     assert.equal(await page.locator('.view-head input[data-change="import-routines"]').count(), 0, 'the routine editor has no import button');
 
     assert.deepEqual(errors, []);
-    console.log('routines-import: 9 checks passed');
+    console.log('routines-import: 11 checks passed');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });
