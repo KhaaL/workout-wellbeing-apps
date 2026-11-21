@@ -29,6 +29,9 @@ test('each app policy allows exactly its own inline scripts and styles',()=>{
     assert.deepEqual(matching('/'+app+'/'+apps[app]).flatMap(r=>r.headers).filter(h=>h.startsWith('Cache-Control')),['Cache-Control: no-cache'],app+' worker revalidates');
   }
 });
+test('liftlog installs locked to portrait',()=>{
+  assert.equal(JSON.parse(read('liftlog/manifest.webmanifest')).orientation,'portrait');
+});
 test('apps install separately inside their own folders',()=>{
   const ids=new Set();
   for(const [app,worker] of Object.entries(apps)){
