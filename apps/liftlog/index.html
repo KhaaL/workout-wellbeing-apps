@@ -378,6 +378,7 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 }
 .sets-head{ padding:0 0 var(--sp-1); }
 .sets-head span{ font-size:10.5px; font-weight:650; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+.sets-head .sets-head-per, .sets-head .sets-head-per span{ color:var(--accent); white-space:nowrap; }
 .set-row{ padding:var(--sp-2) 0; border-top:1px solid var(--border); }
 .set-row.is-current{ background:var(--accent-soft); margin:0 calc(-1 * var(--sp-3)); padding-left:var(--sp-3); padding-right:var(--sp-3); border-radius:var(--radius); border-top-color:transparent; }
 .set-row.is-done input{ color:var(--muted); }
@@ -5380,6 +5381,14 @@ function perImplement(ex, total){
   const load = toNum(total), n = implementCountOf(ex);
   return load == null ? null : Math.round(load / n * 100) / 100;
 }
+/* The load column's head when the boxes hold one implement's weight. It is
+   the one place that says so, so it uses the accent colour where the other
+   heads are muted. Two implements are one per hand; more are "each". */
+function implementHeadHTML(ex, wLabel){
+  const n = implementCountOf(ex);
+  return '<span class="sets-head-per">' + (n === 2 ? 'Per hand' : 'Each of ' + n) +
+    '<span class="narrow-hide"> (' + esc(wLabel) + ')</span></span>';
+}
 /* "2 × 22.5", for the routine's set plan summary. */
 function implementSplit(ex, total){
   const n = implementCountOf(ex), load = toNum(total);
@@ -5420,7 +5429,7 @@ function setFieldsHTML(ex, s, n, metric = setMetric(ex)){
     const weightValue = bodyweight ? s.addedWeight : perImplement(ex, s.weight);
     html += '<label class="field"><span class="cap">' + esc(wLabel) + '</span><span class="input-wrap">' +
       '<input id="sw-' + esc(s.id) + '" type="number" inputmode="decimal" min="0" step="0.5" ' +
-      'aria-label="Set ' + n + (bodyweight ? ' added load' : per > 1 ? ' weight of each of ' + per : ' weight') + ' in ' + esc(wLabel) + '" ' +
+      'aria-label="Set ' + n + (bodyweight ? ' added load' : per === 2 ? ' weight per hand' : per > 1 ? ' weight of each of ' + per : ' weight') + ' in ' + esc(wLabel) + '" ' +
       'data-bind="set" data-change="set-weight" data-id="' + esc(s.id) + '" data-field="' + weightField + '" ' +
       (per > 1 ? 'data-per="' + per + '" ' : '') +
       'value="' + esc(weightValue != null ? weightValue : '') + '" placeholder="0"></span></label>';
@@ -5500,7 +5509,8 @@ function htmlCurrentExercise(w, ex){
   let setsHTML =
     '<div class="sets-head" aria-hidden="true">' +
       '<span></span>' +
-      (showWeight ? '<span>' + (bodyweight ? 'Added' : implementCountOf(ex) > 1 ? 'Each' : 'Weight') + '<span class="narrow-hide"> (' + esc(wLabel) + ')</span></span>' : '') +
+      (showWeight ? (implementCountOf(ex) > 1 && !bodyweight ? implementHeadHTML(ex, wLabel)
+        : '<span>' + (bodyweight ? 'Added' : 'Weight') + '<span class="narrow-hide"> (' + esc(wLabel) + ')</span></span>') : '') +
       '<span>' + esc(repsLabel) + '</span>' +
       (metric ? '<span>' + metric.label + '</span>' : '') +
       '<span>Done</span><span></span>' +

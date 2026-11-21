@@ -67,7 +67,7 @@ const routinesFile = {
     assert.equal(await page.locator('#main .sets-head').textContent().then(t => t.includes('RIR')), true, 'a planned RIR shows the RIR column');
     assert.deepEqual(await page.locator('#main .set-row input[data-field="weight"]').evaluateAll(els => els.map(e => e.value)), ['15', '22.5', '27.5', '27.5', '27.5'],
       'each load box shows what one implement weighs; the total stays in state');
-    assert.equal(await page.locator('#main .sets-head span').nth(1).evaluate(e => e.firstChild.textContent), 'Each', 'the load column says the figures are per implement');
+    assert.equal(await page.locator('#main .sets-head span').nth(1).evaluate(e => e.firstChild.textContent), 'Per hand', 'the load column says the figures are per hand');
     assert.equal(await page.locator('#main .set-row .input-wrap > :not(input)').count(), 0, 'nothing is drawn over the number in the load box');
 
     /* A warm-up rests for its own time; warm-ups stay out of volume. */
