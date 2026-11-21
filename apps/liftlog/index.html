@@ -1814,7 +1814,7 @@ const NAV_KEYS = { t:'today', h:'history', e:'exercises' };
 /* One list drives both the help dialog and the Settings table. */
 /* What a toggled switch is called in its confirmation toast. Every boolean
    setting with a switch needs an entry, or the toast names the wrong one. */
-const SETTING_LABEL = { autoRest:'Auto-rest', sound:'Timer sound', vibrate:'Timer vibration', portraitLock:'Portrait lock' };
+const SETTING_LABEL = { autoRest:'Auto-rest', sound:'Timer sound', vibrate:'Timer vibration' };
 
 const SHORTCUTS = [
   { keys:['?'], text:'Open shortcut help' },
@@ -1949,7 +1949,7 @@ function validateBackup(s){
     object(s.settings, 'settings');
     fields(s.settings, 'settings', ['theme', 'unit', 'effortMetric', 'historyLinksDismissedKey'], text);
     fields(s.settings, 'settings', ['defaultRest', 'loadStep', 'lastFileBackupAt', 'lastModifiedAt', 'seededAt'], number);
-    fields(s.settings, 'settings', ['autoRest', 'sound', 'vibrate', 'portraitLock'], bool);
+    fields(s.settings, 'settings', ['autoRest', 'sound', 'vibrate'], bool);
     if (s.settings.warmupSteps != null){
       array(s.settings.warmupSteps, 'settings.warmupSteps');
       s.settings.warmupSteps.forEach((step, i) => {
@@ -2252,7 +2252,6 @@ function normalizeState(s){
   set.autoRest = !!set.autoRest;
   set.sound = !!set.sound;
   set.vibrate = !!set.vibrate;
-  set.portraitLock = !!set.portraitLock;
   set.effortMetric = EFFORT_METRICS.includes(set.effortMetric) ? set.effortMetric : d.effortMetric;
   set.warmupSteps = normalizeWarmupSteps(set.warmupSteps);
   set.lastFileBackupAt = toNum(set.lastFileBackupAt);
@@ -2384,7 +2383,7 @@ function normalizeWarmupSteps(steps){
   return (out.length ? out : WARMUP_STEPS_DEFAULT).slice(0, WARMUP_MAX_STEPS).map(step => ({ ...step }));
 }
 function defaultSettings(){
-  return { theme:'system', unit:'kg', defaultRest:90, autoRest:true, sound:true, vibrate:true, portraitLock:false, effortMetric:'none',
+  return { theme:'system', unit:'kg', defaultRest:90, autoRest:true, sound:true, vibrate:true, effortMetric:'none',
            warmupSteps:normalizeWarmupSteps(WARMUP_STEPS_DEFAULT),
            loadStep:LOAD_STEP_DEFAULT.kg, lastFileBackupAt:null, lastModifiedAt:null, seededAt:null, historyLinksDismissedKey:'' };
 }
@@ -3519,40 +3518,6 @@ function releaseWakeLock(){
 }
 function syncWakeLock(){
   if (state.activeWorkout) acquireWakeLock(); else releaseWakeLock();
-}
-
-/* ---------- portrait lock ----------
-   Off by default: the Settings switch asks the browser to hold the screen
-   upright. Android installed apps and fullscreen pages accept the request, a
-   plain browser tab rejects it, and iOS has no API for it. syncOrientationLock()
-   runs on every render, so a refusal is remembered (as for the wake lock) and
-   retried only on return to the foreground or when the switch is touched. */
-let orientationLocked = false, orientationPending = false, orientationDenied = false;
-function orientationLockSupported(){
-  return !!(window.screen && screen.orientation && typeof screen.orientation.lock === 'function');
-}
-function syncOrientationLock(announce){
-  if (!orientationLockSupported()) return;
-  if (!state.settings.portraitLock){
-    if (orientationLocked){
-      orientationLocked = false;
-      try{ screen.orientation.unlock(); }catch(e){ /* nothing was locked */ }
-    }
-    return;
-  }
-  if (orientationLocked || orientationPending || orientationDenied) return;
-  orientationPending = true;
-  let request;
-  try{ request = Promise.resolve(screen.orientation.lock('portrait')); }catch(e){ request = Promise.reject(e); }
-  request.then(() => {
-    orientationPending = false;
-    orientationLocked = !!state.settings.portraitLock;
-    /* switched off while the request was in flight */
-    if (!orientationLocked) syncOrientationLock();
-  }).catch(() => {
-    orientationPending = false; orientationDenied = true;
-    if (announce) toast('This browser did not allow the portrait lock. It works in the installed app on Android.');
-  });
 }
 
 /* ============================================================
@@ -4972,7 +4937,6 @@ function render(){
   drawTimer();
   liftToasts();      /* the bar's height changes with the sheet and the set row */
   syncWakeLock();
-  syncOrientationLock();
   /* before applyFocus: showModal() takes the focus, so anything this render
      wanted focused has to be put back afterwards — and a target inside a
      sheet has to exist by then. */
@@ -8010,7 +7974,6 @@ const changeHandlers = {
        and vibration need before they are allowed to fire at all. */
     if (t.checked && key === 'sound') beep();
     if (t.checked && key === 'vibrate') buzz();
-    if (key === 'portraitLock'){ orientationDenied = false; syncOrientationLock(true); }
     toast(SETTING_LABEL[key] + ' ' + (t.checked ? 'on' : 'off'));
   },
   'load-step'(t){
@@ -8258,9 +8221,7 @@ function init(){
     }
     remoteStartupSync();
     wakeLockDenied = false;
-    orientationDenied = false;
     syncWakeLock();
-    syncOrientationLock();
     if (timer.running && (timer.endsAt - Date.now()) / 1000 <= 0) completeRest();
     else drawTimer();
     if (!workoutHandoff.held()) completeOtherRests();
