@@ -80,7 +80,7 @@ const csp=require('./site-headers.cjs').csp('bike-cardio');
       const length=await page.evaluate(mode=>WorkoutCore.build({mode}).length,mode);
       for(let i=0;i<length;i++){
         assert.equal(await page.locator('#skip').isEnabled(),true);
-        if(await page.locator('#phaseTitle').textContent()==='Zone 2')assert.notEqual(await page.locator('#lowHR').evaluate(e=>getComputedStyle(e).backgroundColor),await page.locator('#highHR').evaluate(e=>getComputedStyle(e).backgroundColor));
+        assert.equal(await page.locator('#hrState span').count(),3,'the run screen shows three target-state emojis');
         await page.click('#skip');await page.click('#confirmSkip');
       }
       if(mode==='zone2')assert.match(await page.locator('#toast').textContent(),/backup needs refreshing/);
@@ -111,7 +111,7 @@ const csp=require('./site-headers.cjs').csp('bike-cardio');
     assert.equal(await page.locator('#start').isEnabled(),true);assert.match(await page.locator('#plan').textContent(),/40 min/);assert.equal((await saved()).settings.targets.comparisonHR,115);
     await page.fill('#comparisonHR','150');await page.locator('#comparisonHR').press('Tab');assert.equal(await page.locator('#start').isDisabled(),true);
     await page.fill('#comparisonHR','130');await page.locator('#comparisonHR').press('Tab');await page.click('#start');
-    assert.equal(await page.locator('#targetHR').textContent(),'Under ~130');await page.click('#skip');await page.click('#confirmSkip');assert.equal(await page.locator('#targetHR').textContent(),'125–135');assert.match(await page.locator('#lowHR').textContent(),/Below 123/);
+    assert.equal(await page.locator('#targetHR').textContent(),'Under ~130');await page.click('#skip');await page.click('#confirmSkip');assert.equal(await page.locator('#targetHR').textContent(),'125–135');assert.equal(await page.locator('#coaching').count(),0,'the run screen has no check card');
     await page.click('#skip');await page.click('#confirmSkip');assert.equal(await page.locator('#targetHR').textContent(),'Below 120');await page.click('#skip');await page.click('#confirmSkip');
     await page.fill('#fixedHRWatts','180');assert.equal((await saved()).history[0].config.targets.comparisonHR,130);assert.match(await page.locator('#comparisonLabel').textContent(),/130/);
     await page.click('#summaryHistory');await confirmAction(page,()=>page.setInputFiles('#importHistory',{name:'older-rides.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({...backup,kind:'history'}))}));
