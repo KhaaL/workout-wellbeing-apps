@@ -56,6 +56,7 @@ to `fresh`; do not use those defaults to imply knowledge you do not have.
 `bikeId` is an optional free-text machine identifier; empty means unidentified.
 The app names a machine by its `bikeId` (machine profiles store one), so name
 machines there rather than in `config.bike`.
+Machine profiles in a backup (`machines[]`) hold `id`, `name` (unique in the app, up to 80 characters), `bike`, `bikeId` and an optional `note` of up to 500 characters. Rides do not copy the note.
 `external` does not create a runnable video plan. External rides and rides with
 unknown bike/context are shown independently in progress charts; automatic
 comparisons withhold progress differences.
@@ -67,6 +68,7 @@ comparisons withhold progress differences.
 | `config.plan` | The plan ridden, as in [BIKE-PLAN.md](BIKE-PLAN.md). It sets `config.mode` (`sprint` when it has efforts) and `config.n` (its effort count). |
 | `efforts[]` | One per effort ridden: `effort` 1..20, `outcome`, `resistance` 0..100, `cadenceFlag` `high`/`ok`/`low`, `watts5s` and `peakWatts` 0..2500 W, `peakCadence` 0..250 rpm, `wattsSource` `sensor`/`manual`. Unknown values are `null`. |
 | `checks[]` | One per plan step with a `check`, in ride order (up to 200): `title` and `prompt` up to 80 characters, `options` 2..5 texts of up to 24, `answer` one of them or `null`, optional `pass` (a subset of `options`), optional `hrRange` `[low, high]` 40..230 bpm, `averageHR` 1..300 over the step's last 30 s or `null`, and `outcome`. |
+| `load.changes[]` | Resistance and incline at the start and after each change (1..300, in order): `ms` active riding time of the change (0 for the start, the clock of `hr.trace`), `at` epoch milliseconds, `resistance` 0..100 console level and `incline` -100..100 percent (each `null` when not recorded), `untilMs` where the setting ended (the next change, or `activeMs`), and `averageHR` 1..300 measured over that stretch or `null`. Optional; a ride without it recorded neither. |
 | `conditions` | `timeOfDay` `morning`/`midday`/`afternoon`/`evening`/`night`, `hoursSinceLifting` 0..2000, `fed` `fed`/`fasted`, `note` up to 500 characters, `confirmed` up to 10 texts. |
 | `baseline` | `true` on at most one ride per plan in the app; imports do not enforce it. |
 
@@ -93,6 +95,7 @@ zones. Supply actual targets when recording time in this configured zone.
 | `n` | 5 | 1..20 planned efforts |
 | `eff` | 30 | 10..120 seconds per effort |
 
+`startResistance` (0..100) and `startIncline` (-100..100) are omitted unless recorded; the app steps resistance by 1 and incline by 0.5.
 `voice`/`beeps` default true; `bikeId` defaults `""` and is limited to 80 characters.
 Configuration durations are planned values, not the actual durations in history.
 For externally recorded/video rides they are unused placeholders for compatibility;

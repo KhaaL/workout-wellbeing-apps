@@ -24,7 +24,8 @@ globalThis.BikeStorage = (() => {
           seen.add(row.id);
           if(kind==='presets'){if(!row.config||typeof row.config!=='object')fail('Invalid preset configuration');return {id:row.id,name:row.name.trim(),config:C.config(row.config)};}
           if(typeof row.bike!=='string'||raw.version>=4&&!['levels','feel'].includes(row.bike)||typeof row.bikeId!=='string'||!row.bikeId.trim()||row.bikeId.length>80)fail('Invalid machine profile');
-          return {id:row.id,name:row.name.trim(),bike:C.bikeCues(row.bike),bikeId:row.bikeId.trim()};
+          if(row.note!=null&&(typeof row.note!=='string'||row.note.length>500))fail('Invalid machine note');
+          return {id:row.id,name:row.name.trim(),bike:C.bikeCues(row.bike),bikeId:row.bikeId.trim(),...(typeof row.note==='string'&&row.note.trim()?{note:row.note.trim()}:{})};
         });
       }
       // Planned sessions (version 5); older backups start with none.
@@ -81,6 +82,16 @@ globalThis.BikeStorage = (() => {
             if(c.pass!=null&&(!Array.isArray(c.pass)||c.pass.some(o=>!c.options.includes(o))))fail('Invalid step check pass answers');
             if(c.hrRange!=null&&(!Array.isArray(c.hrRange)||c.hrRange.length!==2||c.hrRange.some(n=>!Number.isInteger(n)||n<40||n>230)||c.hrRange[0]>=c.hrRange[1]))fail('Invalid step check HR range');
             optional(c.averageHR,'Step check HR',1,300);
+          }
+        }
+        if(r.load!=null){
+          // Resistance and incline at the start and after each change, in active riding time (the HR trace's clock).
+          if(typeof r.load!=='object'||Array.isArray(r.load)||!Array.isArray(r.load.changes)||r.load.changes.length<1||r.load.changes.length>300)fail('Invalid resistance and incline log');
+          let before=-1;
+          for(const e of r.load.changes){
+            if(!e||typeof e!=='object')fail('Invalid resistance or incline change');
+            number(e.ms,'Change time',before<0?0:before,r.activeMs);timestamp(e.at,'Change date');number(e.untilMs,'Change end',e.ms,r.activeMs);before=e.ms;
+            optional(e.resistance,'Recorded resistance',0,100);optional(e.incline,'Recorded incline',-100,100);optional(e.averageHR,'Heart rate at this setting',1,300);
           }
         }
         if(r.conditions!=null){

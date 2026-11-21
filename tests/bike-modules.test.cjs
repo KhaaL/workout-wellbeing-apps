@@ -159,3 +159,31 @@ test('a check opens 30 s before its step ends, cues once, keeps its answer and r
   assert.equal(H.rangeAdvice({bpm:121,valid:true,at:1},1,[115,120]).text,'Above 120 · ease one level');
   assert.equal(H.rangeAdvice({bpm:117,valid:true,at:1},1,[115,120]).action,'hold');
 });
+test('resistance and incline are logged at the start and at each change, with the HR measured at each setting',()=>{
+  const {C,H}=vm.runInContext('({C:WorkoutCore,H:HeartRateCore})',ctx);
+  const j=x=>JSON.parse(JSON.stringify(x));
+  assert.equal(C.config({}).startResistance,undefined,'recording is off unless a start value is given');
+  assert.equal(C.config({startResistance:500,startIncline:'x'}).startResistance,undefined,'out-of-range and non-numeric values are dropped');
+  const s=C.create({startResistance:6,startIncline:2},1000,'ride');
+  assert.deepEqual(JSON.parse(JSON.stringify(s.loadLog)),[{ms:0,at:1000,resistance:6,incline:2}],'the start is the first entry');
+  // Ride a minute at 6 / 2 with HR 110, raise resistance, ride a minute at 7 / 2 with HR 120, then incline.
+  let t=1000;const ride=(seconds,bpm)=>{for(let n=0;n<seconds;n++){t+=1000;C.advance(s,t);H.sample(s.hr,{bpm,valid:true,at:t},t,s.activeMs);}};
+  ride(60,110);assert.deepEqual(j(C.adjustLoad(s,t,'resistance',1).map(e=>e.type)),['load']);
+  ride(60,120);C.adjustLoad(s,t,'incline',1);C.adjustLoad(s,t,'incline',1);
+  assert.deepEqual(JSON.parse(JSON.stringify(s.load)),{resistance:7,incline:3},'incline moves in half-percent steps');
+  ride(30,125);
+  const restored=C.restore(JSON.parse(JSON.stringify(s)),t+1000);
+  assert.equal(restored.loadLog.length,s.loadLog.length,'the log survives a reload');assert.deepEqual(JSON.parse(JSON.stringify(restored.load)),{resistance:7,incline:3});
+  const r=C.record(C.end(s,t)&&s),changes=r.load.changes;
+  assert.deepEqual(j(changes.map(e=>[e.ms,e.resistance,e.incline])),[[0,6,2],[60000,7,2],[120000,7,2.5],[120000,7,3]]);
+  assert.deepEqual(j(changes.map(e=>e.untilMs)),[60000,120000,120000,150000],'each setting runs until the next change');
+  assert.equal(changes.every((e,i)=>i===0||e.ms>=changes[i-1].ms),true,'changes are in order');
+  assert.deepEqual(j(changes.map(e=>e.averageHR===null?null:Math.round(e.averageHR))),[110,120,null,125],'HR over each stretch; none where the stretch is too short to measure');
+  assert.equal(r.activeMs,150000);
+  // Only a value given at the start can change; a paused or finished ride ignores the buttons.
+  const solo=C.create({startResistance:5},0,'solo');assert.deepEqual(j(C.adjustLoad(solo,10,'incline',1)),[],'incline was left blank');
+  assert.equal(solo.loadLog.length,1);
+  const limit=C.create({startResistance:0},0,'low');assert.deepEqual(j(C.adjustLoad(limit,10,'resistance',-1)),[],'no change below the minimum');
+  const none=C.create({},0,'none');assert.equal(none.loadLog.length,0);assert.equal(C.record(C.end(none,5)&&none).load,undefined,'no log, no load record');
+  const old=JSON.parse(JSON.stringify(C.create({},0,'old')));delete old.load;delete old.loadLog;assert.deepEqual(JSON.parse(JSON.stringify(C.restore(old,10).load)),{resistance:null,incline:null},'a ride saved before this existed restores without one');
+});
