@@ -192,7 +192,10 @@ controls, timing, wake-lock lifecycle, recovery, cloud/file backups and offline 
 - **Bike presets:** Workout → **Saved setups** holds two kinds of entry in one
   picker. **Save as preset** stores the current machine, context, targets,
   durations and sound preferences. **Save as machine** stores only the
-  resistance cues and bike identifier. Update or delete either; applying one
+  resistance cues, bike identifier and one adjustment note (up to 500
+  characters: seat, handlebars and other settings). Machine names and bike
+  identifiers are each unique. The note shows above Start while the Bike
+  identifier matches the machine. Update or delete either; applying one
   affects the next ride only. Both collections are included in full backups;
   older backups start with empty collections.
 - **Bike planned sessions:** Workout → **Planned sessions → Add** takes a plan

@@ -24,7 +24,8 @@ globalThis.BikeStorage = (() => {
           seen.add(row.id);
           if(kind==='presets'){if(!row.config||typeof row.config!=='object')fail('Invalid preset configuration');return {id:row.id,name:row.name.trim(),config:C.config(row.config)};}
           if(typeof row.bike!=='string'||raw.version>=4&&!['levels','feel'].includes(row.bike)||typeof row.bikeId!=='string'||!row.bikeId.trim()||row.bikeId.length>80)fail('Invalid machine profile');
-          return {id:row.id,name:row.name.trim(),bike:C.bikeCues(row.bike),bikeId:row.bikeId.trim()};
+          if(row.note!=null&&(typeof row.note!=='string'||row.note.length>500))fail('Invalid machine note');
+          return {id:row.id,name:row.name.trim(),bike:C.bikeCues(row.bike),bikeId:row.bikeId.trim(),...(typeof row.note==='string'&&row.note.trim()?{note:row.note.trim()}:{})};
         });
       }
       // Planned sessions (version 5); older backups start with none.

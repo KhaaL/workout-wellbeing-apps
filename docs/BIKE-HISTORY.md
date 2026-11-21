@@ -56,6 +56,7 @@ to `fresh`; do not use those defaults to imply knowledge you do not have.
 `bikeId` is an optional free-text machine identifier; empty means unidentified.
 The app names a machine by its `bikeId` (machine profiles store one), so name
 machines there rather than in `config.bike`.
+Machine profiles in a backup (`machines[]`) hold `id`, `name` (unique in the app, up to 80 characters), `bike`, `bikeId` and an optional `note` of up to 500 characters. Rides do not copy the note.
 `external` does not create a runnable video plan. External rides and rides with
 unknown bike/context are shown independently in progress charts; automatic
 comparisons withhold progress differences.
