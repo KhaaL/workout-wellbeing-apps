@@ -83,6 +83,16 @@ globalThis.BikeStorage = (() => {
             optional(c.averageHR,'Step check HR',1,300);
           }
         }
+        if(r.load!=null){
+          // Resistance and incline at the start and after each change, in active riding time (the HR trace's clock).
+          if(typeof r.load!=='object'||Array.isArray(r.load)||!Array.isArray(r.load.changes)||r.load.changes.length<1||r.load.changes.length>300)fail('Invalid resistance and incline log');
+          let before=-1;
+          for(const e of r.load.changes){
+            if(!e||typeof e!=='object')fail('Invalid resistance or incline change');
+            number(e.ms,'Change time',before<0?0:before,r.activeMs);timestamp(e.at,'Change date');number(e.untilMs,'Change end',e.ms,r.activeMs);before=e.ms;
+            optional(e.resistance,'Recorded resistance',0,100);optional(e.incline,'Recorded incline',-100,100);optional(e.averageHR,'Heart rate at this setting',1,300);
+          }
+        }
         if(r.conditions!=null){
           const c=r.conditions;if(typeof c!=='object'||Array.isArray(c))fail('Invalid ride conditions');
           if(c.timeOfDay!=null&&!['morning','midday','afternoon','evening','night'].includes(c.timeOfDay))fail('Invalid time of day');

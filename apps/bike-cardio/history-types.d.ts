@@ -31,6 +31,7 @@ export interface HistoryConfigInput {
   n?: number; // planned effort count, 1..20
   eff?: number; // effort seconds, 10..120
   voice?: boolean; beeps?: boolean;
+  startResistance?: number; startIncline?: number; // recorded at the start: level 0..100, percent -100..100
   plan?: Plan; // v5: the planned session ridden; it decides mode and n. See docs/BIKE-PLAN.md
 }
 /** Planned session (v5). Runtime authority: plans.js. Contract: docs/BIKE-PLAN.md. */
@@ -108,6 +109,13 @@ export interface PolarZonesMs {
   z1?: Milliseconds | null; z2?: Milliseconds | null; z3?: Milliseconds | null;
   z4?: Milliseconds | null; z5?: Milliseconds | null;
 }
+export interface LoadChange {
+  ms: Milliseconds; // active riding time of the change, 0 for the start; the clock of HeartRateSummary.trace
+  at: EpochMs; untilMs: Milliseconds; // untilMs: the next change, or the ride's activeMs; ms <= untilMs <= activeMs
+  resistance?: number | null; incline?: number | null; // console level 0..100; percent -100..100; null when not recorded
+  averageHR?: number | null; // bpm, 1..300, measured over [ms, untilMs) or null
+}
+export interface LoadLog { changes: LoadChange[]; } // 1..300 entries, ascending ms
 export interface HistoryMetrics {
   averageHR?: Reading; mainAverageHR?: Reading; // bpm, 1..300
   zoneMinutes?: Reading; // DECIMAL minutes, e.g. "23.6", not "23:36"
@@ -141,6 +149,7 @@ export interface HistoryEntry {
   power?: PowerSummary | null;
   efforts?: EffortRecord[] | null; conditions?: RideConditions | null; baseline?: boolean; // v5
   checks?: StepCheckRecord[] | null; // v5, up to 200: plan step questions as answered
+  load?: LoadLog | null; // resistance and incline at the start and after each change
   editedAt?: EpochMs;
   [extension: string]: unknown; // no defined recording/nextSeq/sampleCount contract
 }

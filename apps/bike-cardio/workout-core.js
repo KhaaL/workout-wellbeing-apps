@@ -1,13 +1,20 @@
 /* exported WorkoutCore */
 const WorkoutCore = (() => {
   const VERSION = 3, CHECK_MS = 150000, SETTLE_MS = 60000, GAP_MS = 15000;
+  /* Resistance (console level) and incline (percent) can be recorded for a ride.
+     The log holds the values at the start and after every change, stamped with
+     active riding time: the clock the heart-rate trace uses. */
+  const LOAD_FIELDS = {resistance:{min:0,max:100,step:1}, incline:{min:-100,max:100,step:0.5}}, LOAD_LOG_MAX = 300;
+  const loadNumber = (name, value) => { const f = LOAD_FIELDS[name]; return typeof value === 'number' && Number.isFinite(value) && value >= f.min && value <= f.max ? Math.round(value * 10) / 10 : null; };
   /* How resistance cues read: 'levels' names console levels, 'feel' asks for a
      feel. Before history version 4 these were model codes; the one for a bike
      without numbered levels was 'touchscreen', and every other code meant levels. */
   const bikeCues = bike => bike === 'feel' || bike === 'touchscreen' ? 'feel' : 'levels';
   function baseConfig(input = {}) {
     const duration=(name,fallback,min,max)=>{const value=input[name]??fallback;if(!Number.isInteger(value)||value<min||value>max)throw new Error(name+' is outside its allowed range.');return value;};
-    return {targets:BikeTargets.normalize(input.targets),warmupMinutes:duration('warmupMinutes',5,1,30),mainMinutes:duration('mainMinutes',25,1,180),recoverySeconds:duration('recoverySeconds',60,15,600),sprintCooldownMinutes:duration('sprintCooldownMinutes',5,1,30),settleMinutes:duration('settleMinutes',2,1,15),mode:input.mode === 'sprint' ? 'sprint' : 'zone2',bike:bikeCues(input.bike),bikeId:String(input.bikeId || '').slice(0,80),context:input.context === 'post-lifting' ? 'post-lifting' : 'fresh',cooldown:duration('cooldown',3,1,30),n:duration('n',5,1,20),eff:duration('eff',30,10,120),voice:input.voice !== false,beeps:input.beeps !== false};
+    return {targets:BikeTargets.normalize(input.targets),warmupMinutes:duration('warmupMinutes',5,1,30),mainMinutes:duration('mainMinutes',25,1,180),recoverySeconds:duration('recoverySeconds',60,15,600),sprintCooldownMinutes:duration('sprintCooldownMinutes',5,1,30),settleMinutes:duration('settleMinutes',2,1,15),mode:input.mode === 'sprint' ? 'sprint' : 'zone2',bike:bikeCues(input.bike),bikeId:String(input.bikeId || '').slice(0,80),context:input.context === 'post-lifting' ? 'post-lifting' : 'fresh',cooldown:duration('cooldown',3,1,30),n:duration('n',5,1,20),eff:duration('eff',30,10,120),voice:input.voice !== false,beeps:input.beeps !== false,
+      ...(loadNumber('resistance', input.startResistance) !== null ? {startResistance:loadNumber('resistance', input.startResistance)} : {}),
+      ...(loadNumber('incline', input.startIncline) !== null ? {startIncline:loadNumber('incline', input.startIncline)} : {})};
   }
   function config(input = {}) {
     const c = baseConfig(input);
@@ -65,7 +72,8 @@ const WorkoutCore = (() => {
   const timeOfDay = at => { const h = new Date(at).getHours(); return h < 5 ? 'night' : h < 11 ? 'morning' : h < 14 ? 'midday' : h < 18 ? 'afternoon' : h < 22 ? 'evening' : 'night'; };
   const phase = s => build(s.config)[s.index];
   function create(input, now, id) {
-    return {version:VERSION,id,config:config(input),startedAt:now,lastAt:now,status:'running',index:0,phaseMs:0,activeMs:0,mainMs:0,finishedPhases:[],pending:false,hadInterruption:false,pauseReason:'',nextCheckMs:CHECK_MS,settleEndMs:0,steering:'',endedAt:null,hr:HeartRateCore.createStats(config(input).targets),power:PowerCore.createStats(),efforts:[],confirmed:[],checks:[],checkCued:[]};
+    const c = config(input), load = {resistance:c.startResistance ?? null, incline:c.startIncline ?? null};
+    return {version:VERSION,id,config:config(input),startedAt:now,lastAt:now,status:'running',index:0,phaseMs:0,activeMs:0,mainMs:0,finishedPhases:[],pending:false,hadInterruption:false,pauseReason:'',nextCheckMs:CHECK_MS,settleEndMs:0,steering:'',endedAt:null,hr:HeartRateCore.createStats(config(input).targets),power:PowerCore.createStats(),efforts:[],confirmed:[],checks:[],checkCued:[],load,loadLog:load.resistance !== null || load.incline !== null ? [{ms:0,at:now,...load}] : []};
   }
   /* A plan step's check: its question opens CHECK_LEAD_MS before a timed step
      ends (checkWindow) and the rider's answer is kept by phase id. */
@@ -119,6 +127,30 @@ const WorkoutCore = (() => {
   function steer(s,now,action) {const events=advance(s,now);if(s.status!=='running'||phase(s).kind!=='main'||(s.settleEndMs&&action!=='high'))return events;s.nextCheckMs=s.mainMs+CHECK_MS;
     if(action==='hold')s.steering='Hold resistance. Keep 80–90 rpm steady.';
     else {s.settleEndMs=s.activeMs+SETTLE_MS;s.steering=action==='high' ? 'Reduce resistance one level. Hold cadence steady.' : 'Add one resistance level. Hold cadence steady.';events.push({type:'adjust',action});}return events;}
+  /* Changes resistance or incline by `delta` steps of its size. Only a value
+     given at the start can change: leaving one blank turns recording it off.
+     Advances the clock first so the change lands at the right riding time. */
+  function adjustLoad(s, now, name, steps) {
+    const f = LOAD_FIELDS[name];
+    if (!f || !Number.isFinite(steps) || s.status !== 'running' || s.load?.[name] == null) return [];
+    const events = advance(s, now);
+    if (s.status !== 'running') return events;
+    const value = loadNumber(name, Math.min(f.max, Math.max(f.min, s.load[name] + steps * f.step)));
+    if (value === null || value === s.load[name]) return events;
+    s.load = {...s.load, [name]:value};
+    s.loadLog = s.loadLog || [];
+    if (s.loadLog.length < LOAD_LOG_MAX) s.loadLog.push({ms:s.activeMs, at:now, ...s.load});
+    else s.loadLog[s.loadLog.length - 1] = {ms:s.activeMs, at:now, ...s.load};
+    return [...events, {type:'load'}];
+  }
+  /* A saved ride from before this existed has no log; a damaged one keeps what is readable. */
+  function restoreLoad(s) {
+    const log = Array.isArray(s.loadLog) ? s.loadLog.filter((e, i) => e && Number.isFinite(e.ms) && e.ms >= 0 && Number.isFinite(e.at) && (i === 0 || e.ms >= s.loadLog[i - 1].ms)).slice(0, LOAD_LOG_MAX)
+      .map(e => ({ms:e.ms, at:e.at, resistance:loadNumber('resistance', e.resistance), incline:loadNumber('incline', e.incline)})) : [];
+    s.loadLog = log;
+    const last = log[log.length - 1];
+    s.load = last ? {resistance:last.resistance, incline:last.incline} : {resistance:null, incline:null};
+  }
   function restore(raw,now) {
     if(!raw||![1,2,VERSION].includes(raw.version)||typeof raw.id!=='string'||!raw.config||!['running','paused'].includes(raw.status)||!Array.isArray(raw.finishedPhases))return null;
     const s=JSON.parse(JSON.stringify(raw));
@@ -130,7 +162,7 @@ const WorkoutCore = (() => {
       if(s.index>0){s.index--;s.finishedPhases.shift();s.finishedPhases=s.finishedPhases.map((p,id)=>({...p,id}));}
       else{s.phaseMs=0;s.pending=false;}
     }
-    s.version=VERSION;s.config=config(s.config);if(s.hr?.targets&&JSON.stringify(BikeTargets.normalize(s.hr.targets))!==JSON.stringify(s.config.targets))return null;s.hr=HeartRateCore.restoreStats(s.hr,s.config.targets);s.power=PowerCore.restoreStats(s.power);
+    s.version=VERSION;s.config=config(s.config);restoreLoad(s);if(s.hr?.targets&&JSON.stringify(BikeTargets.normalize(s.hr.targets))!==JSON.stringify(s.config.targets))return null;s.hr=HeartRateCore.restoreStats(s.hr,s.config.targets);s.power=PowerCore.restoreStats(s.power);
     const logged=Array.isArray(s.efforts)?s.efforts.slice(0,20):[];s.efforts=[];logged.forEach((entry,i)=>logEffort(s,i+1,entry&&typeof entry==='object'?entry:{}));
     s.confirmed=Array.isArray(s.confirmed)?s.confirmed.filter(item=>typeof item==='string').slice(0,10).map(item=>item.slice(0,110)):[];
     const answers=Array.isArray(s.checks)?s.checks:[];s.checks=[];for(const c of answers)if(c&&Number.isInteger(c.id))answerCheck(s,c.id,typeof c.answer==='string'?c.answer:null);
@@ -155,8 +187,12 @@ const WorkoutCore = (() => {
       const window=BikeTrace.range(trace,Math.max(from,to-BikePlans.CHECK_LEAD_MS),to);
       return [{title:p.title,prompt:p.check.prompt,options:p.check.options,...(p.check.pass?{pass:p.check.pass}:{}),...(p.hrRange?{hrRange:p.hrRange}:{}),
         answer:checkAnswer(s,f.id),averageHR:window.coverage>=0.5?Math.round(window.average*10)/10:null,outcome:f.outcome}];});
-    return {id:s.id,startedAt:s.startedAt,endedAt:s.endedAt,config:s.config,activeMs:s.activeMs,mainMs:s.mainMs,outcome:complete?'complete':'partial',hadInterruption:s.hadInterruption,effortsCompleted:s.finishedPhases.filter(p=>p.kind==='effort'&&p.outcome==='complete').length,phases:s.finishedPhases,hr:{...HeartRateCore.summary(s.hr,s.activeMs),...analysis},...(power?{power}:{}),metrics,
+    /* Resistance and incline at the start and after each change, each with the
+       measured heart rate over the stretch it held (the trace has the detail). */
+    const loadLog=s.loadLog||[],load=loadLog.length?{changes:loadLog.map((e,i)=>{const until=i+1<loadLog.length?loadLog[i+1].ms:s.activeMs,r=BikeTrace.range(trace,e.ms,until);
+      return {ms:e.ms,at:e.at,resistance:e.resistance,incline:e.incline,untilMs:until,averageHR:r.coverage>=0.5?Math.round(r.average*10)/10:null};})}:null;
+    return {id:s.id,startedAt:s.startedAt,endedAt:s.endedAt,config:s.config,activeMs:s.activeMs,mainMs:s.mainMs,outcome:complete?'complete':'partial',hadInterruption:s.hadInterruption,effortsCompleted:s.finishedPhases.filter(p=>p.kind==='effort'&&p.outcome==='complete').length,phases:s.finishedPhases,hr:{...HeartRateCore.summary(s.hr,s.activeMs),...analysis},...(power?{power}:{}),...(load?{load}:{}),metrics,
       ...(efforts.length?{efforts}:{}),...(checks.length?{checks}:{}),conditions:{timeOfDay:timeOfDay(s.startedAt),hoursSinceLifting:null,fed:null,note:'',confirmed:s.confirmed||[]}};
   }
-  return {bikeCues,config,templateSteps,build,effortSpans,effortTarget,logEffort,checkWindow,answerCheck,checkAnswer,timeOfDay,phase,create,advance,pause,resume,gate,skip,end,steer,restore,record};
+  return {LOAD_FIELDS,adjustLoad,bikeCues,config,templateSteps,build,effortSpans,effortTarget,logEffort,checkWindow,answerCheck,checkAnswer,timeOfDay,phase,create,advance,pause,resume,gate,skip,end,steer,restore,record};
 })();
