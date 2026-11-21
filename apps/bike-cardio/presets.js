@@ -26,7 +26,7 @@ const BikePresets = {
       const actions=document.createElement('div');actions.className='shared-actions';section.append(actions,status);
       const add=(text,fn)=>{const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=text;b.addEventListener('click',async()=>{try{await fn();}catch(error){status.textContent=error.message;}});actions.append(b);return b;};
       const chosen=()=>{const [kind,id]=select.value.split(':');const row=kinds[kind]&&options.get(kind).find(item=>item.id===id);return row?{kind,row}:null;};
-      const entry=(kind,cfg,row)=>{if(kind!=='machines')return {...row,config:cfg};const {note:_replaced,...rest}=row,text=note.value.trim();return {...rest,bike:cfg.bike,bikeId:cfg.bikeId||row.name,...(text?{note:text}:{})};};
+      const entry=(kind,cfg,row)=>{if(kind!=='machines')return {...row,config:cfg};const rest={...row},text=note.value.trim();delete rest.note;return {...rest,bike:cfg.bike,bikeId:cfg.bikeId||row.name,...(text?{note:text}:{})};};
       /* Rides record the identifier, so each machine needs its own. */
       const identifierTaken=(rows,cfg,title,self)=>{const id=(cfg.bikeId||title).toLocaleLowerCase();return rows.some(other=>other.id!==self&&other.bikeId.toLocaleLowerCase()===id);};
       const identifierError='Another machine already uses that bike identifier. Change the Bike identifier above, or select that machine and choose Update selected.';
