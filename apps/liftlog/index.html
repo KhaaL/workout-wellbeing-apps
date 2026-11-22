@@ -487,6 +487,8 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .ab-row .btn{ white-space:nowrap; }
 .ab-icon{ flex:none; min-width:44px; padding-inline:10px; }
 .ab-row .ab-note{ margin-left:auto; }
+/* The note is open: the accent pair the primary buttons use, so it reads as on. */
+.ab-note.is-active{ background:var(--accent-strong); border-color:var(--accent-strong); color:var(--on-accent); }
 /* Reset only exists while the rest is stopped part-way, so the room it needs is
    only wanted then: below 420px the toggle gives up its label for it and keeps
    its icon, exactly as it does unconditionally below 360px. */
@@ -2521,7 +2523,7 @@ function freshUI(){
     prevView:null,
     overviewOpen:false,         /* whether the session-overview drawer is expanded */
     detail:null,                /* {kind, id} of the item shown in the detail sheet */
-    notesOpen:false,            /* session-notes field expanded (auto if a note exists) */
+    notesOpen:null,             /* session-notes field: null follows the note (open if it has text), true/false is the user's choice */
     lastOpenFor:null,           /* exerciseId whose last-session line is open in the active workout */
     routineDraft:null,          /* object while editing a routine */
     routineError:'',
@@ -5331,8 +5333,9 @@ function htmlSessionStrip(w){
 
 /* Collapsed to a button until there is something to say — it used to sit
    between the sets and the timer at full height, in the middle of the flow. */
+function noteIsOpen(w){ return ui.notesOpen === null ? !!(w.notes || '').trim() : ui.notesOpen; }
 function htmlSessionNote(w){
-  const open = ui.notesOpen || !!(w.notes || '').trim();
+  const open = noteIsOpen(w);
   /* closed: the note icon in the timer bar is the way in */
   if (!open) return '';
   return '<div class="pad divider-top">' +
@@ -5727,6 +5730,7 @@ function overviewSubtitle(w){
    is logged from its own row's done column (`toggleSet()`); moving through the
    session is the strip's pager. */
 function htmlActionBar(){
+  const w = state.activeWorkout, hasNote = !!(w && (w.notes || '').trim()), noteOpen = !!w && noteIsOpen(w);
   return '<div class="actionbar" id="timer-panel" aria-label="Rest timer">' +
     '<div class="ab-drain" aria-hidden="true"><i id="timer-fill"></i></div>' +
     '<div class="ab-rows">' +
@@ -5740,9 +5744,9 @@ function htmlActionBar(){
         '<button type="button" class="btn ab-icon" id="timer-reset" data-action="timer-reset" ' +
           'aria-label="Reset rest timer" title="Reset rest timer"' + (canResetTimer() ? '' : ' hidden') + '>' + IC.reset + '</button>' +
         '<button type="button" class="btn ab-icon" data-action="timer-add30" aria-label="Add 30 seconds to rest">+0:30</button>' +
-        '<button type="button" class="btn ab-icon ab-note" data-action="open-session-note" aria-label="' +
-          (state.activeWorkout && (state.activeWorkout.notes || '').trim() ? 'Session note' : 'Add session note') +
-          '" title="Session note">' + IC.note + '</button>' +
+        '<button type="button" id="session-note-btn" class="btn ab-icon ab-note' + (noteOpen ? ' is-active' : '') + '" data-action="toggle-session-note" ' +
+          'aria-pressed="' + noteOpen + '" aria-label="' + (noteOpen ? 'Close session note' : hasNote ? 'Open session note' : 'Add session note') + '" ' +
+          'title="' + (noteOpen ? 'Save and close the session note' : 'Session note') + '">' + IC.note + '</button>' +
       '</div>' +
     '</div>' +
   '</div>';
@@ -7357,7 +7361,13 @@ const actions = {
   },
   'close-overview'(){ closeOverview(); },
   'open-overview'(){ ui.overviewOpen = true; ui.focus = 'add-ex-select'; render(); },
-  'open-session-note'(){ ui.notesOpen = true; ui.focus = 'wnotes'; render(); },
+  /* The note saves as it is typed; closing flushes that save and hides the field. */
+  'toggle-session-note'(){
+    const w = state.activeWorkout; if (!w) return;
+    if (noteIsOpen(w)){
+      ui.notesOpen = false; flushSave(); ui.focus = 'session-note-btn'; render(); announce('Session note saved');
+    } else { ui.notesOpen = true; ui.focus = 'wnotes'; render(); }
+  },
   'last-toggle'(){ const ex = currentExercise(); if (!ex) return; ui.lastOpenFor = ui.lastOpenFor === ex.exerciseId ? null : ex.exerciseId; render(); },
 
   'history-tab'(d){ ui.historyTab = HISTORY_TABS.some(([id]) => id === d.tab) ? d.tab : 'sessions'; ui.focus = null; render(); },
