@@ -86,7 +86,7 @@ function beginWorkout(workout){
   /* nothing to log yet means the sheet is where the user needs to be — and the
      focus with it: everything outside an open modal is inert. */
   context.ui.overviewOpen = workout.exercises.length === 0;
-  context.ui.notesOpen = false;
+  context.ui.notesOpen = null;
   context.ui.focus = context.ui.overviewOpen ? 'add-ex-select' : 'workout-title';
   context.render();
 }

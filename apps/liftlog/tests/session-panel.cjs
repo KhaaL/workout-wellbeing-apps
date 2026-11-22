@@ -66,13 +66,37 @@ const lib = Object.entries(names).map(([id, name]) => ({ id, name, category:'Oth
 
     /* 4. The session note is an icon at the right of the timer bar. */
     assert.equal(await page.getByText('Add session note').count(), 0, 'no text button for the note');
-    const note = await page.evaluate(() => { const b = document.querySelector('#timer-panel [data-action="open-session-note"]').getBoundingClientRect(), p = document.querySelector('#timer-panel').getBoundingClientRect();
-      return { text:document.querySelector('#timer-panel [data-action="open-session-note"]').textContent.trim(), rightGap:Math.round(p.right - b.right), inside:b.bottom <= p.bottom && b.top >= p.top, label:document.querySelector('#timer-panel [data-action="open-session-note"]').getAttribute('aria-label') }; });
+    const note = await page.evaluate(() => { const b = document.querySelector('#timer-panel #session-note-btn').getBoundingClientRect(), p = document.querySelector('#timer-panel').getBoundingClientRect();
+      return { text:document.querySelector('#timer-panel #session-note-btn').textContent.trim(), rightGap:Math.round(p.right - b.right), inside:b.bottom <= p.bottom && b.top >= p.top, label:document.querySelector('#timer-panel #session-note-btn').getAttribute('aria-label') }; });
     assert.deepEqual([note.text, note.inside, note.rightGap <= 24, note.label], ['', true, true, 'Add session note'], 'icon, bottom right of the bar: ' + JSON.stringify(note));
     assert.equal(await page.locator('#wnotes').count(), 0);
-    await page.locator('#timer-panel [data-action="open-session-note"]').click();
+    await page.locator('#timer-panel #session-note-btn').click();
     assert.equal(await page.locator('#wnotes').isVisible(), true, 'the icon opens the note field');
     assert.equal(await page.evaluate(() => document.activeElement.id), 'wnotes');
+
+    /* 4b. The same button saves and closes, and is highlighted while the note is open. */
+    const noteBtn = page.locator('#session-note-btn');
+    const paint = () => noteBtn.evaluate(b => { const c = getComputedStyle(b); return [c.backgroundColor, c.color]; });
+    const openPaint = await paint();
+    assert.equal(await noteBtn.getAttribute('aria-pressed'), 'true');assert.equal(await noteBtn.getAttribute('aria-label'), 'Close session note');
+    await page.fill('#wnotes', 'Felt strong, seat one notch down');
+    await noteBtn.click();
+    assert.equal(await page.locator('#wnotes').count(), 0, 'a second press closes the note');
+    assert.equal(await page.evaluate(() => window.testAPI.state.activeWorkout.notes), 'Felt strong, seat one notch down', 'the text is kept');
+    assert.equal(await page.evaluate(() => Object.keys(localStorage).some(k => localStorage.getItem(k).includes('Felt strong, seat one notch down'))), true, 'and already written to storage');
+    const closedPaint = await paint();
+    assert.notDeepEqual(openPaint, closedPaint, 'the button looks different while the note is open');
+    assert.equal(await noteBtn.getAttribute('aria-pressed'), 'false');assert.equal(await noteBtn.getAttribute('aria-label'), 'Open session note');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'session-note-btn', 'focus stays on the button');
+    await noteBtn.click();
+    assert.equal(await page.inputValue('#wnotes'), 'Felt strong, seat one notch down', 'opening again shows the saved text');
+    /* A session that already has a note shows it, and one press still closes it. */
+    await page.evaluate(() => { window.testAPI.ui.notesOpen = null; window.testAPI.render(); });
+    assert.equal(await page.locator('#wnotes').isVisible(), true, 'a note with text starts open');
+    assert.equal(await page.locator('#session-note-btn').getAttribute('aria-pressed'), 'true');
+    await page.locator('#session-note-btn').click();
+    assert.equal(await page.locator('#wnotes').count(), 0, 'one press closes a note that has text');
+    await page.locator('#session-note-btn').click();
 
     /* 5. Superset partners sit on the Add set row, after Add set and More…. */
     const foot = await page.evaluate(() => { const f = document.querySelector('.sets-foot'), btns = [...f.querySelectorAll('button')].map(b => ({ action:b.dataset.action, name:b.textContent.trim(), y:Math.round(b.getBoundingClientRect().top) }));
@@ -106,6 +130,6 @@ const lib = Object.entries(names).map(([id, name]) => ({ id, name, category:'Oth
     await page.screenshot({ path:'/tmp/liftlog-session-panel.png' });
 
     assert.deepEqual(errors, []);
-    console.log('session-panel: 27 checks passed');
+    console.log('session-panel: ok');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });
