@@ -253,17 +253,6 @@ function currentExercise(){
   return w ? w.exercises[currentMemberIndex(w)] || null : null;
 }
 function allSetsDone(ex){ return ex && ex.sets.length > 0 && ex.sets.every(s => s.completed); }
-/* Finishing one alternative settles only this session's copy of the plan.
-   Keep the current block's identity stable when its partner was before it. */
-function settleEitherOf(w, ex){
-  if (!ex.eitherOf) return null;
-  const partnerIndex = w.exercises.findIndex(other => other !== ex && other.eitherOf === ex.eitherOf);
-  delete ex.eitherOf;
-  if (partnerIndex < 0) return null;
-  const [partner] = w.exercises.splice(partnerIndex, 1);
-  if (partnerIndex < w.currentExerciseIndex) w.currentExerciseIndex--;
-  return partner;
-}
 
 /* A set left blank falls back to the target. Timed work must land in
    durationSeconds — writing it to `reps` is exactly the v2 bug v3 undid. */
@@ -306,6 +295,37 @@ function confirmSetFigures(ex, s, number, label){
 /* The one way a set is logged: its own box in the done column. It therefore
    also owns what used to hang off the "Set N done" button — the announcement
    and the auto-rest that starts the moment a set lands. */
+/* The either-of partner to offer to drop: this exercise has logged a set and
+   the partner has logged none. Not while that question is already open. */
+let eitherAsking = null;
+function eitherPartnerToAsk(w, ex){
+  if (!ex.eitherOf || eitherAsking === ex || !ex.sets.some(x => x.completed)) return null;
+  const partner = w.exercises.find(other => other !== ex && other.eitherOf === ex.eitherOf);
+  return partner && !partner.sets.some(x => x.completed) ? partner : null;
+}
+/* Asked once, after the first set of an either-of exercise. Yes removes the
+   partner from this session; no keeps both and ends the pairing, so it is not
+   asked again. Both are matched by object: finishing the exercise may already
+   have moved the cursor. */
+function askEitherRemoval(w, ex, partner){
+  eitherAsking = ex;
+  context.confirmDlg('Remove ' + partner.name + '?',
+    'You started ' + ex.name + ', which you paired with ' + partner.name + ' as an either-or. Remove ' + partner.name + ' from this workout?',
+    'Remove', true).then(ok => {
+    eitherAsking = null;
+    if (context.state.activeWorkout !== w) return;
+    const at = w.exercises.indexOf(partner);
+    const remove = ok && at !== -1 && !partner.sets.some(x => x.completed);
+    if (remove){
+      w.exercises.splice(at, 1);
+      if (at < w.currentExerciseIndex) w.currentExerciseIndex--;
+    } else delete partner.eitherOf;
+    delete ex.eitherOf;
+    context.save({changed:['activeWorkout']});
+    if (remove) context.toast('Either of: removed ' + partner.name + ' from this workout');
+    context.render();
+  });
+}
 function toggleSet(setId, checked){
   if(context.workoutHandoff.held())return;
   const ex = currentExercise(); if (!ex) return;
@@ -329,7 +349,7 @@ function toggleSet(setId, checked){
   else s.completedAt = null;
   const lastSet = s.completed && allSetsDone(ex);
   let finished = lastSet;
-  const removed = finished ? settleEitherOf(w, ex) : null;
+  const askPartner = s.completed ? eitherPartnerToAsk(w, ex) : null;
   /* In a superset a logged set hands over to the partner. The superset is
      finished only when every member is. A warm-up stays on this exercise,
      unless it was this member's last open set. */
@@ -339,7 +359,6 @@ function toggleSet(setId, checked){
   const holdForWarmup = context.isWarmup(s) && !allSetsDone(ex);
   const handOver = turn && !holdForWarmup && turn.index !== currentMemberIndex(w) ? w.exercises[turn.index] : null;
   context.save({changed:['activeWorkout']});
-  if (removed) context.toast('Either of: removed ' + removed.name + ' from this workout');
   if (s.completed){
     context.announce('Set ' + (i+1) + ' of ' + ex.sets.length + ' complete.' + (handOver ? ' Now: ' + handOver.name + '.' : ''));
     /* Rest belongs to the exercise just performed, superset member or not.
@@ -357,6 +376,7 @@ function toggleSet(setId, checked){
   if (finished) advanceExercise(false, true);
   else if (handOver){ pointAt(w, turn.index); context.save({changed:['activeWorkout']}); context.ui.focus = 'ex-panel-top'; context.render(); }
   else { context.ui.focus = 'sd-' + setId; context.render(); }
+  if (askPartner) askEitherRemoval(w, ex, askPartner);
 }
 /* The manual override: work on another member of the current superset now,
    say because its station just came free. */
@@ -906,6 +926,6 @@ function discardWorkout(){
       context.render(); context.toast('Workout discarded');
     });
 }
-    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,settleEitherOf,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,setReps,openSetEditor,canSwap,swapExercise,openSwapDialog,openExerciseMenu,warmupPlan,addWarmups,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,pairSessionExercises,unpairSessionExercises,finishWorkout,confirmFinishWorkout,openWorkSets,discardWorkout};
+    return {newSetFrom,buildWorkoutExercise,beginWorkout,startSession,newWorkout,startRoutine,startEmpty,newRoutineItem,addExerciseToWorkout,supersetRun,currentMemberIndex,pointAt,enterAt,settleSupersets,supersetTurn,currentExercise,allSetsDone,fillSetDefaults,toggleWarmup,toggleSet,switchSupersetMember,cascadeSetField,cascadeWeight,setReps,openSetEditor,canSwap,swapExercise,openSwapDialog,openExerciseMenu,warmupPlan,addWarmups,deleteSet,confirmExerciseRemoval,addSet,advanceExercise,goToPreviousExercise,reopenExercise,isSettledRow,hasWorkLeft,moveSessionExercise,nextOpenBlock,pairSessionExercises,unpairSessionExercises,finishWorkout,confirmFinishWorkout,openWorkSets,discardWorkout};
   }
 };

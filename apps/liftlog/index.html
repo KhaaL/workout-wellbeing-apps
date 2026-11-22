@@ -318,8 +318,6 @@ kbd{
 .seg.is-skipped > i{ background:var(--warning); }
 
 .ex-panel{ border-color:var(--accent); border-top:3px solid var(--accent); }
-.ex-head{ display:flex; justify-content:flex-end; gap:var(--sp-3); align-items:baseline; flex-wrap:wrap; }
-.ex-head:not(:has(*:not(:empty))){ display:none; }
 .ex-name{ font-size:var(--fs-lg); font-weight:700; letter-spacing:-.02em; }
 /* Deliberately quiet: the link is worth having on the exercise you have not
    done before, and worth ignoring on the hundred you have. It keeps a 44px
@@ -332,37 +330,22 @@ kbd{
 .how-to:hover{ text-decoration:underline; }
 button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .ex-links{ display:inline-flex; gap:var(--sp-3); align-items:center; }
+/* On the title row the links are icons: three 44px targets beside the name. */
+.workout-title-row{ display:flex; align-items:center; gap:var(--sp-2); min-width:0; }
+.workout-title-row .ex-name{ flex:0 1 auto; min-width:0; }
+.workout-title-row .ex-links{ flex:none; }
+.ex-links.is-icons{ gap:2px; }
+.ex-links.is-icons .how-to{ width:44px; height:44px; min-height:44px; padding:0; justify-content:center; border-radius:var(--radius); }
+.ex-links.is-icons .how-to .ic{ width:20px; height:20px; }
+.ex-links.is-icons .how-to:hover{ background:var(--surface-2); }
+.ex-links.is-icons .how-to[aria-expanded=true]{ background:var(--surface-2); }
+/* One line of last session's work, opened by the history icon. */
+.last-line{ margin:var(--sp-2) 0 0; font-size:var(--fs-sm); color:var(--muted); font-variant-numeric:tabular-nums; }
+.last-line strong{ color:var(--text); }
 .how-to .ic{ width:14px; height:14px; }
 .tag{
   font-size:var(--fs-xs); font-weight:650; padding:2px 8px; border-radius:99px;
   border:1px solid var(--border-strong); color:var(--muted); background:var(--surface-2);
-}
-/* Reference, not the task. On a phone this block wrapped to four lines and
-   took 128px of the ~250px between the sticky strip and the sticky action bar
-   — the space the set rows have to live in. Below 640px it becomes one
-   scrolling line instead: the last session, which is the figure you act on,
-   stays in view and the bests are a swipe away rather than a screenful. */
-.prev-perf{
-  margin-top:var(--sp-3); padding:var(--sp-2) var(--sp-3);
-  background:var(--surface-2); border-radius:var(--radius); border:1px solid var(--border);
-  font-size:var(--fs-sm); color:var(--muted); display:flex; gap:var(--sp-4); flex-wrap:wrap;
-}
-.prev-perf strong{ color:var(--text); font-variant-numeric:tabular-nums; }
-.prev-perf .pp-item{ display:flex; gap:6px; align-items:baseline; }
-.prev-perf .pp-k{ font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.04em; font-weight:650; }
-@media (max-width:640px),(max-height:560px){
-  .prev-perf{
-    flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;
-    -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain;
-  }
-  .prev-perf::-webkit-scrollbar{ display:none; }
-  .prev-perf .pp-item{ flex:none; white-space:nowrap; }
-  /* the same fade the nav uses, so a row that continues past the edge says so */
-  .prev-perf::after{
-    content:""; position:sticky; right:0; flex:none; align-self:stretch;
-    width:20px; margin-right:calc(-1 * var(--sp-3)); pointer-events:none;
-    background:linear-gradient(90deg,transparent,var(--surface-2));
-  }
 }
 .ex-notes{ margin-top:var(--sp-3); font-size:var(--fs-sm); color:var(--muted); font-style:italic; }
 
@@ -435,6 +418,8 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .set-summary .set-text.reps-over{ color:var(--success); }
 .set-row.is-compact .set-done-btn{ min-height:36px; }
 .sets-foot{ display:flex; gap:var(--sp-2); flex-wrap:wrap; align-items:center; margin-top:var(--sp-3); padding-top:var(--sp-3); border-top:1px solid var(--border); }
+.sets-foot .superset-switch{ flex:0 1 auto; min-width:0; max-width:11em; display:inline-flex; align-items:center; gap:6px; }
+.sets-foot .superset-switch .ss-name{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sets-foot .next-up{ margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 /* history session editor */
@@ -501,6 +486,7 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .ab-row .ab-grow{ flex:1; min-width:0; }
 .ab-row .btn{ white-space:nowrap; }
 .ab-icon{ flex:none; min-width:44px; padding-inline:10px; }
+.ab-row .ab-note{ margin-left:auto; }
 /* Reset only exists while the rest is stopped part-way, so the room it needs is
    only wanted then: below 420px the toggle gives up its label for it and keeps
    its icon, exactly as it does unconditionally below 360px. */
@@ -779,9 +765,6 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 }
 .superset-last::after{ content:"+"; font-size:13px; }
 .routine-pair-toolbar{ display:flex; flex-wrap:wrap; gap:var(--sp-2); }
-.superset-note{ display:flex; flex-wrap:nowrap; align-items:center; gap:var(--sp-2); margin-top:var(--sp-3); font-size:var(--fs-sm); min-width:0; }
-.superset-note .superset-inline,.superset-note .superset-label{ flex:none; }
-.superset-switch{ flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
 /* the shell's title row carries Finish on a phone (syncShellActions) */
 @media (max-width:700px),(max-height:550px) and (pointer:coarse){
   html.workout-screen .workout-head-actions{ display:none; }
@@ -1370,7 +1353,7 @@ button,.btn,.icon-btn,.nav-btn,.strip-step,.strip-num,.hist-row,.list-open{
 <dialog id="pair-dlg" class="dlg-wide" aria-labelledby="pair-title">
   <div class="dlg-body">
     <h2 id="pair-title">Either of</h2>
-    <p class="desc" id="pair-desc">Choose two exercises already in this routine. Completing either one removes the other from that workout only.</p>
+    <p class="desc" id="pair-desc">Choose two exercises already in this routine. Starting either one asks whether to remove the other from that workout only.</p>
     <div id="pair-existing" class="routine-pair-existing"></div>
     <div id="pair-picker" class="routine-pair-fields">
       <label class="field"><span class="cap">First exercise</span><select id="pair-first" data-change="pair-first"></select></label>
@@ -1653,6 +1636,8 @@ const IC = {
   flag:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h13l-2.5 4L18 12H5"/></svg>',
   box:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="3"/></svg>',
   boxcheck:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="3"/><path d="M8.5 12.2l2.6 2.6 4.9-5.4"/></svg>',
+  history:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 102.6-6.1L3.5 8.5"/><path d="M3.5 4v4.5H8M12 7.5V12l3 2"/></svg>',
+  note:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5M8.5 9h7M8.5 13h3"/></svg>',
   help:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.4 9.2a2.7 2.7 0 015.2.9c0 1.8-2.6 2.1-2.6 3.9"/><path d="M12 17.3h.01"/></svg>',
   grip:'<svg class="ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>',
   pen:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L18.5 9.5a2.1 2.1 0 00-3-3L5 17zM13.5 6.5l3 3"/></svg>',
@@ -2537,6 +2522,7 @@ function freshUI(){
     overviewOpen:false,         /* whether the session-overview drawer is expanded */
     detail:null,                /* {kind, id} of the item shown in the detail sheet */
     notesOpen:false,            /* session-notes field expanded (auto if a note exists) */
+    lastOpenFor:null,           /* exerciseId whose last-session line is open in the active workout */
     routineDraft:null,          /* object while editing a routine */
     routineError:'',
     pairKind:'eitherOf', pairScope:'routine',
@@ -3682,7 +3668,6 @@ function settleSupersets(...args){return workoutController().settleSupersets(...
 function supersetTurn(...args){return workoutController().supersetTurn(...args);}
 function currentExercise(...args){return workoutController().currentExercise(...args);}
 function allSetsDone(...args){return workoutController().allSetsDone(...args);}
-function settleEitherOf(...args){return workoutController().settleEitherOf(...args);}
 function fillSetDefaults(...args){return workoutController().fillSetDefaults(...args);}
 function toggleWarmup(...args){return workoutController().toggleWarmup(...args);}
 function toggleSet(...args){return workoutController().toggleSet(...args);}
@@ -4586,7 +4571,7 @@ function schemaHelpHTML(){
       ['items[].repsMin', 'integer', 'Lower rep target, clamped to ' + L.reps[0] + '\u2013' + L.reps[1] + '. Default 8. For a timed movement this is <em>seconds</em>. Legacy <code>reps</code> is accepted as both bounds.'],
       ['items[].repsMax', 'integer', 'Upper rep target, clamped to the same range. Values below <code>repsMin</code> are reordered.'],
       ['items[].targetRir', 'integer | null', 'Optional target reps in reserve, clamped to 0\u201310. When set, RIR is shown while logging this exercise.'],
-      ['items[].eitherOf', 'optional string', 'Exactly two different exercises in a routine share a key to form an either-of pair. They are placed together; completing one removes the other from that workout only. Invalid or incomplete pairs become independent exercises.'],
+      ['items[].eitherOf', 'optional string', 'Exactly two different exercises in a routine share a key to form an either-of pair. They are placed together; logging the first set of one asks whether to remove the other from that workout only. Invalid or incomplete pairs become independent exercises.'],
       ['items[].supersetOf', 'optional string', 'Exactly two different exercises in a routine share a key to form a superset. They are placed together; a workout alternates between them set by set, and each exercise rests on its own timer between its sets. An item cannot be in an either-of pair and a superset at once. Invalid or incomplete supersets become independent exercises. Finished workouts do not record supersets.'],
       ['items[].weight', 'number | null', 'Planned load, or added load for a bodyweight exercise. <code>null</code> uses last time\u2019s figure.'],
       ['items[].setPlan', 'optional array', 'One entry per set, in order, each with its own load and target. When present it overrides <code>sets</code>, <code>repsMin</code>, <code>repsMax</code>, <code>targetRir</code> and <code>weight</code>, which stay as a summary for older versions. <code>sets</code> becomes the number of non-warm-up entries. Unknown entry types are dropped; a plan with no non-warm-up entry is dropped whole.'],
@@ -5066,7 +5051,19 @@ function applyFocus(){
   if (!ui.focus) return;
   const el = document.getElementById(ui.focus);
   ui.focus = null;
-  if (el){ el.focus({ preventScroll:false }); if (el.select) el.select(); }
+  if (!el) return;
+  /* Moving to another exercise focuses the panel under the title. Scrolling to
+     the panel alone leaves the title behind the sticky header and strip, so
+     the title is scrolled to just below them instead. */
+  const title = el.id === 'ex-panel-top' ? document.getElementById('workout-title') : null;
+  el.focus({ preventScroll:!!title });
+  if (title){
+    const strip = document.querySelector('.session-strip'), hdr = document.querySelector('.app-header');
+    const floor = Math.max(strip ? strip.getBoundingClientRect().bottom : 0, hdr ? hdr.getBoundingClientRect().bottom : 0);
+    const delta = title.getBoundingClientRect().top - floor - 8;
+    if (Math.abs(delta) > 1) window.scrollBy(0, delta);
+  }
+  if (el.select) el.select();
 }
 function renderNav(){
   $$('#nav-list .nav-btn').forEach(b => {
@@ -5237,7 +5234,7 @@ function htmlActiveWorkout(w){
     '<div class="pad workout-pad">' +
       '<div class="workout-head">' +
         '<div>' +
-          (ex ? '<h2 class="ex-name" id="workout-title" tabindex="-1">' + esc(ex.name) + '</h2>' : '') +
+          (ex ? '<div class="workout-title-row"><h2 class="ex-name" id="workout-title" tabindex="-1">' + esc(ex.name) + '</h2>' + htmlExerciseLinks(ex) + '</div>' : '') +
         '</div>' +
         '<div class="workout-head-actions">' +
           '<button type="button" class="btn btn-primary" data-action="finish-workout">' + IC.flag +
@@ -5336,11 +5333,8 @@ function htmlSessionStrip(w){
    between the sets and the timer at full height, in the middle of the flow. */
 function htmlSessionNote(w){
   const open = ui.notesOpen || !!(w.notes || '').trim();
-  if (!open){
-    return '<div class="pad divider-top">' +
-      '<button type="button" class="btn btn-sm" data-action="open-session-note">' + IC.plus + '<span>Add session note</span></button>' +
-    '</div>';
-  }
+  /* closed: the note icon in the timer bar is the way in */
+  if (!open) return '';
   return '<div class="pad divider-top">' +
     '<label class="field"><span class="cap">Session notes</span>' +
     '<textarea id="wnotes" data-bind="wnotes" rows="4" placeholder="Optional — how did it feel? Supports **bold**, _italic_, # headings, - lists, [links](url)">' + esc(w.notes || '') + '</textarea></label></div>';
@@ -5484,6 +5478,16 @@ function htmlDoneSetRow(ex, s, n, metric){
       IC.boxcheck + '</button>' +
   '</div>';
 }
+/* The icons beside the title: instructions, the how-to link and last session's
+   work. Read from the library rather than from the session's own copy of the
+   exercise: a link corrected today should work in a session started yesterday. */
+function htmlExerciseLinks(ex){
+  const def = exerciseById(ex.exerciseId), last = exerciseStats(ex.exerciseId).last, open = ui.lastOpenFor === ex.exerciseId;
+  const html = htmlInstructionsButton(def, ex.name, true) + htmlHowTo((def || {}).url, ex.name, true) +
+    (last ? '<button type="button" class="how-to" data-action="last-toggle" aria-expanded="' + open + '" aria-controls="last-line" ' +
+      'aria-label="Last session of ' + esc(ex.name) + ', ' + esc(fmtShortDate(last.date)) + '" title="Last session">' + IC.history + '</button>' : '');
+  return html ? '<span class="ex-links is-icons">' + html + '</span>' : '';
+}
 function htmlCurrentExercise(w, ex){
   const run = supersetRun(w, w.currentExerciseIndex);
   const next = w.exercises[run[run.length - 1] + 1] || null;
@@ -5495,12 +5499,9 @@ function htmlCurrentExercise(w, ex){
   const wLabel = exerciseLoadLabel(ex);
   const cue = loadCueFor(ex.exerciseId, ex, {held:true});
 
-  let prevHTML = '';
-  const bits = [];
-  const bit = (k, v) => bits.push('<span class="pp-item"><span class="pp-k">' + k + '</span><strong>' + v + '</strong></span>');
-  if (prev) bit(fmtShortDate(prev.date), lastSessionSummary(prev.sets, ex));
-  bestBits(stats, ex).forEach(([k, v]) => bit(k, v));
-  if (bits.length) prevHTML = '<div class="prev-perf">' + bits.join('') + '</div>';
+  /* Last session's work is one line, opened by the history icon beside the title. */
+  const prevHTML = prev && ui.lastOpenFor === ex.exerciseId
+    ? '<p class="last-line" id="last-line"><strong>' + esc(fmtShortDate(prev.date)) + '</strong> · ' + lastSessionSummary(prev.sets, ex) + '</p>' : '';
 
   const currentIdx = ex.sets.findIndex(s => !s.completed);
   const metric = setMetric(ex);
@@ -5552,14 +5553,6 @@ function htmlCurrentExercise(w, ex){
   return '<div class="pad divider-top" id="ex-panel-top" tabindex="-1">' +
     /* No target or rest tag: each row shows its own target, and the bar below
        shows the rest. */
-    '<div class="ex-head">' +
-      /* Read from the library rather than from the session's own copy of the
-         exercise: a link corrected today should work in a session started
-         yesterday, and the workout block already duplicates enough. */
-      '<span class="ex-links">' + htmlInstructionsButton(exerciseById(ex.exerciseId), ex.name) +
-        htmlHowTo((exerciseById(ex.exerciseId) || {}).url, ex.name) + '</span>' +
-    '</div>' +
-    htmlSupersetNote(w, ex, run) +
     htmlOrderNote(w, ex) +
     prevHTML +
     (ex.notes ? '<p class="ex-notes">“' + esc(ex.notes) + '”</p>' : '') +
@@ -5569,6 +5562,7 @@ function htmlCurrentExercise(w, ex){
     '<div class="sets-foot">' +
       '<button type="button" class="btn" data-action="add-set">' + IC.plus + '<span>Add set</span></button>' +
       '<button type="button" class="btn" data-action="exercise-menu" aria-haspopup="dialog" aria-label="More actions for ' + esc(ex.name) + '">More…</button>' +
+      htmlSupersetSwitches(w, ex, run) +
       (next ? '<span class="next-up muted small">Next: ' + esc(next.name) + (sameGroupNext(ex, next) ? ' (' + esc(exerciseGroup(next)) + ' again)' : '') + '</span>' : '') +
     '</div>' +
   '</div>';
@@ -5607,21 +5601,19 @@ function warmupButtonHTML(ex){
     'aria-label="Add ' + plural(plan.length, 'warm-up set') + ' to ' + esc(ex.name) + ': ' + esc(what) + esc(said) + '">' +
     IC.plus + '<span>' + plural(plan.length, 'warm-up set') + (warmth && warmth.fresh ? ' · first ' + esc(family) : '') + '</span></button></div>';
 }
-/* Which superset this is and how to switch to its partner, on one row:
-   "Superset: <partner>", the name cut short to fit. Logging a set switches
-   on its own; the button is for doing things out of order. Its spoken label
-   and tooltip keep the full name and the partner's sets done. */
-function htmlSupersetNote(w, ex, run){
+/* Which superset this is and how to switch to its partner: a button per
+   partner on the Add set row, a link icon and the name cut short to fit.
+   Logging a set switches on its own; the button is for doing things out of
+   order. Its spoken label and tooltip keep the full name and the partner's
+   sets done. */
+function htmlSupersetSwitches(w, ex, run){
   if (run.length < 2) return '';
-  const others = run.filter(i => w.exercises[i] !== ex);
-  return '<div class="superset-note"><span class="superset-inline" aria-hidden="true">+</span>' +
-    '<span class="superset-label">Superset:</span>' +
-    others.map(i => {
-      const o = w.exercises[i];
-      const done = o.sets.filter(sx => sx.completed).length, said = 'Switch to ' + o.name + ', ' + done + ' of ' + o.sets.length + ' sets done';
-      return '<button type="button" class="btn btn-sm superset-switch" id="ss-switch-' + i + '" data-action="superset-switch" data-idx="' + i + '" ' +
-        'aria-label="' + esc(said) + '" title="' + esc(said) + '">' + esc(o.name) + '</button>';
-    }).join('') + '</div>';
+  return run.filter(i => w.exercises[i] !== ex).map(i => {
+    const o = w.exercises[i];
+    const done = o.sets.filter(sx => sx.completed).length, said = 'Superset: switch to ' + o.name + ', ' + done + ' of ' + o.sets.length + ' sets done';
+    return '<button type="button" class="btn superset-switch" id="ss-switch-' + i + '" data-action="superset-switch" data-idx="' + i + '" ' +
+      'aria-label="' + esc(said) + '" title="' + esc(said) + '">' + IC.link + '<span class="ss-name">' + esc(o.name) + '</span></button>';
+  }).join('');
 }
 
 /* What is inside the session-overview sheet: every exercise in the workout, in
@@ -5748,6 +5740,9 @@ function htmlActionBar(){
         '<button type="button" class="btn ab-icon" id="timer-reset" data-action="timer-reset" ' +
           'aria-label="Reset rest timer" title="Reset rest timer"' + (canResetTimer() ? '' : ' hidden') + '>' + IC.reset + '</button>' +
         '<button type="button" class="btn ab-icon" data-action="timer-add30" aria-label="Add 30 seconds to rest">+0:30</button>' +
+        '<button type="button" class="btn ab-icon ab-note" data-action="open-session-note" aria-label="' +
+          (state.activeWorkout && (state.activeWorkout.notes || '').trim() ? 'Session note' : 'Add session note') +
+          '" title="Session note">' + IC.note + '</button>' +
       '</div>' +
     '</div>' +
   '</div>';
@@ -7186,10 +7181,10 @@ function instructionsCount(length){
 }
 /* Opens the instructions sheet from the workout; only an exercise that has
    instructions gets the button. Its id is the one closeDetail() refocuses. */
-function htmlInstructionsButton(e, name){
+function htmlInstructionsButton(e, name, iconOnly){
   if (!e || !String(e.instructions || '').trim()) return '';
   return '<button type="button" class="how-to" ' + detailRowAttrs('instructions', e.id, 'Instructions for ' + name) + '>' +
-    IC.help + '<span>Instructions</span></button>';
+    IC.help + (iconOnly ? '' : '<span>Instructions</span>') + '</button>';
 }
 /* The how-to link, wherever it is shown. Rendered only for a URL that survives
    safeUrl() — stored values already have, but an exercise object can also come
@@ -7197,11 +7192,11 @@ function htmlInstructionsButton(e, name){
    link leaves the app, which is the one place Liftlog sends you anywhere: it
    opens in its own tab so a session is never navigated away from, and carries
    noopener so the page it opens cannot reach back. */
-function htmlHowTo(rawUrl, name){
+function htmlHowTo(rawUrl, name, iconOnly){
   const url = safeUrl(rawUrl);
   if (!url) return '';
   return '<a class="how-to" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" ' +
-    'aria-label="How to perform ' + esc(name) + ' (opens in a new tab)">' + IC.link + '<span>How to</span></a>';
+    'aria-label="How to perform ' + esc(name) + ' (opens in a new tab)"' + (iconOnly ? ' title="How to (opens in a new tab)"' : '') + '>' + IC.link + (iconOnly ? '' : '<span>How to</span>') + '</a>';
 }
 /* Blank keeps the Settings rest, which the placeholder shows. */
 function restField(attrs, value){
@@ -7363,6 +7358,7 @@ const actions = {
   'close-overview'(){ closeOverview(); },
   'open-overview'(){ ui.overviewOpen = true; ui.focus = 'add-ex-select'; render(); },
   'open-session-note'(){ ui.notesOpen = true; ui.focus = 'wnotes'; render(); },
+  'last-toggle'(){ const ex = currentExercise(); if (!ex) return; ui.lastOpenFor = ui.lastOpenFor === ex.exerciseId ? null : ex.exerciseId; render(); },
 
   'history-tab'(d){ ui.historyTab = HISTORY_TABS.some(([id]) => id === d.tab) ? d.tab : 'sessions'; ui.focus = null; render(); },
   'trend-mode'(d){ ui.trendMode = d.mode === 'muscle' ? 'muscle' : 'exercise'; render(); },
