@@ -82,7 +82,9 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     await page.evaluate(() => { window.testAPI.state.activeWorkout = null; });
     await start();
     const day = await page.evaluate(() => new Date(window.testAPI.state.workouts[0].startedAt).toLocaleDateString(undefined, { month:'short', day:'numeric' }));
-    assert.equal(await page.locator('#main .prev-perf .pp-k').first().textContent(), day);
+    assert.equal(await page.locator('#main .prev-perf').count(), 0, 'no standing last-session row');
+    await page.locator('#main [data-action="last-toggle"]').click();
+    assert.ok((await page.locator('#last-line').textContent()).startsWith(day), 'the last-session line names the day as the rest of the app does');
 
     assert.deepEqual(errors, []);
     console.log('finish: 15 checks passed');

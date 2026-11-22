@@ -367,8 +367,11 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       t.state.settings.autoRest = false;
       t.state.activeWorkout.exercises[0].sets.map(s => s.id).forEach(t.toggleSet);
     });
+    assert.equal(await page.locator('#dlg-title').textContent(), 'Remove Leg Press?', 'starting an alternative asks before removing the other');
+    await page.locator('#dlg[open] #dlg-actions button').last().click();
+    await page.waitForFunction(() => window.testAPI.state.activeWorkout.exercises.length === 2);
     workout = await page.evaluate(() => window.testAPI.state.activeWorkout);
-    assert.deepEqual(workout.exercises.map(e => e.name), ['Back Squat', 'Plank'], 'completing first alternative removes second from session');
+    assert.deepEqual(workout.exercises.map(e => e.name), ['Back Squat', 'Plank'], 'confirming removes the second alternative from the session');
     await page.locator('#overview-toggle-btn').click();
     assert.equal(await page.locator('#overview-dlg-body .either-pair').count(), 0, 'pair marker clears after choosing an alternative');
     await page.getByRole('button', {name:'Back to workout'}).click();
@@ -383,8 +386,11 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       t.state.activeWorkout.currentExerciseIndex = 1;
       t.state.activeWorkout.exercises[1].sets.map(s => s.id).forEach(t.toggleSet);
     });
+    assert.equal(await page.locator('#dlg-title').textContent(), 'Remove Back Squat?');
+    await page.locator('#dlg[open] #dlg-actions button').last().click();
+    await page.waitForFunction(() => window.testAPI.state.activeWorkout.exercises.length === 2);
     workout = await page.evaluate(() => window.testAPI.state.activeWorkout);
-    assert.deepEqual(workout.exercises.map(e => e.name), ['Leg Press', 'Plank'], 'completing second alternative removes first from session');
+    assert.deepEqual(workout.exercises.map(e => e.name), ['Leg Press', 'Plank'], 'confirming removes the first alternative from the session');
     assert.equal(workout.currentExerciseIndex, 1, 'advances correctly when removed partner was earlier');
     assert.equal(workout.exercises[0].sets[0].weight, 120);
     assert.equal(await page.evaluate(() => window.testAPI.state.routines[0].items.length), 3, 'saved routine still retains pair');
@@ -918,8 +924,8 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       return checks;
     });
     await ss.evaluate(() => { const t = window.testAPI; t.state.activeWorkout = null; t.startRoutine('rt-ss'); t.render(); });
-    assert.match(await ss.locator('.superset-note').innerText(), /Superset:\s*Row$/, 'workout panel names the superset partner on one row');
-    assert.match(await ss.locator('#ss-switch-1').getAttribute('aria-label'), /^Switch to Row, \d of \d sets done$/, 'the sets done stay in its spoken label');
+    assert.equal((await ss.locator('.sets-foot #ss-switch-1').innerText()).trim(), 'Row', 'workout panel names the superset partner on the Add set row');
+    assert.match(await ss.locator('#ss-switch-1').getAttribute('aria-label'), /^Superset: switch to Row, \d of \d sets done$/, 'the sets done stay in its spoken label');
     await ss.locator('#ss-switch-1').click();
     assert.equal(await ss.locator('#workout-title').innerText(), 'Row', 'switch button changes the member on screen');
     await ss.locator('#overview-toggle-btn').click();
@@ -1561,8 +1567,8 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       'duplicate-safe import can open exercise reconciliation');
     assert.equal(await touch.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true,
       'exercise reconciliation fits at 320px');
-    assert.match(await touch.locator('#pair-dlg .desc').innerText(), /Completing either one removes the other/,
-      'either-of dialog describes in-session completion behavior');
+    assert.match(await touch.locator('#pair-dlg .desc').innerText(), /Starting either one asks whether to remove the other/,
+      'either-of dialog describes what starting one does in a session');
     await touch.close();
     assert.deepEqual(errors, []);
     console.log([...result, ...progressionChecks, ...remoteChecks, 'clear workout data preserves library, routines and settings',
