@@ -30,7 +30,7 @@ async function checkPlanNotes(box,where){
     const saved=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('bike-cardio.state.v1')).history);
     const noSideScroll=async where=>assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),where+' fits the screen width');
 
-    await page.click('#addPlan');const add=page.getByRole('dialog',{name:'Add planned sessions'});
+    await page.click('#importPlan');const add=page.getByRole('dialog',{name:'Import planned sessions'});
     await page.fill('#planInput',JSON.stringify(plan));await add.getByRole('button',{name:'Check plan'}).click();
     await checkPlanNotes(add.locator('.plan-preview'),'The plan preview');
     await add.getByRole('button',{name:'Save',exact:true}).click();await add.waitFor({state:'detached'});

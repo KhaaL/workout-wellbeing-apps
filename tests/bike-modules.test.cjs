@@ -187,3 +187,43 @@ test('resistance and incline are logged at the start and at each change, with th
   const none=C.create({},0,'none');assert.equal(none.loadLog.length,0);assert.equal(C.record(C.end(none,5)&&none).load,undefined,'no log, no load record');
   const old=JSON.parse(JSON.stringify(C.create({},0,'old')));delete old.load;delete old.loadLog;assert.deepEqual(JSON.parse(JSON.stringify(C.restore(old,10).load)),{resistance:null,incline:null},'a ride saved before this existed restores without one');
 });
+
+const adaptive=JSON.parse(fs.readFileSync(path.join(__dirname,'../examples/bike-plan-talk-test-adaptive.json'),'utf8'));
+test('the adaptive talk-test sample uses a hard cap, a band shift after a failed check and a note hint',()=>{
+  const {P}=vm.runInContext('({P:BikePlans})',ctx),json=JSON.stringify;
+  const plan=P.normalize(adaptive),phases=P.expand(plan.steps),stages=phases.filter(p=>p.check);
+  assert.equal(plan.noteHint,'Sleep last night, hours and quality');
+  assert.equal(json(stages.map(p=>[p.title,p.hr,p.hrMax??null,p.check.onFail?.shiftBpm??null])),json([['Step 1','115–120',null,-5],['Step 2','120–125',null,-5],['Step 3','125–130 (max 132)',132,null]]));
+  assert.equal(P.minimumMs(phases),40*60000,'5 + 3 x 10 + 5 minutes');
+  assert.notEqual(P.hash(plan),P.hash(P.normalize({...adaptive,steps:adaptive.steps.map(step=>step.hrMax?{...step,hrMax:131}:step)})),"a changed cap starts a new progress series");
+  assert.equal(P.hash(plan),P.hash(P.normalize({...adaptive,noteHint:'Other',name:'Renamed'})),'the note hint and name do not split a series');
+  const bad=(patch,pattern)=>assert.throws(()=>P.normalize({id:'b',name:'b',steps:[{kind:'settle',seconds:60,hrRange:[110,120],...patch}]}),pattern);
+  bad({hrMax:120},/hrMax must be above the top of hrRange/);
+  bad({hrMax:300},/hrMax must be a whole number from 40 to 230/);
+  assert.throws(()=>P.normalize({id:'b',name:'b',steps:[{kind:'settle',seconds:60,hrMax:130}]}),/hrMax needs an hrRange/);
+  const check=extra=>({prompt:'x',options:['a','b'],pass:['a'],...extra});
+  bad({check:check({onFail:{shiftBpm:0}})},/shiftBpm must be a whole number from -30 to -1/);
+  bad({check:check({onFail:{shiftBpm:-31}})},/shiftBpm must be a whole number from -30 to -1/);
+  bad({check:check({onFail:{shiftBpm:2.5}})},/shiftBpm/);
+  bad({check:check({onFail:[-5]})},/onFail must be an object/);
+  bad({check:{prompt:'x',options:['a','b'],onFail:{shiftBpm:-5}}},/onFail needs pass answers/);
+  assert.throws(()=>P.normalize({id:'b',name:'b',noteHint:'x'.repeat(81),steps:[{kind:'settle',seconds:60}]}),/noteHint must be text of at most 80 characters/);
+});
+test('the ceiling comes from the last step passed before the first failure; later steps are ignored',()=>{
+  const {P}=vm.runInContext('({P:BikePlans})',ctx),json=JSON.stringify;
+  const c=(title,range,answer,averageHR=null)=>({title,hrRange:range,pass:['Smooth'],options:['Smooth','Broken','Could not'],answer,averageHR});
+  // A failed step 2 lowers step 3, which then passes: it must not raise the ceiling.
+  const ridden=[c('Step 1',[115,120],'Smooth',118),c('Step 2',[120,125],'Broken',123),c('Step 3',[120,125],'Smooth',122.7)];
+  assert.equal(json(P.ceilingFrom(ridden)),json({value:118,measured:true,title:'Step 1',hrRange:[115,120],limitFound:true}));
+  assert.equal(P.firstFailure(ridden).title,'Step 2');
+  const early=[c('Step 1',[115,120],'Could not'),c('Step 2',[110,115],'Smooth',112)];
+  assert.equal(P.ceilingFrom(early),null,'a first-step failure proposes nothing');assert.equal(P.firstFailure(early).title,'Step 1');
+  assert.equal(P.firstFailure([c('Step 1',[115,120],'Smooth')]),null);
+  assert.equal(P.bandText([125,130],132),'125–130 (max 132)');assert.equal(P.bandText([125,130],null),'125–130');
+});
+test('the live advice names a hard cap before the band',()=>{
+  const {H}=vm.runInContext('({H:HeartRateCore})',ctx),at=Date.now(),reading=bpm=>({bpm,valid:true,at});
+  assert.equal(H.rangeAdvice(reading(131),at,[125,130],132).action,'high');assert.equal(H.rangeAdvice(reading(131),at,[125,130],132).over,undefined,'above the band, under the cap: ease one level');
+  const over=H.rangeAdvice(reading(133),at,[125,130],132);assert.equal(over.action,'high');assert.equal(over.over,true);assert.match(over.text,/Above 132 · ease resistance now/);
+  assert.match(H.rangeAdvice(reading(131),at,[125,130]).text,/Above 130 · ease one level/,'no cap: as before');
+});

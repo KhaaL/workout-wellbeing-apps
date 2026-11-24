@@ -17,8 +17,13 @@ const plan=fs.readFileSync(path.join(root,'examples','bike-plan-sprint.json'),'u
   const api=fn=>page.evaluate(fn);
   const noSideScroll=async where=>assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),where+' fits the screen width');
 
+  // The import button is at the top of the Workout screen; the card only points to it.
+  assert.equal(await page.locator('#addPlan').count(),0,'the card has no Add button of its own');
+  assert.match(await page.textContent('#plansCard'),/No planned sessions yet\. Import plan, at the top of this screen/);
+  assert.equal(await page.evaluate(()=>{const b=document.getElementById('importPlan').getBoundingClientRect(),h=document.querySelector('#setup h1').getBoundingClientRect();return b.top<h.bottom+40&&b.bottom<200;}),true,'in the header, not below the cards');
+
   // Invalid JSON names the problem; a valid plan previews as its phase table before saving.
-  await page.click('#addPlan');const add=page.getByRole('dialog',{name:'Add planned sessions'});
+  await page.click('#importPlan');const add=page.getByRole('dialog',{name:'Import planned sessions'});
   await page.fill('#planInput','{"name": "x",');await add.getByRole('button',{name:'Check plan'}).click();
   assert.match(await add.locator('.save-status').textContent(),/not valid JSON/);assert.equal(await add.getByRole('button',{name:'Save',exact:true}).isDisabled(),true);
   await page.fill('#planInput','```json\n'+plan+'\n```');await add.getByRole('button',{name:'Check plan'}).click();

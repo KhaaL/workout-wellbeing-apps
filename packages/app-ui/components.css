@@ -57,6 +57,7 @@ dialog::backdrop{background:rgb(15 17 20 / .6)}
 @media(hover:hover){.set-edit-btn:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}}
 .set-done-btn,.strip-step,.strip-num{min-width:48px;min-height:48px}
 .bike-app .view-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.bike-app .view-actions{display:flex;align-items:center;gap:8px}
 .bike-app main{padding-top:20px}
 .bike-app .run-header{align-items:center}
 .bike-app .run-foot button{min-height:48px}

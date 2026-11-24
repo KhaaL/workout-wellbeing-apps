@@ -70,7 +70,26 @@ const WorkoutCore = (() => {
     if ('cadenceFlag' in entry) current.cadenceFlag = FLAGS.includes(entry.cadenceFlag) ? entry.cadenceFlag : null;
   }
   const timeOfDay = at => { const h = new Date(at).getHours(); return h < 5 ? 'night' : h < 11 ? 'morning' : h < 14 ? 'midday' : h < 18 ? 'afternoon' : h < 22 ? 'evening' : 'night'; };
-  const phase = s => build(s.config)[s.index];
+  /* A check answered outside its pass answers lowers, by onFail.shiftBpm, the
+     HR band and cap of every step after it. The shift is worked out from the
+     answers on every call, so changing an answer moves the bands that follow. */
+  function shiftBefore(s, phases, index) {
+    let shift = 0;
+    for (let i = 0; i < index; i++) {
+      const c = phases[i].check, answer = c?.onFail ? checkAnswer(s, i) : null;
+      if (answer != null && c.pass && !c.pass.includes(answer)) shift += c.onFail.shiftBpm;
+    }
+    return shift;
+  }
+  // The phase as it applies now: a band and cap carry the shift (never below 40 bpm, band still rising).
+  function effective(s, p, phases = build(s.config)) {
+    if (!p?.hrRange) return p;
+    const shift = shiftBefore(s, phases, p.id);
+    if (!shift) return p;
+    const low = Math.max(40, p.hrRange[0] + shift), high = Math.max(low + 1, p.hrRange[1] + shift), max = p.hrMax != null ? Math.max(high + 1, p.hrMax + shift) : null;
+    return {...p, hrRange:[low, high], ...(max != null ? {hrMax:max} : {}), shiftBpm:shift, hr:BikePlans.bandText([low, high], max)};
+  }
+  const phase = s => { const phases = build(s.config); return effective(s, phases[s.index], phases); };
   function create(input, now, id) {
     const c = config(input), load = {resistance:c.startResistance ?? null, incline:c.startIncline ?? null};
     return {version:VERSION,id,config:config(input),startedAt:now,lastAt:now,status:'running',index:0,phaseMs:0,activeMs:0,mainMs:0,finishedPhases:[],pending:false,hadInterruption:false,pauseReason:'',nextCheckMs:CHECK_MS,settleEndMs:0,steering:'',endedAt:null,hr:HeartRateCore.createStats(config(input).targets),power:PowerCore.createStats(),efforts:[],confirmed:[],checks:[],checkCued:[],load,loadLog:load.resistance !== null || load.incline !== null ? [{ms:0,at:now,...load}] : []};
@@ -182,11 +201,13 @@ const WorkoutCore = (() => {
     const efforts=effortSpans(s,phases).map(span=>{const logged=s.efforts?.[span.effort-1]||{},m=PowerCore.effortReadings(s.power,span.from,span.to,span.adjust);
       return {effort:span.effort,outcome:span.outcome,resistance:logged.resistance??null,cadenceFlag:logged.cadenceFlag??m?.flag??null,watts5s:m?.watts5s??null,peakWatts:m?.peakWatts??null,peakCadence:m?.peakCadence??null,wattsSource:m?.watts5s!=null?'sensor':null};});
     // Each check step ridden: the answer and the HR measured over its check window.
-    const trace=HeartRateCore.restoreStats(s.hr).trace;let at=0;
-    const checks=s.finishedPhases.flatMap(f=>{const p=phases[f.id],from=at,to=at+f.ms;at=to;if(!p?.check)return [];
-      const window=BikeTrace.range(trace,Math.max(from,to-BikePlans.CHECK_LEAD_MS),to);
-      return [{title:p.title,prompt:p.check.prompt,options:p.check.options,...(p.check.pass?{pass:p.check.pass}:{}),...(p.hrRange?{hrRange:p.hrRange}:{}),
-        answer:checkAnswer(s,f.id),averageHR:window.coverage>=0.5?Math.round(window.average*10)/10:null,outcome:f.outcome}];});
+    const trace=HeartRateCore.restoreStats(s.hr).trace;
+    // Band and cap are the ones that applied to the step, after any shift from a failed check; watts are the bike sensor's average over the same window.
+    const watts=PowerCore.restoreStats(s.power).watts;let at=0;
+    const checks=s.finishedPhases.flatMap(f=>{const p=effective(s,phases[f.id],phases),from=at,to=at+f.ms;at=to;if(!p?.check)return [];
+      const start=Math.max(from,to-BikePlans.CHECK_LEAD_MS),window=BikeTrace.range(trace,start,to),power=BikeTrace.range(watts,start,to),hrOk=window.coverage>=0.5,wattsOk=power.coverage>=0.5;
+      return [{title:p.title,prompt:p.check.prompt,options:p.check.options,...(p.check.pass?{pass:p.check.pass}:{}),...(p.hrRange?{hrRange:p.hrRange}:{}),...(p.hrMax!=null?{hrMax:p.hrMax}:{}),...(p.shiftBpm?{shiftBpm:p.shiftBpm}:{}),
+        answer:checkAnswer(s,f.id),averageHR:hrOk?Math.round(window.average*10)/10:null,hrSource:hrOk?'sensor':null,averageWatts:wattsOk?Math.round(power.average):null,wattsSource:wattsOk?'sensor':null,outcome:f.outcome}];});
     /* Resistance and incline at the start and after each change, each with the
        measured heart rate over the stretch it held (the trace has the detail). */
     const loadLog=s.loadLog||[],load=loadLog.length?{changes:loadLog.map((e,i)=>{const until=i+1<loadLog.length?loadLog[i+1].ms:s.activeMs,r=BikeTrace.range(trace,e.ms,until);
@@ -194,5 +215,5 @@ const WorkoutCore = (() => {
     return {id:s.id,startedAt:s.startedAt,endedAt:s.endedAt,config:s.config,activeMs:s.activeMs,mainMs:s.mainMs,outcome:complete?'complete':'partial',hadInterruption:s.hadInterruption,effortsCompleted:s.finishedPhases.filter(p=>p.kind==='effort'&&p.outcome==='complete').length,phases:s.finishedPhases,hr:{...HeartRateCore.summary(s.hr,s.activeMs),...analysis},...(power?{power}:{}),...(load?{load}:{}),metrics,
       ...(efforts.length?{efforts}:{}),...(checks.length?{checks}:{}),conditions:{timeOfDay:timeOfDay(s.startedAt),hoursSinceLifting:null,fed:null,note:'',confirmed:s.confirmed||[]}};
   }
-  return {LOAD_FIELDS,adjustLoad,bikeCues,config,templateSteps,build,effortSpans,effortTarget,logEffort,checkWindow,answerCheck,checkAnswer,timeOfDay,phase,create,advance,pause,resume,gate,skip,end,steer,restore,record};
+  return {LOAD_FIELDS,adjustLoad,bikeCues,config,templateSteps,build,effortSpans,effortTarget,logEffort,checkWindow,answerCheck,checkAnswer,effective,timeOfDay,phase,create,advance,pause,resume,gate,skip,end,steer,restore,record};
 })();

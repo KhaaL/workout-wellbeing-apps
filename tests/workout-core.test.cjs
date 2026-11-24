@@ -229,3 +229,41 @@ test('comparisons name differing conditions and average the efforts',()=>{
   assert.match(result.warnings.join(' '),/Conditions differ: time of day \(morning, then evening\), hours since lifting \(44, then 20\)\./);
   assert.doesNotMatch(result.warnings.join(' '),/food/);assert.match(result.details[0],/^Earlier: Plan Sprint baseline · Fresh legs/);
 });
+
+const adaptiveSample=JSON.parse(fs.readFileSync(path.join(__dirname,'..','examples','bike-plan-talk-test-adaptive.json'),'utf8'));
+test('a failed check lowers the bands and caps of later steps; the ride records what applied',()=>{
+  const t0=2000000;
+  const s=C.create({plan:adaptiveSample},t0,'adaptive'),phases=C.build(s.config),id=title=>phases.find(p=>p.title===title).id;
+  const band=title=>{const p=C.effective(s,phases[id(title)],phases);return json([p.hrRange,p.hrMax??null,p.shiftBpm??0,p.hr]);};
+  assert.equal(band('Step 3'),json([[125,130],132,0,'125–130 (max 132)']),'no answer, no shift');
+  C.answerCheck(s,id('Step 1'),'Smooth');assert.equal(band('Step 3'),json([[125,130],132,0,'125–130 (max 132)']),'a passed check shifts nothing');
+  C.answerCheck(s,id('Step 2'),'Needed a breath');
+  assert.equal(band('Step 3'),json([[120,125],127,-5,'120–125 (max 127)']),'a failed step 2 lowers step 3 and its cap by 5');
+  assert.equal(band('Step 2'),json([[120,125],null,0,'120–125']),'the failed step keeps its own band');
+  C.answerCheck(s,id('Step 2'),'Smooth');assert.equal(band('Step 3'),json([[125,130],132,0,'125–130 (max 132)']),'changing the answer moves the bands back');
+  C.answerCheck(s,id('Step 1'),'Could not');C.answerCheck(s,id('Step 2'),'Could not');
+  assert.equal(band('Step 3'),json([[115,120],122,-10,'115–120 (max 122)']),'repeated fails add up');
+  // The running phase carries the shift too, and a restored ride derives the same bands from its answers.
+  s.index=id('Step 3');s.finishedPhases=phases.slice(0,s.index).map(p=>({id:p.id,kind:p.kind,title:p.title,ms:p.duration??0,outcome:'complete'}));
+  assert.equal(C.phase(s).hr,'115–120 (max 122)');
+  const restored=C.restore({...JSON.parse(JSON.stringify(s)),status:'paused'},t0);assert.equal(C.phase(restored).hr,'115–120 (max 122)');
+  // A shift never takes a band under 40 bpm or makes it fall.
+  const low=C.create({plan:{...adaptiveSample,steps:[{kind:'settle',seconds:60,hrRange:[41,43],hrMax:44,check:{prompt:'x',options:['a','b'],pass:['a'],onFail:{shiftBpm:-30}}},{kind:'settle',seconds:60,hrRange:[41,43],hrMax:44}],result:undefined}},t0,'low');
+  C.answerCheck(low,0,'b');const lowPhase=C.phase({...low,index:1});assert.equal(json([lowPhase.hrRange,lowPhase.hrMax]),json([[40,41],42]));
+});
+test('check records carry the HR and watts over the check window with their source, and the shifted band',()=>{
+  const H=vm.runInContext('HeartRateCore',context),PW=vm.runInContext('PowerCore',context),t0=3000000;
+  const s=C.create({plan:adaptiveSample},t0,'recorded'),phases=C.build(s.config),id=title=>phases.find(p=>p.title===title).id;
+  const bpm=sec=>sec<900?118:sec<1500?123:sec<2100?122:100;
+  for(let sec=0;sec<=2400;sec++){const now=t0+sec*1000;C.advance(s,now,{visible:true});if(s.status!=='running')break;
+    H.sample(s.hr,{bpm:bpm(sec),valid:true,at:now},now,s.activeMs);
+    if(sec<2060||sec>=2100)PW.sample(s.power,{watts:sec<900?98:sec<1500?112:108,cadence:82,valid:true,at:now},now,s.activeMs); // the sensor drops out for the last 40 s of step 3
+    if(sec===895)C.answerCheck(s,id('Step 1'),'Smooth');if(sec===1495)C.answerCheck(s,id('Step 2'),'Needed a breath');if(sec===2095)C.answerCheck(s,id('Step 3'),'Smooth');}
+  assert.equal(s.status,'finished');
+  const r=C.record(s),[one,two,three]=r.checks;
+  assert.equal(json([one.hrRange,one.hrMax??null,one.shiftBpm??0,one.averageHR,one.hrSource,one.averageWatts,one.wattsSource]),json([[115,120],null,0,118,'sensor',98,'sensor']));
+  assert.equal(json([two.answer,two.averageHR,two.averageWatts]),json(['Needed a breath',123,112]));
+  assert.equal(json([three.hrRange,three.hrMax,three.shiftBpm]),json([[120,125],127,-5]),'the band that applied, not the plan\'s');
+  assert.equal(json([three.averageHR,three.hrSource,three.averageWatts,three.wattsSource]),json([122,'sensor',null,null]),'a window the sensor missed has no watts');
+  assert.equal(P.ceilingFrom(r.checks).title,'Step 1');assert.equal(P.ceilingFrom(r.checks).value,118);assert.equal(P.ceilingFrom(r.checks).limitFound,true);
+});

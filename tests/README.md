@@ -35,7 +35,7 @@ All scenarios use synthetic records, isolated storage and mocked cloud requests.
 | `shared/features.test.cjs` | Cached history serialization, unchanged backups, file/cloud handoff, cancellation, stale reviews, receipts, failed writes and comparison semantics |
 | `shared/features-browser.cjs` | Two mobile profiles, held-source reload, paused receipt, comparison layout and selected/OS theme colour matrix |
 | `shared/storage.test.cjs` | Migration, save failures, restore, configuration transfer, stable comparison, history merge/clear, recovery, conflicts and independent uploads despite ignored write conditions |
-| `shared/bike-plans-browser.cjs` | Bike planned sessions at phone width: paste and check a plan, use it, confirm conditions, effort prompts and the cadence rule, effort table, conditions, baseline comparison, stale-input protection and plan deletion |
+| `shared/bike-plans-browser.cjs` | Bike planned sessions at phone width: the Import plan button, paste and check a plan, use it, confirm conditions, effort prompts and the cadence rule, effort table, conditions, baseline comparison, stale-input protection and plan deletion |
 | `shared/connection.test.cjs` | Shared cloud connection across two apps' engines: per-app paths and history, history tied to its destination, moving older connections, switching, forgetting and storage events |
 | `shared/connection-browser.cjs` | Shared connection on one local origin: save in Tabata, use in Foodlog, separate backup paths, live change in an open app, Bike and Liftlog text, switching an app's own connection, forgetting everywhere |
 | `shared/site.test.cjs` | Built site: one security policy per page, exact inline hashes per app, separate manifest identities and scopes, home page links and redirects |

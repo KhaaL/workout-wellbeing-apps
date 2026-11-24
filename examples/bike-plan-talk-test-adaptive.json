@@ -1,0 +1,28 @@
+{
+  "id": "talk-test-adaptive",
+  "name": "Talk test, adaptive",
+  "scheduledFor": "2026-11-30",
+  "order": 1,
+  "resistanceCues": "levels",
+  "result": "zone2Ceiling",
+  "noteHint": "Sleep last night, hours and quality",
+  "conditions": [
+    {"label": "Incline", "value": "2% fixed"},
+    {"label": "Cadence", "value": "80 to 85 rpm"},
+    {"label": "Strap", "value": "Electrodes wet"}
+  ],
+  "notes": "Finds the zone 2 ceiling in three 10-minute steps. Change only the resistance to reach each heart-rate band, and give each change about a minute to show in your heart rate before adjusting again. At the end of each step, count aloud 1 to 20. The ceiling is the last step where counting stays smooth. If a breath is needed in step 1 or 2, the rest of the ride runs 5 bpm lower. In step 3, never go above 132.",
+  "steps": [
+    {"kind": "warmup", "title": "Warm-up", "seconds": 300, "resistance": 8, "rpm": [80, 85], "hrBelow": 110, "cue": "Build gradually. Sit upright with a loose grip."},
+    {"kind": "settle", "title": "Step 1", "seconds": 600, "resistance": 13, "rpm": [80, 85], "hrRange": [115, 120],
+     "cue": "Settle into 115 to 120. Change resistance only.",
+     "check": {"prompt": "Count aloud 1 to 20", "options": ["Smooth", "Needed a breath", "Could not"], "pass": ["Smooth"], "onFail": {"shiftBpm": -5}}},
+    {"kind": "settle", "title": "Step 2", "seconds": 600, "resistance": [14, 15], "rpm": [80, 85], "hrRange": [120, 125],
+     "cue": "Add a level or two. Settle into 120 to 125.",
+     "check": {"prompt": "Count aloud 1 to 20", "options": ["Smooth", "Needed a breath", "Could not"], "pass": ["Smooth"], "onFail": {"shiftBpm": -5}}},
+    {"kind": "settle", "title": "Step 3", "seconds": 600, "resistance": [15, 16], "rpm": [80, 85], "hrRange": [125, 130], "hrMax": 132,
+     "cue": "Settle into 125 to 130. Never above 132.",
+     "check": {"prompt": "Count aloud 1 to 20", "options": ["Smooth", "Needed a breath", "Could not"], "pass": ["Smooth"]}},
+    {"kind": "cooldown", "title": "Cool-down", "seconds": 300, "resistance": 6, "rpm": [80, 85], "cue": "Spin easily, then stop any watch recording."}
+  ]
+}
