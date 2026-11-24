@@ -54,7 +54,7 @@ const BikePlans = (() => {
     if (present(raw, 'hrBelow')) s.hrBelow = whole(raw.hrBelow, 40, 230, `${where} hrBelow`);
     if (present(raw, 'hrRange')) {
       const r = raw.hrRange;
-      if (!RANGE_KINDS.includes(s.kind)) fail(`${where}: hrRange is for ${RANGE_KINDS.join(', ')} steps; main steers from the Settings targets.`);
+      if (!RANGE_KINDS.includes(s.kind)) fail(`${where}: hrRange is for ${RANGE_KINDS.join(', ')} steps; main steers from the Settings targets. Use kind "settle" for a step with its own HR band.`);
       if (s.hrBelow != null) fail(`${where}: use hrRange or hrBelow, not both.`);
       if (!Array.isArray(r) || r.length !== 2) fail(`${where} hrRange must be a [low, high] pair of bpm.`);
       const low = whole(r[0], 40, 230, `${where} hrRange low`), high = whole(r[1], 40, 230, `${where} hrRange high`);
@@ -63,7 +63,7 @@ const BikePlans = (() => {
     }
     // A hard cap above the band: the live advice turns to "ease now" past it.
     if (present(raw, 'hrMax')) {
-      if (!s.hrRange) fail(`${where}: hrMax needs an hrRange.`);
+      if (!s.hrRange) fail(`${where}: hrMax needs an hrRange (a band step uses kind "settle", not "main").`);
       s.hrMax = whole(raw.hrMax, 40, 230, `${where} hrMax`);
       if (s.hrMax <= s.hrRange[1]) fail(`${where} hrMax must be above the top of hrRange.`);
     }
@@ -235,7 +235,8 @@ STEP: {"kind": "warmup" | "primer" | "settle" | "main" | "effort" | "recovery" |
  "hrRange": [115, 120], "hrMax": 122,
  "check": {"prompt": "Count aloud to 20", "options": ["Smooth", "Broken", "Could not"], "pass": ["Smooth"],
            "onFail": {"shiftBpm": -5}}}
-"main" is a steady block with HR checks. "between" runs between repeats, not after the last.
+"main" is a steady block steered by the Settings zone targets: it takes no hrRange or hrMax.
+A step with its own "hrRange", "hrMax" and "check" (a talk-test step) uses "settle". "between" runs between repeats, not after the last.
 "adjust" is for efforts: it changes the next effort's resistance from this effort's cadence.
 "hrRange" is a band the app checks live (warmup, settle, recovery, cooldown; not with hrBelow).
 "hrMax" is a hard cap above the band (40..230): past it the app says to ease now.
