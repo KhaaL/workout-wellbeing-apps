@@ -1,7 +1,7 @@
 /* History-only categories do not change runnable workout plans. */
 /* exported BikeHistorySchema */
 const BikeHistorySchema=(()=>{
-  const version=5;
+  const version=6;
   const externalFields=[
     {name:'peakWatts',label:'Peak power',unit:'W',min:0,max:10000},
     {name:'maxCadence',label:'Maximum cadence',unit:'rpm',min:0,max:250},

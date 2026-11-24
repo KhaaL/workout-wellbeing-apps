@@ -1,7 +1,7 @@
 /** Import contract. Runtime authority: storage-adapter.js and history-schema.js.
  * Constraints not expressible by TypeScript are listed in docs/BIKE-HISTORY.md.
  */
-export type HistoryVersion = 1 | 2 | 3 | 4 | 5;
+export type HistoryVersion = 1 | 2 | 3 | 4 | 5 | 6;
 export type WorkoutMode = 'zone2' | 'sprint' | 'external'; // external: v3 history only
 export type RecordedBike = 'levels' | 'feel' | 'unknown'; // v4; v3 files carry a model code, mapped on import
 export type RecordedContext = 'fresh' | 'post-lifting' | 'unknown'; // unknown: v3
@@ -34,7 +34,7 @@ export interface HistoryConfigInput {
   startResistance?: number; startIncline?: number; // recorded at the start: level 0..100, percent -100..100
   plan?: Plan; // v5: the planned session ridden; it decides mode and n. See docs/BIKE-PLAN.md
 }
-/** Planned session (v5). Runtime authority: plans.js. Contract: docs/BIKE-PLAN.md. */
+/** Planned session (v5; hrMax, check.onFail and noteHint are v6). Runtime authority: plans.js. Contract: docs/BIKE-PLAN.md. */
 export type PlanStepKind = 'warmup' | 'primer' | 'settle' | 'main' | 'effort' | 'recovery' | 'cooldown';
 export type Target = number | [number, number] | string; // number, [low, high] or a label of at most 40 characters
 export interface PlanStep {
@@ -45,12 +45,14 @@ export interface PlanStep {
   resistance?: Target; rpm?: Target; hr?: string; hrBelow?: number; cue?: string; // cue max 200 characters
   adjust?: { cadenceAbove?: number; add?: number; cadenceBelow?: number; beforeSeconds?: number; subtract?: number }; // effort with numeric resistance only
   hrRange?: [number, number]; // bpm 40..230, rising; warmup, settle, recovery or cooldown only; not with hrBelow
+  hrMax?: number; // v6: hard cap, bpm 40..230 and above the top of hrRange; needs hrRange
   check?: StepCheck; // timed steps only; not primer or effort
 }
 export interface StepCheck {
   prompt: string; // max 80 characters
   options: string[]; // 2..5 different texts, max 24 characters each
-  pass?: string[]; // answers that pass, a subset of options; needed for result zone2Ceiling
+  pass?: string[]; // answers that pass, a subset of options; needed for result zone2Ceiling and onFail
+  onFail?: { shiftBpm: number }; // v6: -30..-1; an answer outside pass lowers hrRange and hrMax of every later step by this many bpm (fails add up)
 }
 export interface PlanRepeat { repeat: number; step: PlanStep; between?: PlanStep } // repeat 2..20
 export interface Plan {
@@ -60,6 +62,7 @@ export interface Plan {
   conditions?: Array<{ label: string; value?: string }>; // up to 10
   record?: Array<'effortResistance' | 'effortWatts5s' | 'recovery60' | 'timeOfDay' | 'hoursSinceLifting' | 'fed' | 'note'>;
   notes?: string; // max 1000 characters
+  noteHint?: string; // v6: max 80 characters; placeholder of the summary's conditions note
   result?: 'zone2Ceiling'; // talk test: needs a step with hrRange and check.pass
   steps: Array<PlanStep | PlanRepeat>; // 1..40; expands to at most 200 phases and 20 efforts
   hash?: string; // computed on import from resistanceCues and steps; supplied values are replaced
@@ -73,8 +76,11 @@ export interface EffortRecord {
 export interface StepCheckRecord {
   title: string; prompt: string; // max 80 characters each
   options: string[]; answer: string | null; pass?: string[];
-  hrRange?: [number, number];
+  hrRange?: [number, number]; // the band that applied, after any onFail shift
+  hrMax?: number; shiftBpm?: number; // v6: the cap that applied; the shift (-100..0) a failed earlier check caused
   averageHR: number | null; // bpm over the step's last 30 s, when the strap covered half of it
+  hrSource?: 'sensor' | 'manual' | null; // v6
+  averageWatts?: number | null; wattsSource?: 'sensor' | 'manual' | null; // v6: W 0..2500 over the same window; manual when typed in
   outcome: PhaseOutcome;
 }
 export interface RideConditions {

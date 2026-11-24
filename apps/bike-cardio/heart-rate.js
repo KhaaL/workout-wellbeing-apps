@@ -23,9 +23,10 @@ const HeartRateCore = (() => {
   }
   /* A plan step's own band ([low, high] bpm), for steps that hold one HR
      rather than the zone 2 targets: a talk-test stage, for example. */
-  function rangeAdvice(reading,now,range) {
+  function rangeAdvice(reading,now,range,max=null) {
     if(!fresh(reading,now)||!Array.isArray(range))return null;
     const [low,high]=range;
+    if(max!=null&&reading.bpm>max)return {action:'high',text:`Above ${max} · ease resistance now`,over:true};
     return reading.bpm>high ? {action:'high',text:`Above ${high} · ease one level`} : reading.bpm<low ? {action:'low',text:`Below ${low} · add one level`} : {action:'hold',text:`In ${low}–${high} · hold resistance`};
   }
   function createStats(targets){return {targets:BikeTargets.normalize(targets),version:1,measuredMs:0,bpmMs:0,zoneMs:0,samples:0,last:null,trace:BikeTrace.create()};}

@@ -13,7 +13,7 @@ globalThis.BikeStorage = (() => {
     const timestamp=(value,label)=>{number(value,label);if(!Number.isFinite(new Date(value).getTime()))fail(label+' must be a valid date');};
     function prepare(raw){
       WorkoutStorage.enforceLimits(raw,{history:10000});
-      if(!raw||raw.app!=='bike-cardio'||![1,2,3,4,5].includes(raw.version)||raw.kind&&raw.kind!=='backup')fail('Expected a Bike Cardio version 1 to 5 backup');
+      if(!raw||raw.app!=='bike-cardio'||![1,2,3,4,5,6].includes(raw.version)||raw.kind&&raw.kind!=='backup')fail('Expected a Bike Cardio version 1 to 6 backup');
       if(!Array.isArray(raw.history)||!raw.settings||typeof raw.settings!=='object')fail('Missing session history or settings');
       number(raw.updatedAt,'Backup revision');
       const s=copy(raw),ids=new Set();s.version=BikeHistorySchema.version;s.settings=C.config(s.settings);
@@ -81,7 +81,9 @@ globalThis.BikeStorage = (() => {
             if(c.answer!=null&&!c.options.includes(c.answer))fail('Invalid step check answer');
             if(c.pass!=null&&(!Array.isArray(c.pass)||c.pass.some(o=>!c.options.includes(o))))fail('Invalid step check pass answers');
             if(c.hrRange!=null&&(!Array.isArray(c.hrRange)||c.hrRange.length!==2||c.hrRange.some(n=>!Number.isInteger(n)||n<40||n>230)||c.hrRange[0]>=c.hrRange[1]))fail('Invalid step check HR range');
-            optional(c.averageHR,'Step check HR',1,300);
+            optional(c.averageHR,'Step check HR',1,300);optional(c.averageWatts,'Step check watts',0,2500);optional(c.hrMax,'Step check HR cap',40,230);optional(c.shiftBpm,'Step check band shift',-100,0);
+            for(const name of ['hrSource','wattsSource'])if(c[name]!=null&&!['sensor','manual'].includes(c[name]))fail('Invalid step check reading source');
+            if(c.hrMax!=null&&(!Number.isInteger(c.hrMax)||!Array.isArray(c.hrRange)||c.hrMax<=c.hrRange[1]))fail('Invalid step check HR cap');
           }
         }
         if(r.load!=null){
@@ -179,7 +181,7 @@ globalThis.BikeStorage = (() => {
     const historyPayload=()=>({app:'bike-cardio',kind:'history',version:BikeHistorySchema.version,exportedAt:new Date().toISOString(),history:copy(state.history)});
     async function mergeHistory(raw){
       WorkoutStorage.enforceLimits(raw,{history:10000});
-      if(!raw||raw.app!=='bike-cardio'||![1,2,3,4,5].includes(raw.version)||!['history','backup'].includes(raw.kind)||!Array.isArray(raw.history))fail('Expected Bike Cardio history or a full backup.');
+      if(!raw||raw.app!=='bike-cardio'||![1,2,3,4,5,6].includes(raw.version)||!['history','backup'].includes(raw.kind)||!Array.isArray(raw.history))fail('Expected Bike Cardio history or a full backup.');
       const expected=JSON.stringify(state),history=copy(state.history),existing=new Map(history.map(ride=>[ride.id,ride]));
       const summary={added:0,already:0,invalid:0,conflicts:0};
       for(const item of raw.history){

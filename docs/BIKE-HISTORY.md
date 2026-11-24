@@ -9,12 +9,14 @@ cloud storage → Restore from file** instead replaces local data after confirma
 - Runtime validators: `apps/bike-cardio/storage-adapter.js` and `history-schema.js`
 - [Version 2 sprint test export](../examples/bike-history-sprint-v2.json)
 - [Version 3 external examples](../examples/bike-history-external-v3.json)
+- [Version 6 talk-test ride](../examples/bike-history-talk-test-v6.json) (phases, HR and watts traces, checks, load log, conditions; made by [this plan](../examples/bike-plan-talk-test-adaptive.json))
 
-Exports now use version **5**. Version 1 to 4 files remain importable; normalization
+Exports now use version **6**. Version 1 to 5 files remain importable; normalization
 upgrades them without changing their recorded times or inventing a new revision.
 Version 5 adds planned sessions ([plan contract](BIKE-PLAN.md)): a `plans` list in
 full backups, `config.plan` on rides of a plan, and optional `efforts`,
 `checks`, `conditions` and `baseline` on any ride.
+Version 6 adds plan fields (`hrMax`, `check.onFail`, `noteHint`) and, on `checks[]`, `hrMax`, `shiftBpm`, `averageWatts`, `hrSource` and `wattsSource`. Older builds drop plan fields they do not know, so they reject version 6 files.
 Version 4 changes only `config.bike` (and machine profiles' `bike`): it records how
 resistance cues read instead of a machine model. Older files map `touchscreen` to
 `feel` and any other code to `levels`.
@@ -67,7 +69,7 @@ comparisons withhold progress differences.
 |---|---|
 | `config.plan` | The plan ridden, as in [BIKE-PLAN.md](BIKE-PLAN.md). It sets `config.mode` (`sprint` when it has efforts) and `config.n` (its effort count). |
 | `efforts[]` | One per effort ridden: `effort` 1..20, `outcome`, `resistance` 0..100, `cadenceFlag` `high`/`ok`/`low`, `watts5s` and `peakWatts` 0..2500 W, `peakCadence` 0..250 rpm, `wattsSource` `sensor`/`manual`. Unknown values are `null`. |
-| `checks[]` | One per plan step with a `check`, in ride order (up to 200): `title` and `prompt` up to 80 characters, `options` 2..5 texts of up to 24, `answer` one of them or `null`, optional `pass` (a subset of `options`), optional `hrRange` `[low, high]` 40..230 bpm, `averageHR` 1..300 over the step's last 30 s or `null`, and `outcome`. |
+| `checks[]` | One per plan step with a `check`, in ride order (up to 200): `title` and `prompt` up to 80 characters, `options` 2..5 texts of up to 24, `answer` one of them or `null`, optional `pass` (a subset of `options`), optional `hrRange` `[low, high]` 40..230 bpm (the band that applied, after any shift), optional `hrMax` (v6, 40..230 and above the top of `hrRange`), optional `shiftBpm` (v6, -100..0, from a failed earlier check), `averageHR` 1..300 over the step's last 30 s or `null`, `averageWatts` 0..2500 over the same window or `null` (v6), `hrSource` and `wattsSource` `sensor`/`manual`/`null` (v6), and `outcome`. |
 | `load.changes[]` | Resistance and incline at the start and after each change (1..300, in order): `ms` active riding time of the change (0 for the start, the clock of `hr.trace`), `at` epoch milliseconds, `resistance` 0..100 console level and `incline` -100..100 percent (each `null` when not recorded), `untilMs` where the setting ended (the next change, or `activeMs`), and `averageHR` 1..300 measured over that stretch or `null`. Optional; a ride without it recorded neither. |
 | `conditions` | `timeOfDay` `morning`/`midday`/`afternoon`/`evening`/`night`, `hoursSinceLifting` 0..2000, `fed` `fed`/`fasted`, `note` up to 500 characters, `confirmed` up to 10 texts. |
 | `baseline` | `true` on at most one ride per plan in the app; imports do not enforce it. |

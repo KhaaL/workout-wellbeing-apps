@@ -75,7 +75,7 @@ fieldset.field legend{font-size:inherit;margin:0 0 7px;padding:0}.segments.compa
 <div id="storageNotice" class="notice" role="alert" hidden></div>
 <main id="main" tabindex="-1">
 <section id="setup">
-  <div class="view-head"><h1>Workout</h1><button id="openHistory" class="text-button" hidden>History</button></div>
+  <div class="view-head"><h1>Workout</h1><div class="view-actions"><button id="importPlan" type="button" class="btn">Import plan</button><button id="openHistory" class="text-button" hidden>History</button></div></div>
   <div id="restoreCard" class="card" hidden><h2>Session saved</h2><p id="restoreText"></p><div class="stack"><button id="restoreSession" class="primary">Review &amp; resume</button><button id="endSaved" class="secondary">End saved session</button></div></div>
   <div id="planned-sessions"></div>
   <div id="saved-setups"></div>
@@ -287,6 +287,7 @@ let storageControllerInstance;
     save:rows=>{const checked=storage.prepare({...storage.backup(),plans:rows});return write('bike-cardio.plans.v1',checked.plans,{atomic:true});},
     selected:()=>selectedPlan,select:usePlan,confirm:WorkoutUI.confirm,notify:toast,
     lastRidden:id=>Math.max(0,...records.filter(r=>r.config.plan?.id===id).map(r=>r.startedAt))||null});
+  $('importPlan').addEventListener('click',planUI.openAdd);
   /* A chosen plan sets up the next ride; its numbers assume its cue style. */
   function usePlan(plan){selectedPlan=plan||null;if(plan)setBikeCue(plan.resistanceCues);planUI.render();renderPlan();if(plan)$('planTitle').scrollIntoView({block:'nearest'});}
   const presetUI=BikePresets.mount($('saved-setups'),{get:kind=>storage.state[kind]||[],
@@ -459,7 +460,7 @@ function maybeRemindBackup(...args){return storageController().maybeRemindBackup
     const live=H.fresh(h10.reading,Date.now()),advice=H.advice(h10.reading,Date.now(),currentTargets()),busy=h10.busy,message=sensorMessage();
     for(const id of ['setupHR','liveHR']){const el=$(id),value=live?String(h10.reading.bpm):'—';if(el.dataset.reading===value)continue;el.dataset.reading=value;el.replaceChildren(document.createTextNode(live?String(h10.reading.bpm)+' ':'— '));const unit=document.createElement('small');unit.textContent='bpm';el.append(unit);}
     if($('sensorStatus').textContent!==message)$('sensorStatus').textContent=message;$('runSensorStatus').textContent=H.fresh(h10.reading,Date.now())?'Connected':!h10.supported?'Manual HR':h10.state==='connected'?(h10.error||'No fresh HR · check strap'):message;
-    const band=session&&C.phase(session)?.hrRange,inBand=band&&H.rangeAdvice(h10.reading,Date.now(),band);
+    const band=session&&C.phase(session)?.hrRange,inBand=band&&H.rangeAdvice(h10.reading,Date.now(),band,C.phase(session).hrMax);
     $('liveAdvice').textContent=band?(inBand?inBand.text:`Hold ${band[0]}–${band[1]} · read HR on your watch`):advice?(session&&C.phase(session)?.kind==='effort'?'HR lags short sprints · judge effort by feel':session&&C.phase(session)?.kind==='main'?advice.text:session&&C.phase(session)?.gate==='cool'?(h10.reading.bpm<C.phase(session).gateBpm?`Below ${C.phase(session).gateBpm} · finish after cool-down`:'Keep spinning easily'):h10.reading.bpm<=currentTargets().comparisonHR?'Build gradually · easy spinning':'Spin easily · let HR settle'):'Read HR on your watch';
     const notice=sensorNotice();if($('sensorNotice').textContent!==notice)$('sensorNotice').textContent=notice;$('sensorNotice').hidden=!notice;
     $('sensorSetup').querySelector('.sensor-actions').hidden=!h10.supported;$('setupHR').hidden=!h10.supported;renderHRBar(live);
@@ -499,6 +500,11 @@ function maybeRemindBackup(...args){return storageController().maybeRemindBackup
       if(lastHighAt===null||now-lastHighAt>H.MAX_GAP_MS)highSince=now;
       lastHighAt=now;
       if(now-highSince>=5000 && !session.settleEndMs && session.activeMs-lastHighWarning>=60000){lastHighWarning=session.activeMs;beep(880);say(`Heart rate ${reading.bpm}. Reduce resistance one level. Keep cadence steady.`);}
+    }else if(C.phase(session).hrMax!=null&&reading.bpm>C.phase(session).hrMax){
+      // A step's hard cap: a spoken warning after 5 s above it, at most once a minute.
+      if(lastHighAt===null||now-lastHighAt>H.MAX_GAP_MS)highSince=now;
+      lastHighAt=now;
+      if(now-highSince>=5000 && session.activeMs-lastHighWarning>=60000){lastHighWarning=session.activeMs;beep(880);say(`Heart rate ${reading.bpm}. Above ${C.phase(session).hrMax}. Ease resistance now.`);}
     }else{highSince=null;lastHighAt=null;}
     save();
   }
@@ -548,16 +554,16 @@ function maybeRemindBackup(...args){return storageController().maybeRemindBackup
     if(!session)return null;const phases=C.build(session.config),p=C.phase(session),from=C.checkWindow(p);
     if(from!=null&&session.phaseMs>=from)return p;
     if(p?.check)return null;
-    const last=session.finishedPhases.at(-1),done=last&&phases[last.id];return done?.check?done:null;
+    const last=session.finishedPhases.at(-1),done=last&&phases[last.id];return done?.check?C.effective(session,done,phases):null;
   }
   function renderStepCheck(){
     const p=stepCheckPhase(),box=$('stepCheck');box.hidden=!p;if(!p){stepCheckId=null;return;}
     const answer=C.checkAnswer(session,p.id);
     if(stepCheckId!==p.id||box.dataset.answer!==String(answer)){
       stepCheckId=p.id;box.dataset.answer=String(answer);
-      $('stepCheckTitle').textContent=`${p.title}${p.hrRange?` · ${p.hrRange[0]}–${p.hrRange[1]}`:''}: ${p.check.prompt}`;
+      $('stepCheckTitle').textContent=`${p.title}${p.hrRange?` · ${BikePlans.bandText(p.hrRange,p.hrMax)}`:''}: ${p.check.prompt}`;
       $('stepCheckOptions').replaceChildren(...p.check.options.map(option=>{const b=document.createElement('button');b.type='button';b.textContent=option;b.setAttribute('aria-pressed',String(option===answer));
-        b.addEventListener('click',()=>{if(!session||storage.handoff.held())return;C.answerCheck(session,p.id,option===C.checkAnswer(session,p.id)?null:option);save(true);renderStepCheck();});return b;}));
+        b.addEventListener('click',()=>{if(!session||storage.handoff.held())return;const chosen=option===C.checkAnswer(session,p.id)?null:option;C.answerCheck(session,p.id,chosen);const rule=p.check.onFail;if(rule&&chosen!=null&&!p.check.pass.includes(chosen))say(`Noted. Later steps are ${-rule.shiftBpm} bpm lower.`);save(true);renderStepCheck();});return b;}));
       $('stepCheckNote').textContent=answer!=null?`Saved: ${answer}. Tap it again to clear.`:'Answer at the end of the step. You can still answer during the next step.';
     }
   }
@@ -584,7 +590,9 @@ function maybeRemindBackup(...args){return storageController().maybeRemindBackup
     $('loadList').replaceChildren(...changes.map(e=>{const li=document.createElement('li'),parts=[fmt(e.ms)];if(e.resistance!=null)parts.push('Resistance '+e.resistance);if(e.incline!=null)parts.push('Incline '+e.incline+'%');
       parts.push(e.averageHR!=null?'HR '+Math.round(e.averageHR)+' bpm':'No HR');li.textContent=parts.join(' · ')+(e.ms===0?' (start)':'');return li;}));}
   function render(){renderSensors();if(!session)return;const p=C.phase(session);if(!p)return;document.body.dataset.kind=p.kind;const key=session.id+':'+session.index;
-    if(phaseKey!==key){phaseKey=key;$('gateConfirm').checked=false;$('phaseTitle').textContent=p.title;$('targetHR').textContent=p.hr;$('targetRPM').textContent=p.rpm;$('targetResistance').textContent=resistanceFor(p);$('cue').textContent=p.cue;}
+    if(phaseKey!==key){phaseKey=key;$('gateConfirm').checked=false;$('phaseTitle').textContent=p.title;$('targetHR').textContent=p.hr;$('targetRPM').textContent=p.rpm;$('targetResistance').textContent=resistanceFor(p);}
+    // A failed check can lower this step's band after it started; the target and cue follow.
+    const cue=p.shiftBpm?`${p.cue} Bands are ${-p.shiftBpm} bpm lower after a failed check.`.trim():p.cue;if($('targetHR').textContent!==p.hr)$('targetHR').textContent=p.hr;if($('cue').textContent!==cue)$('cue').textContent=cue;
     const target=p.duration??p.target;$('timer').textContent=fmt(Math.max(0,target-session.phaseMs));const note=session.phaseMs<target?(p.gate?'minimum / preparation time left':'left in this phase'):`${fmt(session.phaseMs)} in this phase · waiting for confirmation`;$('timerNote').textContent=note;$('timerNote').classList.toggle('visually-hidden',note==='left in this phase');
     if(p.gate&&session.phaseMs>=target)$('timer').textContent=fmt(session.phaseMs);
     const percentage=Math.min(100,session.phaseMs/target*100);$('progressFill').style.width=percentage+'%';document.querySelector('.progress').setAttribute('aria-valuenow',String(Math.round(percentage)));
@@ -648,36 +656,39 @@ function maybeRemindBackup(...args){return storageController().maybeRemindBackup
       note.textContent='Watts come from the bike sensor when it measured the effort. Otherwise type the console reading.';box.append(heading,wrap,note);
     }
     renderCheckTable(r);renderCeiling(r);
-    const c=r.conditions||{};$('condTime').value=c.timeOfDay||'';$('condHours').value=c.hoursSinceLifting??'';$('condFed').value=c.fed||'';$('condNote').value=c.note||'';
+    const c=r.conditions||{};$('condTime').value=c.timeOfDay||'';$('condHours').value=c.hoursSinceLifting??'';$('condFed').value=c.fed||'';$('condNote').value=c.note||'';$('condNote').placeholder=r.config.plan?.noteHint||'e.g. after lifting day B';
     $('conditionsConfirmed').hidden=!c.confirmed?.length;$('conditionsConfirmed').textContent=c.confirmed?.length?'Confirmed at the start: '+c.confirmed.join(', ')+'.':'';
     $('baselineField').hidden=!r.config.plan;$('condBaseline').checked=!!r.baseline;$('conditionsBox').hidden=r.config.mode==='external';$('conditionsBox').open=!!r.config.plan;
     $('plannedReadings').dataset.ride=r.id;
   }
-  /* The plan's step questions as ridden: the step, its band, the HR measured
-     over the check window and the answer, which stays editable here. */
+  /* The plan's step questions as ridden: the step, its band (after any shift), the HR
+     and watts over the check window and the answer. All three stay editable here. */
   function renderCheckTable(r){
     const checks=r.checks||[],box=$('checkTable');box.hidden=!checks.length;box.replaceChildren();if(!checks.length)return;
     const cell=(content,tag='td')=>{const c=document.createElement(tag);if(tag==='th')c.scope='col';c.append(content);return c;};
-    const head=document.createElement('tr');head.append(...['Step · band','HR','Answer'].map(text=>cell(text,'th')));
+    const number=(id,value,label,max)=>{const input=document.createElement('input');Object.assign(input,{id,type:'number',inputMode:'decimal',min:0,max,step:'any',value:value==null?'':Math.round(value*10)/10});input.setAttribute('aria-label',label);return input;};
+    const head=document.createElement('tr');head.append(...['Step · band','HR','Watts','Answer'].map(text=>cell(text,'th')));
     const rows=checks.map((c,i)=>{const row=document.createElement('tr'),select=document.createElement('select');select.id='check-'+i;select.setAttribute('aria-label',`${c.title}: ${c.prompt}`);
       select.append(new Option('Not answered',''),...c.options.map(o=>new Option(o,o)));select.value=c.answer??'';
-      const step=document.createElement('span'),band=document.createElement('small');step.textContent=c.title+(c.outcome==='complete'?'':' (cut short)');band.className='small';band.textContent=c.hrRange?`${c.hrRange[0]}–${c.hrRange[1]}`:'';
+      const step=document.createElement('span'),band=document.createElement('small');step.textContent=c.title+(c.outcome==='complete'?'':' (cut short)');band.className='small';band.textContent=c.hrRange?BikePlans.bandText(c.hrRange,c.hrMax)+(c.shiftBpm?` · ${c.shiftBpm} bpm`:''):'';
       const name=document.createElement('div');name.append(step,...(c.hrRange?[document.createElement('br'),band]:[]));
-      row.append(cell(name),cell(c.averageHR!=null?String(Math.round(c.averageHR)):'—'),cell(select));return row;});
+      row.append(cell(name),cell(number('checkHR-'+i,c.averageHR,`${c.title} average heart rate`,300)),cell(number('checkWatts-'+i,c.averageWatts,`${c.title} average watts`,2500)),cell(select));return row;});
     const table=document.createElement('table'),thead=document.createElement('thead'),tbody=document.createElement('tbody');thead.append(head);tbody.append(...rows);table.append(thead,tbody);
     const heading=document.createElement('h3'),note=document.createElement('p'),wrap=document.createElement('div');heading.textContent=checks[0].prompt===checks.at(-1).prompt?checks[0].prompt:'Step checks';note.className='small';wrap.className='plan-table';wrap.append(table);
-    note.textContent=`HR is the strap average in bpm over the last ${BikePlans.CHECK_LEAD_MS/1000} s of each step.`;box.append(heading,wrap,note);
+    note.textContent=`HR and watts are the averages over the last ${BikePlans.CHECK_LEAD_MS/1000} s of each step, from the sensors. Type them from the console or watch when a sensor was off.`+(checks.some(c=>c.shiftBpm)?' Bands after a failed check ran lower, as marked.':'');
+    box.append(heading,wrap,note);
   }
   /* A talk-test plan (result zone2Ceiling) proposes the zone 2 maximum from
-     the highest step passed. Applying it rewrites the Settings targets with
+     the last step passed before the first failure. Applying it rewrites the Settings targets with
      the zone minimum kept (BikeTargets.withCeiling); Undo puts them back. */
   function renderCeiling(r){
     const box=$('ceilingBox'),wanted=r?.config.plan?.result==='zone2Ceiling';box.hidden=!wanted;if(!wanted)return;
     const proposal=BikePlans.ceilingFrom(r.checks),button=$('applyCeiling'),current=C.config(read(KEYS.settings,{})).targets;
     button.hidden=!proposal||current.zoneMax===proposal.value;$('ceilingNote').textContent='';
-    if(!proposal){$('ceilingText').textContent='No step was answered with a passing answer, so this ride proposes no ceiling. Answer the steps above, or repeat the test easier.';return;}
-    $('ceilingText').textContent=`Highest step passed: ${proposal.title} (${proposal.hrRange[0]}–${proposal.hrRange[1]}), ${proposal.measured?`measured ${proposal.value} bpm`:'no strap reading, so the top of its band'}. `+
-      (proposal.limitFound?'The next step up failed, so this is your ceiling.':'Every step you answered passed, so the limit may be higher.');
+    const failed=BikePlans.firstFailure(r.checks);
+    if(!proposal){$('ceilingText').textContent=failed?`${failed.title} (${BikePlans.bandText(failed.hrRange,failed.hrMax)}) failed first, so the ceiling is below ${failed.hrRange[0]}. This ride proposes none. Repeat the test with lower bands.`:'No step was answered with a passing answer, so this ride proposes no ceiling. Answer the steps above, or repeat the test easier.';return;}
+    $('ceilingText').textContent=`Last step passed: ${proposal.title} (${proposal.hrRange[0]}–${proposal.hrRange[1]}), ${proposal.measured?`measured ${proposal.value} bpm`:'no strap reading, so the top of its band'}. `+
+      (failed?`${failed.title} failed first, so this is your ceiling. Steps after it do not count.`:'Every step you answered passed, so the limit may be higher.');
     button.textContent=`Set zone 2 ceiling to ${proposal.value}`;
     if(current.zoneMax===proposal.value)$('ceilingNote').textContent=`Settings already use zone 2 ${current.zoneMin}–${current.zoneMax} bpm.`;
   }
@@ -695,7 +706,9 @@ function maybeRemindBackup(...args){return storageController().maybeRemindBackup
     const efforts=r.efforts?.map((e,i)=>{const watts=read('effortWatts-'+i);return {...e,resistance:read('effortRes-'+i),watts5s:watts,wattsSource:watts==null?null:watts===e.watts5s&&e.wattsSource?e.wattsSource:'manual'};});
     const conditions={timeOfDay:$('condTime').value||null,hoursSinceLifting:read('condHours'),fed:$('condFed').value||null,note:$('condNote').value.trim(),confirmed:r.conditions?.confirmed||[]};
     const keep=r.conditions||conditions.timeOfDay||conditions.hoursSinceLifting!=null||conditions.fed||conditions.note;
-    const checks=r.checks?.map((c,i)=>{const value=$('check-'+i)?.value;return {...c,answer:value?value:null};});
+    const typed=(id,before,source)=>{const value=read(id);return value===before||before!=null&&value===Math.round(before*10)/10?{value:before,source}:{value,source:value==null?null:'manual'};};
+    const checks=r.checks?.map((c,i)=>{const answer=$('check-'+i)?.value,hr=typed('checkHR-'+i,c.averageHR??null,c.hrSource??null),w=typed('checkWatts-'+i,c.averageWatts??null,c.wattsSource??null);
+      return {...c,answer:answer?answer:null,averageHR:hr.value,hrSource:hr.source,averageWatts:w.value,wattsSource:w.source};});
     return {...(efforts?{efforts}:{}),...(checks?{checks}:{}),...(keep?{conditions}:{}),baseline:!!r.config.plan&&$('condBaseline').checked};
   }
   const withoutBaseline=({baseline,...rest})=>rest;

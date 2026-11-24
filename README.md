@@ -198,15 +198,17 @@ controls, timing, wake-lock lifecycle, recovery, cloud/file backups and offline 
   identifier matches the machine. Update or delete either; applying one
   affects the next ride only. Both collections are included in full backups;
   older backups start with empty collections.
-- **Bike planned sessions:** Workout → **Planned sessions → Add** takes a plan
+- **Bike planned sessions:** Workout → **Import plan** takes a plan
   pasted from a coaching chat (JSON; **Copy plan format** gives the chat the
   format). **Use** sets up the next ride from it; the ride logs each effort's
   resistance, a cadence rule sets the next effort, and the summary records watts
   about 5 s into each effort, conditions and a baseline. A step can hold an HR
   band the app checks live and a question answered at its end; a talk-test plan
-  proposes the zone 2 ceiling from the highest step passed. See the
+  proposes the zone 2 ceiling from the last step passed before the first failed one;
+  a step can hold a hard HR cap, a failed answer can lower the later bands, and a plan can
+  say what to note afterwards. See the
   [plan contract](docs/BIKE-PLAN.md) and the samples in `examples/`
-  (`bike-plan-sprint.json`, `bike-plan-talk-test.json`, `bike-plan-zone2.json`).
+  (`bike-plan-sprint.json`, `bike-plan-talk-test.json`, `bike-plan-talk-test-adaptive.json`, `bike-plan-zone2.json`).
 - **Comparisons:** Bike session summaries select an earlier matching ride and
   show three key readings first. Liftlog session summaries compare each
   exercise with its own most recent earlier session that used the same load

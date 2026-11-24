@@ -28,10 +28,11 @@ const BikePlanUI = {
     function preview(plan) {
       const phases = BikePlans.expand(plan.steps), parts = [el('h3', {textContent:plan.name}), el('p', {className:'small', textContent:summary(plan) + '. HR-gated phases run until HR is low enough.'})];
       if (plan.notes) parts.push(el('div', {className:'small', innerHTML:WorkoutMarkdown.render(plan.notes, {links:true})}));
+      if (plan.noteHint) parts.push(el('p', {className:'small', textContent:`After the ride, write in the conditions note: ${plan.noteHint}.`}));
       if (plan.conditions.length) parts.push(el('p', {className:'small', textContent:'Conditions: ' + plan.conditions.map(c => c.value ? `${c.label} ${c.value}` : c.label).join(', ') + '.'}));
       parts.push(table(plan));
       if (phases.some(p => p.adjust)) parts.push(el('p', {className:'small', textContent:'During each recovery the app asks for the resistance you used and how cadence went, then sets the next effort.'}));
-      if (phases.some(p => p.check)) parts.push(el('p', {className:'small', textContent:`In the last ${BikePlans.CHECK_LEAD_MS / 1000} s of each step marked "Asks", the app asks the question and saves your answer.` + (plan.result === 'zone2Ceiling' ? ' After the ride, the highest step passed proposes your zone 2 ceiling.' : '')}));
+      if (phases.some(p => p.check)) parts.push(el('p', {className:'small', textContent:`In the last ${BikePlans.CHECK_LEAD_MS / 1000} s of each step marked "Asks", the app asks the question and saves your answer with the step's average HR and watts.` + (phases.some(p => p.check?.onFail) ? ` A failed answer lowers the HR bands of later steps by ${-phases.find(p => p.check?.onFail).check.onFail.shiftBpm} bpm.` : '') + (plan.result === 'zone2Ceiling' ? ' After the ride, the last step passed before the first failed one proposes your zone 2 ceiling.' : '')}));
       return el('div', {className:'plan-preview'}, ...parts);
     }
     function dialog(title) {
@@ -45,7 +46,7 @@ const BikePlanUI = {
       catch { status.textContent = 'Copying is blocked here. Select the format text below and copy it.'; }
     }
     function openAdd() {
-      const dlg = dialog('Add planned sessions');
+      const dlg = dialog('Import planned sessions');
       const help = el('p', {className:'small', textContent:'Paste a plan in JSON from your coaching chat, or load a .json file. Check it, then save.'});
       const input = el('textarea', {id:'planInput', rows:8, spellcheck:false, placeholder:'{"name": "...", "steps": [...]}'});
       const file = el('input', {type:'file', accept:'.json,application/json'});
@@ -99,9 +100,8 @@ const BikePlanUI = {
     }
     function render() {
       const plans = sorted(), current = options.selected();
-      const add = el('button', {type:'button', className:'text-button', id:'addPlan', textContent:'Add'}); add.addEventListener('click', openAdd);
-      const card = el('section', {className:'card', id:'plansCard'}, el('div', {className:'row'}, el('h2', {textContent:'Planned sessions'}), add));
-      if (!plans.length) card.append(el('p', {className:'small', textContent:'Paste a plan from a coaching chat. Add → Copy plan format gives the chat the format to answer in.'}));
+      const card = el('section', {className:'card', id:'plansCard'}, el('div', {className:'row'}, el('h2', {textContent:'Planned sessions'})));
+      if (!plans.length) card.append(el('p', {className:'small', textContent:'No planned sessions yet. Import plan, at the top of this screen, takes a plan pasted from a coaching chat. Its Copy plan format button gives the chat the format to answer in.'}));
       const list = el('ul', {className:'plan-list'});
       for (const plan of plans) {
         const chosen = current?.id === plan.id && current.hash === plan.hash;
@@ -116,6 +116,6 @@ const BikePlanUI = {
       host.replaceChildren(card);
     }
     render();
-    return {render, preview, table};
+    return {render, preview, table, openAdd};
   }
 };

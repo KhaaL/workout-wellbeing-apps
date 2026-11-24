@@ -61,6 +61,12 @@ const BikePlans = (() => {
       if (low >= high) fail(`${where} hrRange must rise from low to high.`);
       s.hrRange = [low, high];
     }
+    // A hard cap above the band: the live advice turns to "ease now" past it.
+    if (present(raw, 'hrMax')) {
+      if (!s.hrRange) fail(`${where}: hrMax needs an hrRange.`);
+      s.hrMax = whole(raw.hrMax, 40, 230, `${where} hrMax`);
+      if (s.hrMax <= s.hrRange[1]) fail(`${where} hrMax must be above the top of hrRange.`);
+    }
     if (present(raw, 'check')) {
       const c = raw.check;
       if (!c || typeof c !== 'object' || Array.isArray(c)) fail(`${where}: check must be an object with a prompt and options.`);
@@ -74,6 +80,12 @@ const BikePlans = (() => {
       if (c.pass != null) {
         if (!Array.isArray(c.pass) || !c.pass.length || c.pass.some(v => !options.includes(v))) fail(`${where}: check pass must list some of its options.`);
         check.pass = options.filter(v => c.pass.includes(v));
+      }
+      // A failed check (an answer outside pass) moves the HR bands of every later step.
+      if (present(c, 'onFail')) {
+        if (!check.pass) fail(`${where}: onFail needs pass answers to tell a failed check.`);
+        if (typeof c.onFail !== 'object' || Array.isArray(c.onFail)) fail(`${where}: onFail must be an object with shiftBpm.`);
+        check.onFail = {shiftBpm:whole(c.onFail.shiftBpm, -30, -1, `${where} onFail.shiftBpm`)};
       }
       s.check = check;
     }
@@ -93,9 +105,10 @@ const BikePlans = (() => {
     return s;
   }
   const format = value => value == null ? null : Array.isArray(value) ? `${value[0]}–${value[1]}` : String(value);
+  const bandText = (range, max) => `${range[0]}–${range[1]}` + (max != null ? ` (max ${max})` : '');
   function hrText(s) {
     if (s.hr) return s.hr;
-    if (s.hrRange) return `${s.hrRange[0]}–${s.hrRange[1]}`;
+    if (s.hrRange) return bandText(s.hrRange, s.hrMax);
     if (s.hrBelow != null) return `Under ${s.hrBelow}`;
     if (s.untilHrAtMost != null) return `${s.untilHrAtMost} or below`;
     if (s.untilHrBelow != null) return `Below ${s.untilHrBelow}`;
@@ -113,6 +126,7 @@ const BikePlans = (() => {
       if (s.kind === 'effort') add({kind:'ready', title:`Effort ${effort} in`, duration:READY_MS, hr:'No target', rpm:'Pick it up', res, cue:'Resistance up. Stay seated.', effort});
       const phase = {kind:s.kind, title, duration:s.seconds != null ? s.seconds * 1000 : null, hr:hrText(s), rpm:format(s.rpm) ?? '—', res, cue:s.cue || ''};
       if (s.hrRange) phase.hrRange = s.hrRange;
+      if (s.hrMax != null) phase.hrMax = s.hrMax;
       if (s.check) phase.check = s.check;
       if (s.seconds == null) Object.assign(phase, {target:s.minSeconds * 1000, min:s.minSeconds * 1000, gate:s.untilHrBelow != null ? 'cool' : 'recovery', gateBpm:s.untilHrBelow ?? s.untilHrAtMost});
       if (s.kind === 'effort') { phase.effort = effort; if (typeof s.resistance === 'number') phase.base = s.resistance; if (s.adjust) phase.adjust = s.adjust; }
@@ -156,6 +170,8 @@ const BikePlans = (() => {
     if (raw.record != null && (!Array.isArray(raw.record) || raw.record.some(key => !RECORD.includes(key)))) fail(`record may list only ${RECORD.join(', ')}.`);
     plan.record = raw.record == null ? RECORD.slice() : RECORD.filter(key => raw.record.includes(key));
     const notes = text(raw.notes, 1000, 'Plan notes'); if (notes) plan.notes = notes;
+    // Shown in the summary's conditions note field, for what the plan wants written down after the ride.
+    const noteHint = text(raw.noteHint, 80, 'Plan noteHint'); if (noteHint) plan.noteHint = noteHint;
     if (raw.result != null && !RESULTS.includes(raw.result)) fail(`result must be ${RESULTS.join(' or ')}.`);
     if (!Array.isArray(raw.steps) || !raw.steps.length || raw.steps.length > MAX_STEPS) fail(`steps must list 1 to ${MAX_STEPS} steps.`);
     plan.steps = raw.steps.map((item, i) => {
@@ -175,19 +191,21 @@ const BikePlans = (() => {
     plan.hash = hash(plan);
     return plan;
   }
-  /* The zone 2 maximum a talk test proposes, from a ride's recorded checks.
-     The highest step (by hrRange top) answered with a passing answer sets it:
+  /* The zone 2 maximum a talk test proposes, from a ride's recorded checks in
+     ride order. The first step answered outside its pass answers ends the
+     test: steps after it are ignored, because a failed check moves their bands
+     lower and they would pass. The last step passed before it sets the maximum:
      its measured HR over the check window when the strap covered it, else the
-     top of its range. limitFound says whether a higher step was answered and
-     failed; without one the test never reached the limit. Null when no step
-     passed. */
+     top of its range. limitFound says whether a step failed; without one the
+     test never reached the limit. Null when no step passed first. */
+  const answered = checks => (checks || []).filter(c => Array.isArray(c.hrRange) && Array.isArray(c.pass) && c.answer != null);
+  const firstFailure = checks => answered(checks).find(c => !c.pass.includes(c.answer)) || null;
   function ceilingFrom(checks) {
-    const tested = (checks || []).filter(c => Array.isArray(c.hrRange) && Array.isArray(c.pass) && c.answer != null);
-    const passed = tested.filter(c => c.pass.includes(c.answer)).sort((a, b) => b.hrRange[1] - a.hrRange[1])[0];
+    const tested = answered(checks), failedAt = tested.findIndex(c => !c.pass.includes(c.answer));
+    const passed = (failedAt < 0 ? tested : tested.slice(0, failedAt)).at(-1);
     if (!passed) return null;
     const measured = Number.isFinite(passed.averageHR) ? Math.round(passed.averageHR) : null;
-    return {value:measured ?? passed.hrRange[1], measured:measured != null, title:passed.title, hrRange:passed.hrRange,
-      limitFound:tested.some(c => !c.pass.includes(c.answer) && c.hrRange[1] > passed.hrRange[1])};
+    return {value:measured ?? passed.hrRange[1], measured:measured != null, title:passed.title, hrRange:passed.hrRange, limitFound:failedAt >= 0};
   }
   const mode = plan => expand(plan.steps).some(p => p.kind === 'effort') ? 'sprint' : 'zone2';
   const effortCount = plan => expand(plan.steps).filter(p => p.kind === 'effort').length;
@@ -214,14 +232,19 @@ STEP: {"kind": "warmup" | "primer" | "settle" | "main" | "effort" | "recovery" |
  "seconds": 480  OR  "untilHrAtMost": 122  OR  "untilHrBelow": 105  (with "minSeconds": 60),
  "resistance": 16 | [6, 8] | "easy", "rpm": [80, 90], "hrBelow": 120, "cue": "short text",
  "adjust": {"cadenceAbove": 110, "add": 2, "cadenceBelow": 70, "beforeSeconds": 20, "subtract": 2},
- "hrRange": [115, 120],
- "check": {"prompt": "Count aloud to 20", "options": ["Smooth", "Broken", "Could not"], "pass": ["Smooth"]}}
+ "hrRange": [115, 120], "hrMax": 122,
+ "check": {"prompt": "Count aloud to 20", "options": ["Smooth", "Broken", "Could not"], "pass": ["Smooth"],
+           "onFail": {"shiftBpm": -5}}}
 "main" is a steady block with HR checks. "between" runs between repeats, not after the last.
 "adjust" is for efforts: it changes the next effort's resistance from this effort's cadence.
 "hrRange" is a band the app checks live (warmup, settle, recovery, cooldown; not with hrBelow).
-"check" asks the rider a question in the last 30 s of a timed step and saves the answer.
-"result": "zone2Ceiling" on the plan: the highest step with an hrRange whose check got a "pass"
-answer proposes the zone 2 maximum after the ride (a talk test).
-scheduledFor, order, conditions, notes, adjust, hrRange, check and result are optional.`;
-  return {KINDS, RECORD, RESULTS, RANGE_KINDS, CHECK_LEAD_MS, READY_MS, ceilingFrom, normalize, expand, hash, mode, effortCount, minimumMs, parse, format, FORMAT};
+"hrMax" is a hard cap above the band (40..230): past it the app says to ease now.
+"check" asks the rider a question in the last 30 s of a timed step and saves the answer, the
+step's average HR and watts. "onFail": {"shiftBpm": -5} (-30..-1) lowers the bands and caps of
+every later step by that many bpm when the answer is not one of "pass"; repeated fails add up.
+"result": "zone2Ceiling" on the plan: the last step with an hrRange whose check got a "pass"
+answer, before the first failed one, proposes the zone 2 maximum after the ride (a talk test).
+"noteHint": "Sleep last night" is shown in the summary's conditions note field.
+scheduledFor, order, conditions, notes, noteHint, adjust, hrRange, hrMax, check, onFail and result are optional.`;
+  return {KINDS, RECORD, RESULTS, RANGE_KINDS, CHECK_LEAD_MS, READY_MS, ceilingFrom, firstFailure, bandText, normalize, expand, hash, mode, effortCount, minimumMs, parse, format, FORMAT};
 })();
