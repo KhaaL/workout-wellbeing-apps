@@ -112,6 +112,9 @@ test('plan steps take a checked HR band and a question; a talk-test plan names i
   assert.equal(json(stages[0].check),json({prompt:'Count aloud to 20',options:['Smooth','Broken','Could not'],pass:['Smooth']}));
   const bad=(step,pattern)=>assert.throws(()=>P.normalize({id:'b',name:'b',steps:[step]}),pattern);
   bad({kind:'main',seconds:60,hrRange:[110,120]},/hrRange is for warmup, settle, recovery, cooldown/);
+  bad({kind:'main',seconds:60,hrRange:[110,120]},/Use kind "settle" for a step with its own HR band/);
+  bad({kind:'main',seconds:60,hrMax:130},/a band step uses kind "settle", not "main"/);
+  assert.match(P.FORMAT,/"main" is a steady block steered by the Settings zone targets: it takes no hrRange or hrMax/);
   bad({kind:'settle',seconds:60,hrRange:[120,120]},/must rise/);
   bad({kind:'settle',seconds:60,hrRange:[110,120],hrBelow:120},/not both/);
   bad({kind:'settle',untilHrBelow:100,check:{prompt:'x',options:['a','b']}},/timed step/);

@@ -81,13 +81,13 @@ Deleting a plan keeps the rides done with it; each ride stores its own copy.
 
 | Field | Rule |
 |---|---|
-| `kind` | `warmup`, `primer`, `settle`, `main`, `effort`, `recovery`, `cooldown`. `main` is a steady block with HR checks and resistance steering. |
+| `kind` | `warmup`, `primer`, `settle`, `main`, `effort`, `recovery`, `cooldown`. `main` is a steady block steered by the Settings zone targets (an HR check every 2.5 minutes, resistance steering); it takes no `hrRange` or `hrMax`. A step with its own HR band, such as a talk-test step, uses `settle`. |
 | `title` | Up to 60 characters; defaults to the kind's name. `{i}` and `{n}` number repeats. |
 | `seconds` | 1..10800. Exactly one of `seconds`, `untilHrAtMost` and `untilHrBelow`. |
 | `untilHrAtMost`, `untilHrBelow` | 40..230 bpm. The phase continues until HR is at most, or below, this value, after `minSeconds` (default 60, 1..3600). Not allowed for `primer` or `effort`. |
 | `resistance`, `rpm` | A number, a `[low, high]` pair or a label of up to 40 characters. |
 | `hr`, `hrBelow` | An HR label, or `hrBelow` (40..230) shown as "Under N". |
-| `hrRange` | `[low, high]`, 40..230 bpm, rising. The app checks a live strap reading against it ("Above 120 · ease one level") and shows it on the HR bar. Only on `warmup`, `settle`, `recovery` and `cooldown`: `main` steers from the Settings targets. Not with `hrBelow`. |
+| `hrRange` | `[low, high]`, 40..230 bpm, rising. The app checks a live strap reading against it ("Above 120 · ease one level") and shows it on the HR bar. Only on `warmup`, `settle`, `recovery` and `cooldown`: `main` steers from the Settings targets, so a band step is `settle`, never `main`. Not with `hrBelow`. |
 | `hrMax` | 40..230 bpm and above the top of `hrRange`; needs `hrRange`. A hard cap. A strap reading above it shows "Above N · ease resistance now" and speaks a warning after 5 s, at most once a minute. |
 | `check` | `{"prompt": up to 80 characters, "options": 2..5 different texts of up to 24, "pass": [some options], "onFail": {"shiftBpm": -30..-1}}`. Timed steps only, not `primer` or `effort`. The question opens, with a beep and the prompt spoken, 30 s before the step ends and stays answerable during the next step. The answer is saved with the ride, with the step's average HR and watts over those last 30 s, all editable in the summary. `onFail` needs `pass`: an answer outside `pass` lowers `hrRange` and `hrMax` of every later step by `shiftBpm` (see below). |
 | `cue` | Up to 200 characters, spoken at the start of the phase. |
