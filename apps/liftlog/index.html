@@ -180,6 +180,8 @@ html.session-active .app-footer{ display:none; }     /* keyboard help is still ?
 .field > .cap{
   font-size:10.5px; font-weight:650; letter-spacing:.05em; text-transform:uppercase; color:var(--muted);
 }
+/* the instructions label sits beside its Preview button, so it is not a direct child of .field */
+.md-field-head > .cap{ font-size:10.5px; font-weight:650; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); }
 input[type="text"],input[type="number"],input[type="search"],input[type="datetime-local"],select,textarea{
   font:inherit; font-size:var(--fs-sm); color:var(--text);
   background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--radius);
@@ -829,11 +831,12 @@ html.is-reordering, html.is-reordering *{ overflow-anchor:none; }
 }
 
 /* exercises */
-.ex-edit-grid{ display:grid; grid-template-columns:2fr 1fr 120px; gap:var(--sp-3); align-items:end; }
+/* the exercise form: one field per row, the same order when adding and editing */
+.ex-form{ max-width:640px; }
+.ex-fields{ display:grid; gap:var(--sp-4); }
 .list-row.is-editing{ background:var(--accent-soft); display:block; }
 .tag-plain{ border:0; background:var(--surface-2); }
 .tag-warn{ border-color:transparent; color:var(--warning); background:var(--warning-soft); }
-@media (max-width:640px){ .ex-edit-grid{ grid-template-columns:1fr 1fr; } }
 
 /* settings */
 .setting-block{ padding:var(--sp-4); border-bottom:1px solid var(--border); }
@@ -1736,7 +1739,7 @@ function supersetWarning(a, b){
 }
 /* The library toggle: one value, so it saves with the rest of the exercise form. */
 function straightSetsSwitch(id, attrs, on){
-  return '<div class="switch-row mt-3"><label for="' + id + '"><strong>Straight sets only</strong><br>' +
+  return '<div class="switch-row"><label for="' + id + '"><strong>Straight sets only</strong><br>' +
     '<span class="hint">Heavy or technical lift that needs full rest — warn when paired in a superset</span></label>' +
     '<span class="switch"><input type="checkbox" id="' + id + '" ' + attrs + (on ? ' checked' : '') + '><span class="track" aria-hidden="true"></span></span></div>';
 }
@@ -7242,39 +7245,42 @@ function categoryDatalist(id){
   const cats = Array.from(new Set(state.exercises.map(e => e.category).filter(Boolean)));
   return '<datalist id="' + esc(id) + '">' + cats.map(c => '<option value="' + esc(c) + '">').join('') + '</datalist>';
 }
+/* The exercise fields, one per row and in one order for a new exercise and an
+   edit. `bind({ form, field })` gives the attributes that tie a control to the
+   add form (its name) or to the edit draft (its field); `v` holds the values. */
+function exerciseFieldsHTML(bind, v, ids){
+  const field = (cap, control, hint) => '<label class="field"><span class="cap">' + cap + '</span>' + control +
+    (hint ? '<span class="hint">' + hint + '</span>' : '') + '</label>';
+  const text = (n, f, value, extra) => '<input type="text" ' + bind({ form:n, field:f }) + ' value="' + esc(value || '') + '"' + (extra || '') + '>';
+  return '<div class="ex-fields">' +
+    field('Name', text('exname', 'name', v.name, ' required' + (ids.isNew ? ' placeholder="e.g. Incline Press"' : ''))) +
+    field('Category', '<select ' + bind({ form:'excat', field:'category' }) + '>' + categoryOptions(v.category) + '</select>', 'Push, Pull, Legs, Hinge, Core or Cardio.') +
+    field('Measurement', '<select ' + bind({ form:'exunit', field:'unit' }) + '>' + exerciseUnitOptions(v.unit) + '</select>') +
+    field('Movement family', text('exfamily', 'movementFamily', v.movementFamily, ' list="' + ids.families + '"' + (ids.isNew ? ' placeholder="horizontal_push"' : '')) + movementFamilyDatalist(ids.families),
+      'Groups training volume across related movements. Load progress stays separate.') +
+    field('Muscle group', '<select ' + bind({ form:'exgroup', field:'group' }) + '>' + groupOptions(v.group, v.movementFamily) + '</select>',
+      'Starting a set within 3:00 of another in its group gets a warning and a wait. <code>none</code> never does (rehab, arm work).') +
+    field('Load convention', '<select ' + bind({ form:'exloadmode', field:'loadMode' }) + '>' + loadModeOptions(v.loadMode) + '</select>') +
+    field('Equipment key (optional)', text('exequipment', 'equipmentKey', v.equipmentKey, ' placeholder="gym-a-leg-press"'), 'Same key means the same implement or machine.') +
+    restField(bind({ form:'exrest', field:'restSeconds' }), v.restSeconds) +
+    straightSetsSwitch(ids.straight, bind({ form:'exstraight', field:'straightSetsOnly' }), v.straightSetsOnly === true) +
+    field('Notes (optional)', text('exnotes', 'notes', v.notes, ' placeholder="Machine settings: seat height, pin position, grip…"'),
+      'Machine and setup settings. Sets, rep ranges, RIR and starting load belong in the routine.') +
+    instructionsField(bind({ form:'exinstructions', field:'instructions' }), v.instructions, ids.instructions) +
+    /* type="text" with inputmode="url", not type="url": the native validator
+       refuses a bare "example.com" and blocks the whole submit over an
+       optional field, where safeUrl() simply gives it https://. The keyboard
+       is the same either way. */
+    field('How-to link (optional)', '<input type="text" ' + bind({ form:'exurl', field:'url' }) + ' inputmode="url" autocomplete="url" spellcheck="false" value="' + esc(v.url || '') + '" ' +
+      'placeholder="https://… a video or page showing the movement">') +
+  '</div>';
+}
 function htmlExerciseForm(){
   return '<section class="panel mb-4"><div class="pad">' +
-    '<form data-form="ex-new">' +
+    '<form data-form="ex-new" class="ex-form">' +
       '<h3 class="panel-title mb-3">New exercise</h3>' +
-      '<div class="ex-edit-grid">' +
-        '<label class="field"><span class="cap">Name</span><input type="text" name="exname" required placeholder="e.g. Incline Press"></label>' +
-        '<label class="field"><span class="cap">Category</span><select name="excat">' + categoryOptions('Other') + '</select>' +
-          '<span class="hint">Broad reporting bucket: Push, Pull, Legs, Hinge, Core or Cardio.</span></label>' +
-        '<label class="field"><span class="cap">Measurement</span>' +
-          '<select name="exunit">' + exerciseUnitOptions(state.settings.unit) + '</select></label>' +
-      '</div>' +
-      '<div class="ex-edit-grid mt-3">' +
-        '<label class="field"><span class="cap">Movement family</span><input name="exfamily" list="ex-families" placeholder="horizontal_push">' + movementFamilyDatalist('ex-families') +
-          '<span class="hint">Groups training volume across related movements; load progress stays separate.</span></label>' +
-        '<label class="field"><span class="cap">Load convention</span><select name="exloadmode">' + loadModeOptions('total') + '</select></label>' +
-        '<label class="field"><span class="cap">Muscle group</span><select name="exgroup">' + groupOptions('', '') + '</select>' +
-          '<span class="hint">Starting one within 3:00 of another in its group gets a warning and a wait. <code>none</code> never does (rehab, arm work).</span></label>' +
-        '<label class="field"><span class="cap">Equipment key (optional)</span><input name="exequipment" placeholder="gym-a-leg-press">' +
-          '<span class="hint">Use the same stable key only for the same implement or machine.</span></label>' +
-      '</div>' +
-      restField('name="exrest"', '') +
-      straightSetsSwitch('ex-new-straight', 'name="exstraight"', false) +
-      '<label class="field mt-3"><span class="cap">Notes (optional)</span>' +
-        '<input type="text" name="exnotes" placeholder="Machine settings: seat height, pin position, grip…">' +
-        '<span class="hint">Machine and setup settings that stay the same between sessions. Sets, rep ranges, RIR and starting load belong in the routine.</span></label>' +
-      instructionsField('name="exinstructions"', '', 'ex-new-instructions') +
-      /* type="text" with inputmode="url", not type="url": the native validator
-         refuses a bare "example.com" and blocks the whole submit over an
-         optional field, where safeUrl() simply gives it https://. The keyboard
-         is the same either way. */
-      '<label class="field mt-3"><span class="cap">How-to link (optional)</span>' +
-        '<input type="text" name="exurl" inputmode="url" autocomplete="url" spellcheck="false" ' +
-        'placeholder="https://… a video or page showing the movement"></label>' +
+      exerciseFieldsHTML(n => 'name="' + n.form + '"', { name:'', category:'Other', unit:state.settings.unit, movementFamily:'', group:'', loadMode:'total',
+        equipmentKey:'', restSeconds:'', straightSetsOnly:false, notes:'', instructions:'', url:'' }, { families:'ex-families', straight:'ex-new-straight', instructions:'ex-new-instructions', isNew:true }) +
       (ui.exerciseFormError ? '<p class="error-text mt-2" role="alert">' + esc(ui.exerciseFormError) + '</p>' : '') +
       '<div class="form-actions mt-3">' +
         '<button type="submit" class="btn btn-primary">Add exercise</button>' +
@@ -7286,7 +7292,7 @@ function htmlExerciseForm(){
    place without a re-render, so values typed into the add form survive. */
 function instructionsField(attrs, value, id){
   const length = String(value || '').length;
-  return '<div class="field mt-3 md-field">' +
+  return '<div class="field md-field">' +
     '<div class="md-field-head"><label class="cap" for="' + id + '">Instructions (optional)</label>' +
       '<button type="button" class="btn btn-sm" data-action="md-preview" data-target="' + id + '" aria-pressed="false" aria-controls="' + id + '-preview">Preview</button></div>' +
     '<textarea id="' + id + '" ' + attrs + ' data-md rows="6" maxlength="' + WorkoutMarkdown.MAX_LENGTH + '" ' +
@@ -7320,7 +7326,7 @@ function htmlHowTo(rawUrl, name, iconOnly){
 }
 /* Blank keeps the Settings rest, which the placeholder shows. */
 function restField(attrs, value){
-  return '<label class="field mt-3"><span class="cap">Rest after a set (seconds, optional)</span>' +
+  return '<label class="field"><span class="cap">Rest after a set (seconds, optional)</span>' +
     '<input type="number" ' + attrs + ' min="' + REST_MIN + '" max="' + REST_MAX + '" step="15" inputmode="numeric" ' +
     'value="' + esc(value == null ? '' : String(value)) + '" placeholder="' + state.settings.defaultRest + ' (Settings)">' +
     '<span class="hint">For movements that need longer or shorter rest in every routine.</span></label>';
@@ -7336,33 +7342,9 @@ function htmlExerciseEditRow(){
    nothing in the workout's sheet, whose action row submits the form by id. */
 function htmlExerciseEditForm(actions = ''){
   const d = ui.exerciseDraft;
-  return '<form data-form="ex-save" id="ex-edit-form" tabindex="-1">' +
-      '<div class="ex-edit-grid">' +
-        '<label class="field"><span class="cap">Name</span><input type="text" data-bind="edraft" data-field="name" value="' + esc(d.name) + '" required></label>' +
-        '<label class="field"><span class="cap">Category</span><select data-bind="edraft" data-field="category">' + categoryOptions(d.category) + '</select>' +
-          '<span class="hint">Broad reporting bucket: Push, Pull, Legs, Hinge, Core or Cardio.</span></label>' +
-        '<label class="field"><span class="cap">Measurement</span>' +
-          '<select data-bind="edraft" data-field="unit">' + exerciseUnitOptions(d.unit) + '</select></label>' +
-      '</div>' +
-      '<div class="ex-edit-grid mt-3">' +
-        '<label class="field"><span class="cap">Movement family</span><input data-bind="edraft" data-field="movementFamily" value="' + esc(d.movementFamily || '') + '" list="ex-families-edit">' + movementFamilyDatalist('ex-families-edit') +
-          '<span class="hint">Groups training volume across related movements; load progress stays separate.</span></label>' +
-        '<label class="field"><span class="cap">Load convention</span><select data-bind="edraft" data-field="loadMode">' + loadModeOptions(normalizeLoadMode(d.loadMode,d.unit)) + '</select></label>' +
-        '<label class="field"><span class="cap">Muscle group</span><select data-bind="edraft" data-field="group">' + groupOptions(normalizeGroup(d.group), d.movementFamily) + '</select>' +
-          '<span class="hint">Starting one within 3:00 of another in its group gets a warning and a wait. <code>none</code> never does (rehab, arm work).</span></label>' +
-        '<label class="field"><span class="cap">Equipment key (optional)</span><input data-bind="edraft" data-field="equipmentKey" value="' + esc(d.equipmentKey || '') + '" placeholder="gym-a-leg-press">' +
-          '<span class="hint">Same key means the same implement or machine.</span></label>' +
-      '</div>' +
-      restField('data-bind="edraft" data-field="restSeconds"', d.restSeconds) +
-      straightSetsSwitch('ex-edit-straight', 'data-bind="edraft" data-field="straightSetsOnly"', d.straightSetsOnly === true) +
-      '<label class="field mt-3"><span class="cap">Notes</span>' +
-        '<input type="text" data-bind="edraft" data-field="notes" value="' + esc(d.notes) + '" placeholder="Machine settings: seat height, pin position, grip…">' +
-        '<span class="hint">Machine and setup settings; prescription belongs in the routine.</span></label>' +
-      instructionsField('data-bind="edraft" data-field="instructions"', d.instructions, 'ex-edit-instructions') +
-      '<label class="field mt-3"><span class="cap">How-to link</span>' +
-        '<input type="text" inputmode="url" autocomplete="url" spellcheck="false" ' +
-        'data-bind="edraft" data-field="url" value="' + esc(d.url || '') + '" ' +
-        'placeholder="https://… a video or page showing the movement"></label>' +
+  return '<form data-form="ex-save" id="ex-edit-form" class="ex-form" tabindex="-1">' +
+      exerciseFieldsHTML(n => 'data-bind="edraft" data-field="' + n.field + '"', { ...d, group:normalizeGroup(d.group), loadMode:normalizeLoadMode(d.loadMode, d.unit),
+        straightSetsOnly:d.straightSetsOnly === true }, { families:'ex-families-edit', straight:'ex-edit-straight', instructions:'ex-edit-instructions', isNew:false }) +
       actions +
     '</form>';
 }
