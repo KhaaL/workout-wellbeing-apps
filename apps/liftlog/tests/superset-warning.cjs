@@ -35,7 +35,7 @@ const routines = () => [
     const page = await browser.newPage({ viewport:{ width:390, height:844 } });
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
-    const html = appWithTestAPI(`{ navigate, render, startRoutine, openPairDialog, newRoutineDraft, prepareBackup, supersetWarning, exerciseById,
+    const html = appWithTestAPI(`{ navigate, render, startRoutine, openPairDialog, newRoutineDraft, prepareBackup, supersetWarning, exerciseById, sampleFile:sampleRoutinesFile,
       get state(){return state}, get ui(){return ui} }`);
     await page.route('https://liftlog.test/**', route => route.fulfill({ contentType:'text/html', body:html }));
     await page.goto('https://liftlog.test/');
@@ -43,7 +43,7 @@ const routines = () => [
       const t = window.testAPI;
       t.state.exercises = lib; t.state.routines = routines; t.state.workouts = []; t.state.activeWorkout = null;
       t.ui.routineDraft = null; t.ui.exerciseDraft = null; t.ui.showExerciseForm = false;
-      window.pair = (a, b) => t.supersetWarning(t.exerciseById(a), t.exerciseById(b));
+      window.pair = (a, b) => t.supersetWarning(t.exerciseById(a), t.exerciseById(b)); window.sampleFile = t.sampleFile;
       t.navigate('routines');
     }, [lib, routines()]);
     await reset();
@@ -172,6 +172,27 @@ const routines = () => [
     assert.equal(imported.exercises.find(e => e.name === 'Bulgarian Split Squat').straightSetsOnly, true, 'the flag comes with the exercise');
     assert.equal(imported.exercises.find(e => e.name === 'Hip Thrust (Machine A)').straightSetsOnly, undefined);
     console.log('PASS import review lists flagged supersets and never blocks');
+
+    /* A pair the file marks as kept is not listed again, so the sample (a straight-sets-only exercise in a kept superset) imports straight through. */
+    await page.evaluate(() => { const t = window.testAPI; t.state.exercises = []; t.state.routines = []; t.render(); });
+    const keptRoutines = [{ ...fileRoutines[0], keptSupersets:['x1|x2'] }];
+    await picker.setInputFiles(file(keptRoutines, exercises));
+    await page.waitForFunction(() => window.testAPI.state.routines.length === 1);
+    assert.equal(await review.evaluate(d => d.open), false, 'a kept pair asks nothing');
+    const keptAfter = (await state('state')).routines[0];
+    assert.deepEqual(keptAfter.keptSupersets, [[...keptAfter.items.map(it => it.exerciseId)].sort().join('|')], 'the keep follows the exercises to their new IDs');
+    await page.evaluate(() => { const t = window.testAPI; t.ui.routineDraft = t.newRoutineDraft(t.state.routines[0]); t.render(); });
+    assert.equal(await flags.count(), 0, 'and the editor does not warn about it');
+    await page.evaluate(() => { window.testAPI.ui.routineDraft = null; window.testAPI.render(); });
+    await page.evaluate(() => { const t = window.testAPI; t.state.exercises = []; t.state.routines = []; t.render(); });
+    const sample = await page.evaluate(() => JSON.stringify(window.sampleFile()));
+    await picker.setInputFiles({ name:'sample.json', mimeType:'application/json', buffer:Buffer.from(sample) });
+    await page.waitForFunction(() => window.testAPI.state.routines.length === 3);
+    assert.equal(await review.evaluate(d => d.open), false, 'the sample imports without a review');
+    const split = (await state('state')).exercises.find(e => e.name === 'Bulgarian Split Squat');
+    assert.equal(split.straightSetsOnly, true, 'the sample carries the flag');
+    assert.ok((await state('state')).exercises.filter(e => e.straightSetsOnly).map(e => e.name).sort().join() === 'Bulgarian Split Squat,Leg Press', 'on Leg Press and the split squat');
+    console.log('PASS a kept pair is not listed again; the sample carries the flag and imports clean');
 
     /* A file with no flagged superset imports without the extra step; and an old file without the field reads as false everywhere. */
     await page.evaluate(() => { const t = window.testAPI; t.state.exercises = []; t.state.routines = []; t.render(); });

@@ -4429,7 +4429,9 @@ function importSupersetFlags(plan, choiceFor){
       if (!it || typeof it.supersetOf !== 'string' || !it.supersetOf.trim() || it.eitherOf) return;
       groups.set(it.supersetOf, (groups.get(it.supersetOf) || []).concat([it]));
     });
-    const pairs = [...groups.values()].filter(g => g.length === 2 && g[0].exerciseId !== g[1].exerciseId).map(g => {
+    const kept = new Set(Array.isArray(r.keptSupersets) ? r.keptSupersets.map(String) : []);
+    const pairs = [...groups.values()].filter(g => g.length === 2 && g[0].exerciseId !== g[1].exerciseId &&
+      !kept.has(keptSupersetKey(g[0].exerciseId, g[1].exerciseId))).map(g => {
       const a = resolve(g[0]), b = resolve(g[1]);
       return a && b ? { names:[a.name, b.name], reasons:supersetWarning(a, b) } : null;
     }).filter(pair => pair && pair.reasons.length);
@@ -4536,6 +4538,9 @@ function importFixture(){
        do not compete with the main lifts, so this one sits in none */
     { id:'ex-calf-raise', name:'Calf Raise', category:'Legs', movementFamily:'squat', group:'none', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-calf-raise', archived:false, notes:'', url:'' },
     { id:'ex-plank', name:'Plank', category:'Core', movementFamily:'core', unit:'time', loadMode:'duration', equipmentKey:'', archived:false, notes:'', url:'' },
+    /* straightSetsOnly: a heavy or technical lift that needs full rest. Pairing it
+       in a superset shows a warning (import review, routine editor, pair dialog); it never blocks. */
+    { id:'ex-split-squat', name:'Bulgarian Split Squat', category:'Legs', movementFamily:'squat', straightSetsOnly:true, unit:'kg', loadMode:'total', equipmentKey:'', archived:false, notes:'', url:'' },
     { id:'ex-db-bench', name:'Dumbbell Bench Press', category:'Push', movementFamily:'horizontal_push', unit:'kg', loadMode:'total', equipmentKey:'', archived:false, notes:'', url:'' },
     { id:'ex-chest-press', name:'Chest Press', category:'Push', movementFamily:'horizontal_push', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-chest-press', archived:false, notes:'', url:'' }
   ];
@@ -4553,9 +4558,14 @@ function importFixture(){
   }, {
     /* a one-off plan two days ahead: the same shape plus plan and plannedFor */
     id:'plan-lighter-legs', name:'Lighter legs', plan:true, plannedFor:localDay(Date.now() + 2 * 86400000),
+    /* a superset with a straight-sets-only exercise, with its warning kept: the two
+       exercise IDs, sorted and joined with |. Without the keptSupersets line the
+       import review would list this pair; with it the import goes straight through. */
+    keptSupersets:['ex-plank|ex-split-squat'],
     items:[
       { id:'it-6', exerciseId:'ex-squat', sets:3, repsMin:5, repsMax:5, targetRir:3, weight:90 },
-      { id:'it-7', exerciseId:'ex-plank', sets:2, repsMin:45, repsMax:45, targetRir:null, weight:null }
+      { id:'it-7', exerciseId:'ex-plank', sets:2, repsMin:45, repsMax:45, targetRir:null, weight:null, supersetOf:'superset-core' },
+      { id:'it-11', exerciseId:'ex-split-squat', sets:2, repsMin:6, repsMax:8, targetRir:2, weight:16, supersetOf:'superset-core' }
     ]
   }, {
     /* set plans: one entry per set, each with its own load and target. The
@@ -4659,7 +4669,7 @@ function schemaHelpHTML(){
       ['routines[].name', 'string, required', 'Skipped if missing, or if a routine of that name already exists (for a plan: that name on that day).'],
       ['routines[].plan', 'optional boolean', '<code>true</code> makes it a one-off plan: listed under Planned on Today, and removed once the session started from it is saved. The workout keeps what it prescribed. Omitted: a stable routine.'],
       ['routines[].plannedFor', 'optional string', 'A plan’s calendar day as <code>YYYY-MM-DD</code>. Missing or invalid means anytime; a past day stays listed as overdue until the plan is started or deleted.'],
-      ['routines[].keptSupersets', 'optional array', 'Superset warnings you chose to keep in this routine: each entry is the two exercise IDs of the pair, sorted and joined with <code>|</code>. Entries that no longer name one of the routine’s supersets are dropped.'],
+      ['routines[].keptSupersets', 'optional array', 'Superset warnings you chose to keep in this routine: each entry is the two exercise IDs of the pair, sorted and joined with <code>|</code>. Entries that no longer name one of the routine’s supersets are dropped. The import review does not list a kept pair.'],
       ['routines[].items[]', 'required', 'One entry per exercise; order is the order you train in.'],
       ['items[].exerciseId', 'string, required', 'Resolved by id, then name, then created from <code>exercises[]</code>. Uncertain matches are confirmed in a review before import.'],
       ['items[].sets', 'integer', 'Clamped to ' + L.sets[0] + '\u2013' + L.sets[1] + '. Default 3.'],

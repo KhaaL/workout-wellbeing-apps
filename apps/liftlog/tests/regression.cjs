@@ -20,7 +20,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       const sample = t.sampleRoutinesFile();
       check(sample.version === 17 && sample.schemaVersion === '1.17.0', 'sample version markers');
       t.importRoutines(file(sample)); await wait();
-      check(t.state.routines.length === 3 && t.state.exercises.length === 7, 'routine sample imports all definitions');
+      check(t.state.routines.length === 3 && t.state.exercises.length === 8, 'routine sample imports all definitions');
       check(t.state.routines[1].plan === true && /^\d{4}-\d{2}-\d{2}$/.test(t.state.routines[1].plannedFor) && !('plan' in t.state.routines[0]),
         'the sample plan imports as a plan and the routine stays stable');
       const r = t.state.routines[0];
@@ -222,7 +222,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       'review can relink a previously separated series');
     await page.evaluate(() => window.testAPI.state.exercises.reverse());
     await navigateUI(page,'exercises');
-    assert.deepEqual(await page.locator('#ex-list .list-name').allTextContents(), ['Back Squat','Chest Press','Dumbbell Bench Press','Leg Press','Plank'],
+    assert.deepEqual(await page.locator('#ex-list .list-name').allTextContents(), ['Back Squat','Bulgarian Split Squat','Chest Press','Dumbbell Bench Press','Leg Press','Plank'],
       'exercise list is alphabetical regardless of stored order');
     await page.locator('#ex-list .ex-row').filter({hasText:'Leg Press'}).locator('.list-open').click();
     const legPressSheet = page.getByRole('dialog', {name:'Leg Press'});
