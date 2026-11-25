@@ -778,6 +778,11 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .routine-pair-existing h3{ font-size:var(--fs-sm); margin-bottom:var(--sp-2); }
 .routine-pair-existing-row{ display:flex; align-items:center; justify-content:space-between; gap:var(--sp-3); padding:var(--sp-2) 0; border-top:1px solid var(--border); font-size:var(--fs-sm); }
 .routine-pair-existing-row span{ min-width:0; }
+/* A superset worth a second look: advice under the pair, never a block */
+.superset-warning{ margin:var(--sp-2) 0 var(--sp-3); padding:var(--sp-3); border:1px solid var(--warning); border-radius:var(--radius); background:var(--warning-soft); color:var(--text); font-size:var(--fs-sm); }
+.superset-warning p{ margin:0; }
+.superset-warning[hidden]{ display:none; }
+.superset-warning-actions{ display:flex; flex-wrap:wrap; gap:var(--sp-2); margin-top:var(--sp-2); }
 #pair-picker[hidden]{ display:none; }
 #pair-error{ color:var(--danger); }
 @media (max-width:540px){ .routine-pair-fields{ grid-template-columns:1fr; } }
@@ -1359,8 +1364,9 @@ button,.btn,.icon-btn,.nav-btn,.strip-step,.strip-num,.hist-row,.list-open{
     <div id="pair-existing" class="routine-pair-existing"></div>
     <div id="pair-picker" class="routine-pair-fields">
       <label class="field"><span class="cap">First exercise</span><select id="pair-first" data-change="pair-first"></select></label>
-      <label class="field"><span class="cap" id="pair-second-cap">Or this exercise</span><select id="pair-second"></select></label>
+      <label class="field"><span class="cap" id="pair-second-cap">Or this exercise</span><select id="pair-second" data-change="pair-second"></select></label>
     </div>
+    <p id="pair-warning" class="superset-warning" role="status" hidden></p>
     <p id="pair-empty" class="hint" hidden>Add two unpaired exercises to create another pair.</p>
     <p id="pair-error" class="error-text" role="alert" hidden></p>
   </div>
@@ -1376,6 +1382,7 @@ button,.btn,.icon-btn,.nav-btn,.strip-step,.strip-num,.hist-row,.list-open{
     <p class="desc" id="import-match-desc">Using an exercise you already have keeps its history and progression in one series.
       Nothing is imported until you confirm.</p>
     <div id="import-match-list" class="history-link-list"></div>
+    <div id="import-superset-flags" class="superset-warning mt-3" role="status" hidden></div>
     <p id="import-match-auto" class="hint mt-3"></p>
   </div>
   <div class="dlg-actions">
@@ -1711,6 +1718,28 @@ function exerciseGroup(x){
   const src = def || x;
   return normalizeGroup(src.group) || defaultGroup(src.movementFamily || inferMovementFamily(src.name, src.category));
 }
+/* The definition behind an exercise, a routine item or a workout block: the Library entry when there is one, else what the block itself carries. An imported source stands for itself. */
+function exerciseDefinition(x){
+  if (!x) return null;
+  return x.exerciseId !== undefined ? exerciseById(canonicalExerciseId(x.exerciseId)) || x : x;
+}
+/* Why a superset of these two is worth a second look. Empty when it is not.
+   Either exercise marked straight sets only, and/or both in one group other
+   than none. Advice only: callers never block or change a plan because of it. */
+function supersetWarning(a, b){
+  const defs = [exerciseDefinition(a), exerciseDefinition(b)];
+  if (!defs[0] || !defs[1]) return [];
+  const reasons = defs.filter(d => d.straightSetsOnly === true).map(d => d.name + ' is straight-sets-only');
+  const first = exerciseGroup(defs[0]);
+  if (first === exerciseGroup(defs[1]) && first !== 'none') reasons.push('both in group ' + first);
+  return reasons;
+}
+/* The library toggle: one value, so it saves with the rest of the exercise form. */
+function straightSetsSwitch(id, attrs, on){
+  return '<div class="switch-row mt-3"><label for="' + id + '"><strong>Straight sets only</strong><br>' +
+    '<span class="hint">Heavy or technical lift that needs full rest — warn when paired in a superset</span></label>' +
+    '<span class="switch"><input type="checkbox" id="' + id + '" ' + attrs + (on ? ' checked' : '') + '><span class="track" aria-hidden="true"></span></span></div>';
+}
 function groupOptions(value, family){
   return '<option value=""' + (value ? '' : ' selected') + '>Automatic (' + defaultGroup(family) + ')</option>' +
     EXERCISE_GROUPS.map(g => '<option value="' + g + '"' + (value === g ? ' selected' : '') + '>' + g + '</option>').join('');
@@ -1825,7 +1854,7 @@ const BACKUP_MAX_NODES = 200000;
 const LS_KEY = 'liftlog.v1';
 const LS_RESCUE_KEY = 'liftlog.v1.unreadable';  /* holds data we could not load, so nothing is lost silently */
 const LS_REMOTE_RESTORE_KEY = 'liftlog.v1.before-remote-restore';
-const SCHEMA_VERSION = 16;  /* v3: sets carry durationSeconds (time no longer overloads reps)
+const SCHEMA_VERSION = 17;  /* v3: sets carry durationSeconds (time no longer overloads reps)
                                + countForVolume / countForPR split execution from analytics
                                v4: settings carry effortMetric ('none'|'rpe'|'rir'), sets carry rir
                                v5: library exercises carry url (how to perform the movement)
@@ -1840,8 +1869,9 @@ const SCHEMA_VERSION = 16;  /* v3: sets carry durationSeconds (time no longer ov
                                v13: routine items can share a supersetOf pair key
                                v14: routines can be one-off plans (plan, plannedFor)
                                v15: library exercises can override the rest length (restSeconds)
-                               v16: library exercises carry instructions (Markdown text) */
-const EXPORT_SCHEMA = '1.16.0'; /* version of the documented import/export contract — 1.1: sets[].rir;
+                               v16: library exercises carry instructions (Markdown text)
+                               v17: library exercises can be straight sets only; routines can keep a flagged superset */
+const EXPORT_SCHEMA = '1.17.0'; /* version of the documented import/export contract — 1.1: sets[].rir;
                                   1.2: exercises[].url; 1.3: per-item rest dropped; 1.4: items[].eitherOf;
                                   1.5: lower/upper rep targets and optional target RIR;
                                   1.6: reversible historical exercise links;
@@ -1853,7 +1883,8 @@ const EXPORT_SCHEMA = '1.16.0'; /* version of the documented import/export contr
                                   1.13: exercises[].restSeconds; 1.14: exercises[].instructions;
                                   1.15: items[].setPlan and items[].implementCount, sets[].role and
                                   per-set targets (optional: older versions read the item summary);
-                                  1.16: exercises[].group and workout exercises[].excludeFromProgression */
+                                  1.16: exercises[].group and workout exercises[].excludeFromProgression;
+                                  1.17: exercises[].straightSetsOnly and routines[].keptSupersets */
 
 /* Set by load() when stored data could not be used, surfaced once after init. */
 const localStore = LiftlogStorage.createLocal({
@@ -1965,6 +1996,7 @@ function validateBackup(s){
     number(e.restSeconds, path + '.restSeconds');
     if (e.group != null && !EXERCISE_GROUPS.includes(e.group)) fail(path + '.group', 'one of ' + EXERCISE_GROUPS.join(', '));
     bool(e.archived, path + '.archived');
+    bool(e.straightSetsOnly, path + '.straightSetsOnly');
   });
   const linkSources = new Set();
   (s.exerciseLinks || []).forEach((link, i) => {
@@ -1991,6 +2023,10 @@ function validateBackup(s){
     const path = 'routines[' + i + ']'; object(r, path);
     id(r.id, path + '.id', routines); text(r.name, path + '.name', true);
     bool(r.plan, path + '.plan');
+    if (r.keptSupersets != null){
+      array(r.keptSupersets, path + '.keptSupersets');
+      r.keptSupersets.forEach((v, k) => text(v, path + '.keptSupersets[' + k + ']', true));
+    }
     if (r.plannedFor != null && !validPlanDay(r.plannedFor)) fail(path + '.plannedFor', 'a calendar day as YYYY-MM-DD');
     array(r.items, path + '.items');
     const items = new Set();
@@ -2098,6 +2134,7 @@ function migrateState(s){
   if (s.version === 13) s.version = 14; // optional plan fields: old routines stay stable routines
   if (s.version === 14) s.version = 15; // optional rest override: old exercises use Settings
   if (s.version === 15) s.version = 16; // optional instructions: old exercises have none
+  if (s.version === 16) s.version = 17; // optional straightSetsOnly and keptSupersets: older data has none, which means false and none kept
   return s;
 }
 /* v1 shipped an earlier seed library/routines. v2 refreshes both to the
@@ -2254,9 +2291,10 @@ function normalizeState(s){
       if (bodyweightIds.has(entry.id) || bodyweightDates.has(entry.loggedAt)) return false;
       bodyweightIds.add(entry.id); bodyweightDates.add(entry.loggedAt); return true;
     });
-  s.exercises = (s.exercises || []).map(({ restSeconds, group, ...e }) => ({ ...e,
+  s.exercises = (s.exercises || []).map(({ restSeconds, group, straightSetsOnly, ...e }) => ({ ...e,
     ...(normalizeRestSeconds(restSeconds) != null ? { restSeconds:normalizeRestSeconds(restSeconds) } : {}),
     ...(normalizeGroup(group) ? { group } : {}),
+    ...(straightSetsOnly === true ? { straightSetsOnly:true } : {}),
     category: normalizeCategory(e.category, e.name),
     unit: normalizedExerciseUnit(isUnit(e.unit) ? e.unit : set.unit, set.unit),
     loadMode: normalizeLoadMode(e.loadMode, isUnit(e.unit) ? e.unit : set.unit),
@@ -2281,7 +2319,7 @@ function normalizeState(s){
     separateSeen.add(id); return true;
   }).map(String);
   s.routines  = s.routines || [];
-  s.routines.forEach(r => { normalizePlanFields(r); r.items.forEach(normalizeRoutineItem); cleanRoutinePairs(r.items); keepRoutinePairsAdjacent(r.items); });
+  s.routines.forEach(r => { normalizePlanFields(r); r.items.forEach(normalizeRoutineItem); cleanRoutinePairs(r.items); keepRoutinePairsAdjacent(r.items); normalizeKeptSupersets(r); });
   s.workouts  = s.workouts || [];
   s.activeWorkout = s.activeWorkout || null;
   const normalizeWorkout = (w, active) => {
@@ -3724,6 +3762,7 @@ function routinesController(){
     get plural(){return plural;},
     get render(){return render;},
     get routineById(){return routineById;},
+    get supersetWarning(){return supersetWarning;},
     get save(){return save;},
     get state(){return state;},
     get normalizeRestSeconds(){return normalizeRestSeconds;},
@@ -3741,6 +3780,9 @@ function groupPlannedSets(...args){return routinesController().groupPlannedSets(
 function keepRoutinePairsAdjacent(...args){return routinesController().keepRoutinePairsAdjacent(...args);}
 function routineSummary(...args){return routinesController().routineSummary(...args);}
 function normalizeRoutineItem(...args){return routinesController().normalizeRoutineItem(...args);}
+function normalizeKeptSupersets(...args){return routinesController().normalizeKeptSupersets(...args);}
+function supersetPairs(...args){return routinesController().supersetPairs(...args);}
+function keptSupersetKey(...args){return routinesController().keptSupersetKey(...args);}
 function normalizeWorkoutTargets(...args){return routinesController().normalizeWorkoutTargets(...args);}
 function repRangeState(...args){return routinesController().repRangeState(...args);}
 function setTarget(...args){return routinesController().setTarget(...args);}
@@ -3758,6 +3800,10 @@ const pairScope=routinesController().pairScope;
 function pairCandidates(...args){return routinesController().pairCandidates(...args);}
 function pairPickerOptions(...args){return routinesController().pairPickerOptions(...args);}
 function refreshSecondPairPicker(...args){return routinesController().refreshSecondPairPicker(...args);}
+function renderPairWarning(...args){return routinesController().renderPairWarning(...args);}
+function keepSuperset(...args){return routinesController().keepSuperset(...args);}
+function splitSuperset(...args){return routinesController().splitSuperset(...args);}
+function flaggedSupersets(...args){return routinesController().flaggedSupersets(...args);}
 function openPairDialog(...args){return routinesController().openPairDialog(...args);}
 function closePairDialog(...args){return routinesController().closePairDialog(...args);}
 function addPair(...args){return routinesController().addPair(...args);}
@@ -4313,6 +4359,7 @@ function applyRoutineImport(plan, choices){
         unit:normalizedExerciseUnit(m.source.unit, state.settings.unit),
         loadMode:m.source.loadMode, equipmentKey:m.source.equipmentKey.trim(), movementFamily:m.source.movementFamily,
         ...(normalizeGroup(src.group) ? { group:src.group } : {}),
+        ...(src.straightSetsOnly === true ? { straightSetsOnly:true } : {}),
         archived:!!src.archived, notes:String(src.notes || ''),
         instructions:String(src.instructions || '').slice(0, WorkoutMarkdown.MAX_LENGTH), url:safeUrl(src.url) };
       state.exercises.push(local); addedEx++;
@@ -4346,8 +4393,14 @@ function applyRoutineImport(plan, choices){
     keepRoutinePairsAdjacent(items);
     if (!items.length){ skippedR++; return; }
     const routineId = validId(r.id) && !state.routines.some(x => x.id === r.id) ? r.id : uid();
-    state.routines.push(normalizePlanFields({ id:routineId, name:String(r.name).trim(), items,
-      plan:r.plan === true, plannedFor:r.plannedFor }));
+    /* a kept superset warning names exercises by ID: the file's IDs become this Library's */
+    const localId = fileId => { const src = plan.exIn.find(e => e.id === fileId), match = src && resolved.get(src);
+      return match ? match.id : exerciseById(fileId) ? fileId : null; };
+    const kept = (Array.isArray(r.keptSupersets) ? r.keptSupersets : []).map(k => {
+      const [a, b, ...more] = String(k).split('|'), x = localId(a), y = localId(b);
+      return b && !more.length && x && y ? keptSupersetKey(x, y) : null; }).filter(Boolean);
+    state.routines.push(normalizeKeptSupersets({ ...normalizePlanFields({ id:routineId, name:String(r.name).trim(), items,
+      plan:r.plan === true, plannedFor:r.plannedFor }), keptSupersets:kept }));
     addedR++;
   });
   /* A routine import may promote an ID that was previously known only from
@@ -4360,6 +4413,32 @@ function applyRoutineImport(plan, choices){
     (skippedR ? ' · skipped ' + skippedR + ' duplicate or invalid' : '') +
     (matchedEx ? ' · matched ' + plural(matchedEx, 'existing exercise', 's') : '') +
     (addedEx ? ' · added ' + plural(addedEx, 'new exercise', 's') : ''));
+}
+/* Supersets in the file that are worth a second look, per routine, judged on
+   the exercises they would use: the Library entry a match picks, else the
+   file's own definition. choiceFor(match) is a Library ID, or '' to create. */
+function importSupersetFlags(plan, choiceFor){
+  const resolve = it => {
+    const src = plan.exIn.find(e => e.id === it.exerciseId), match = src && plan.matches.find(m => m.src === src);
+    if (match) return (choiceFor(match) && exerciseById(choiceFor(match))) || match.src;
+    return it.exerciseId ? exerciseById(it.exerciseId) : null;
+  };
+  return plan.routines.map(r => {
+    const groups = new Map();
+    (r.items || []).forEach(it => {
+      if (!it || typeof it.supersetOf !== 'string' || !it.supersetOf.trim() || it.eitherOf) return;
+      groups.set(it.supersetOf, (groups.get(it.supersetOf) || []).concat([it]));
+    });
+    const pairs = [...groups.values()].filter(g => g.length === 2 && g[0].exerciseId !== g[1].exerciseId).map(g => {
+      const a = resolve(g[0]), b = resolve(g[1]);
+      return a && b ? { names:[a.name, b.name], reasons:supersetWarning(a, b) } : null;
+    }).filter(pair => pair && pair.reasons.length);
+    return { name:String(r.name).trim(), pairs };
+  }).filter(flag => flag.pairs.length);
+}
+function importSupersetFlagsHTML(flags){
+  return '<p><strong>Supersets worth a second look</strong> <span class="hint">(imported as written; you can split or keep them in the routine editor)</span></p><ul>' +
+    flags.map(f => '<li>' + esc(f.name) + ': ' + f.pairs.map(p => esc(p.names.join(' + ')) + ' (' + esc(p.reasons.join('; ')) + ')').join(' · ') + '</li>').join('') + '</ul>';
 }
 function importMatchNote(m){
   const best = m.candidates[0];
@@ -4395,10 +4474,22 @@ function reviewRoutineImport(plan, review){
   const dlg = $('#import-match-dlg');
   const list = $('#import-match-list');
   list.innerHTML = review.map(importMatchRowHTML).join('');
+  /* superset advice follows the matches as they are chosen; it never blocks the import */
+  const paintFlags = () => {
+    const picked = new Map(review.map((m, i) => [m.src, $('#import-match-' + i).value]));
+    const flags = importSupersetFlags(plan, m => picked.has(m.src) ? picked.get(m.src) : m.target);
+    const box = $('#import-superset-flags');
+    box.hidden = !flags.length; box.innerHTML = flags.length ? importSupersetFlagsHTML(flags) : '';
+  };
   list.onchange = e => {
     const hint = e.target.tagName === 'SELECT' && $('#' + e.target.id + '-load');
     if (hint) hint.hidden = !e.target.selectedOptions[0].dataset.dropsLoad;
+    paintFlags();
   };
+  $('#import-match-title').textContent = review.length ? 'Match imported exercises' : 'Review imported supersets';
+  $('#import-match-desc').textContent = (review.length ? 'Using an exercise you already have keeps its history and progression in one series. ' : '') +
+    'Nothing is imported until you confirm.';
+  paintFlags();
   const auto = plan.matches.filter(m => m.status === 'exact').length;
   const created = plan.matches.filter(m => m.status === 'new').length;
   $('#import-match-auto').textContent = [auto ? plural(auto, 'other exercise') + ' matched exactly' : '',
@@ -4413,7 +4504,7 @@ function reviewRoutineImport(plan, review){
     $('#import-match-cancel').onclick = () => dlg.close();
     dlg.addEventListener('close', () => res(choices), { once:true });
     dlg.showModal();
-    $('#import-match-0').focus();
+    ($('#import-match-0') || $('#import-match-ok')).focus();
   });
 }
 function importRoutines(file){
@@ -4421,8 +4512,9 @@ function importRoutines(file){
     const plan = planRoutineImport(obj);
     if (!plan){ toast('No routines found in that file'); return; }
     const review = plan.matches.filter(m => m.status === 'review');
-    const choices = review.length ? await reviewRoutineImport(plan, review) : null;
-    if (review.length && !choices){ toast('Import cancelled — nothing was changed'); return; }
+    const flagged = importSupersetFlags(plan, m => m.target).length > 0;
+    const choices = review.length || flagged ? await reviewRoutineImport(plan, review) : null;
+    if ((review.length || flagged) && !choices){ toast('Import cancelled — nothing was changed'); return; }
     applyRoutineImport(plan, choices);
   });
 }
@@ -4438,7 +4530,7 @@ function importFixture(){
   const exercises = [
     { id:'ex-squat', name:'Back Squat', category:'Legs', movementFamily:'squat', unit:'kg', loadMode:'total', equipmentKey:'olympic-bar', archived:false, notes:'Belt above 100kg',
       url:'https://en.wikipedia.org/wiki/Squat_(exercise)' },
-    { id:'ex-leg-press', name:'Leg Press', category:'Legs', movementFamily:'squat', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-leg-press', archived:false, notes:'', url:'' },
+    { id:'ex-leg-press', name:'Leg Press', category:'Legs', movementFamily:'squat', straightSetsOnly:true, unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-leg-press', archived:false, notes:'', url:'' },
     { id:'ex-leg-curl', name:'Leg Curl', category:'Hinge', movementFamily:'hinge', unit:'kg', loadMode:'machine_stack', equipmentKey:'gym-a-leg-curl', archived:false, notes:'', url:'' },
     /* group overrides the default from movementFamily (squat: quads); calves
        do not compete with the main lifts, so this one sits in none */
@@ -4567,6 +4659,7 @@ function schemaHelpHTML(){
       ['routines[].name', 'string, required', 'Skipped if missing, or if a routine of that name already exists (for a plan: that name on that day).'],
       ['routines[].plan', 'optional boolean', '<code>true</code> makes it a one-off plan: listed under Planned on Today, and removed once the session started from it is saved. The workout keeps what it prescribed. Omitted: a stable routine.'],
       ['routines[].plannedFor', 'optional string', 'A plan’s calendar day as <code>YYYY-MM-DD</code>. Missing or invalid means anytime; a past day stays listed as overdue until the plan is started or deleted.'],
+      ['routines[].keptSupersets', 'optional array', 'Superset warnings you chose to keep in this routine: each entry is the two exercise IDs of the pair, sorted and joined with <code>|</code>. Entries that no longer name one of the routine’s supersets are dropped.'],
       ['routines[].items[]', 'required', 'One entry per exercise; order is the order you train in.'],
       ['items[].exerciseId', 'string, required', 'Resolved by id, then name, then created from <code>exercises[]</code>. Uncertain matches are confirmed in a review before import.'],
       ['items[].sets', 'integer', 'Clamped to ' + L.sets[0] + '\u2013' + L.sets[1] + '. Default 3.'],
@@ -4591,6 +4684,7 @@ function schemaHelpHTML(){
       ['exercises[].instructions', 'string', 'How to perform the movement, in Markdown: # headings, **bold**, *italic*, lists nested up to 3 levels, &gt; quotes and --- dividers. Links, images, tables and HTML are shown as typed. At most 10,000 characters.'],
       ['exercises[].url', 'string', 'A link showing how to perform the movement. Only <code>http</code> and <code>https</code> survive; anything else is dropped.'],
       ['exercises[].group', 'optional enum', EXERCISE_GROUPS.map(g => '<code>' + g + '</code>').join(' \u00b7 ') + '. The muscle group for spacing exercises: an exercise that starts less than 3:00 after another of its group gets a warning and the rest of the 3:00. Missing means the default from <code>movementFamily</code> (push families: press, pull families: back, squat: quads, hinge: posterior, core: core, anything else: none). <code>none</code> is never part of a conflict (rehab, arm isolation).']
+      ['exercises[].straightSetsOnly', 'optional boolean', '<code>true</code> marks a heavy or technical lift that needs full rest. Pairing it in a superset shows a warning (never blocks); the same warning appears when both exercises share a group other than <code>none</code>. Missing means <code>false</code>, so files from schema 1.16 and earlier import unchanged.'],
     ]) +
     code(sampleRoutinesFile()) +
 
@@ -5938,6 +6032,7 @@ function exerciseDetailHTML(e){
     ['Movement', e.movementFamily.replace(/_/g,' ')],
     ['Muscle group', exerciseGroup(e) + (normalizeGroup(e.group) ? ' (set by hand)' : ' (from movement)')]];
   if (e.equipmentKey) facts.push(['Equipment', e.equipmentKey]);
+  if (e.straightSetsOnly) facts.push(['Straight sets only', 'Yes: warns when paired in a superset']);
   facts.push(['Rest', normalizeRestSeconds(e.restSeconds) != null ? fmtClock(normalizeRestSeconds(e.restSeconds)) + ' (this exercise)' : fmtClock(state.settings.defaultRest) + ' (Settings)']);
   const dl = rows => '<dl class="detail-facts">' + rows.map(([k, v]) => '<dt>' + esc(k) + '</dt><dd>' + v + '</dd>').join('') + '</dl>';
   let html = '<div class="detail-section">' + dl(facts.map(([k, v]) => [k, esc(v)])) +
@@ -6085,6 +6180,7 @@ function htmlRoutineEditor(){
   if (!d.items.length){
     html += '<p class="muted small empty-line">No exercises yet — add the first one below.</p>';
   }
+  const flagged = flaggedSupersets(d);
   d.items.forEach((it, i) => {
     const e = exerciseById(it.exerciseId);
     const name = e ? e.name : '(removed exercise)';
@@ -6134,6 +6230,14 @@ function htmlRoutineEditor(){
         '<button type="button" class="icon-btn danger" data-action="ritem-rm" data-idx="' + i + '" aria-label="Remove ' + esc(name) + '">' + IC.trash + '</button>' +
       '</span>' +
     '</div>';
+    /* under the second row of a superset that is worth a second look */
+    const flag = pairKey === 'supersetOf' && partner && groups[groupIndex][1] === it ? flagged.find(f => f.supersetOf === it.supersetOf) : null;
+    if (flag) html += '<div class="superset-warning" role="note">' +
+      '<p><strong>Worth a second look:</strong> ' + esc(flag.reasons.join('; ')) + '.</p>' +
+      '<div class="superset-warning-actions">' +
+        '<button type="button" class="btn btn-sm" data-action="superset-keep" data-group="' + esc(flag.supersetOf) + '">Keep superset</button>' +
+        '<button type="button" class="btn btn-sm" data-action="superset-split" data-group="' + esc(flag.supersetOf) + '">Split into straight sets</button>' +
+      '</div></div>';
   });
 
   const hasLibrary = state.exercises.some(e => !e.archived);
@@ -7085,6 +7189,7 @@ function viewExercises(){
         detailRowId('exercise', e.id) + '-meta') + '><span class="list-main">' +
       '<span class="list-name">' + esc(e.name) + (e.archived ? ' <span class="tag tag-plain">Archived</span>' : '') + '</span>' +
       '<span class="list-meta" id="' + esc(detailRowId('exercise', e.id) + '-meta') + '"><span class="tag tag-plain">' + esc(e.category) + '</span> ' +
+        (e.straightSetsOnly ? '<span class="tag tag-plain">Straight sets only</span> ' : '') +
         esc(e.unit === 'bw' ? 'bodyweight + ' + exerciseLoadLabel(e) : exerciseLoadLabel(e)) + ' · ' + esc(e.movementFamily.replace(/_/g,' ')) +
         ' · ' + (exerciseGroup(e) === 'none' ? 'no group' : esc(exerciseGroup(e)) + ' group') +
         (e.equipmentKey ? ' · ' + esc(e.equipmentKey) : '') + (usedBy ? ' · in ' + plural(usedBy, 'routine') : '') +
@@ -7148,6 +7253,7 @@ function htmlExerciseForm(){
           '<span class="hint">Use the same stable key only for the same implement or machine.</span></label>' +
       '</div>' +
       restField('name="exrest"', '') +
+      straightSetsSwitch('ex-new-straight', 'name="exstraight"', false) +
       '<label class="field mt-3"><span class="cap">Notes (optional)</span>' +
         '<input type="text" name="exnotes" placeholder="Machine settings: seat height, pin position, grip…">' +
         '<span class="hint">Machine and setup settings that stay the same between sessions. Sets, rep ranges, RIR and starting load belong in the routine.</span></label>' +
@@ -7238,6 +7344,7 @@ function htmlExerciseEditForm(actions = ''){
           '<span class="hint">Same key means the same implement or machine.</span></label>' +
       '</div>' +
       restField('data-bind="edraft" data-field="restSeconds"', d.restSeconds) +
+      straightSetsSwitch('ex-edit-straight', 'data-bind="edraft" data-field="straightSetsOnly"', d.straightSetsOnly === true) +
       '<label class="field mt-3"><span class="cap">Notes</span>' +
         '<input type="text" data-bind="edraft" data-field="notes" value="' + esc(d.notes) + '" placeholder="Machine settings: seat height, pin position, grip…">' +
         '<span class="hint">Machine and setup settings; prescription belongs in the routine.</span></label>' +
@@ -7422,6 +7529,9 @@ const actions = {
   'pair-open'(d){ openPairDialog(d.scope, d.kind); },
   'pair-close'(){ closePairDialog(false); },
   'pair-add'(){ addPair(); },
+  /* the two answers to a flagged superset in the routine editor */
+  'superset-keep'(d){ if (keepSuperset(d.group)){ ui.focus = 'routine-form'; render(); toast('Superset kept'); } },
+  'superset-split'(d){ if (splitSuperset(d.group)){ ui.focus = 'routine-form'; render(); toast('Split into straight sets'); } },
   'pair-unpair'(d){
     if (!pairScope().unpair(d.group)) return;
     closePairDialog(true);
@@ -7918,7 +8028,7 @@ const binders = {
     const optional = t.dataset.field === 'weight' || t.dataset.field === 'targetRir';
     it[t.dataset.field] = optional ? toNum(t.value) : (toNum(t.value) || 0);
   },
-  edraft(t){ if (ui.exerciseDraft) ui.exerciseDraft[t.dataset.field] = t.value; },
+  edraft(t){ if (ui.exerciseDraft) ui.exerciseDraft[t.dataset.field] = t.type === 'checkbox' ? t.checked : t.value; },
   hwo(t){ const w = editingWorkout(); if (w){ w[t.dataset.field] = t.value; save(); } },
   hex(t){ const ex = findHEx(t.dataset); if (ex){ ex[t.dataset.field] = t.value; save(); } },
   hset(t){ const s = findHSet(t.dataset); if (s){ s[t.dataset.field] = normalizeSetNumber(t.dataset.field, t.value); save(); } },
@@ -7949,6 +8059,7 @@ document.addEventListener('input', e => {
 /* Controls that commit on change rather than per keystroke. Keyed by data-change. */
 const changeHandlers = {
   'pair-first'(){ refreshSecondPairPicker(); },
+  'pair-second'(){ renderPairWarning(); },
   'routine-plan'(t){
     const d = ui.routineDraft; if (!d) return;
     d.plan = t.checked;
@@ -8070,7 +8181,8 @@ document.addEventListener('submit', e => {
     const g = n => { const el = form.elements.namedItem(n); return el ? el.value : ''; };
     saveNewExercise({ name:g('exname'), category:g('excat'), unit:g('exunit'), loadMode:g('exloadmode'),
       equipmentKey:g('exequipment'), movementFamily:g('exfamily'), group:g('exgroup'), notes:g('exnotes'), instructions:g('exinstructions'),
-      url:g('exurl'), restSeconds:g('exrest') });
+      url:g('exurl'), restSeconds:g('exrest'),
+      straightSetsOnly:!!(form.elements.namedItem('exstraight') || {}).checked });
   }
   else if (kind === 'ex-save'){ saveExerciseDraft(); }
   else if (kind === 'ex-merge'){

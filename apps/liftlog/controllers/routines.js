@@ -40,6 +40,52 @@ function groupPlannedSets(group, count){
 function keepRoutinePairsAdjacent(items){
   items.splice(0, items.length, ...routineGroups(items).flat());
 }
+/* A superset warning can be kept, and the choice belongs to the pair of
+   exercises in this routine: the exercise IDs, in either order, so reordering
+   or re-pairing the same two exercises changes nothing. Another partner is a
+   different pair and warns again. */
+function keptSupersetKey(a, b){
+  return [a, b].sort().join('|');
+}
+/* The supersets of a list of routine items: exactly two different exercises
+   sharing a key, as cleanRoutinePairs leaves them. */
+function supersetPairs(items){
+  const groups = new Map();
+  items.forEach(it => {
+    if (!it.supersetOf || it.eitherOf) return;
+    if (!groups.has(it.supersetOf)) groups.set(it.supersetOf, []);
+    groups.get(it.supersetOf).push(it);
+  });
+  return [...groups].filter(([, g]) => g.length === 2 && g[0].exerciseId !== g[1].exerciseId)
+    .map(([supersetOf, g]) => ({ supersetOf, items:g, key:keptSupersetKey(g[0].exerciseId, g[1].exerciseId) }));
+}
+/* A routine or its draft keeps only the choices that still name one of its
+   supersets: a split or re-paired pair takes its choice with it. */
+function normalizeKeptSupersets(r){
+  const live = new Set(supersetPairs(r.items || []).map(p => p.key));
+  const kept = [...new Set((Array.isArray(r.keptSupersets) ? r.keptSupersets : []).filter(k => live.has(k)))];
+  if (kept.length) r.keptSupersets = kept; else delete r.keptSupersets;
+  return r;
+}
+/* The pairs in the routine being edited that carry a warning nobody has kept. */
+function flaggedSupersets(draft){
+  const kept = new Set(draft.keptSupersets || []);
+  return supersetPairs(draft.items).map(p => ({ ...p, reasons:context.supersetWarning(
+    context.exerciseById(p.items[0].exerciseId), context.exerciseById(p.items[1].exerciseId)) }))
+    .filter(p => p.reasons.length && !kept.has(p.key));
+}
+/* Back to straight sets: both items lose the link and nothing else changes,
+   so their order, sets and set plans stay as they were. */
+function splitSuperset(supersetOf){
+  return unpairRoutineItems(supersetOf);
+}
+function keepSuperset(supersetOf){
+  const d = context.ui.routineDraft; if (!d) return false;
+  const pair = supersetPairs(d.items).find(p => p.supersetOf === supersetOf);
+  if (!pair) return false;
+  d.keptSupersets = [...new Set([...(d.keptSupersets || []), pair.key])];
+  return true;
+}
 function routineSummary(items){
   const groups = routineGroups(items);
   const sum = (g, pick) => g[0].supersetOf ? g.reduce((n, it) => n + it.sets, 0) : pick(...g.map(it => it.sets));
@@ -200,6 +246,7 @@ function unpairRoutineItems(groupId){
   items.forEach(it => context.PAIR_KEYS.forEach(key => {
     if (it[key] === groupId){ delete it[key]; removed = true; }
   }));
+  normalizeKeptSupersets(context.ui.routineDraft);
   return removed;
 }
 /* One dialog serves both kinds of pair; only its words change. */
@@ -247,6 +294,18 @@ function pairPickerOptions(positions){
   const scope = pairScope(), list = scope.list();
   return positions.map(i => '<option value="' + i + '">' + context.esc(scope.name(list[i])) + ' · #' + (i + 1) + '</option>').join('');
 }
+/* Before a superset is made, the dialog says what is worth a second look and
+   the button says it will go ahead anyway. Nothing here blocks the pairing. */
+function renderPairWarning(){
+  const box = context.$('#pair-warning'), add = context.$('#pair-add');
+  const first = context.$('#pair-first').value, second = context.$('#pair-second').value;
+  const list = pairScope().list();
+  const reasons = context.ui.pairKind === 'supersetOf' && first !== '' && second !== '' && list[Number(first)] && list[Number(second)]
+    ? context.supersetWarning(list[Number(first)], list[Number(second)]) : [];
+  box.hidden = !reasons.length;
+  box.textContent = reasons.length ? 'Worth a second look: ' + reasons.join('; ') + '. You can still create the superset.' : '';
+  add.textContent = reasons.length ? 'Create superset anyway' : add.dataset.label;
+}
 function refreshSecondPairPicker(){
   const first = context.$('#pair-first').value;
   const second = context.$('#pair-second');
@@ -254,6 +313,7 @@ function refreshSecondPairPicker(){
   const choices = first === '' ? [] : pairCandidates(context.ui.pairScope, Number(first));
   second.innerHTML = pairPickerOptions(choices);
   if (choices.includes(Number(selected))) second.value = selected;
+  renderPairWarning();
 }
 function openPairDialog(scopeName, kind){
   context.ui.pairScope = PAIR_SCOPES[scopeName] ? scopeName : 'routine';
@@ -264,7 +324,7 @@ function openPairDialog(scopeName, kind){
   context.$('#pair-title').textContent = copy.title;
   context.$('#pair-desc').textContent = copy.desc;
   context.$('#pair-second-cap').textContent = copy.second;
-  context.$('#pair-add').textContent = copy.add;
+  context.$('#pair-add').textContent = copy.add; context.$('#pair-add').dataset.label = copy.add;
   context.$('#pair-empty').textContent = copy.empty;
   const groups = new Map();
   list.forEach(it => { const key = it[context.ui.pairKind]; if (key) groups.set(key, (groups.get(key) || []).concat([it])); });
@@ -293,7 +353,13 @@ function closePairDialog(changed){
 }
 function addPair(){
   const a = context.$('#pair-first').value, b = context.$('#pair-second').value;
+  const list = pairScope().list();
+  /* asked about before it was made, so a routine keeps it: choosing to go ahead is the answer */
+  const warned = context.ui.pairKind === 'supersetOf' && context.ui.pairScope === 'routine' && a !== '' && b !== '' &&
+    list[Number(a)] && list[Number(b)] && context.supersetWarning(list[Number(a)], list[Number(b)]).length > 0;
+  const key = warned ? keptSupersetKey(list[Number(a)].exerciseId, list[Number(b)].exerciseId) : '';
   if (a !== '' && b !== '' && pairScope().pair(Number(a), Number(b), context.ui.pairKind)){
+    if (warned){ const d = context.ui.routineDraft; d.keptSupersets = [...new Set([...(d.keptSupersets || []), key])]; }
     closePairDialog(true);
     if (context.ui.pairScope === 'session') context.toast('Superset created for this workout');
     return;
@@ -365,8 +431,8 @@ function saveRoutineDraft(){
   cleanRoutinePairs(d.items);
   keepRoutinePairsAdjacent(d.items);
   if (d.plan && d.plannedFor && !validPlanDay(d.plannedFor)){ context.ui.routineError = 'Choose a valid day, or leave it empty for anytime.'; context.render(); return; }
-  const routine = normalizePlanFields({ id:d.id || context.uid(), name:d.name.trim(), items:d.items,
-    plan:d.plan === true, plannedFor:d.plannedFor || null });
+  const routine = normalizeKeptSupersets(normalizePlanFields({ id:d.id || context.uid(), name:d.name.trim(), items:d.items,
+    plan:d.plan === true, plannedFor:d.plannedFor || null, keptSupersets:d.keptSupersets }));
   const i = d.id ? context.state.routines.findIndex(r => r.id === d.id) : -1;
   if (i !== -1) context.state.routines[i] = routine;
   else context.state.routines.push(routine);
@@ -377,6 +443,7 @@ function duplicateRoutine(id){
   const r = context.routineById(id); if (!r) return;
   const copy = context.deepCopy(r);
   copy.id = context.uid(); copy.name = r.name + ' (copy)';
+  delete copy.keptSupersets; /* a kept warning belongs to its own routine */
   copy.items.forEach(it => it.id = context.uid());
   context.state.routines.push(copy);
   /* from its sheet, the copy is what you want to look at (and edit) next */
@@ -418,6 +485,6 @@ function addRoutineItem(exId){
   d.items.push(context.newRoutineItem(exId));
   context.render();
 }
-    return {SET_PLAN_TYPES,normalizeSetPlan,workEntries,setTarget,pairKeyOf,cleanRoutinePairs,routineGroups,groupPlannedSets,keepRoutinePairsAdjacent,routineSummary,normalizeRoutineItem,normalizeWorkoutTargets,repRangeState,paintRepRange,parseRepRange,targetRangeLabel,pairRoutineItems,unpairRoutineItems,PAIR_KINDS,PAIR_SCOPES,pairScope,pairCandidates,pairPickerOptions,refreshSecondPairPicker,openPairDialog,closePairDialog,addPair,isPlan,stableRoutines,localDay,validPlanDay,normalizePlanFields,planDay,sortedPlans,routineKey,defaultRoutineId,newRoutineDraft,newPlanDraft,saveRoutineDraft,duplicateRoutine,deleteRoutine,routineStep,removeRoutineItem,addRoutineItem};
+    return {SET_PLAN_TYPES,normalizeSetPlan,workEntries,setTarget,pairKeyOf,cleanRoutinePairs,routineGroups,groupPlannedSets,keepRoutinePairsAdjacent,routineSummary,normalizeRoutineItem,normalizeWorkoutTargets,repRangeState,paintRepRange,parseRepRange,targetRangeLabel,pairRoutineItems,unpairRoutineItems,keptSupersetKey,supersetPairs,normalizeKeptSupersets,flaggedSupersets,keepSuperset,PAIR_KINDS,PAIR_SCOPES,pairScope,pairCandidates,pairPickerOptions,refreshSecondPairPicker,renderPairWarning,splitSuperset,openPairDialog,closePairDialog,addPair,isPlan,stableRoutines,localDay,validPlanDay,normalizePlanFields,planDay,sortedPlans,routineKey,defaultRoutineId,newRoutineDraft,newPlanDraft,saveRoutineDraft,duplicateRoutine,deleteRoutine,routineStep,removeRoutineItem,addRoutineItem};
   }
 };

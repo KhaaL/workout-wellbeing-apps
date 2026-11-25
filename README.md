@@ -622,6 +622,14 @@ replaces the current exercise for that session only. The new one keeps the set
 count, and the rep range and target RIR when both are counted the same way;
 pairings carry over and the routine is unchanged.
 
+Exercises → Edit has **Straight sets only** for a heavy or technical lift that
+needs full rest. A superset is flagged, never blocked, when either exercise has
+it, or when both share a muscle group other than `none`. The warning appears under
+the pair in the routine editor, in the pair dialog (routine and live workout)
+before the superset is made, and in the routine import review. **Keep superset**
+stores the choice for that pair in that routine (`keptSupersets`); **Split into
+straight sets** only removes the link between the two items.
+
 A small **+ 2 warm-up sets** button above the set list adds warm-ups before the
 first working set while nothing is logged yet. By default there are two, both for
 the working set's reps (or the bottom of the target range when those are blank):

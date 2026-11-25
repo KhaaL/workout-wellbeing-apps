@@ -55,6 +55,7 @@ All scenarios use synthetic records, isolated storage and mocked cloud requests.
 | `../apps/liftlog/tests/regression.cjs` | Liftlog workflows, persistence and mobile layout |
 | `../apps/liftlog/tests/security.cjs` | Backup validation, migrations, hostile inputs and unreadable-data recovery |
 | `../apps/liftlog/tests/recovery.cjs` | Paused restore, review, reload and explicit cloud publication |
+| `../apps/liftlog/tests/superset-warning.cjs` | Straight sets only and superset warnings: the rule and its reasons, the routine editor (Keep superset, Split into straight sets), the pair dialog in a routine and in a live workout, import review, the Library toggle, kept choices per routine and files from before the field |
 
 Browser and Liftlog suites load the built apps in `dist/`; `npm test` and the
 browser npm scripts build first, and a direct `node` run needs `npm run build`.

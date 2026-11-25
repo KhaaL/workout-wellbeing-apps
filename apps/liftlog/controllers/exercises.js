@@ -22,6 +22,7 @@ function saveNewExercise(form){
     equipmentKey: String(form.equipmentKey || '').trim(),
     movementFamily: String(form.movementFamily || '').trim() || context.inferMovementFamily(name, form.category),
     ...(context.normalizeGroup(form.group) ? { group:form.group } : {}),
+    ...(form.straightSetsOnly === true ? { straightSetsOnly:true } : {}),
     archived:false,
     notes: form.notes.trim(),
     instructions: String(form.instructions || '').trimEnd(),
@@ -78,6 +79,7 @@ function saveExerciseDraft(){
                     loadMode:context.normalizeLoadMode(d.loadMode, d.unit), equipmentKey:String(d.equipmentKey || '').trim(),
                     movementFamily:String(d.movementFamily || '').trim() || context.inferMovementFamily(d.name, d.category),
                     ...(context.normalizeGroup(d.group) ? { group:d.group } : {}),
+                    ...(d.straightSetsOnly === true ? { straightSetsOnly:true } : {}),
                     archived:!!d.archived, notes:d.notes.trim(), instructions:String(d.instructions || '').trimEnd(), url,
                     ...(context.normalizeRestSeconds(d.restSeconds) != null ? { restSeconds:context.normalizeRestSeconds(d.restSeconds) } : {}) };
   const broken = context.linksBrokenBy(d.id, updated);
