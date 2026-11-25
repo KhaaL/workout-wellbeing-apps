@@ -161,12 +161,12 @@ test('Liftlog rest comes from the exercise when it sets one, else from Settings'
  s.activeWorkout=null;
  const backup=JSON.parse(JSON.stringify(s));backup.exercises.find(e=>e.id==='curl').restSeconds=5;backup.exercises.find(e=>e.id==='dips').restSeconds=0;
  const prepared=d.api.prepareBackup(backup);
- assert.equal(prepared.version,16);
+ assert.equal(prepared.version,17);
  assert.equal(prepared.exercises.find(e=>e.id==='squat').restSeconds,180);
  assert.equal(prepared.exercises.find(e=>e.id==='curl').restSeconds,15,'clamped to the shortest rest');
  assert.equal('restSeconds' in prepared.exercises.find(e=>e.id==='dips'),false,'0 means use Settings');
  backup.exercises.find(e=>e.id==='curl').restSeconds='long';assert.throws(()=>d.api.prepareBackup(backup),/restSeconds/);
- const v14=JSON.parse(JSON.stringify(s));v14.version=14;v14.exercises.forEach(e=>delete e.restSeconds);assert.equal(d.api.prepareBackup(v14).version,16);
+ const v14=JSON.parse(JSON.stringify(s));v14.version=14;v14.exercises.forEach(e=>delete e.restSeconds);assert.equal(d.api.prepareBackup(v14).version,17);
 });
 test('Liftlog swaps an exercise for this session and keeps its prescription',()=>{
  const d=lift(),s=d.api.state;s.settings.unit='kg';
@@ -258,7 +258,7 @@ test('Liftlog exercise instructions survive backups, routine files and merges; o
  const prepared=d.api.prepareBackup(JSON.parse(JSON.stringify(s)));
  assert.equal(prepared.exercises.find(e=>e.id==='press').instructions,'# Setup\n1. Brace');
  const old=JSON.parse(JSON.stringify(s));old.version=15;old.exercises.forEach(e=>delete e.instructions);
- const migrated=d.api.prepareBackup(old);assert.equal(migrated.version,16);assert.ok(migrated.exercises.every(e=>e.instructions===''),'older data reads as no instructions');
+ const migrated=d.api.prepareBackup(old);assert.equal(migrated.version,17);assert.ok(migrated.exercises.every(e=>e.instructions===''),'older data reads as no instructions');
  const long=JSON.parse(JSON.stringify(s));long.exercises.find(e=>e.id==='press').instructions='x'.repeat(10001);
  assert.throws(()=>d.api.prepareBackup(long),/instructions: expected at most 10000 characters/);
  s.routines.push({id:'rp',name:'Press day',items:[{id:'rpi',exerciseId:'press',sets:3,repsMin:5,repsMax:8}]});
