@@ -25,6 +25,17 @@ const REMOTE_OBJECT_KEY_DEFAULT = app.objectKey;
 const APP_ID = app.namespace.split('.')[0];
 const LS_REMOTE_RESTORE_KEY = app.recoveryKey;
 const REMOTE_BACKUP_DELAY = 3000;
+/* During a workout every logged set is a save. Backing each one up wrote a
+   full copy of the data about once a minute, so while a session is active
+   automatic backups run at most this often; finishing it, or leaving the
+   page, backs up at once. The device keeps every change in the meantime. */
+const REMOTE_ACTIVE_INTERVAL = 5 * 60 * 1000;
+function nextBackupAt(){
+  const soon = Date.now() + REMOTE_BACKUP_DELAY;
+  if (!app.isActive?.()) return soon;
+  const last = Number(loadRemoteConfig()?.lastBackupAt) || 0;
+  return Math.max(soon, last + REMOTE_ACTIVE_INTERVAL);
+}
 let remoteBackupTimer = 0;
 const REMOTE_WORK_KEY = app.namespace + ".remote-work";
 const REMOTE_PAUSE_KEY = app.namespace + ".remote-paused";
@@ -176,7 +187,7 @@ const complete = cfg => !!(cfg && cfg.endpoint && cfg.bucket && cfg.accessKeyId 
 const pick = cfg => Object.fromEntries(CONNECTION_FIELDS.filter(key => cfg[key] !== undefined).map(key => [key, cfg[key]]));
 const omit = cfg => Object.fromEntries(Object.entries(cfg).filter(([key]) => !CONNECTION_FIELDS.includes(key)));
 const connectionKey = cfg => JSON.stringify([String(cfg.endpoint || '').replace(/\/+$/, ''),cfg.region,cfg.bucket,!!cfg.pathStyle,cfg.accessKeyId,cfg.secretAccessKey,syncMode(cfg)]);
-const HISTORY_FIELDS = ['lastBackupAt','lastUploadedModifiedAt','lastBackupMode'];
+const HISTORY_FIELDS = ['lastBackupAt','lastUploadedModifiedAt','lastBackupMode','lastUploadedDataHash'];
 /* This app's record, with the destination its backup history belongs to: the
    shared connection can change in another app, and history for one bucket or
    path must not describe another. */
@@ -371,7 +382,7 @@ async function remoteRunAction(fn){ app.onBusy?.(true); try { return await fn();
 
 function scheduleRemoteBackup(delay){
   if (!loadRemoteConfig() || !remoteCryptoAvailable()) return;
-  try { const old = readRemoteWork() || {}; writeRemoteWork({ ...old, pending:true, revision:remoteSnapshotTime(app.state), nextAt:Date.now() + (delay == null ? REMOTE_BACKUP_DELAY : delay) }); }
+  try { const old = readRemoteWork() || {}; writeRemoteWork({ ...old, pending:true, revision:remoteSnapshotTime(app.state), nextAt:delay == null ? nextBackupAt() : Date.now() + delay }); }
   catch(e){ setRemoteStatus('error','Cannot persist pending backup; keep this page open'); return; }
   armRemoteRetry();
   setRemoteStatus(remoteSyncPaused() ? 'paused' : 'pending', remoteSyncPaused() ? 'Local changes retained — cloud sync paused' : navigator.onLine === false ? 'Waiting for a connection' : 'Changes waiting to back up');
@@ -433,7 +444,7 @@ function markRemoteSuccess(cfg, revision, ctx, message){
   cfg.lastBackupAt = Date.now(); cfg.lastUploadedModifiedAt = revision;cfg.lastBackupMode=syncMode(cfg);
   saveRemoteConfig(cfg, ctx);
   const pending = remoteSnapshotTime(app.state) !== revision;
-  writeRemoteWork({ pending, revision:remoteSnapshotTime(app.state), attempts:0, nextAt:Date.now() + REMOTE_BACKUP_DELAY });
+  writeRemoteWork({ pending, revision:remoteSnapshotTime(app.state), attempts:0, nextAt:nextBackupAt() });
   setRemoteStatus(pending ? 'pending' : 'synced', pending ? 'Newer changes waiting to back up' : message || 'Up to date');
   armRemoteRetry();
 }
@@ -479,6 +490,17 @@ async function appendRemoteBackup(cfg,ctx){
   if(!flushSave())throw new Error('Backup paused — local changes could not be saved');
   if(cfg.lastBackupMode==='immutable'&&cfg.lastUploadedModifiedAt===remoteSnapshotTime(app.state)&&!readRemoteWork()?.pending){setRemoteStatus('synced','Current revision is already backed up');return 'same';}
   const payload=backupPayload();enforceBackupLimits(payload);validateBackup(payload);
+  /* A save that changed nothing a backup holds (a timestamp, which exercise
+     is on screen) would write a byte-for-byte copy of the last file. The
+     comparison is the app's own data key, which leaves those out. */
+  const dataHash=await sha256Hex(backupDataKey(payload));
+  if(cfg.lastBackupMode==='immutable'&&cfg.lastUploadedDataHash===dataHash){
+    cfg.lastUploadedModifiedAt=remoteSnapshotTime(payload);saveRemoteConfig(cfg,ctx);
+    const pending=remoteSnapshotTime(app.state)!==cfg.lastUploadedModifiedAt;
+    writeRemoteWork({pending,revision:remoteSnapshotTime(app.state),attempts:0,nextAt:nextBackupAt()});
+    setRemoteStatus(pending?'pending':'synced',pending?'Newer changes waiting to back up':'No changes since the last backup file');armRemoteRetry();
+    return 'same';
+  }
   // No shared "latest" pointer. Random UUIDs prevent independent devices
   // choosing the same destination even when the server ignores conditions.
   if(typeof crypto.randomUUID!=='function')throw new Error('Separate backups require secure random UUID support');
@@ -490,6 +512,7 @@ async function appendRemoteBackup(cfg,ctx){
     if(!res.ok)throw responseError(res,await res.text(),cfg,'append backup');
     const verify=await readRemoteBackup(target,ctx);
     if(!verify||verify.raw!==raw)throw diagnosticError('read-back','The uploaded backup could not be verified. Local data is retained; a retry will create another file.',cfg,'append backup');
+    cfg.lastUploadedDataHash=dataHash;
     markRemoteSuccess(cfg,remoteSnapshotTime(payload),ctx,'Separate cloud backup saved — restores require your choice');
     return 'uploaded';
   }finally{archiveKeys.delete(key);}
@@ -726,6 +749,7 @@ async function configure(candidate){
     const previous=loadRemoteConfig(),same=previous&&remoteDestination(previous)===remoteDestination(candidate);
     candidate.lastBackupAt=same?previous.lastBackupAt??null:null;
     candidate.lastUploadedModifiedAt=same?previous.lastUploadedModifiedAt??null:null;
+    candidate.lastUploadedDataHash=same?previous.lastUploadedDataHash??null:null;
     if(same&&previous.lastBackupMode)candidate.lastBackupMode=previous.lastBackupMode;else delete candidate.lastBackupMode;
     saveRemoteConfig(candidate,ctx);
   },candidate,true);
@@ -1002,5 +1026,9 @@ async function remoteRestoreSnapshot(key,legacy=false,options={}){
     toolsChanged();return true;
   });
 }
-return {remoteUploadHandoff,remoteReadHandoff,syncMode,remoteRestoreLegacy,appendRemoteBackup,remoteCheckProvider,remoteListSnapshots,remotePreviewSnapshot,remoteDownloadSnapshot,remoteRestoreSnapshot,remoteRestoreLatest,remoteTools,diagnosticsPayload,remoteSyncPaused,remotePauseInfo,pauseRemoteSync,pauseRemoteSyncAction,resumeReviewedSync,enforceBackupLimits,remoteDestination,remoteIdentity,invalidateRemote,assertRemote,coordinateRemote,readRemoteWork,writeRemoteWork,validateRemoteConfig,loadRemoteConfig,saveRemoteConfig,clearRemoteConfig,connectionScope,sharedConnection,useSharedConnection,get defaultObjectKey(){return REMOTE_OBJECT_KEY_DEFAULT;},remoteCryptoAvailable,toHex,sha256Hex,hmacRaw,signingKey,amzNow,uriEncode,remoteUrl,s3Request,remoteRunAction,scheduleRemoteBackup,armRemoteRetry,retryRemoteError,readRemoteBackup,preserveBeforeRemoteRestore,commitSnapshot,installRemoteSnapshot,markRemoteSuccess,reconcileRemote,putRemoteBackup,autoRemoteBackup,remoteBackup,reviewedRemoteDirection,remoteReviewChoice,remoteRestore,remotePublishLocal,remoteResumeSync,preserveRemoteSnapshot,remoteStartupSync,remoteTestConnection,configure,configPayload,configDraft,get generation(){return remoteGeneration;},get queue(){return remoteQueue;},get controllers(){return remoteControllers;},flushScheduled(){if(remoteBackupTimer){clearTimeout(remoteBackupTimer);remoteBackupTimer=0;return autoRemoteBackup();}}};
+return {remoteUploadHandoff,remoteReadHandoff,syncMode,remoteRestoreLegacy,appendRemoteBackup,remoteCheckProvider,remoteListSnapshots,remotePreviewSnapshot,remoteDownloadSnapshot,remoteRestoreSnapshot,remoteRestoreLatest,remoteTools,diagnosticsPayload,remoteSyncPaused,remotePauseInfo,pauseRemoteSync,pauseRemoteSyncAction,resumeReviewedSync,enforceBackupLimits,remoteDestination,remoteIdentity,invalidateRemote,assertRemote,coordinateRemote,readRemoteWork,writeRemoteWork,validateRemoteConfig,loadRemoteConfig,saveRemoteConfig,clearRemoteConfig,connectionScope,sharedConnection,useSharedConnection,get defaultObjectKey(){return REMOTE_OBJECT_KEY_DEFAULT;},remoteCryptoAvailable,toHex,sha256Hex,hmacRaw,signingKey,amzNow,uriEncode,remoteUrl,s3Request,remoteRunAction,scheduleRemoteBackup,armRemoteRetry,retryRemoteError,readRemoteBackup,preserveBeforeRemoteRestore,commitSnapshot,installRemoteSnapshot,markRemoteSuccess,reconcileRemote,putRemoteBackup,autoRemoteBackup,remoteBackup,reviewedRemoteDirection,remoteReviewChoice,remoteRestore,remotePublishLocal,remoteResumeSync,preserveRemoteSnapshot,remoteStartupSync,remoteTestConnection,configure,configPayload,configDraft,get generation(){return remoteGeneration;},get queue(){return remoteQueue;},get controllers(){return remoteControllers;},flushScheduled(){
+  /* A phone locks between sets; during a workout that is not leaving, so the
+     wait between backups holds. pagehide still backs up at once. */
+  if(remoteBackupTimer&&!(app.isActive?.()&&(readRemoteWork()?.nextAt||0)>Date.now()+REMOTE_BACKUP_DELAY)){clearTimeout(remoteBackupTimer);remoteBackupTimer=0;return autoRemoteBackup();}
+}};
 };
