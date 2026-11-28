@@ -385,8 +385,6 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
    top (the double-progression signal). Inside the range needs no mark. */
 .set-row input.reps-under{ border-color:var(--warning); color:var(--warning); }
 .set-row input.reps-over{ border-color:var(--success); color:var(--success); }
-.hset-warm{ min-height:44px; min-width:34px; padding-inline:8px; justify-content:center; font-weight:700; color:var(--muted); }
-.hset-warm[aria-pressed="true"]{ background:var(--warning-soft); border-color:var(--warning); color:var(--warning); }
 .set-mark .prev{ font-size:10.5px; color:var(--muted); font-variant-numeric:tabular-nums; line-height:1.2; }
 /* The done cell is also the warm-up control: a long press toggles it, so the
    press must not start a selection or open the platform's callout menu. */
@@ -436,17 +434,23 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
   border:1px solid var(--border); border-radius:var(--radius); background:var(--surface-2);
   color:var(--muted); font-size:var(--fs-sm);
 }
-.hset-row{ display:grid; grid-template-columns:20px 1fr 1fr 1fr auto; gap:var(--sp-2); align-items:end; margin-top:var(--sp-3); }
-.hset-num{ padding-bottom:9px; text-align:center; }
-.hset-ctl{ display:flex; gap:var(--sp-2); }
-.hset-done,.hset-del{ min-height:44px; min-width:44px; padding-inline:9px; justify-content:center; }
+/* The weight takes the widest column: "102.5" has to fit at 360px. */
+.hset-row{ display:grid; grid-template-columns:14px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 44px 44px; gap:4px; align-items:center; margin-top:var(--sp-2); }
+.hset-row .field{ margin:0; min-width:0; }
+.hset-row .field input{ width:100%; min-width:0; padding-inline:6px; }
+.hset-head{ margin-top:var(--sp-3); }
+.hset-head span{ font-size:10.5px; font-weight:650; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+.hset-done,.hset-more{ min-height:44px; min-width:44px; padding-inline:0; justify-content:center; }
 .hset-done[aria-pressed="true"]{ background:var(--success-soft); border-color:var(--success); color:var(--success); }
-.hset-del{ color:var(--muted); }
+.hset-more{ color:var(--muted); }
 .hset-row.done .field input{ opacity:.55; }
-@media (max-width:620px){
-  .hset-row{ grid-template-columns:1fr 1fr 1fr; }
-  .hset-num{ display:none; }
-  .hset-ctl{ grid-column:1 / -1; justify-content:flex-end; }
+.hex-del{ color:var(--danger); }
+@media (max-width:480px){
+  /* the exercise card sits inside the session card: one gutter, not two */
+  .hedit-ex{ padding:var(--sp-2); }
+  .hset-row .field input{ font-size:var(--fs-sm); padding-inline:3px; }
+  .hset-done,.hset-more{ min-width:40px; }
+  .hset-row{ grid-template-columns:12px minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr) 40px 40px; gap:3px; }
 }
 
 /* ============================================================
@@ -1201,7 +1205,7 @@ pre.code code{ background:none; border:0; padding:0; font-size:inherit; white-sp
   .strip-step:hover:not([disabled]){ background:var(--surface-2); border-color:var(--muted); }
   .strip-step.is-last:hover{ background:var(--accent-strong); filter:brightness(1.07); }
   .strip-num:hover{ background:var(--surface-2); border-color:var(--border); }
-  .hset-del:hover{ color:var(--danger); border-color:var(--danger); }
+  .hex-del:hover{ border-color:var(--danger); }
   .list-row:not(.is-editing):hover{ background:var(--surface-2); }
   .hist-row:hover{ background:var(--surface-2); }
   .icon-btn:hover{ background:var(--surface-2); color:var(--text); border-color:var(--border); }
@@ -6584,8 +6588,15 @@ function htmlWorkoutEditor(w){
           Object.entries(EXCLUDE_REASONS).map(([k, v]) => '<option value="' + k + '"' +
             (ex.excludeFromProgression && ex.excludeFromProgression.reason === k ? ' selected' : '') + '>Excluded: ' + v + '</option>').join('') +
         '</select></label>' +
-        '<button type="button" class="btn hset-del" data-action="hex-del" data-idx="' + xi + '" aria-label="Remove ' + esc(ex.name) + ' from this session">' + IC.trash + '</button>' +
+        '<button type="button" class="btn btn-sm hex-del" data-action="hex-del" data-idx="' + xi + '" aria-label="Remove ' + esc(ex.name) + ' from this session">Remove exercise…</button>' +
       '</div>';
+    /* One head row names the columns, as the workout's set table does; each
+       input carries its own label for screen readers. */
+    const firstTimed = ex.unit === 'time' || ex.sets.some(s => s.durationSeconds != null);
+    const headEffort = (ex.targetRir != null ? 'rir' : state.settings.effortMetric) === 'rpe' ? 'RPE' : 'RIR';
+    html += '<div class="hset-row hset-head" aria-hidden="true"><span></span>' +
+      '<span>' + (ex.unit === 'bw' ? 'Added' : 'Weight') + '</span><span>' + (firstTimed ? 'Sec' : 'Reps') + '</span>' +
+      '<span>' + headEffort + '</span><span>Done</span><span></span></div>';
     ex.sets.forEach((s, si) => {
       /* timed exercises edit durationSeconds; reps stays a pure count */
       const timed = ex.unit === 'time' || s.durationSeconds != null;
@@ -6606,20 +6617,19 @@ function htmlWorkoutEditor(w){
         key === 'rir' && ex.targetRir != null ? ex.targetRir : '–';
       const attrs = key => key === 'rpe' ? 'min="1" max="10" step="0.5"' : key === 'rir' ? 'min="0" max="10" step="1"' :
         key === 'reps' || key === 'durationSeconds' ? 'min="0" step="1"' : 'min="0" step="0.5"';
-      const f = (d, id) => '<label class="field"><span class="cap">' + d.cap + '</span>' +
+      const f = (d, id) => '<label class="field"><span class="sr-only">Set ' + (si+1) + ' ' + d.cap + '</span>' +
         '<input type="number" ' + attrs(d.key) + (id ? ' id="' + esc(id) + '"' : '') + ' inputmode="decimal" data-bind="hset" data-idx="' + xi + '" data-sid="' + esc(s.id) + '" data-field="' + d.key + '" ' +
         'value="' + esc(s[d.key] != null ? s[d.key] : '') + '" placeholder="' + esc(hint(d.key)) + '"></label>';
-      html += '<div class="hset-row' + (s.completed ? ' done' : '') + '">' +
-        '<span class="hset-num muted xs mono">' + (si+1) + '</span>' +
+      /* The same line as a set in a workout: its role letter, the three
+         figures, the done box, and the pencil for the rarer changes (warm-up,
+         delete), which the workout's set editor holds too. */
+      html += '<div class="hset-row' + (s.completed ? ' done' : '') + (isWarmup(s) ? ' is-warmup' : '') + '">' +
+        '<span class="set-mark">' + setRoleMarkHTML(s) + '</span>' +
         f(flds[0], 'hw-' + s.id) + f(flds[1]) + f(flds[2]) +
-        '<span class="hset-ctl">' +
-          '<button type="button" class="btn hset-warm" data-action="hset-warmup" data-idx="' + xi + '" data-sid="' + esc(s.id) + '" ' +
-            'aria-pressed="' + isWarmup(s) + '" title="Warm-up: performed, but out of volume and records" ' +
-            'aria-label="Set ' + (si+1) + (isWarmup(s) ? ' is a warm-up. Mark it as a working set' : ' is a working set. Mark it as a warm-up') + '">W</button>' +
-          '<button type="button" class="btn hset-done" data-action="hset-toggle" data-idx="' + xi + '" data-sid="' + esc(s.id) + '" ' +
-            'aria-pressed="' + esc(s.completed) + '" aria-label="Set ' + (si+1) + ' completed">' + (s.completed ? IC.boxcheck : IC.box) + '</button>' +
-          '<button type="button" class="btn hset-del" data-action="hset-del" data-idx="' + xi + '" data-sid="' + esc(s.id) + '" aria-label="Delete set ' + (si+1) + '">' + IC.trash + '</button>' +
-        '</span>' +
+        '<button type="button" class="btn hset-done" data-action="hset-toggle" data-idx="' + xi + '" data-sid="' + esc(s.id) + '" ' +
+          'aria-pressed="' + esc(s.completed) + '" aria-label="Set ' + (si+1) + ' completed">' + (s.completed ? IC.boxcheck : IC.box) + '</button>' +
+        '<button type="button" class="btn hset-more" id="hmore-' + esc(s.id) + '" data-action="hset-menu" data-idx="' + xi + '" data-sid="' + esc(s.id) + '" ' +
+          'aria-label="More for set ' + (si+1) + '" title="Warm-up or delete">' + IC.pen + '</button>' +
       '</div>';
     });
     html += '<div class="sets-foot"><button type="button" class="btn" data-action="hset-add" data-idx="' + xi + '">' + IC.plus + '<span>Add set</span></button></div>' +
@@ -7255,7 +7265,10 @@ function viewExercises(){
         (e.equipmentKey ? ' · ' + esc(e.equipmentKey) : '') + (usedBy ? ' · in ' + plural(usedBy, 'routine') : '') +
         (last ? ' · last ' + relDays(last.date) : '') + '</span>' +
       (e.notes ? '<span class="list-meta quote">“' + esc(e.notes) + '”</span>' : '') + '</span>' + IC.chev + '</button>' +
-      '<div class="list-actions"><button type="button" class="btn" id="archive-ex-' + esc(encodeURIComponent(e.id)) + '" data-action="ex-archive" data-id="' + esc(e.id) + '" data-archived="' + !e.archived + '" aria-label="' + (e.archived?'Unarchive ':'Archive ') + esc(e.name) + '">' + (e.archived?'Unarchive':'Archive') + '</button></div></li>';
+      /* Archive is in the exercise's sheet. An archived row keeps Unarchive on
+         the row, because restoring is why the archived list is opened. */
+      (e.archived ? '<div class="list-actions"><button type="button" class="btn" id="archive-ex-' + esc(encodeURIComponent(e.id)) + '" data-action="ex-archive" data-id="' + esc(e.id) + '" data-archived="false" aria-label="Unarchive ' + esc(e.name) + '">Unarchive</button></div>' : '') +
+      '</li>';
   });
   html += '</ul>';
   if (!shown.length) html += '<p class="hint">No exercises match this view.</p>';
@@ -7608,7 +7621,7 @@ const actions = {
     if (box && preview) WorkoutMarkdown.togglePreview(el, box, preview);
   },
   'ex-archived-toggle'(){ ui.showArchivedExercises = !ui.showArchivedExercises; render(); },
-  'ex-archive'(d){if(!ui.detail)ui.focus=d.archived==='true'?'ex-archived-toggle':'archive-ex-'+encodeURIComponent(d.id);setExerciseArchived(d.id, d.archived === 'true');},
+  'ex-archive'(d){if(!ui.detail)ui.focus=d.archived==='true'?'ex-archived-toggle':detailRowId('exercise', d.id);setExerciseArchived(d.id, d.archived === 'true');},
   'ex-merge'(d){
     const e = exerciseById(d.id); if (!e) return;
     editFromDetail(() => {
@@ -7658,6 +7671,25 @@ const actions = {
     const s = findHSet(d); if (!s) return;
     setWarmup(s, !isWarmup(s));
     save(); render();
+  },
+  /* The rarer changes to a logged set, as in the workout's set editor. */
+  'hset-menu'(d){
+    const ex = findHEx(d), set = ex && ex.sets.find(s => s.id === d.sid); if (!set) return;
+    const n = ex.sets.indexOf(set) + 1;
+    const dlg = document.createElement('dialog'); dlg.className = 'numeric-editor'; dlg.setAttribute('aria-label', 'Set ' + n);
+    dlg.innerHTML = '<h2>Set ' + n + '</h2><div class="editor-actions">' +
+      '<button type="button" class="btn" value="warmup">' + (isWarmup(set) ? 'Mark as working set' : 'Mark as warm-up') + '</button>' +
+      '<button type="button" class="btn btn-danger" value="delete">Delete set ' + n + '…</button>' +
+      '<button type="button" class="btn" value="cancel">Cancel</button></div>';
+    let chosen = null;
+    dlg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { chosen = b.value; dlg.close(); }));
+    dlg.addEventListener('close', () => {
+      dlg.remove();
+      if (chosen === 'warmup'){ ui.focus = 'hmore-' + d.sid; actions['hset-warmup'](d); }
+      else if (chosen === 'delete') actions['hset-del'](d);
+      else { const back = document.getElementById('hmore-' + d.sid); if (back) back.focus(); }
+    }, { once:true });
+    document.body.append(dlg); dlg.showModal();
   },
   'hset-del'(d){
     const ex = findHEx(d); if (!ex) return;
