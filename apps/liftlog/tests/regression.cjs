@@ -252,14 +252,16 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     await rangeFields.first().fill('8 – 5');   // reordered on save; the workout below expects 5–8
     assert.equal(await page.getByLabel('Target RIR').count(), 3, 'routine editor exposes optional target RIR');
     assert.equal(await page.locator('.item-name select').count(), 0, 'editor has no per-row partner selectors');
-    await page.getByRole('button', {name:'Pair exercises…'}).click();
+    const pairEither = async () => { await page.getByRole('button', {name:'Pair exercises…'}).click();
+      await page.getByRole('dialog', {name:'Pair exercises'}).getByRole('button', {name:'Either of…'}).click(); };
+    await pairEither();
     const pairDialog = page.getByRole('dialog', {name:'Either of'});
     await pairDialog.getByRole('button', {name:'Close'}).click();
     assert.equal(await page.locator('#routine-form .either-pair').count(), 2, 'closing picker keeps existing pair');
-    await page.getByRole('button', {name:'Pair exercises…'}).click();
+    await pairEither();
     await pairDialog.getByRole('button', {name:'Unpair'}).click();
     assert.equal(await page.locator('#routine-form .either-pair').count(), 0, 'unpair removes both markers');
-    await page.getByRole('button', {name:'Pair exercises…'}).click();
+    await pairEither();
     await pairDialog.getByLabel('First exercise').selectOption({label:'Back Squat · #1'});
     await pairDialog.getByLabel('Or this exercise').selectOption({label:'Leg Press · #2'});
     await pairDialog.screenshot({path:'/tmp/liftlog-pair-picker.png'});
@@ -280,12 +282,16 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
         getComputedStyle(rows[0], '::before').borderLeftColor === violet && violet !== green &&
         getComputedStyle(rows[1], '::after').content === '"OR"';
     }), true, 'adjacent alternatives have a violet bracket and one OR pill');
-    await page.getByRole('button', {name:'Move Back Squat and Leg Press down'}).first().click();
+    await page.locator('[data-action="ritem-menu"][data-move="Back Squat and Leg Press"]').first().click();
+    await page.getByRole('button', {name:'Move Back Squat and Leg Press down'}).click();
+    await page.waitForFunction(() => !document.querySelector('dialog.numeric-editor'));
     assert.deepEqual(await page.evaluate(() => {
       const t = window.testAPI;
       return t.ui.routineDraft.items.map(it => t.state.exercises.find(ex => ex.id === it.exerciseId).name);
     }), ['Plank', 'Back Squat', 'Leg Press'], 'arrow moves both alternatives together');
-    await page.getByRole('button', {name:'Move Back Squat and Leg Press up'}).first().click();
+    await page.locator('[data-action="ritem-menu"][data-move="Back Squat and Leg Press"]').first().click();
+    await page.getByRole('button', {name:'Move Back Squat and Leg Press up'}).click();
+    await page.waitForFunction(() => !document.querySelector('dialog.numeric-editor'));
     assert.deepEqual(await page.evaluate(() => {
       const t = window.testAPI;
       return t.ui.routineDraft.items.map(it => t.state.exercises.find(ex => ex.id === it.exerciseId).name);
@@ -642,7 +648,9 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     }), true, 'View last session opens that workout in its sheet, focused on the exercise');
     await page.keyboard.press('Escape');
     await navigateUI(page,'today');
-    await page.getByRole('button', {name:'Start Cue routine'}).click();
+    /* Start is on the top routine's row only; any other starts from its sheet. */
+    await page.getByRole('button', {name:'Cue routine', exact:true}).click();
+    await page.locator('#detail-start').click();
     assert.equal(await page.locator('.load-cue.is-compact').count(), 1,
       'active workout shows the cue beside load entry');
     const card = page.locator('.load-cue.is-compact');
@@ -947,18 +955,20 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       t.ui.routineDraft = structuredClone(t.state.routines[0]); t.render();
     });
     assert.equal(await ss.locator('#routine-form .superset-pair').count(), 2, 'routine editor draws the superset bracket');
-    await ss.getByRole('button', {name:'Superset…'}).click();
+    const pairSuperset = async () => { await ss.getByRole('button', {name:'Pair exercises…'}).click();
+      await ss.getByRole('dialog', {name:'Pair exercises'}).getByRole('button', {name:'Superset…'}).click(); };
+    await pairSuperset();
     const ssDialog = ss.getByRole('dialog', {name:'Superset'});
     await ssDialog.getByRole('button', {name:'Split'}).click();
     assert.equal(await ss.locator('#routine-form .superset-pair').count(), 0, 'split removes both superset markers');
-    await ss.getByRole('button', {name:'Superset…'}).click();
+    await pairSuperset();
     await ssDialog.getByLabel('First exercise').selectOption({label:'Bench · #1'});
     await ssDialog.getByLabel('Alternate with').selectOption({label:'Plank · #3'});
     await ssDialog.getByRole('button', {name:'Create superset'}).click();
     assert.deepEqual(await ss.locator('#routine-form .item-name').allTextContents().then(n => n.map(x => x.replace(/ in a superset with .*/, ''))),
       ['Bench', 'Plank', 'Row'], 'creating a superset from the dialog places the members together');
-    assert.equal(await ss.evaluate(() => document.activeElement && document.activeElement.id), 'routine-superset-open',
-      'focus returns to the superset button');
+    assert.equal(await ss.evaluate(() => document.activeElement && document.activeElement.id), 'routine-pair-open',
+      'focus returns to the pair button');
     await ss.screenshot({path:'/tmp/liftlog-superset-editor.png'});
     assert.equal(await ss.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'superset editor fits phone width');
     await ss.close();
