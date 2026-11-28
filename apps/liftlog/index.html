@@ -948,7 +948,14 @@ table.shortcuts tr:last-child td{ border-bottom:0; }
 /* A secondary file action beside a view's main button: the size of .btn-sm
    and the colour of .btn-quiet, so it does not compete with the main one. */
 .file-btn.is-quiet span{ min-height:30px; padding:3px var(--sp-3); font-size:var(--fs-xs); border-color:transparent; background:transparent; color:var(--muted); }
+/* A destructive choice in a shared dialog sits on its own line under the
+   Cancel / confirm pair, after a rule. */
+.shared-actions .btn-apart{ order:3; flex-basis:100%; grid-column:1 / -1; margin-top:var(--sp-2) !important; }
+.shared-actions:has(.btn-apart)::after{ content:''; order:2; flex-basis:100%; grid-column:1 / -1; border-top:1px solid var(--border); }
 .view-actions{ display:flex; align-items:center; gap:var(--sp-2); flex-wrap:wrap; }
+/* Import beside New routine is a full button: same height on every screen */
+.view-actions{ align-items:stretch; }
+.view-actions .file-btn span{ height:100%; box-sizing:border-box; }
 
 /* ============================================================
    DIALOG / TOAST / FOOTER
@@ -6147,7 +6154,7 @@ function viewRoutines(){
     (ui.routineDraft || noRoutines ? '' : '<div class="view-actions">' +
       /* Start is this screen's main action, so New routine stays secondary */
       '<button type="button" class="btn" data-action="routine-new">' + IC.plus + '<span>New routine</span></button>' +
-      '<label class="file-btn is-quiet"><span>' + IC.up + ' Import</span><input type="file" accept=".json,application/json" data-change="import-routines" aria-label="Import routines from a JSON file"></label>' +
+      '<label class="file-btn"><span>' + IC.up + ' Import</span><input type="file" accept=".json,application/json" data-change="import-routines" aria-label="Import routines from a JSON file"></label>' +
       '</div>') +
   '</div>';
   if (ui.routineDraft) return head + htmlRoutineEditor();
@@ -6280,7 +6287,9 @@ function htmlRoutineEditor(){
         'data-bind="ritem" data-idx="' + i + '" data-field="repRange" ' +
         'value="' + esc(targetRangeLabel({ targetRepsMin:it.repsMin, targetRepsMax:it.repsMax }).replace(/^–$/, '')) + '" placeholder="8–12"></label>' +
       numberField('Target RIR', 'targetRir', it.targetRir, 'max="10" step="1" inputmode="numeric"') +
-      (loaded ? numberField((bodyweight ? 'Added ' : '') + exerciseLoadLabel(e), 'weight', it.weight, 'step="0.5" inputmode="decimal"') : '');
+      /* "Weight", as the workout's column says, with the unit beside it on a
+         wide screen only */
+      (loaded ? numberField((bodyweight ? 'Added' : 'Weight') + '<span class="narrow-hide"> (' + esc(exerciseLoadLabel(e)) + ')</span>', 'weight', it.weight, 'step="0.5" inputmode="decimal"') : '');
     const pairClass = partner ? ' ' + pairStyle + '-pair ' + pairStyle + (groups[groupIndex][0] === it ? '-first' : '-last') : '';
     html += '<div class="item-row' + pairClass + '">' +
       '<button type="button" class="grip" id="ri-grip-' + i + '" data-drag="routine-items" ' +
@@ -6464,9 +6473,9 @@ function viewHistoryContent(){
     w.exercises.some(ex => normalizedExerciseName(ex.name).includes(query) ||
       normalizedExerciseName((historyExerciseById(canonicalExerciseId(ex.exerciseId)) || {}).name).includes(query))) : ws;
   html += '<div class="section-title mt-4"><h2>Workouts</h2><span class="rule"></span></div>' +
-    '<label class="field mt-2 mb-2"><span class="cap">Find an exercise or session</span>' +
+    '<label class="field mt-2 mb-2"><span class="cap">Search</span>' +
     '<input type="search" id="history-search" data-bind="history-search" value="' + esc(ui.historyQuery) + '" ' +
-    'placeholder="Search workout exercises…" autocomplete="off"></label>' +
+    'placeholder="Exercise or session" autocomplete="off"></label>' +
     (query ? '<p class="muted small mb-2">' + visible.length + ' of ' + ws.length + ' workouts match</p>' : '');
   html += '<div class="list" role="list">';
   visible.forEach(w => {
@@ -7230,10 +7239,10 @@ function viewExercises(){
   const active = state.exercises.filter(e => !e.archived), archived = state.exercises.filter(e => e.archived);
   const head = '<div class="view-head"><div><h1>Exercises</h1>' +
     '<p class="view-sub">' + plural(active.length, 'active movement') + (archived.length ? ' · ' + archived.length + ' archived' : '') + '</p></div>' +
-    '<button type="button" class="btn btn-primary" data-action="ex-form-toggle">' + IC.plus + '<span>New exercise</span></button></div>';
+    '<button type="button" class="btn" data-action="ex-form-toggle">' + IC.plus + '<span>New exercise</span></button></div>';
   let html = '<p class="hint mb-3">Archived exercises are hidden in History and add-exercise menus. Unarchive them here to show them again.</p><div class="form-row mb-4"><label class="field flex-2"><span class="cap">Search</span>' +
     '<input type="search" id="ex-search" data-bind="exfilter" value="' + esc(ui.exerciseFilter) + '" ' +
-    'placeholder="Filter by name, category or movement family…  ( / )" autocomplete="off"></label>' +
+    'placeholder="Name, category or movement" autocomplete="off"></label>' +
     (archived.length ? '<button type="button" class="btn" id="ex-archived-toggle" data-action="ex-archived-toggle" aria-pressed="' + ui.showArchivedExercises + '">' +
       (ui.showArchivedExercises ? 'Hide archived' : 'Show archived (' + archived.length + ')') + '</button>' : '') + '</div>';
   if (ui.showExerciseForm) html += htmlExerciseForm();

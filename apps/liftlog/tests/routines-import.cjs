@@ -29,12 +29,12 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     await page.waitForFunction(() => window.testAPI.state.routines.length === 3);
     assert.match(await page.locator('#toast-region').textContent(), /Imported 3 routines/);
 
-    /* With routines, a quiet Import sits right of New routine in the header. */
-    const quiet = page.locator('.view-head .file-btn.is-quiet');
-    assert.equal(await quiet.count(), 1, 'the header shows a quiet import button');
+    /* With routines, Import is an outlined button the size of New routine, to its right. */
+    const quiet = page.locator('.view-head .file-btn');
+    assert.equal(await quiet.count(), 1, 'the header shows an import button');
     assert.equal((await quiet.textContent()).trim(), 'Import');
-    const [q, n] = [await quiet.boundingBox(), await page.locator('.view-head [data-action="routine-new"]').boundingBox()];
-    assert.ok(q.height < n.height, 'the import button is smaller than New routine');
+    const [q, n] = [await quiet.locator('span').boundingBox(), await page.locator('.view-head [data-action="routine-new"]').boundingBox()];
+    assert.ok(Math.abs(q.height - n.height) <= 1, 'the import button is the height of New routine');
     assert.ok(q.x > n.x + n.width, 'the import button sits to the right of New routine');
     await quiet.locator('input').setInputFiles(file);
     await page.waitForFunction(() => /skipped/.test(document.querySelector('#toast-region').textContent));

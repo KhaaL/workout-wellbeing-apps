@@ -623,10 +623,10 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     assert.match(await squatRow.innerText(), /Last [A-Z][a-z]{2} \d{1,2}: 100 kg × 8 \/ 8 \/ 8/, 'the list shows the last load with the reps');
     await squatRow.getByRole('button', {name:'Resume suggestions'}).click();
     await page.locator('[data-action="history-tab"][data-tab="sessions"]').click();
-    await page.getByLabel('Find an exercise or session').fill('Historic only');
+    await page.locator('#history-search').fill('Historic only');
     assert.equal(await page.locator('.hist-row').count(), 2,
       'History exercise search finds sessions by exercise snapshot');
-    await page.getByLabel('Find an exercise or session').fill('no matching exercise');
+    await page.locator('#history-search').fill('no matching exercise');
     assert.equal(await page.locator('.hist-row').count(), 0,
       'History search filters unmatched workouts');
     await page.locator('[data-action="history-tab"][data-tab="progress"]').click();
@@ -685,7 +685,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     await page.getByRole('button', {name:'Clear workout data…'}).click();
     assert.equal(await page.getByRole('dialog',{name:'Clear workout data?'}).count(),0,'active workout blocks bulk clear');
     await page.evaluate(()=>window.testAPI.finishWorkout());
-    await page.getByRole('dialog',{name:'No sets completed'}).getByRole('button',{name:'Discard',exact:true}).click();
+    await page.getByRole('dialog',{name:'No sets completed'}).getByRole('button',{name:'Discard workout',exact:true}).click();
     await page.waitForFunction(()=>!window.testAPI.state.activeWorkout);
     await navigateUI(page,'settings');
     const danger=page.locator('[data-settings-section="danger"]');if(!await danger.evaluate(node=>node.open))await danger.locator('summary').click();
@@ -1328,7 +1328,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       check(!t.state.routines.some(r => r.id === 'pl-today') && t.state.workouts.some(w => w.routineName === 'Push today' && w.routineId === 'pl-today') &&
         t.state.workouts[0].exercises[0].targetRepsMin === 5, 'saving a plan’s session removes the plan and History keeps what it prescribed');
       t.startRoutine('pl-any'); let pending = t.finishWorkout(); await wait();
-      press('Discard'); await wait();
+      press('Discard workout'); await wait();
       check(t.state.routines.some(r => r.id === 'pl-any') && !t.state.activeWorkout, 'discarding a plan’s session keeps the plan');
       t.startRoutine('rt-b'); complete(); t.finishWorkout();
       check(t.state.routines.some(r => r.id === 'rt-b'), 'a stable routine is never used up');
