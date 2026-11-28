@@ -316,6 +316,26 @@ test('immutable retries never overwrite an earlier upload and failed read-back d
   fail=false;await d.bike.remote.remoteBackup();assert.equal(store.objects.size,2);assert.equal(d.bike.remote.readRemoteWork().pending,false);
 });
 
+test('separate backups skip a file whose data matches the last one; a timestamp alone is not a change',async()=>{
+  const d=setup(),store=probeStore(d);d.bike.remote.saveRemoteConfig({...cfg,syncMode:'immutable'});d.bike.write('bike-cardio.history.v1',[legacyRecord()]);
+  const files=()=>[...store.objects.keys()].filter(k=>k.includes('.snapshots/')).length;
+  await d.bike.remote.remoteBackup();assert.equal(files(),1);
+  d.bike.state.updatedAt+=5000;d.bike.local.save({immediate:true});d.bike.remote.scheduleRemoteBackup();
+  await d.bike.remote.remoteBackup();assert.equal(files(),1,'only the revision moved: no new file');
+  assert.equal(d.bike.remote.readRemoteWork().pending,false);assert.equal(d.bike.remote.loadRemoteConfig().lastUploadedModifiedAt,d.bike.state.updatedAt);
+  const changed=[legacyRecord(),{...legacyRecord(),id:'new',startedAt:1720100000123,endedAt:1720101980123}];d.bike.write('bike-cardio.history.v1',changed);
+  await d.bike.remote.remoteBackup();assert.equal(files(),2,'a real change writes a file');
+});
+test('during an active session automatic backups wait five minutes; screen locks do not flush early',async()=>{
+  const d=setup(),store=probeStore(d);d.bike.remote.saveRemoteConfig({...cfg,syncMode:'immutable'});d.bike.write('bike-cardio.history.v1',[legacyRecord()]);
+  await d.bike.remote.remoteBackup();const last=d.bike.remote.loadRemoteConfig().lastBackupAt,before=store.objects.size;
+  const active=vm.runInContext("WorkoutCore.create({},Date.now(),'active')",d.ctx);d.bike.write('bike-cardio.active.v1',active);
+  const work=d.bike.remote.readRemoteWork();assert.equal(work.pending,true);assert.ok(work.nextAt>=last+5*60*1000,'the next backup waits for the interval');
+  await d.bike.remote.flushScheduled();assert.equal(store.objects.size,before,'hiding the page mid-session uploads nothing');
+  d.bike.write('bike-cardio.active.v1',null);const after=d.bike.remote.readRemoteWork();
+  assert.ok(after.nextAt<=Date.now()+3000,'with the session over the backup is due within seconds');
+});
+
 test('version 1 Bike backups migrate without reinterpreting old rides; version 2 preserves custom targets',()=>{
   const d=setup(),old={app:'bike-cardio',version:1,updatedAt:1,settings:{},history:[legacyRecord()],active:null};
   const candidate=d.bike.prepare(old);assert.equal(candidate.version,6);assert.equal(candidate.updatedAt,old.updatedAt);assert.equal(candidate.history[0].config.targets.zoneMin,105);assert.equal(candidate.history[0].config.mainMinutes,25);
