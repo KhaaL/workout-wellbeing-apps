@@ -13,8 +13,8 @@ Today holds everything. Every tap saves.
 | Fatigue | 1 to 5 | 1 |
 | Each symptom | 1 to 5, or Gone once ongoing | 1 |
 
-Scores are colored from the worst end to the best: red, orange, yellow, blue,
-green. Soreness 5 is red and Sleep quality 5 is green. The number stays on
+Scores are colored from the best end to the worst: blue, teal, amber, orange,
+rose. Soreness 5 is rose and Sleep quality 5 is blue. The number stays on
 every button.
 
 ## Once

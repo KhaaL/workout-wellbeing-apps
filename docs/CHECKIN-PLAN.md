@@ -182,7 +182,7 @@ The list matches the files the Foodlog commit (`f339907`) touched.
    1 to 5 scores (data version 3, earlier versions refused): Sleep hours (5
    bands), Sleep quality, Mood, Soreness and Fatigue are `scale` items with a
    `better` end; symptoms score 0 gone or 1 to 5. Score buttons are colored
-   red, orange, yellow, blue, green from the worst end to the best. **Copy
+   blue, teal, amber, orange, rose from the best end to the worst. **Copy
    today's state** copies the latest value of each item recorded today.
 2. Usable daily: number and tag items, More… sheet, edit and remove a
    check-in, earlier days, a 7 versus 28 day comparison in History, CSV and

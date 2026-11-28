@@ -61,8 +61,8 @@ const csp=require('./shared/site-headers.cjs').csp('checkin');
     await tap(symptom('Nausea'));await tap(level('Nausea','5'));
     assert.equal(taps,3);assert.equal((await saved()).entries[0].values.nausea,5,'a score of 5 takes 2 taps');
     assert.match(await entries().first().textContent(),/Mood 3\/5 Okay, Nausea 5\/5, Headache 1\/5/);
-    assert.equal(await fill(level('Nausea','5')),'rgb(192, 57, 43)','a chosen symptom score of 5 is red');
-    assert.equal(await fill(level('Headache','1')),'rgb(30, 132, 73)','a chosen symptom score of 1 is green');
+    assert.equal(await fill(level('Nausea','5')),'rgb(190, 18, 60)','a chosen symptom score of 5 is rose');
+    assert.equal(await fill(level('Headache','1')),'rgb(59, 130, 246)','a chosen symptom score of 1 is blue');
     console.log('PASS a chip records 1 and opens a row of scores; 5 takes 2 taps');
 
     for(const label of ['1','3','5','5','1','1']){
@@ -84,14 +84,15 @@ const csp=require('./shared/site-headers.cjs').csp('checkin');
     await page.click('#toastAction');
     console.log('PASS Undo reverses a tap, and tapping the chosen mood clears it');
 
-    // Scales: one tap each, colored by which end is good. Tone 4 is blue.
+    // Scales: one tap each, colored by which end is good. Tone 4 is teal.
     taps=0;await tap(score('Sleep hours',4));await tap(score('Sleep quality',4));await tap(score('Soreness',2));await tap(score('Fatigue',5));
     assert.equal(taps,4,'each scale takes 1 tap');
     assert.deepEqual((await saved()).entries[0].values,{mood:3,headache:1,'sleep-hours':4,'sleep-quality':4,soreness:2,fatigue:5});
-    assert.equal(await fill(score('Sleep quality',4)),'rgb(37, 99, 201)','quality 4 is blue');
-    assert.equal(await fill(score('Soreness',2)),'rgb(37, 99, 201)','soreness 2 is blue, because low soreness is good');
-    assert.equal(await fill(score('Fatigue',5)),'rgb(192, 57, 43)','fatigue 5 is red');
+    assert.equal(await fill(score('Sleep quality',4)),'rgb(20, 184, 166)','quality 4 is teal');
+    assert.equal(await fill(score('Soreness',2)),'rgb(20, 184, 166)','soreness 2 is teal, because low soreness is good');
+    assert.equal(await fill(score('Fatigue',5)),'rgb(190, 18, 60)','fatigue 5 is rose');
     assert.equal(await score('Soreness',5).getAttribute('data-tone'),'1');assert.equal(await score('Mood',5).getAttribute('data-tone'),'5');
+    assert.equal(await fill(score('Soreness',1)),'rgb(239, 246, 255)','an unchosen score shows its soft tint');
     console.log('PASS scales take 1 tap each and color by which end is good');
 
     await page.click('#noteBox summary');await page.fill('#note','Slept 5 hours');await page.locator('#note').blur();
