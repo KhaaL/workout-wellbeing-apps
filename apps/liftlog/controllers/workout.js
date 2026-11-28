@@ -888,9 +888,10 @@ function finishWorkout(){
   if (done === 0){
     context.dialog({ title:'No sets completed', body:'This workout has no completed sets. Do you want to save it anyway?',
       buttons:[
-        { label:'Discard', value:'discard', cls:'btn-danger' },
+        /* Cancel left and the save right, as in every editor; Discard apart below */
         { label:'Cancel', value:'cancel', cls:'', autofocus:true },
-        { label:'Save anyway', value:'save', cls:'btn-primary' }
+        { label:'Save anyway', value:'save', cls:'btn-primary' },
+        { label:'Discard workout', value:'discard', cls:'btn-danger btn-apart' }
       ]}).then(v => { if (v === 'save') commit(false); else if (v === 'discard') commit(true); });
   } else commit(false);
 }
