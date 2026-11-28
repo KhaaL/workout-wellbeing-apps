@@ -3,13 +3,15 @@
 const CheckinCore = (() => {
   'use strict';
   const LIMITS = {items:200, entries:50000};
-  // Version 1 already accepts number and tag items, so phase 2 can show them
-  // without a schema change. Phase 1 shows mood and symptom items.
-  const KINDS = ['mood', 'symptom', 'number', 'tag'];
-  const MOOD = ['Very low', 'Low', 'Okay', 'Good', 'Very good'];
-  // Symptom values: 0 gone (recorded as over), 1 mild, 2 moderate, 3 severe.
+  // Today shows scale and symptom items. Number and tag items already validate,
+  // so a later phase can show them without a schema change.
+  const KINDS = ['scale', 'symptom', 'number', 'tag'];
+  // Every scale and symptom score runs 1 to 5. A scale item says which end is
+  // good ("better"), so colors mean the same thing on every item.
+  const SCORES = 5, MOOD = ['Very low', 'Low', 'Okay', 'Good', 'Very good'];
+  // Symptom values: 0 gone (recorded as over), 1 to 5 severity.
   // An item missing from a check-in is not recorded, which is different from 0.
-  const SEVERITY = ['Mild', 'Moderate', 'Severe'], LEVELS = ['Gone', ...SEVERITY];
+  const SEVERITY = ['1', '2', '3', '4', '5'], LEVELS = ['Gone', ...SEVERITY];
   // A symptom recorded mild or worse within this many days stays ongoing until marked gone.
   const ONGOING_DAYS = 7;
   const TIME = /^([01]\d|2[0-3]):[0-5]\d$/, DATE = /^\d{4}-\d{2}-\d{2}$/, ID = /^[A-Za-z0-9._-]{1,100}$/;
@@ -34,6 +36,16 @@ const CheckinCore = (() => {
     const name = text(raw.name, 60, 'Item name');
     if (!name) fail('Tracked items need a name.');
     const out = {id:raw.id, kind:raw.kind, name, pinned:raw.pinned !== false, archived:raw.archived === true};
+    if (raw.kind === 'scale'){
+      const better = raw.better ?? 'high';
+      if (!['high', 'low'].includes(better)) fail('Invalid scale direction for ' + name + '.');
+      Object.assign(out, {better, unit:text(raw.unit, 12, 'Unit')});
+      for (const [key, max] of [['options', 8], ['words', 20]]){
+        if (raw[key] == null) continue;
+        if (!Array.isArray(raw[key]) || raw[key].length !== SCORES) fail('A scale needs ' + SCORES + ' ' + key + ' for ' + name + '.');
+        out[key] = raw[key].map(v => text(v, max, 'Scale label') || fail('Empty scale label for ' + name + '.'));
+      }
+    }
     if (raw.kind === 'number'){
       const unit = text(raw.unit, 12, 'Unit'), min = raw.min ?? 0, max = raw.max ?? 24, step = raw.step ?? 0.5;
       if (![min, max, step].every(Number.isFinite) || min >= max || step <= 0) fail('Invalid number range for ' + name + '.');
@@ -42,10 +54,10 @@ const CheckinCore = (() => {
     return out;
   }
 
-  // Mood 1 to 5, symptom 0 (gone) to 3, a number in its range, a tag as true.
+  // A scale 1 to 5, a symptom 0 (gone) to 5, a number in its range, a tag as true.
   function valid(it, value){
-    if (it.kind === 'mood') return Number.isSafeInteger(value) && value >= 1 && value <= MOOD.length;
-    if (it.kind === 'symptom') return Number.isSafeInteger(value) && value >= 0 && value <= SEVERITY.length;
+    if (it.kind === 'scale') return Number.isSafeInteger(value) && value >= 1 && value <= SCORES;
+    if (it.kind === 'symptom') return Number.isSafeInteger(value) && value >= 0 && value <= SCORES;
     if (it.kind === 'number') return Number.isFinite(value) && value >= it.min && value <= it.max;
     return value === true;
   }
@@ -89,9 +101,24 @@ const CheckinCore = (() => {
     return {settings:settings(raw.settings), items:[...items.values()], entries};
   }
 
-  const DEFAULTS = [['mood', 'mood', 'Mood'], ['headache', 'symptom', 'Headache'], ['fatigue', 'symptom', 'Fatigue'],
-    ['anxiety', 'symptom', 'Anxiety'], ['low-mood', 'symptom', 'Low mood'], ['nausea', 'symptom', 'Nausea']];
-  const defaults = () => DEFAULTS.map(([id, kind, name]) => ({id, kind, name, pinned:true, archived:false}));
+  const LEVEL_WORDS = ['None', 'Mild', 'Moderate', 'High', 'Severe'];
+  const DEFAULTS = [
+    {id:'sleep-hours', kind:'scale', name:'Sleep hours', better:'high', unit:'h', options:['<4', '4-5', '5-6', '6-7', '>7']},
+    {id:'sleep-quality', kind:'scale', name:'Sleep quality', better:'high', words:['Very poor', 'Poor', 'Okay', 'Good', 'Very good']},
+    {id:'mood', kind:'scale', name:'Mood', better:'high', words:MOOD},
+    {id:'soreness', kind:'scale', name:'Soreness', better:'low', words:LEVEL_WORDS},
+    {id:'fatigue', kind:'scale', name:'Fatigue', better:'low', words:LEVEL_WORDS},
+    {id:'headache', kind:'symptom', name:'Headache'}, {id:'anxiety', kind:'symptom', name:'Anxiety'},
+    {id:'low-mood', kind:'symptom', name:'Low mood'}, {id:'nausea', kind:'symptom', name:'Nausea'}];
+  const defaults = () => DEFAULTS.map(d => item({...d, pinned:true, archived:false}));
+  /* Color tone 1 (worst, red) to 5 (best, green), whichever end the item calls
+     good. Symptoms are worse when higher. Gone and unknown values get no tone. */
+  function tone(it, value){
+    if (!Number.isSafeInteger(value) || value < 1 || value > SCORES) return 0;
+    if (it.kind === 'scale') return it.better === 'low' ? SCORES + 1 - value : value;
+    if (it.kind === 'symptom') return SCORES + 1 - value;
+    return 0;
+  }
 
   /* Days: before the change time (04:00 by default) a check-in belongs to the previous day. */
   const pad = n => String(n).padStart(2, '0');
@@ -185,7 +212,7 @@ const CheckinCore = (() => {
   function addItem(s, {kind, name, pinned = true}, id){
     const clean = text(name, 60, 'Name');
     if (!clean) fail('Enter a name.');
-    if (!['mood', 'symptom'].includes(kind)) fail('Unknown tracked item kind.');
+    if (kind !== 'symptom') fail('Only symptoms can be added.');
     if (s.items.length >= LIMITS.items) fail('The list holds the maximum of ' + LIMITS.items + ' items.');
     const same = s.items.find(i => i.kind === kind && i.name.toLowerCase() === clean.toLowerCase());
     if (same && !same.archived) fail(clean + ' is already tracked.');
@@ -213,15 +240,17 @@ const CheckinCore = (() => {
   const findActive = (s, kind, name) => s.items.find(i => i.kind === kind && !i.archived && i.name.toLowerCase() === String(name).trim().toLowerCase()) || null;
 
   /* Reading. */
+  // The text on a scale button: its option, or the score itself.
+  const option = (it, value) => it.options ? it.options[value - 1] : String(value);
   function label(it, value){
-    if (it.kind === 'mood') return value + ' ' + MOOD[value - 1];
-    if (it.kind === 'symptom') return LEVELS[value].toLowerCase();
+    if (it.kind === 'scale') return it.options ? option(it, value) + (it.unit ? ' ' + it.unit : '') : value + '/' + SCORES + (it.words ? ' ' + it.words[value - 1] : '');
+    if (it.kind === 'symptom') return value === 0 ? 'gone' : value + '/' + SCORES;
     if (it.kind === 'number') return value + (it.unit ? ' ' + it.unit : '');
     return '';
   }
-  // Moods first, then symptoms by severity, then the rest, each in list order.
+  // Scales first, then symptoms by severity, then the rest, each in list order.
   function parts(s, e){
-    const rank = it => ({mood:0, symptom:1, number:2, tag:3})[it.kind];
+    const rank = it => ({scale:0, symptom:1, number:2, tag:3})[it.kind];
     return s.items.filter(it => it.id in e.values)
       .sort((a, b) => rank(a) - rank(b) || (a.kind === 'symptom' ? e.values[b.id] - e.values[a.id] : 0) || s.items.indexOf(a) - s.items.indexOf(b))
       .map(it => ({item:it, value:e.values[it.id], text:(it.name + ' ' + label(it, e.values[it.id])).trim()}));
@@ -234,6 +263,26 @@ const CheckinCore = (() => {
     return out.sort().reverse();
   }
 
-  return {LIMITS, KINDS, MOOD, SEVERITY, LEVELS, ONGOING_DAYS, ongoing, findActive, settings, item, state, defaults, valid, dayFor, shiftDate, localDate, localTime,
+  /* Today's state: the latest value of each item across a day's check-ins, as
+     plain text to paste elsewhere. Items not recorded that day are left out. */
+  function dayState(s, day){
+    const latest = new Map(), notes = [];
+    for (const e of entriesFor(s, day)){
+      for (const [id, value] of Object.entries(e.values)) latest.set(id, value);
+      if (e.note) notes.push(e.note);
+    }
+    const recorded = kind => s.items.filter(it => it.kind === kind && latest.has(it.id)).map(it => ({item:it, value:latest.get(it.id)}));
+    const symptoms = recorded('symptom').sort((a, b) => b.value - a.value);
+    return {day, scales:recorded('scale'), symptoms, notes};
+  }
+  function dayText(s, day){
+    const st = dayState(s, day), lines = [day];
+    for (const {item:it, value} of st.scales) lines.push(it.name + ': ' + label(it, value));
+    if (st.symptoms.length) lines.push('Symptoms: ' + st.symptoms.map(({item:it, value}) => it.name + ' ' + label(it, value)).join(', '));
+    for (const note of st.notes) lines.push('Note: ' + note.replace(/\s+/g, ' '));
+    return lines.join('\n');
+  }
+
+  return {LIMITS, KINDS, SCORES, MOOD, tone, option, dayState, dayText, SEVERITY, LEVELS, ONGOING_DAYS, ongoing, findActive, settings, item, state, defaults, valid, dayFor, shiftDate, localDate, localTime,
     current, setValue, setNote, symptomRows, addItem, renameItem, archiveItem, visible, label, parts, describe, entriesFor, days};
 })();

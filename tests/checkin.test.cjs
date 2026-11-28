@@ -14,12 +14,22 @@ const plain=value=>JSON.parse(JSON.stringify(value));
 const at=iso=>new Date(iso).getTime();
 const fresh=()=>({settings:C.settings(),items:C.defaults(),entries:[]});
 let n=0;const id=()=>'c'+(++n);
-const backup=extra=>({app:'checkin',version:2,updatedAt:5,settings:{dayStart:'04:00',mergeMinutes:30},items:C.defaults(),entries:[],...extra});
+const backup=extra=>({app:'checkin',version:3,updatedAt:5,settings:{dayStart:'04:00',mergeMinutes:30},items:C.defaults(),entries:[],...extra});
 
-test('defaults hold one mood and five symptoms, all on Today',()=>{
+test('defaults hold five scales and four symptoms, all on Today',()=>{
   const items=C.defaults();
-  assert.deepEqual(plain(items.map(i=>i.kind)),['mood','symptom','symptom','symptom','symptom','symptom']);
+  assert.deepEqual(plain(items.map(i=>i.id)),['sleep-hours','sleep-quality','mood','soreness','fatigue','headache','anxiety','low-mood','nausea']);
+  assert.deepEqual(plain(items.filter(i=>i.kind==='scale').map(i=>i.better)),['high','high','high','low','low']);
+  assert.deepEqual(plain(items[0].options),['<4','4-5','5-6','6-7','>7']);
   assert.ok(items.every(i=>i.pinned&&!i.archived));
+});
+
+test('color tones run 1 worst to 5 best, whichever end an item calls good',()=>{
+  const it=Object.fromEntries(C.defaults().map(i=>[i.id,i]));
+  assert.deepEqual([1,2,3,4,5].map(v=>C.tone(it['sleep-quality'],v)),[1,2,3,4,5]);
+  assert.deepEqual([1,2,3,4,5].map(v=>C.tone(it.soreness,v)),[5,4,3,2,1]);
+  assert.deepEqual([0,1,5].map(v=>C.tone(it.headache,v)),[0,5,1],'gone has no tone, a mild symptom is green');
+  assert.equal(C.tone(it.mood,6),0);
 });
 
 test('the day changes at the configured time, across a DST change',()=>{
@@ -61,17 +71,17 @@ test('symptom rows hold recorded and ongoing symptoms in list order, and only re
   C.setValue(s,'nausea',1,t0,id);C.setValue(s,'headache',3,t0,id);
   let rows=C.symptomRows(s,t0+60000);
   assert.deepEqual(plain(rows.map(r=>[r.item.id,r.value,r.last])),[['headache',3,null],['nausea',1,null]],'new in this check-in, so no last record');
-  const next=t0+86400000;C.setValue(s,'fatigue',2,next,id);
+  const next=t0+86400000;C.setValue(s,'anxiety',5,next,id);
   rows=C.symptomRows(s,next+60000);
-  assert.deepEqual(plain(rows.map(r=>[r.item.id,r.value??null,r.last?.value??null])),[['headache',null,3],['fatigue',2,null],['nausea',null,1]],'ongoing rows carry the last record');
-  C.setValue(s,'fatigue',null,next+120000,id);
+  assert.deepEqual(plain(rows.map(r=>[r.item.id,r.value??null,r.last?.value??null])),[['headache',null,3],['anxiety',5,null],['nausea',null,1]],'ongoing rows carry the last record');
+  C.setValue(s,'anxiety',null,next+120000,id);
   assert.deepEqual(plain(C.symptomRows(s,next+180000).map(r=>r.item.id)),['headache','nausea'],'a removed new symptom leaves the rows');
-  assert.deepEqual(plain(C.SEVERITY),['Mild','Moderate','Severe']);assert.deepEqual(plain(C.LEVELS),['Gone','Mild','Moderate','Severe']);
+  assert.deepEqual(plain(C.LEVELS),['Gone','1','2','3','4','5']);
 });
 
 test('values outside each kind’s range are refused',()=>{
   const s=fresh(),t=at('2026-01-20T09:00:00+01:00');
-  for(const [item,value] of [['mood',0],['mood',6],['mood',2.5],['headache',4],['headache',-1],['headache',true]])
+  for(const [item,value] of [['mood',0],['mood',6],['mood',2.5],['sleep-hours',0],['soreness',6],['headache',6],['headache',-1],['headache',true]])
     assert.throws(()=>C.setValue(s,item,value,t,id),/Invalid value/,item+' '+value);
   assert.throws(()=>C.setValue(s,'nope',1,t,id),/Unknown tracked item/);
   assert.equal(s.entries.length,0);
@@ -81,19 +91,31 @@ test('items: add, rename, archive and restore keep names unique among active ite
   const s=fresh();
   const it=C.addItem(s,{kind:'symptom',name:' Dizziness '},'s-1');assert.equal(it.name,'Dizziness');
   assert.throws(()=>C.addItem(s,{kind:'symptom',name:'headache'}),/already tracked/);
-  assert.throws(()=>C.renameItem(s,'s-1','Fatigue'),/already tracked/);
-  C.archiveItem(s,'headache',true);assert.deepEqual(plain(C.visible(s,'symptom').map(i=>i.id)),['fatigue','anxiety','low-mood','nausea','s-1']);
+  assert.throws(()=>C.renameItem(s,'s-1','Nausea'),/already tracked/);
+  assert.throws(()=>C.addItem(s,{kind:'scale',name:'Stress'}),/Only symptoms/);
+  C.archiveItem(s,'headache',true);assert.deepEqual(plain(C.visible(s,'symptom').map(i=>i.id)),['anxiety','low-mood','nausea','s-1']);
   const back=C.addItem(s,{kind:'symptom',name:'Headache'},'s-2');
   assert.equal(back.id,'headache','adding an archived name restores it, so history stays linked');assert.equal(back.archived,false);
   C.archiveItem(s,'s-1',true);C.addItem(s,{kind:'symptom',name:'Dizzy'},'s-3');C.renameItem(s,'s-3','Dizziness');
   assert.throws(()=>C.archiveItem(s,'s-1',false),/already tracked/,'restoring a name in use is refused');
 });
 
-test('descriptions list mood first, then symptoms by severity',()=>{
+test('descriptions list scales first, then symptoms by severity',()=>{
   const s=fresh(),t=at('2026-01-20T09:00:00+01:00');
-  C.setValue(s,'fatigue',1,t,id);C.setValue(s,'headache',3,t,id);C.setValue(s,'mood',2,t,id);
-  assert.equal(C.describe(s,s.entries[0]),'Mood 2 Low, Headache severe, Fatigue mild');
-  C.renameItem(s,'headache','Migraine');assert.match(C.describe(s,s.entries[0]),/Migraine severe/,'history follows a rename');
+  C.setValue(s,'nausea',1,t,id);C.setValue(s,'headache',4,t,id);C.setValue(s,'mood',2,t,id);C.setValue(s,'sleep-hours',4,t,id);
+  assert.equal(C.describe(s,s.entries[0]),'Sleep hours 6-7 h, Mood 2/5 Low, Headache 4/5, Nausea 1/5');
+  C.renameItem(s,'headache','Migraine');assert.match(C.describe(s,s.entries[0]),/Migraine 4\/5/,'history follows a rename');
+});
+
+test('today’s state copies the latest value of each item across the day’s check-ins',()=>{
+  const s=fresh(),t=at('2026-01-20T08:00:00+01:00');
+  assert.equal(C.dayText(s,'2026-01-20'),'2026-01-20','an empty day is the date only');
+  C.setValue(s,'sleep-hours',3,t,id);C.setValue(s,'sleep-quality',4,t,id);C.setValue(s,'mood',3,t,id);C.setValue(s,'nausea',2,t,id);
+  C.setNote(s,'Slept\nlate',t,id);
+  const later=t+4*3600000;C.setValue(s,'mood',4,later,id);C.setValue(s,'soreness',2,later,id);C.setValue(s,'headache',3,later,id);C.setValue(s,'nausea',0,later,id);
+  C.setValue(s,'fatigue',5,at('2026-01-21T09:00:00+01:00'),id);
+  assert.equal(C.dayText(s,'2026-01-20'),['2026-01-20','Sleep hours: 5-6 h','Sleep quality: 4/5 Good','Mood: 4/5 Good','Soreness: 2/5 Mild',
+    'Symptoms: Headache 3/5, Nausea gone','Note: Slept late'].join('\n'));
 });
 
 test('days list latest first',()=>{
@@ -104,7 +126,7 @@ test('days list latest first',()=>{
   assert.equal(C.entriesFor(s,'2026-01-20').length,2);
 });
 
-test('storage prepare accepts version 1 and rebuilds known fields only',()=>{
+test('storage prepare rebuilds known fields only',()=>{
   const raw=backup({entries:[{id:'b',at:2000,day:'2026-01-20',values:{mood:4},note:'',extra:1},{id:'a',at:1000,day:'2026-01-20',values:{headache:2}}],stray:true});
   const s=Store.prepare(raw);
   assert.deepEqual(plain(s.entries.map(e=>e.id)),['a','b'],'sorted by time');
@@ -115,8 +137,8 @@ test('storage prepare accepts version 1 and rebuilds known fields only',()=>{
 });
 
 test('storage prepare refuses newer versions, other apps and broken rows',()=>{
-  assert.throws(()=>Store.prepare(backup({version:3})),/newer Check-in version/);
-  assert.equal(Store.prepare(backup({version:1,entries:[{id:'a',at:1,day:'2026-01-20',values:{headache:2}}]})).version,2,'version 1 data loads as version 2');
+  assert.throws(()=>Store.prepare(backup({version:4})),/newer Check-in version/);
+  assert.throws(()=>Store.prepare(backup({version:2})),/Not a valid Check-in backup/,'earlier versions are refused');
   assert.equal(Store.prepare(backup({entries:[{id:'a',at:1,day:'2026-01-20',values:{headache:0}}]})).entries[0].values.headache,0,'gone is a recorded value');
   assert.throws(()=>Store.prepare(backup({app:'foodlog'})),/Not a valid Check-in backup/);
   const bad=[
@@ -127,6 +149,9 @@ test('storage prepare refuses newer versions, other apps and broken rows',()=>{
     [{entries:[{id:'a',at:1,day:'2026-01-20',values:{mood:1}},{id:'a',at:2,day:'2026-01-20',values:{mood:2}}]},/Duplicate check-in id/],
     [{items:[...C.defaults(),{id:'x',kind:'symptom',name:'headache'}]},/share the name/],
     [{items:[{id:'m',kind:'feeling',name:'Mood'}]},/Unknown tracked item kind/],
+    [{items:[{id:'m',kind:'mood',name:'Mood'}]},/Unknown tracked item kind/],
+    [{items:[{id:'q',kind:'scale',name:'Quality',better:'up'}]},/scale direction/],
+    [{items:[{id:'q',kind:'scale',name:'Quality',options:['a','b']}]},/needs 5 options/],
     [{settings:{dayStart:'4am'}},/HH:MM/],
     [{settings:{mergeMinutes:500}},/0 to 240/]];
   for(const [extra,message] of bad)assert.throws(()=>Store.prepare(backup(extra)),message,JSON.stringify(extra));
@@ -156,13 +181,13 @@ test('since covers the whole run and stops at gone or a 7-day gap',()=>{
   const s=fresh();
   for(const [d,v] of [[1,2],[3,0],[4,1],[6,3],[8,2]])C.setValue(s,'headache',v,day(d),id);
   assert.equal(C.ongoing(s,day(9))[0].since,'2026-01-04','the run starts after the gone record');
-  const t=fresh();for(const [d,v] of [[1,2],[9,1],[12,2]])C.setValue(t,'fatigue',v,day(d),id);
+  const t=fresh();for(const [d,v] of [[1,2],[9,1],[12,2]])C.setValue(t,'anxiety',v,day(d),id);
   assert.equal(C.ongoing(t,day(13))[0].since,'2026-01-09','an 8-day gap starts a new run');
-  const u=fresh();for(const [d,v] of [[1,2],[7,1]])C.setValue(u,'fatigue',v,day(d),id);
+  const u=fresh();for(const [d,v] of [[1,2],[7,1]])C.setValue(u,'anxiety',v,day(d),id);
   assert.equal(C.ongoing(u,day(8))[0].since,'2026-01-01','a 6-day gap keeps the run');
 });
 
-test('archived symptoms and moods are never ongoing; other symptoms in a check-in do not disturb the lookup',()=>{
+test('archived symptoms and scales are never ongoing; other symptoms in a check-in do not disturb the lookup',()=>{
   const s=fresh();C.setValue(s,'mood',2,day(10),id);C.setValue(s,'nausea',2,day(10),id);C.setValue(s,'anxiety',1,day(10),id);
   C.setValue(s,'mood',3,day(11),id);
   assert.deepEqual(names(C.ongoing(s,day(11,'12:00'))),['Anxiety','Nausea'],'list order');
