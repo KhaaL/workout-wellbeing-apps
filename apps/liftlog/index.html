@@ -533,19 +533,33 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .overview-row.is-current-row .item-name{ font-weight:650; }
 /* .item-name and .item-actions carry bottom padding for the routine editor's
    baseline-aligned grid; here it is 13px of nothing, once per row. */
-.overview-row .item-name,.overview-row .item-actions{ padding-bottom:0; }
+.overview-row .item-name{ padding-bottom:0; }
 /* Name on one line, state on the next: the logged sets of a finished exercise
    are as long as they are, and wrapping them beside the name squeezed it into
    a column. A row with nothing to say under its name (not started yet) is
    one line. */
-.overview-row .item-name{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+.overview-row{ grid-template-columns:44px minmax(0,1fr); }
+.overview-row .item-name{ display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:var(--sp-2); row-gap:2px; align-items:center; min-width:0; }
+.overview-row .ov-title, .overview-row .ov-meta{ grid-column:1; }
+/* the whole name block is the jump; it looks like the text it holds */
+.overview-row .ov-open{ font:inherit; font-weight:600; font-size:var(--fs-sm); color:inherit; text-align:left; background:none; border:0;
+  margin:calc(-1 * var(--sp-2)) 0; padding:var(--sp-2) var(--sp-1) var(--sp-2) 0; min-height:44px; cursor:pointer; border-radius:var(--radius); }
+.overview-row .ov-open:hover .ov-chev{ color:var(--text); }
+.overview-row .ov-chev{ grid-column:2; grid-row:1 / span 2; color:var(--muted); display:flex; }
 .overview-row .ov-title{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .overview-row .ov-meta{ min-width:0; white-space:normal; color:var(--muted); font-size:var(--fs-xs); font-weight:400; font-variant-numeric:tabular-nums; }
-.overview-row .item-actions{ align-items:center; justify-content:flex-end; }
-.overview-row .item-actions .btn{ margin-right:var(--sp-1); }
 /* Finished with, but still a row like the others — dimmed, not different. */
 .overview-row.is-settled .ov-title{ color:var(--muted); }
-.session-pair{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--sp-2) var(--sp-3); }
+/* The tools below the list: a band on its own background, set apart by a gap
+   instead of a heading. Discard has a band of its own. */
+.ov-tools{ background:var(--surface-2); margin-top:var(--sp-4); border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.ov-tools-danger{ margin-bottom:var(--sp-4); }
+.ov-tool{ display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-3) var(--sp-4); }
+.ov-tool + .ov-tool{ border-top:1px solid var(--border); }
+.ov-tool-text{ flex:1; min-width:0; }
+.ov-tool-title{ margin:0; font-weight:600; font-size:var(--fs-sm); }
+.ov-tool .hint{ margin:2px 0 0; }
+.ov-tool .btn{ flex:none; }
 .either-inline,.superset-inline{
   display:inline-block; margin-right:5px; padding:1px 5px;
   border:1px solid var(--either); border-radius:99px;
@@ -553,22 +567,8 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 }
 .superset-inline{ border-color:var(--superset); color:var(--superset); }
 @media (max-width:480px){
-  /* Three controls and a name do not fit a 320px line without truncating the
-     name, which is the one thing the running order exists to show. The name
-     takes the first line to itself and the buttons share the second with the
-     row's state; the handle spans both, because it belongs to the row rather
-     than to either line. */
-  .overview-row{
-    grid-template-columns:44px minmax(0,1fr) auto; gap:2px var(--sp-2);
-    grid-template-areas:"grip title title" "grip meta actions";
-  }
-  .overview-row .item-name{ display:contents; }
-  .overview-row .grip{ grid-area:grip; align-self:center; }
-  .overview-row .ov-title{ grid-area:title; }
-  .overview-row .ov-meta{ grid-area:meta; align-self:center; }
-  .overview-row .item-actions{ grid-area:actions; }
-  /* nothing under the name: one line, name beside its button */
-  .overview-row.no-meta{ grid-template-areas:"grip title actions"; }
+  /* a narrower gutter for the tool rows on a phone */
+  .ov-tool{ padding:var(--sp-3); }
 }
 
 /* ============================================================
@@ -5770,39 +5770,58 @@ function overviewSheetHTML(w){
         '<span class="sr-only">: same muscle group as ' + esc(above.name) + '</span></span> ' : '') +
       (ex.excludeFromProgression ? '<span class="status-chip skip">Not in progression</span> ' : '') +
       (settled && logged.length ? logged.map(s => setSummary(s, ex)).join(', ')
-      : isNow || logged.length ? logged.length + '/' + ex.sets.length + ' sets' : '');
+      : logged.length + '/' + ex.sets.length + ' sets');
     /* The grip is the drag handle and nothing else — a whole draggable row
        would have no way to tell a drag from the scroll it started with, on
        the one surface (a full-screen sheet) that has to scroll. It answers
        the arrow keys too, so the gesture is never the only way to move a
        row, and its label says so. */
-    html += '<div class="overview-row' + (meta ? '' : ' no-meta') + (isNow ? ' is-current-row' : '') + (settled ? ' is-settled' : '') + pairClass + '" data-idx="' + i + '"' +
+    html += '<div class="overview-row' + (isNow ? ' is-current-row' : '') + (settled ? ' is-settled' : '') + pairClass + '" data-idx="' + i + '"' +
         (isNow ? ' aria-current="step"' : '') + '>' +
       '<button type="button" class="grip" id="ov-grip-' + i + '" data-drag="session-exercises" ' +
         'aria-label="Reorder ' + esc(ex.name) + '. Drag it, or use the up and down arrow keys." ' +
         'title="Drag to reorder">' + IC.grip + '</button>' +
-      '<span class="item-name">' +
+      /* The name and its state are the jump: tapping the row opens that
+         exercise, and the chevron says so. The row being worked on has
+         nowhere to jump to, so it is plain text. */
+      (isNow ? '<span class="item-name">'
+        : '<button type="button" class="item-name ov-open" id="ov-jump-' + i + '" data-action="overview-jump" data-idx="' + i + '" ' +
+          'aria-label="' + (settled ? 'Reopen ' : 'Start ') + esc(ex.name) + ' now">') +
         '<span class="ov-title">' + (chip ? chip + ' ' : '') + warmChip + (marker ? marker + ' ' : '') + esc(ex.name) +
           (joined && i < partnerIndex ? '<span class="sr-only">' + (pairKey === 'supersetOf' ? ' in a superset with ' : ' or ') +
             esc(w.exercises[partnerIndex].name) + '</span>' : '') + '</span>' +
-        (meta ? '<span class="ov-meta">' + meta + '</span>' : '') + '</span>' +
-      '<span class="item-actions">' +
-        /* Nothing to jump to on the exercise you are already on. */
-        (isNow ? '' : '<button type="button" class="btn btn-sm" id="ov-jump-' + i + '" data-action="overview-jump" data-idx="' + i + '" ' +
-          'aria-label="' + (settled ? 'Reopen ' : 'Start ') + esc(ex.name) + ' now">' + (settled ? 'Reopen' : 'Start now') + '</button>') +
-      '</span>' +
+        (meta ? '<span class="ov-meta">' + meta + '</span>' : '') +
+        (isNow ? '</span>' : '<span class="ov-chev" aria-hidden="true">' + IC.chev + '</span></button>') +
     '</div>';
   });
 
-  html += htmlSessionSuperset(w);
-  html += htmlAddExercise();
-  html += '<div class="pad divider-top">' + excludeAllButtonHTML(w, 'live') + '</div>';
+  /* The tools that change the session sit in their own band below the list,
+     on a different background, so they never read as more exercises. Each is
+     the same row: what it does, one line on when to use it, one button. What
+     the session contains comes first, then how it counts. */
+  const allOut = w.exercises.length && w.exercises.every(ex => ex.excludeFromProgression);
+  html += '<div class="ov-tools">' +
+    htmlAddExerciseTool() + htmlSessionSuperset(w) +
+    toolRowHTML('Progression', allOut
+        ? 'Every exercise in this session is left out of the stall check and load suggestions.'
+        : 'For a session that does not show your level: little sleep, illness, an injury. Sets still count for volume and records.',
+      allOut ? '<button type="button" class="btn btn-sm" data-action="include-all" data-scope="live">Count again</button>'
+             : '<button type="button" class="btn btn-sm" data-action="exclude-all" data-scope="live" aria-label="Exclude all exercises from progression">Exclude all…</button>') +
+  '</div>' +
   /* Discard lives here rather than beside "Finish workout": they had the same
-     size and adjacency, and a mis-tap costs the whole session. */
-  html += '<div class="pad divider-top">' +
-    '<button type="button" class="btn btn-danger" data-action="discard-workout">' + IC.trash +
-    '<span>Discard this workout</span></button></div>';
+     size and adjacency, and a mis-tap costs the whole session. Its own band
+     keeps it apart from the tools above, as Settings keeps its destructive
+     actions apart. */
+  '<div class="ov-tools ov-tools-danger">' +
+    toolRowHTML('Discard this workout', 'Deletes this session and every set logged in it.',
+      '<button type="button" class="btn btn-sm btn-danger" data-action="discard-workout" aria-label="Discard this workout">' + IC.trash + '<span>Discard…</span></button>') +
+  '</div>';
   return html;
+}
+/* One tool in the overview's band: a title, a hint, and its button. */
+function toolRowHTML(title, hint, button, id){
+  return '<div class="ov-tool"' + (id ? ' id="' + id + '"' : '') + '><div class="ov-tool-text"><p class="ov-tool-title">' + esc(title) + '</p>' +
+    '<p class="hint">' + esc(hint) + '</p></div>' + button + '</div>';
 }
 /* Pairing two exercises into a superset mid-session, through the same dialog
    the routine editor uses. Only offered once there are two exercises to pair. */
@@ -5810,13 +5829,11 @@ function htmlSessionSuperset(w){
   if (w.exercises.length < 2) return '';
   const can = pairCandidates('session').length > 0;
   const has = w.exercises.some(ex => ex.supersetOf);
-  return '<div class="pad divider-top session-pair">' +
+  return toolRowHTML('Superset', can || has ? 'Alternate two exercises set by set, for this workout only.'
+                                             : 'A superset needs two exercises with sets still to do.',
     '<button type="button" class="btn btn-sm" id="session-superset-open" data-action="pair-open" ' +
       'data-scope="session" data-kind="supersetOf"' + (can || has ? '' : ' disabled') + '>' +
-      IC.plus + '<span>Superset…</span></button>' +
-    '<span class="hint">' + (can || has ? 'Alternate two exercises set by set, for this workout only.'
-                                        : 'A superset needs two exercises with sets still to do.') + '</span>' +
-  '</div>';
+      IC.plus + '<span>Superset…</span></button>');
 }
 /* Where the session is, in the sheet's own words — the strip behind it is
    covered while the sheet is open. */
@@ -5861,21 +5878,40 @@ function htmlActionBar(){
 
 /* Lives in the session-overview drawer: adding a movement mid-session is
    occasional, and it used to cost ~90px of permanent height right where the
-   timer needed to be. */
-function htmlAddExercise(){
+   timer needed to be. The picker opens in a dialog, as Superset… does, so the
+   band holds buttons only. */
+function htmlAddExerciseTool(){
   if (!state.activeWorkout || !state.exercises.some(e => !e.archived)) return '';
-  /* What is already in the session is dropped from the list rather than
-     offered and then refused. */
+  const left = !!addExerciseOptions();
+  return toolRowHTML('Add exercise', left ? 'From your exercise library, added at the end of this session.'
+                                         : 'Every exercise in your library is already in this session.',
+    '<button type="button" class="btn btn-sm" id="session-add-open" data-action="add-exercise-open"' + (left ? '' : ' disabled') + '>' +
+      IC.plus + '<span>Add exercise…</span></button>');
+}
+/* What is already in the session is dropped from the list rather than
+   offered and then refused. */
+function addExerciseOptions(){
   const inSession = new Set(state.activeWorkout.exercises.map(ex => ex.exerciseId));
-  const opts = exerciseOptions(null, inSession);
-  const off = opts ? '' : ' disabled';
-  return '<div class="pad divider-top">' +
-    '<form class="form-row" data-form="add-workout-exercise">' +
-      '<label class="field"><span class="cap">Add exercise to session</span>' +
-      '<select id="add-ex-select"' + off + '>' +
-      (opts || '<option value="">Every exercise is already in this session</option>') + '</select></label>' +
-      '<button type="submit" class="btn"' + off + '>' + IC.plus + '<span>Add</span></button>' +
-    '</form></div>';
+  return exerciseOptions(null, inSession);
+}
+function openAddExerciseDialog(){
+  const opts = state.activeWorkout && addExerciseOptions(); if (!opts) return;
+  const dlg = document.createElement('dialog'); dlg.className = 'numeric-editor'; dlg.setAttribute('aria-label', 'Add exercise');
+  dlg.innerHTML = '<h2>Add exercise</h2>' +
+    '<label class="field"><span class="cap">Exercise</span><select id="add-ex-select">' + opts + '</select></label>' +
+    '<div class="editor-actions"><div class="editor-pair"><button type="button" class="btn" value="cancel">Cancel</button>' +
+    '<button type="button" class="btn btn-primary" value="ok">' + IC.plus + '<span>Add</span></button></div></div>';
+  let chosen = null;
+  dlg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    if (b.value === 'ok') chosen = dlg.querySelector('select').value;
+    dlg.close();
+  }));
+  dlg.addEventListener('close', () => {
+    dlg.remove();
+    if (chosen){ ui.focus = 'session-add-open'; addExerciseToWorkout(chosen); }
+    else { const back = $('#session-add-open'); if (back) back.focus(); }
+  }, { once:true });
+  document.body.append(dlg); dlg.showModal();
 }
 /* The exercise library as <option>s, by name — used by both "add" pickers: a
    library long enough to need scrolling is unusable in insertion order.
@@ -7419,6 +7455,7 @@ const actions = {
   'routine-start'(d){ startRoutine(d.id); },
   'start-empty'(){ startEmpty(); },
   'add-workout-exercise'(d){ addExerciseToWorkout(d.id); },
+  'add-exercise-open'(){ openAddExerciseDialog(); },
 
   'toggle-set'(d){ toggleSet(d.id); },
   'toggle-warmup'(d, el){ toggleWarmup(d.id, el && el.id); },
@@ -8165,10 +8202,6 @@ document.addEventListener('submit', e => {
   if (!kind) return;
   e.preventDefault();
   if (kind === 'routine-save'){ saveRoutineDraft(); }
-  else if (kind === 'add-workout-exercise'){
-    const sel = $('#add-ex-select');
-    if (sel && sel.value) addExerciseToWorkout(sel.value);
-  }
   else if (kind === 'ex-new'){
     const g = n => { const el = form.elements.namedItem(n); return el ? el.value : ''; };
     saveNewExercise({ name:g('exname'), category:g('excat'), unit:g('exunit'), loadMode:g('exloadmode'),

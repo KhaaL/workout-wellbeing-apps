@@ -1030,7 +1030,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
       const rows = [...document.querySelectorAll('#overview-dlg-body .overview-row')];
       return rows.length === 4 && rows.every(r => r.querySelector('.grip')) && rows[0].classList.contains('is-settled');
     }), true, 'every exercise in the sheet is a row with a grip, finished ones included');
-    assert.equal(await so.locator('#ov-jump-0').innerText(), 'Reopen', 'a finished row offers Reopen where others offer Start now');
+    assert.match(await so.locator('#ov-jump-0').getAttribute('aria-label'), /^Reopen /, 'a finished row reopens where others start');
     await so.locator('#ov-grip-0').focus();
     await so.keyboard.press('ArrowDown');
     assert.deepEqual(await so.locator('#overview-dlg-body .ov-title').allTextContents().then(n => n.map(x => x.trim().replace(/^(Now|Done)\s*/, ''))),

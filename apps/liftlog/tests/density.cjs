@@ -94,13 +94,14 @@ const ex = (id, name, category, family = 'other') => ({ id, name, category, unit
     await page.evaluate(() => { window.testAPI.state.activeWorkout.exercises[2].skipped = true; });
     assert.deepEqual((await chips()).slice(2, 4), ['', 'First press'], 'a skipped exercise passes the chip on');
 
-    /* A row not started yet is one line: its name beside Start now, no set count, no arrow buttons. */
+    /* A row not started yet shows its set count, and the name block itself is the jump, with no arrow buttons. */
     const oneLine = await page.evaluate(() => {
-      const row = document.querySelectorAll('.overview-row')[4], name = row.querySelector('.ov-title').getBoundingClientRect(), jump = row.querySelector('[data-action="overview-jump"]').getBoundingClientRect();
-      return { meta:!!row.querySelector('.ov-meta'), arrows:document.querySelectorAll('.overview-row .icon-btn').length,
-        level:Math.abs((name.top + name.bottom) / 2 - (jump.top + jump.bottom) / 2) < 8 };
+      const row = document.querySelectorAll('.overview-row')[4], jump = row.querySelector('[data-action="overview-jump"]');
+      return { meta:(row.querySelector('.ov-meta') || {}).textContent, arrows:document.querySelectorAll('.overview-row .icon-btn').length,
+        wraps:!!jump && jump.contains(row.querySelector('.ov-title')) && !!jump.querySelector('.ov-chev') };
     });
-    assert.deepEqual(oneLine, { meta:false, arrows:0, level:true });
+    assert.match(oneLine.meta, /^0\/\d+ sets$/);
+    assert.deepEqual({ arrows:oneLine.arrows, wraps:oneLine.wraps }, { arrows:0, wraps:true });
 
     /* The routine editor lines up Routine name and Planned for, and keeps the date inside the panel. */
     const fields = await page.evaluate(() => {
