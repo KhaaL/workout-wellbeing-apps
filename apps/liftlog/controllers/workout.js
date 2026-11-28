@@ -469,14 +469,16 @@ function openSetEditor(setId){
      rarer changes to the set itself sit below a rule. Removing the whole
      exercise lives in the exercise's More… menu, not in one set's editor. */
   const actions=document.createElement('div');actions.className='editor-actions';dialog.append(actions);
-  const button=(text,css,action,into=actions)=>{const b=document.createElement('button');b.type='button';b.className='btn '+css;b.textContent=text;b.addEventListener('click',action);into.append(b);};
+  const button=(text,css,action,into=actions)=>{const b=document.createElement('button');b.type='button';b.className='btn '+css;b.textContent=text;b.addEventListener('click',action);into.append(b);return b;};
   const pair=document.createElement('div');pair.className='editor-pair';actions.append(pair);
   button('Cancel','',()=>dialog.close(),pair);
-  button('Save changes','btn-primary',async()=>{if(inputs.some(({input})=>!input.reportValidity()))return;
+  /* the save button every editor uses: a floppy disk, named for screen readers */
+  const save=button('Save changes','btn-primary btn-save',async()=>{if(inputs.some(({input})=>!input.reportValidity()))return;
     /* a logged set's new figures get the same typo check as logging it */
     const draft={...set};for(const {input,field}of inputs)draft[field]=context.normalizeSetNumber(field,context.inputLoad(input));
     if(set.completed&&!(await confirmSetFigures(ex,draft,number,'Save changes')))return;
     context.trackChange(context.setUndoTarget(context.state.activeWorkout,ex,set),'Edited set',()=>{for(const {input,field}of inputs)set[field]=context.normalizeSetNumber(field,context.inputLoad(input));context.save();});dialog.close();context.ui.focus='sd-'+setId;context.render();},pair);
+  save.innerHTML=context.IC.save+'<span class="sr-only">Save changes</span>';save.setAttribute('aria-label','Save changes');save.title='Save changes';
   actions.append(document.createElement('hr'));
   button(context.isWarmup(set)?'Mark as working set':'Mark as warm-up','',()=>{dialog.close();toggleWarmup(setId);});
   button('Delete set '+number+'…','btn-danger',()=>{dialog.close();deleteSet(setId);});

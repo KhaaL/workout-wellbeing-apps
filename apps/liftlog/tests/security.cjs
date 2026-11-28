@@ -182,7 +182,9 @@ const fixture = () => ({
     await page.locator('[data-action="detail-open"][data-kind="routine"]').first().click();
     await assertInert();
     await page.getByRole('button',{name:'Edit Routine',exact:true}).click();
+    await page.locator('#routine-add-open').click();
     assert.equal(await page.locator('#routine-add-select option').filter({hasText:'Squat'}).getAttribute('value'),malicious.exercises[0].id);
+    await page.getByRole('dialog',{name:'Add exercise'}).getByRole('button',{name:'Cancel'}).click();
     await page.getByRole('button',{name:'Cancel',exact:true}).click();
     await page.evaluate(() => { const t = window.testAPI; t.state.activeWorkout = window.__heldWorkout; t.save(); t.render(); });
     await page.evaluate(() => window.testAPI.navigate('exercises'));
