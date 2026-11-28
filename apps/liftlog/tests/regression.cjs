@@ -238,8 +238,10 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     await navigateUI(page,'today');
     await page.getByRole('button', {name:'Lower body', exact:true}).click();
     await page.getByRole('button', { name:'Edit Lower body', exact:true }).click();
+    await page.locator('#routine-add-open').click();
     assert.equal(await page.locator('#routine-add-select option', {hasText:'Leg Press'}).count(), 0,
       'routine picker only offers active exercises');
+    await page.getByRole('dialog',{name:'Add exercise'}).getByRole('button',{name:'Cancel'}).click();
     const rangeFields = page.locator('#routine-form [data-field="repRange"]');
     assert.equal(await rangeFields.count(), 3, 'routine editor takes each rep target as one range field');
     assert.match(await rangeFields.first().inputValue(), /^\d+(–\d+)?$/, 'the range field shows the saved target');
@@ -1491,7 +1493,7 @@ const { appWithTestAPI, launchBrowser } = require('./harness.cjs');
     await sessionSheet.getByRole('button', {name:'Edit session'}).click();
     sheetCheck(!(await sheetState()).open && (await sheetState()).focus === 'hedit' && await ds.locator('#hedit input').count() > 0,
       'Edit session closes the sheet and opens the editor under the row');
-    await ds.getByRole('button', {name:'Done', exact:true}).click();
+    await ds.getByRole('button', {name:'Save session', exact:true}).click();
 
     await ds.evaluate(() => { window.testAPI.state.exercises.find(e => e.id === 'ds-bench').archived = false; window.testAPI.startRoutine('ds-push'); });
     await ds.evaluate(() => { window.testAPI.toggleSet(window.testAPI.state.activeWorkout.exercises[0].sets[0].id); window.testAPI.finishWorkout(); });

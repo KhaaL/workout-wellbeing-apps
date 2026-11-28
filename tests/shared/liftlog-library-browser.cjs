@@ -37,7 +37,9 @@ const fixture={version:14,settings:{lastModifiedAt:1},exercises:[
   await page.fill('#history-search','');await page.locator('.hist-row').click();assert.doesNotMatch(await page.locator('#detail-body').textContent(),/Archive Row/);assert.match(await page.locator('#detail-body').textContent(),/Visible Press/);
   await page.locator('#detail-close').click();
   await navigate(page,'today');await page.locator('#open-routine-plan').click();await page.locator('#detail-edit').click();
+  await page.locator('#routine-add-open').click();
   assert.equal(await page.locator('#routine-add-select option[value="row"]').count(),0,'archived exercises cannot be added');
+  await page.getByRole('dialog',{name:'Add exercise'}).getByRole('button',{name:'Cancel'}).click();
   await navigate(page,'exercises');await page.click('#ex-archived-toggle');await page.click('#archive-ex-row');
   await page.waitForFunction(()=>!testAPI.state.exercises.find(e=>e.id==='row').archived);await page.evaluate(()=>testAPI.flushSave());
   await page.reload();await navigate(page,'history');assert.equal(await page.locator('#progress-exercise-select option[value="row"]').count(),1);

@@ -554,6 +554,8 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
    instead of a heading. Discard has a band of its own. */
 .ov-tools{ background:var(--surface-2); margin-top:var(--sp-4); border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
 .ov-tools-danger{ margin-bottom:var(--sp-4); }
+.routine-tools, .hedit-tools{ border:1px solid var(--border); border-radius:var(--radius); }
+.btn-save .ic{ width:20px; height:20px; }
 .ov-tool{ display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-3) var(--sp-4); }
 .ov-tool + .ov-tool{ border-top:1px solid var(--border); }
 .ov-tool-text{ flex:1; min-width:0; }
@@ -1635,6 +1637,7 @@ function icon(name, extraClass){
 }
 const IC = {
   check:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5L19.5 7"/></svg>',
+  save:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8V3"/><path d="M7 21v-7h10v7"/></svg>',
   plus:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   trash:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 4h4M9 7v12a1 1 0 001 1h4a1 1 0 001-1V7M7 7l1 13h8l1-13"/></svg>',
   chev:'<svg class="ic chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>',
@@ -2867,6 +2870,12 @@ function announce(msg){
   setTimeout(() => { el.textContent = msg; }, 60);
 }
 function dialog(opts){return WorkoutUI.dialog(opts);}
+/* Every editor saves with the same button: a floppy disk, with its words kept
+   for screen readers and as the tooltip. */
+function saveIconBtn(label, attrs, cls){
+  return '<button ' + attrs + ' class="btn btn-primary btn-save' + (cls ? ' ' + cls : '') + '" aria-label="' + esc(label) + '" title="' + esc(label) + '">' +
+    IC.save + '<span class="sr-only">' + esc(label) + '</span></button>';
+}
 function confirmDlg(title, body, confirmLabel, danger){return WorkoutUI.confirm(title,body,confirmLabel,danger);}
 
 /* ============================================================
@@ -3294,13 +3303,15 @@ function askExclusion(title, reason){
     document.body.append(dlg); dlg.showModal();
   });
 }
-/* Exclude every exercise of a session at once (sleep, illness), or undo that. */
-function excludeAllButtonHTML(w, scope){
+/* Exclude every exercise of a session at once (sleep, illness), or undo that:
+   the same row in the session overview and in the history editor. */
+function progressionToolHTML(w, scope){
   const all = w.exercises.length && w.exercises.every(ex => ex.excludeFromProgression);
-  return all
-    ? '<button type="button" class="btn" data-action="include-all" data-scope="' + scope + '">Count all exercises in progression again</button>'
-    : '<button type="button" class="btn" data-action="exclude-all" data-scope="' + scope + '">Exclude all exercises from progression…</button>' +
-      '<p class="hint mt-2">For a session that does not show your level: little sleep, illness, an injury. Sets still count for volume and records.</p>';
+  return toolRowHTML('Progression', all
+      ? 'Every exercise in this session is left out of the stall check and load suggestions.'
+      : 'For a session that does not show your level: little sleep, illness, an injury. Sets still count for volume and records.',
+    all ? '<button type="button" class="btn btn-sm" data-action="include-all" data-scope="' + scope + '" aria-label="Count all exercises in progression again">Count again</button>'
+        : '<button type="button" class="btn btn-sm" data-action="exclude-all" data-scope="' + scope + '" aria-label="Exclude all exercises from progression">Exclude all…</button>');
 }
 /* Whether the exercise after this one in the list shares its group, for the
    "Next:" line: a heads-up before the bar starts the group's wait. */
@@ -3637,6 +3648,7 @@ function workoutDuration(w){
    ============================================================ */
 function workoutController(){
   return workoutControllerInstance ||= LiftlogWorkoutController.create({
+    get IC(){return IC;},
     get SORTABLES(){return SORTABLES;},
     get WorkoutUI(){return WorkoutUI;},
     get announce(){return announce;},
@@ -5799,14 +5811,8 @@ function overviewSheetHTML(w){
      on a different background, so they never read as more exercises. Each is
      the same row: what it does, one line on when to use it, one button. What
      the session contains comes first, then how it counts. */
-  const allOut = w.exercises.length && w.exercises.every(ex => ex.excludeFromProgression);
   html += '<div class="ov-tools">' +
-    htmlAddExerciseTool() + htmlSessionSuperset(w) +
-    toolRowHTML('Progression', allOut
-        ? 'Every exercise in this session is left out of the stall check and load suggestions.'
-        : 'For a session that does not show your level: little sleep, illness, an injury. Sets still count for volume and records.',
-      allOut ? '<button type="button" class="btn btn-sm" data-action="include-all" data-scope="live">Count again</button>'
-             : '<button type="button" class="btn btn-sm" data-action="exclude-all" data-scope="live" aria-label="Exclude all exercises from progression">Exclude all…</button>') +
+    htmlAddExerciseTool() + htmlSessionSuperset(w) + progressionToolHTML(w, 'live') +
   '</div>' +
   /* Discard lives here rather than beside "Finish workout": they had the same
      size and adjacency, and a mis-tap costs the whole session. Its own band
@@ -5896,9 +5902,15 @@ function addExerciseOptions(){
 }
 function openAddExerciseDialog(){
   const opts = state.activeWorkout && addExerciseOptions(); if (!opts) return;
+  openExercisePicker(opts, 'add-ex-select', 'session-add-open', id => addExerciseToWorkout(id));
+}
+/* The one exercise picker, for a session and for a routine: a dialog with the
+   library as a list, Cancel and Add. */
+function openExercisePicker(opts, selectId, openerId, onAdd){
+  if (!opts) return;
   const dlg = document.createElement('dialog'); dlg.className = 'numeric-editor'; dlg.setAttribute('aria-label', 'Add exercise');
   dlg.innerHTML = '<h2>Add exercise</h2>' +
-    '<label class="field"><span class="cap">Exercise</span><select id="add-ex-select">' + opts + '</select></label>' +
+    '<label class="field"><span class="cap">Exercise</span><select id="' + selectId + '">' + opts + '</select></label>' +
     '<div class="editor-actions"><div class="editor-pair"><button type="button" class="btn" value="cancel">Cancel</button>' +
     '<button type="button" class="btn btn-primary" value="ok">' + IC.plus + '<span>Add</span></button></div></div>';
   let chosen = null;
@@ -5908,8 +5920,8 @@ function openAddExerciseDialog(){
   }));
   dlg.addEventListener('close', () => {
     dlg.remove();
-    if (chosen){ ui.focus = 'session-add-open'; addExerciseToWorkout(chosen); }
-    else { const back = $('#session-add-open'); if (back) back.focus(); }
+    if (chosen){ ui.focus = openerId; onAdd(chosen); }
+    else { const back = document.getElementById(openerId); if (back) back.focus(); }
   }, { once:true });
   document.body.append(dlg); dlg.showModal();
 }
@@ -5962,7 +5974,7 @@ const DETAIL_SHEETS = {
     view:'today', noun:'editor', find:id => ui.exerciseDraft && ui.exerciseDraft.id === id ? exerciseById(id) : null,
     title:e => 'Edit ' + e.name, sub:() => 'Library exercise · changes apply to this workout and every routine',
     body:() => '<div class="detail-section">' + htmlExerciseEditForm() + '</div>',
-    actions:() => '<button type="submit" class="btn btn-primary" form="ex-edit-form">Save</button>' +
+    actions:() => saveIconBtn('Save', 'type="submit" form="ex-edit-form"') +
       '<button type="button" class="btn" data-action="detail-close">Cancel</button>'
   },
   workout:{
@@ -6116,7 +6128,7 @@ function exerciseDetailActions(e){
     detailBtn('detail-edit', 'ex-edit', e.id, 'Edit ' + e.name, IC.pen + '<span>Edit</span>', 'btn-primary');
 }
 function workoutDetailActions(w){
-  return detailBtn('detail-delete-workout','history-delete',w.id,'Delete session','Delete session…','btn-danger') + detailBtn('detail-edit', 'history-edit', w.id, 'Edit session', IC.pen + '<span>Edit session</span>', 'btn-primary');
+  return detailBtn('detail-delete-workout','history-delete',w.id,'Delete session',IC.trash + '<span class="sr-only">Delete</span>','btn-danger') + detailBtn('detail-edit', 'history-edit', w.id, 'Edit session', IC.pen + '<span>Edit session</span>', 'btn-primary');
 }
 
 /* ---------- ROUTINES ---------- */
@@ -6290,14 +6302,13 @@ function htmlRoutineEditor(){
   });
 
   const hasLibrary = state.exercises.some(e => !e.archived);
-  html += '<div class="form-row mt-4">' +
-    '<label class="field flex-2"><span class="cap">Add exercise</span>' +
-    '<select id="routine-add-select"' + (hasLibrary ? '' : ' disabled') + '>' +
-    (hasLibrary ? exerciseOptions() : '<option value="">No exercises available</option>') + '</select></label>' +
-    '<button type="button" class="btn" data-action="ritem-add"' + (hasLibrary ? '' : ' disabled') + '>' + IC.plus + '<span>Add</span></button>' +
+  html += '<div class="ov-tools routine-tools">' +
+    toolRowHTML('Add exercise', hasLibrary ? 'From your exercise library, added at the end of this routine.' : 'No exercises available. Add one in Exercises first.',
+      '<button type="button" class="btn btn-sm" id="routine-add-open" data-action="ritem-add"' + (hasLibrary ? '' : ' disabled') + '>' +
+        IC.plus + '<span>Add exercise…</span></button>') +
   '</div>' +
   '<div class="form-actions form-footer">' +
-    '<button type="submit" class="btn btn-primary">Save routine</button>' +
+    saveIconBtn('Save routine', 'type="submit"') +
     '<button type="button" class="btn" data-action="routine-cancel">Cancel</button>' +
     '<span class="hint keyboard-only">Shortcut: <kbd>s</kbd> saves</span>' +
   '</div></form></div></section>';
@@ -6547,7 +6558,7 @@ function htmlWorkoutEditor(w){
   let html = '<div class="hist-detail hedit" id="hedit" tabindex="-1" role="group" aria-label="Edit session">' +
     '<div class="hedit-bar"><strong>Edit session</strong>' +
       '<span class="hedit-hint muted xs">Changes save as you type</span>' +
-      '<button type="button" class="btn btn-primary" data-action="history-edit-done">' + IC.check + '<span>Done</span></button></div>' +
+      saveIconBtn('Save session', 'type="button" data-action="history-edit-done"') + '</div>' +
     '<div class="hedit-grid">' +
       '<label class="field"><span class="cap">Session name</span>' +
         '<input type="text" data-bind="hwo" data-field="routineName" value="' + esc(w.routineName) + '"></label>' +
@@ -6558,7 +6569,7 @@ function htmlWorkoutEditor(w){
       '<label class="field span-all"><span class="cap">Notes</span>' +
         '<textarea rows="4" data-bind="hwo" data-field="notes">' + esc(w.notes || '') + '</textarea></label>' +
     '</div>' +
-    '<div class="mt-3">' + excludeAllButtonHTML(w, 'history') + '</div>';
+    '<div class="ov-tools hedit-tools">' + progressionToolHTML(w, 'history') + '</div>';
   w.exercises.forEach((ex, xi) => {
     if(!historyExerciseVisible(ex.exerciseId))return;
     const measurement = ex.unit === 'time' ? 'Timed' : ex.unit === 'bw' ? 'Bodyweight' : 'Weighted';
@@ -7370,7 +7381,7 @@ function restField(attrs, value){
 function htmlExerciseEditRow(){
   return '<li class="list-row is-editing">' + htmlExerciseEditForm(
     '<div class="form-actions mt-3">' +
-      '<button type="submit" class="btn btn-primary btn-sm">Save</button>' +
+      saveIconBtn('Save', 'type="submit"', 'btn-sm') +
       '<button type="button" class="btn btn-sm" data-action="ex-edit-cancel">Cancel</button>' +
     '</div>') + '</li>';
 }
@@ -7577,10 +7588,7 @@ const actions = {
     ui.focus = 'ri-grip-' + d.idx; render();
     toast('Set plan removed: ' + plural(it.sets, 'set') + ' of ' + targetRangeLabel({ targetRepsMin:it.repsMin, targetRepsMax:it.repsMax }) + ' each');
   },
-  'ritem-add'(){
-    const sel = $('#routine-add-select');
-    if (sel && sel.value) addRoutineItem(sel.value);
-  },
+  'ritem-add'(){ openExercisePicker(exerciseOptions(), 'routine-add-select', 'routine-add-open', id => addRoutineItem(id)); },
 
   'ex-form-toggle'(){ ui.showExerciseForm = !ui.showExerciseForm; ui.exerciseFormError=''; render();
     if (ui.showExerciseForm){ const f = $('[data-form="ex-new"] input[name="exname"]'); if (f) f.focus(); } },
