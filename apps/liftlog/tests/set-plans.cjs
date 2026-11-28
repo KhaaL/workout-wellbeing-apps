@@ -173,7 +173,9 @@ const routinesFile = {
     assert.deepEqual(summaries, ['Set plan · 2 warm-ups · 3 × 6–10 @ 55 (2 × 27.5) RIR 2',
       'Set plan · 2 warm-ups · top 1 × 6–8 @ 70 RIR 1 · back-off 2 × 10–12 @ 59 RIR 2']);
     assert.equal(await page.locator('#main [data-bind="ritem"][data-idx="0"]').count(), 0, 'no fields to edit that the plan would override');
-    await page.locator('[data-action="ritem-clear-plan"][data-idx="1"]').click();
+    await page.locator('#ri-more-1').click();
+    await page.getByRole('button', { name:'Remove set plan' }).click();
+    await page.waitForFunction(() => !document.querySelector('dialog.numeric-editor'));
     assert.equal(await page.evaluate(() => window.testAPI.ui.routineDraft.items[1].setPlan), undefined);
     assert.equal(await page.locator('#main [data-bind="ritem"][data-idx="1"]').count(), 4, 'its own sets, reps, RIR and load come back');
 

@@ -560,6 +560,7 @@ button.how-to{ background:none; border:0; cursor:pointer; font-family:inherit; }
 .ov-tools-danger{ margin-bottom:var(--sp-4); }
 .routine-tools, .hedit-tools{ border:1px solid var(--border); border-radius:var(--radius); }
 .btn-save .ic{ width:20px; height:20px; }
+.menu-hint{ margin:-4px 0 4px; text-align:center; }
 .ov-tool{ display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-3) var(--sp-4); }
 .ov-tool + .ov-tool{ border-top:1px solid var(--border); }
 .ov-tool-text{ flex:1; min-width:0; }
@@ -5835,6 +5836,24 @@ function overviewSheetHTML(w){
   '</div>';
   return html;
 }
+/* A short list of actions in a dialog, as the exercise's More… menu is.
+   Each item runs after the dialog closes; Cancel returns focus to the opener. */
+function actionMenu(title, openerId, items){
+  const dlg = document.createElement('dialog'); dlg.className = 'numeric-editor'; dlg.setAttribute('aria-label', title);
+  dlg.innerHTML = '<h2>' + esc(title) + '</h2><div class="editor-actions">' +
+    items.map((x, k) => '<button type="button" class="btn ' + (x.cls || '') + '" value="' + k + '"' + (x.disabled ? ' disabled' : '') + '>' + esc(x.label) + '</button>' +
+      (x.hint ? '<p class="hint menu-hint">' + esc(x.hint) + '</p>' : '')).join('') +
+    '<button type="button" class="btn" value="cancel">Cancel</button></div>';
+  let chosen = null;
+  dlg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { chosen = b.value; dlg.close(); }));
+  dlg.addEventListener('close', () => {
+    dlg.remove();
+    const item = chosen != null && chosen !== 'cancel' ? items[Number(chosen)] : null;
+    if (item){ ui.focus = openerId; item.run(); }
+    else { const back = document.getElementById(openerId); if (back) back.focus(); }
+  }, { once:true });
+  document.body.append(dlg); dlg.showModal();
+}
 /* One tool in the overview's band: a title, a hint, and its button. */
 function toolRowHTML(title, hint, button, id){
   return '<div class="ov-tool"' + (id ? ' id="' + id + '"' : '') + '><div class="ov-tool-text"><p class="ov-tool-title">' + esc(title) + '</p>' +
@@ -6167,11 +6186,13 @@ function viewRoutines(){
       '<label class="file-btn"><span>' + IC.up + ' Import routines</span><input type="file" accept=".json,application/json" data-change="import-routines" aria-label="Import routines from a JSON file"></label></div></div>';
     return head + html + startEmptyHTML;
   }
+  /* Start sits on one row: the top routine, the one "s" starts too (the most
+     pressing plan, else the first routine). Every other row opens its sheet,
+     which has its own Start. */
+  const topId = defaultRoutineId();
   const row = (r, day) => {
     const names = routineGroups(r.items).map(g => g.map(it => (exerciseById(it.exerciseId) || {}).name || '(removed)').join(' or ')).slice(0,4).join(', ');
-    /* The row opens the routine's sheet; Start stays beside it because
-       starting is what this list is for. Everything else is in the sheet. */
-    return '<li class="list-row is-openable">' +
+    return '<li class="list-row is-openable' + (r.id === topId ? ' is-top' : '') + '">' +
       '<button type="button" class="list-open" ' + detailRowAttrs('routine', r.id, r.name, detailRowId('routine', r.id) + '-meta') + '>' +
         '<span class="list-main">' +
           '<span class="list-name">' + esc(r.name) + (day && day.overdue ? ' <span class="tag tag-warn">Overdue</span>' : '') + '</span>' +
@@ -6179,9 +6200,9 @@ function viewRoutines(){
             routineSummary(r.items) + ' — ' + esc(names) + (routineGroups(r.items).length > 4 ? '…' : '') + '</span>' +
         '</span>' + IC.chev +
       '</button>' +
-      '<span class="list-actions">' +
+      (r.id === topId ? '<span class="list-actions">' +
         '<button type="button" class="btn btn-sm btn-primary" data-action="routine-start" data-id="' + esc(r.id) + '" aria-label="Start ' + esc(r.name) + '">' + IC.play + '<span>Start</span></button>' +
-      '</span></li>';
+      '</span>' : '') + '</li>';
   };
   if (plans.length){
     html += '<div class="section-title"><h2>Planned</h2><span class="rule"></span></div>' +
@@ -6243,11 +6264,13 @@ function htmlRoutineEditor(){
       (ui.routineError ? '<p class="error-text mt-2" role="alert">' + esc(ui.routineError) + '</p>' : '') +
       '<div class="section-title mt-5"><h2>Exercises</h2><span class="rule"></span>' +
         '<span class="muted xs">sets × rep range · target RIR / weight</span></div>' +
-      '<div class="routine-pair-toolbar">' +
-        '<button type="button" class="btn btn-sm" id="routine-pair-open" data-action="pair-open" data-scope="routine" data-kind="eitherOf"' +
-          (d.items.length < 2 ? ' disabled' : '') + '>Pair exercises…</button>' +
-        '<button type="button" class="btn btn-sm" id="routine-superset-open" data-action="pair-open" data-scope="routine" data-kind="supersetOf"' +
-          (d.items.length < 2 ? ' disabled' : '') + '>Superset…</button></div>';
+      /* One way in for both kinds of pair: the dialog asks which. */
+      '<div class="ov-tools routine-tools">' +
+        toolRowHTML('Pair exercises', d.items.length < 2 ? 'Add two exercises to pair them.'
+            : 'A superset alternates two exercises set by set; either of lets you do one or the other.',
+          '<button type="button" class="btn btn-sm" id="routine-pair-open" data-action="pair-choose"' + (d.items.length < 2 ? ' disabled' : '') + '>' +
+            IC.plus + '<span>Pair exercises…</span></button>') +
+      '</div>';
 
   if (!d.items.length){
     html += '<p class="muted small empty-line">No exercises yet — add the first one below.</p>';
@@ -6274,10 +6297,7 @@ function htmlRoutineEditor(){
     /* A set plan replaces the four fields: they would be ignored while it
        exists, so the row shows the plan and offers to drop it. */
     const targetFields = it.setPlan ? '<span class="set-plan-summary">' +
-        '<span><strong>Set plan</strong> · ' + esc(setPlanSummary(it, e)) + '</span>' +
-        '<button type="button" class="btn btn-sm" data-action="ritem-clear-plan" data-idx="' + i + '" ' +
-          'aria-label="Remove the set plan from ' + esc(name) + '; keep ' + plural(it.sets, 'set') + ' of ' +
-          esc(targetRangeLabel({ targetRepsMin:it.repsMin, targetRepsMax:it.repsMax })) + '">Remove set plan</button></span>' :
+        '<span><strong>Set plan</strong> · ' + esc(setPlanSummary(it, e)) + '</span></span>' :
       numberField('Sets', 'sets', it.sets, 'max="12" step="1" inputmode="numeric"') +
       '<label class="field"><span class="cap">' + countLabel + '</span>' +
         '<input type="text" inputmode="text" autocomplete="off" spellcheck="false" ' +
@@ -6298,10 +6318,12 @@ function htmlRoutineEditor(){
       '<span class="item-name" title="' + esc(name) + '">' + esc(name) +
         (partner && groups[groupIndex][0] === it ? '<span class="sr-only">' + pairSr + esc(partnerDef ? partnerDef.name : 'alternative') + '</span>' : '') + '</span>' +
       targetFields +
+      /* The handle reorders (drag, or the arrow keys); the pencil holds the
+         rest, as a set's pencil does in a workout. */
       '<span class="item-actions">' +
-        '<button type="button" class="icon-btn" id="ri-up-' + i + '" data-action="ritem-up" data-idx="' + i + '" aria-label="Move ' + esc(moveName) + ' up" ' + (groupIndex === 0 ? 'disabled' : '') + '>' + IC.up + '</button>' +
-        '<button type="button" class="icon-btn" id="ri-down-' + i + '" data-action="ritem-down" data-idx="' + i + '" aria-label="Move ' + esc(moveName) + ' down" ' + (groupIndex === groups.length-1 ? 'disabled' : '') + '>' + IC.down + '</button>' +
-        '<button type="button" class="icon-btn danger" data-action="ritem-rm" data-idx="' + i + '" aria-label="Remove ' + esc(name) + '">' + IC.trash + '</button>' +
+        '<button type="button" class="icon-btn ri-more" id="ri-more-' + i + '" data-action="ritem-menu" data-idx="' + i + '" ' +
+          'data-first="' + (groupIndex === 0) + '" data-last="' + (groupIndex === groups.length - 1) + '" data-move="' + esc(moveName) + '" ' +
+          'aria-label="More for ' + esc(name) + '" title="Move, set plan or remove">' + IC.pen + '</button>' +
       '</span>' +
     '</div>';
     /* under the second row of a superset that is worth a second look */
@@ -7602,6 +7624,23 @@ const actions = {
   'ritem-up'(d){ routineStep(Number(d.idx), -1); },
   'ritem-down'(d){ routineStep(Number(d.idx), 1); },
   'ritem-rm'(d){ removeRoutineItem(Number(d.idx)); },
+  /* A routine row's rarer changes, behind its pencil. */
+  'ritem-menu'(d){
+    const i = Number(d.idx), it = ui.routineDraft && ui.routineDraft.items[i]; if (!it) return;
+    const name = (exerciseById(it.exerciseId) || {}).name || 'exercise';
+    actionMenu(name, 'ri-more-' + i, [
+      { label:'Move ' + d.move + ' up', disabled:d.first === 'true', run:() => actions['ritem-up'](d) },
+      { label:'Move ' + d.move + ' down', disabled:d.last === 'true', run:() => actions['ritem-down'](d) },
+      ...(it.setPlan ? [{ label:'Remove set plan', hint:'Keep ' + plural(it.sets, 'set') + ' of ' + targetRangeLabel({ targetRepsMin:it.repsMin, targetRepsMax:it.repsMax }),
+        run:() => actions['ritem-clear-plan'](d) }] : []),
+      { label:'Remove ' + name, cls:'btn-danger', run:() => actions['ritem-rm'](d) }]);
+  },
+  /* Superset or either of, then the pair picker for that kind. */
+  'pair-choose'(){
+    actionMenu('Pair exercises', 'routine-pair-open', [
+      { label:'Superset…', hint:'Alternate two exercises set by set.', run:() => openPairDialog('routine', 'supersetOf') },
+      { label:'Either of…', hint:'Do one or the other in a workout.', run:() => openPairDialog('routine', 'eitherOf') }]);
+  },
   /* Back to one target for every set: the item's own summary figures. */
   'ritem-clear-plan'(d){
     const it = ui.routineDraft && ui.routineDraft.items[Number(d.idx)];

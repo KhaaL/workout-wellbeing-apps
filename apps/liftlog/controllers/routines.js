@@ -269,7 +269,7 @@ const PAIR_SCOPES = {
     free:it => !pairKeyOf(it) && !!context.exerciseById(it.exerciseId),
     pair:(a, b, kind) => { const items = context.ui.routineDraft.items; return pairRoutineItems(items[a].id, items[b].id, kind); },
     unpair:key => unpairRoutineItems(key),
-    opener:kind => kind === 'supersetOf' ? 'routine-superset-open' : 'routine-pair-open'
+    opener:() => 'routine-pair-open'
   },
   session:{
     list:() => context.state.activeWorkout ? context.state.activeWorkout.exercises : [],
@@ -470,14 +470,15 @@ function routineStep(idx, dir){
   const row = dir < 0 ? d.items.indexOf(target[0]) : d.items.indexOf(target[target.length - 1]);
   const offset = groups[groupIndex].indexOf(d.items[idx]);
   const landed = (dir < 0 ? d.items.indexOf(target[0]) : d.items.indexOf(groups[groupIndex][0]) + target.length) + offset;
-  const atBound = dir < 0 ? next === 0 : next === groups.length - 1;
-  const keep = atBound ? (dir < 0 ? 'ri-down-' : 'ri-up-') : (dir < 0 ? 'ri-up-' : 'ri-down-');
-  context.SORTABLES['routine-items'].drop(idx, row, keep + landed);
+  /* focus follows the moved row, on its pencil, where the move was chosen */
+  context.SORTABLES['routine-items'].drop(idx, row, 'ri-more-' + landed);
 }
 function removeRoutineItem(idx){
   const d = context.ui.routineDraft; if (!d) return;
   d.items.splice(idx,1);
   cleanRoutinePairs(d.items);
+  /* the row that takes its place, or Add exercise when none is left */
+  context.ui.focus = d.items.length ? 'ri-more-' + Math.min(idx, d.items.length - 1) : 'routine-add-open';
   context.render();
 }
 function addRoutineItem(exId){
