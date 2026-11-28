@@ -56,7 +56,7 @@ const server=http.createServer((req,res)=>{
       }else{
         // End the recoverable workout through its normal confirmation.
         const overview=page.locator('dialog[open]');if(await overview.count()){const close=overview.locator('[data-action="overview-close"]');if(await close.count())await close.click();}
-        await page.locator('[data-action="finish-workout"]').first().click();await page.getByRole('button',{name:'Discard',exact:true}).click();
+        await page.locator('[data-action="finish-workout"]').first().click();await page.getByRole('button',{name:'Discard workout',exact:true}).click();
       }
       await openUpdates(page);await page.waitForFunction(()=>!document.getElementById('applyAppUpdate').disabled);
       await page.waitForFunction(({stateKey,app})=>{const s=JSON.parse(localStorage.getItem(stateKey));return !(app==='bike-cardio'?s.active:s.activeWorkout);},{stateKey,app});
