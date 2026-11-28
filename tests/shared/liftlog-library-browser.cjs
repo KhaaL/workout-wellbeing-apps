@@ -24,9 +24,11 @@ const fixture={version:14,settings:{lastModifiedAt:1},exercises:[
   assert.equal(await page.evaluate(()=>testAPI.state.activeWorkout),null,'preview does not start a workout');
   await page.screenshot({path:'/tmp/liftlog-planned-preview.png',animations:'disabled'});
   await page.locator('#detail-close').click();assert.equal(await planned.evaluate(node=>node===document.activeElement),true,'close returns to planned workout');
-  await navigate(page,'exercises');await page.locator('#archive-ex-row').click();
+  await navigate(page,'exercises');assert.equal(await page.locator('#archive-ex-row').count(),0,'an active row has no Archive button; it is in the sheet');
+  await page.locator('#open-exercise-row').click();await page.locator('#detail-archive').click();
   await page.waitForFunction(()=>testAPI.state.exercises.find(e=>e.id==='row').archived);
-  assert.equal(await page.locator('#open-exercise-row').count(),0);assert.equal(await page.locator('#ex-archived-toggle').evaluate(node=>node===document.activeElement),true);
+  if(await page.locator('#detail-dlg').evaluate(d=>d.open))await page.locator('#detail-close').click();
+  assert.equal(await page.locator('#open-exercise-row').count(),0);
   await page.setViewportSize({width:320,height:740});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'/tmp/liftlog-exercise-archive.png',animations:'disabled'});await page.setViewportSize({width:390,height:844});
   await navigate(page,'history');assert.equal(await page.locator('#progress-exercise-select option').filter({hasText:'Archive Row'}).count(),0);
   // History opens on Sessions; Progress and Compare are one tap away.
