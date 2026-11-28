@@ -1,14 +1,15 @@
 /* Check-in uses the shared storage engine with its own schema and namespaces. */
 /* exported CheckinStorage */
 const CheckinStorage = (() => {
-  // Version 2 adds symptom value 0 (gone) for ongoing symptoms. Version 1 data
-  // loads unchanged; version 1 apps refuse version 2 data instead of failing on 0.
-  const namespace='checkin.v1',key='checkin.state.v1',VERSION=2;
+  // Version 3 scores everything 1 to 5: scale items (sleep, mood, soreness,
+  // fatigue) and symptoms (0 gone, 1 to 5). Earlier versions are refused; data
+  // saved by them moves to the recovery copy when the app loads.
+  const namespace='checkin.v1',key='checkin.state.v1',VERSION=3;
   const limits={items:CheckinCore.LIMITS.items,entries:CheckinCore.LIMITS.entries};
   function prepare(raw){
     WorkoutStorage.enforceLimits(raw,limits);
     if(raw?.app==='checkin'&&Number.isSafeInteger(raw.version)&&raw.version>VERSION)throw new Error('This backup is from a newer Check-in version. Update the app, then try again.');
-    if(!raw||raw.app!=='checkin'||![1,VERSION].includes(raw.version)||!Number.isSafeInteger(raw.updatedAt)||raw.updatedAt<0)throw new Error('Not a valid Check-in backup.');
+    if(!raw||raw.app!=='checkin'||raw.version!==VERSION||!Number.isSafeInteger(raw.updatedAt)||raw.updatedAt<0)throw new Error('Not a valid Check-in backup.');
     return {app:'checkin',version:VERSION,updatedAt:raw.updatedAt,...CheckinCore.state(raw)};
   }
   function create(options){

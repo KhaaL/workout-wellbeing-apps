@@ -1,5 +1,5 @@
 // Check-in at phone width under its production CSP: tap counts for common check-ins, the merge
-// window, symptom severity steps, undo, notes, history, tracked items, timing settings,
+// window, 1 to 5 scores with colors, copying today's state, undo, notes, history, tracked items, timing settings,
 // deleting all check-ins with a recovery copy, backup restore and 320 px layouts.
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
@@ -12,6 +12,7 @@ const csp=require('./shared/site-headers.cjs').csp('checkin');
   const browser=await chromium.launch({headless:true,...process.env.BROWSER_PATH?{executablePath:process.env.BROWSER_PATH}:{}});
   try{
     const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,acceptDownloads:true,serviceWorkers:'block',timezoneId:'Europe/Stockholm'});
+    await context.grantPermissions(['clipboard-read','clipboard-write'],{origin:'https://checkin.test'});
     const page=await context.newPage(),errors=[];
     page.on('pageerror',error=>errors.push(error.message));page.on('console',m=>{if(m.type()==='error'||/Content Security Policy/i.test(m.text()))errors.push(m.text());});
     await page.route('https://checkin.test/**',route=>route.fulfill({contentType:'text/html',body:html,headers:{'Content-Security-Policy':csp}}));
@@ -20,7 +21,10 @@ const csp=require('./shared/site-headers.cjs').csp('checkin');
     const saved=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('checkin.state.v1')));
     const nav=view=>page.locator('.nav-btn[data-view="'+view+'"]').click();
     const fits=async where=>assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,where+' fits the screen width');
-    const mood=n=>page.locator('#moodBox .mood').nth(n-1);
+    const scale=name=>page.locator('#scaleBox fieldset',{has:page.locator('legend',{hasText:name})});
+    const score=(name,n)=>scale(name).locator('.score').nth(n-1);
+    const mood=n=>score('Mood',n);
+    const fill=locator=>locator.evaluate(node=>getComputedStyle(node).backgroundColor);
     const symptom=name=>page.locator('#symptomChips .symptom',{hasText:name});
     const row=name=>page.locator('#symptomRows .ongoing',{has:page.locator('strong',{hasText:name})});
     const level=(name,label)=>row(name).getByRole('button',{name:name+' '+label,exact:true});
@@ -30,17 +34,20 @@ const csp=require('./shared/site-headers.cjs').csp('checkin');
 
     assert.equal(await page.textContent('#todayTitle'),'Today');
     assert.match(await page.textContent('#dayEmpty'),/No check-ins yet today/);
-    assert.equal(await page.locator('#moodBox .mood').count(),5);
-    assert.deepEqual(await page.locator('#symptomChips .symptom').allTextContents(),['Headache','Fatigue','Anxiety','Low mood','Nausea','+ Other']);
+    assert.deepEqual(await page.locator('#scaleBox legend').allTextContents(),['Sleep hours (h)','Sleep quality','Mood','Soreness','Fatigue']);
+    assert.equal(await page.locator('#scaleBox .score').count(),25,'5 scores per scale');
+    assert.deepEqual(await scale('Sleep hours').locator('.score strong').allTextContents(),['<4','4-5','5-6','6-7','>7']);
+    assert.deepEqual(await page.locator('#symptomChips .symptom').allTextContents(),['Headache','Anxiety','Low mood','Nausea','+ Other']);
     assert.equal(await page.locator('#symptomRows li').count(),0,'nothing is recorded or ongoing on a fresh start');
-    console.log('PASS Today opens with a 5-point mood row and the default symptoms');
+    assert.equal(await page.isVisible('#copyToday'),false,'nothing to copy yet');
+    console.log('PASS Today opens with five 1 to 5 scales and the default symptoms');
 
     await tap(mood(3));
     assert.equal(taps,1,'mood only takes 1 tap');
     let state=await saved();assert.equal(state.entries.length,1);assert.deepEqual(state.entries[0].values,{mood:3});
     assert.equal(await mood(3).getAttribute('aria-pressed'),'true');
     assert.match(await page.textContent('#windowState'),/Updating the 09:00 check-in until 09:30/);
-    assert.match(await entries().first().textContent(),/09:00Mood 3 Okay/);
+    assert.match(await entries().first().textContent(),/09:00Mood 3\/5 Okay/);
     console.log('PASS mood takes 1 tap and saves at once');
 
     taps=0;await page.clock.fastForward('05:00');
@@ -48,24 +55,27 @@ const csp=require('./shared/site-headers.cjs').csp('checkin');
     state=await saved();assert.equal(state.entries.length,1,'a tap inside the window edits the same check-in');
     assert.deepEqual(state.entries[0].values,{mood:3,headache:1});
     assert.equal(await symptom('Headache').count(),0,'a recorded symptom leaves the chips');
-    assert.equal(await level('Headache','mild').getAttribute('aria-pressed'),'true');assert.equal(await row('Headache').locator('.hint').textContent(),'New in this check-in');
+    assert.equal(await level('Headache','1').getAttribute('aria-pressed'),'true');
+    assert.equal(await row('Headache').locator('.level-btn').count(),5,'a new symptom shows scores 1 to 5');assert.equal(await row('Headache').locator('.hint').textContent(),'New in this check-in');
     assert.equal(await row('Headache').getByRole('button',{name:'Headache gone'}).count(),0,'a new symptom has no Gone level');
-    await tap(symptom('Fatigue'));await tap(level('Fatigue','severe'));
-    assert.equal(taps,3);assert.equal((await saved()).entries[0].values.fatigue,3,'severe takes 2 taps');
-    assert.match(await entries().first().textContent(),/Mood 3 Okay, Fatigue severe, Headache mild/);
-    console.log('PASS a chip records mild and opens a row of levels; severe takes 2 taps');
+    await tap(symptom('Nausea'));await tap(level('Nausea','5'));
+    assert.equal(taps,3);assert.equal((await saved()).entries[0].values.nausea,5,'a score of 5 takes 2 taps');
+    assert.match(await entries().first().textContent(),/Mood 3\/5 Okay, Nausea 5\/5, Headache 1\/5/);
+    assert.equal(await fill(level('Nausea','5')),'rgb(190, 18, 60)','a chosen symptom score of 5 is rose');
+    assert.equal(await fill(level('Headache','1')),'rgb(59, 130, 246)','a chosen symptom score of 1 is blue');
+    console.log('PASS a chip records 1 and opens a row of scores; 5 takes 2 taps');
 
-    for(const label of ['mild','moderate','severe','severe','mild','mild']){
-      await level('Fatigue',label).click();
-      assert.equal(await row('Fatigue').count(),1,'the row stays after '+label);
+    for(const label of ['1','3','5','5','1','1']){
+      await level('Nausea',label).click();
+      assert.equal(await row('Nausea').count(),1,'the row stays after '+label);
     }
-    assert.equal((await saved()).entries[0].values.fatigue,1,'trying levels keeps the last one chosen; tapping the chosen one changes nothing');
-    await row('Fatigue').getByRole('button',{name:'Remove Fatigue from this check-in'}).click();
-    assert.equal('fatigue' in (await saved()).entries[0].values,false,'× removes it');
-    assert.equal(await symptom('Fatigue').count(),1,'and the chip returns');
-    await page.click('#toastAction');assert.equal((await saved()).entries[0].values.fatigue,1,'Undo brings it back');
-    await row('Fatigue').getByRole('button',{name:'Remove Fatigue from this check-in'}).click();
-    console.log('PASS trying levels never removes a symptom; only × does, with Undo');
+    assert.equal((await saved()).entries[0].values.nausea,1,'trying scores keeps the last one chosen; tapping the chosen one changes nothing');
+    await row('Nausea').getByRole('button',{name:'Remove Nausea from this check-in'}).click();
+    assert.equal('nausea' in (await saved()).entries[0].values,false,'× removes it');
+    assert.equal(await symptom('Nausea').count(),1,'and the chip returns');
+    await page.click('#toastAction');assert.equal((await saved()).entries[0].values.nausea,1,'Undo brings it back');
+    await row('Nausea').getByRole('button',{name:'Remove Nausea from this check-in'}).click();
+    console.log('PASS trying scores never removes a symptom; only × does, with Undo');
 
     await tap(mood(4));assert.equal((await saved()).entries[0].values.mood,4,'another mood replaces the first');
     await page.click('#toastAction');assert.equal((await saved()).entries[0].values.mood,3,'Undo restores the previous mood');
@@ -74,18 +84,36 @@ const csp=require('./shared/site-headers.cjs').csp('checkin');
     await page.click('#toastAction');
     console.log('PASS Undo reverses a tap, and tapping the chosen mood clears it');
 
+    // Scales: one tap each, colored by which end is good. Tone 4 is teal.
+    taps=0;await tap(score('Sleep hours',4));await tap(score('Sleep quality',4));await tap(score('Soreness',2));await tap(score('Fatigue',5));
+    assert.equal(taps,4,'each scale takes 1 tap');
+    assert.deepEqual((await saved()).entries[0].values,{mood:3,headache:1,'sleep-hours':4,'sleep-quality':4,soreness:2,fatigue:5});
+    assert.equal(await fill(score('Sleep quality',4)),'rgb(20, 184, 166)','quality 4 is teal');
+    assert.equal(await fill(score('Soreness',2)),'rgb(20, 184, 166)','soreness 2 is teal, because low soreness is good');
+    assert.equal(await fill(score('Fatigue',5)),'rgb(190, 18, 60)','fatigue 5 is rose');
+    assert.equal(await score('Soreness',5).getAttribute('data-tone'),'1');assert.equal(await score('Mood',5).getAttribute('data-tone'),'5');
+    assert.equal(await fill(score('Soreness',1)),'rgb(239, 246, 255)','an unchosen score shows its soft tint');
+    console.log('PASS scales take 1 tap each and color by which end is good');
+
     await page.click('#noteBox summary');await page.fill('#note','Slept 5 hours');await page.locator('#note').blur();
     assert.equal((await saved()).entries[0].note,'Slept 5 hours');
     assert.match(await entries().first().locator('.note').textContent(),/Slept 5 hours/);
     console.log('PASS a note joins the open check-in');
 
+    await page.click('#copyToday');await page.locator('#toastText',{hasText:'copied'}).waitFor();
+    assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),['2026-01-20','Sleep hours: 6-7 h','Sleep quality: 4/5 Good','Mood: 3/5 Okay',
+      'Soreness: 2/5 Mild','Fatigue: 5/5 Severe','Symptoms: Headache 1/5','Note: Slept 5 hours'].join('\n'));
+    console.log('PASS Copy today’s state puts the day’s latest scores on the clipboard');
+
     await page.clock.fastForward('30:00');
     assert.match(await page.textContent('#windowState'),/next tap starts a new check-in/,'Today refreshes when the window closes');
     assert.equal(await mood(3).getAttribute('aria-pressed'),'false');assert.equal(await page.inputValue('#note'),'');
     assert.equal(await row('Headache').getByRole('button',{name:'Headache gone'}).count(),1,'the 09:00 headache is now ongoing, with Gone');
-    taps=0;await tap(mood(2));await tap(symptom('Anxiety'));await tap(level('Anxiety','moderate'));
+    taps=0;await tap(mood(2));await tap(symptom('Anxiety'));await tap(level('Anxiety','3'));
     assert.equal(taps,3);state=await saved();assert.equal(state.entries.length,2);
-    assert.deepEqual(state.entries[1].values,{mood:2,anxiety:2});
+    assert.deepEqual(state.entries[1].values,{mood:2,anxiety:3});
+    await page.click('#copyToday');await page.locator('#toastText',{hasText:'copied'}).waitFor();
+    assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/^Mood: 2\/5 Low$/m,'the copy holds the latest mood of the day');
     assert.deepEqual(await entries().locator('time').allTextContents(),['09:35','09:00'],'latest first');
     console.log('PASS after the window a tap starts a new check-in; mood and a moderate symptom take 3 taps');
 
@@ -104,9 +132,9 @@ const csp=require('./shared/site-headers.cjs').csp('checkin');
     await page.getByLabel('Name of Headache').fill('Migraine');await page.getByLabel('Name of Headache').press('Enter');await page.locator('#itemsStatus').filter({hasText:'Renamed to Migraine'}).waitFor();
     await page.locator('.item-row',{has:page.getByLabel('Name of Low mood')}).getByRole('checkbox').uncheck();
     await nav('today');
-    assert.deepEqual(await page.locator('#symptomChips .symptom').allTextContents(),['Fatigue','Dizziness','+ Other']);
+    assert.deepEqual(await page.locator('#symptomChips .symptom').allTextContents(),['Dizziness','+ Other']);
     assert.deepEqual(await page.locator('#symptomRows strong').allTextContents(),['Migraine','Anxiety'],'the ongoing headache under its new name, and Anxiety from the open check-in');
-    assert.match(await entries().last().textContent(),/Migraine mild/,'history follows the rename');
+    assert.match(await entries().last().textContent(),/Migraine 1\/5/,'history follows the rename');
     console.log('PASS Settings add, rename, hide and archive symptoms; Today and history follow');
 
     await nav('settings');
@@ -140,24 +168,25 @@ const csp=require('./shared/site-headers.cjs').csp('checkin');
     assert.equal(taps,2,'a new symptom takes + Other and Enter');
     state=await saved();let runny=state.items.find(i=>i.name==='Runny nose');
     assert.equal(runny.pinned,false,'added from Today, so it shows only while recorded or ongoing');
-    assert.equal(state.entries.at(-1).values[runny.id],1);assert.equal(await level('Runny nose','mild').getAttribute('aria-pressed'),'true');
+    assert.equal(state.entries.at(-1).values[runny.id],1);assert.equal(await level('Runny nose','1').getAttribute('aria-pressed'),'true');
     await page.click('#toastAction');state=await saved();
     assert.equal(state.items.some(i=>i.name==='Runny nose'),false,'Undo removes the new item too');assert.equal(state.entries.length,2);
     await tap(page.locator('.add-symptom'));await page.fill('#quickName','Runny nose');await page.press('#quickName','Enter');
     runny=(await saved()).items.find(i=>i.name==='Runny nose');
-    for(const label of ['moderate','severe','mild'])await level('Runny nose',label).click();
-    assert.equal(await row('Runny nose').count(),1,'a symptom added from Today stays while trying every level');
+    for(const label of ['3','5','1'])await level('Runny nose',label).click();
+    assert.equal(await row('Runny nose').count(),1,'a symptom added from Today stays while trying every score');
     await page.clock.fastForward('24:00:00');
     assert.deepEqual(await page.locator('#symptomRows strong').allTextContents(),['Migraine','Anxiety','Runny nose']);
-    assert.match(await row('Runny nose').locator('.hint').textContent(),/^last mild yesterday$/);
-    assert.equal(await row('Runny nose').locator('[data-last="true"]').textContent(),'Mild','the last level is outlined');
+    assert.match(await row('Runny nose').locator('.hint').textContent(),/^last 1\/5 yesterday$/);
+    assert.equal(await row('Runny nose').locator('[data-last="true"]').textContent(),'1','the last score is outlined');
+    assert.equal(await row('Runny nose').locator('.level-btn').count(),6,'an ongoing symptom adds Gone to scores 1 to 5');
     assert.equal(await symptom('Runny nose').count(),0,'an ongoing symptom leaves the chips');
-    taps=0;await tap(row('Runny nose').getByRole('button',{name:'Runny nose moderate'}));
+    taps=0;await tap(row('Runny nose').getByRole('button',{name:'Runny nose 3',exact:true}));
     assert.equal(taps,1,'updating an ongoing symptom takes 1 tap');
-    state=await saved();assert.equal(state.entries.at(-1).values[runny.id],2);assert.equal(state.entries.at(-1).day,'2026-01-21');
-    assert.equal(await row('Runny nose').locator('[aria-pressed="true"]').textContent(),'Moderate');
+    state=await saved();assert.equal(state.entries.at(-1).values[runny.id],3);assert.equal(state.entries.at(-1).day,'2026-01-21');
+    assert.equal(await row('Runny nose').locator('[aria-pressed="true"]').textContent(),'3');
     await page.clock.fastForward('24:00:00');
-    assert.match(await row('Runny nose').locator('.hint').textContent(),/^Since .*20.* · last moderate yesterday$/,'the run started on 20 Jan');
+    assert.match(await row('Runny nose').locator('.hint').textContent(),/^Since .*20.* · last 3\/5 yesterday$/,'the run started on 20 Jan');
     await tap(row('Runny nose').getByRole('button',{name:/Runny nose gone/}));
     assert.equal((await saved()).entries.at(-1).values[runny.id],0);
     assert.match(await entries().first().textContent(),/Runny nose gone/);

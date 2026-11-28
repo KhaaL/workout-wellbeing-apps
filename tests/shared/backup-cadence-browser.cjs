@@ -38,7 +38,7 @@ const APPS=['liftlog','bike-cardio','tabata','foodlog','checkin'];
         }
         /* apps that write nothing until the first change: their smallest valid
            state, with a revision */
-        const smallest={tabata:{version:3,history:[]},foodlog:{version:3,foods:[],versions:{},entries:[],days:{}},checkin:{version:2,items:[],entries:[]}}[app];
+        const smallest={tabata:{version:3,history:[]},foodlog:{version:3,foods:[],versions:{},entries:[],days:{}},checkin:{version:3,items:[],entries:[]}}[app];
         if(smallest&&!localStorage.getItem(app+'.state.v1'))localStorage.setItem(app+'.state.v1',JSON.stringify({app,...smallest,updatedAt:Date.now()-1000}));
         localStorage.setItem(shared,JSON.stringify({endpoint:'https://storage.test',region:'test',bucket:'apps',accessKeyId:'fake',secretAccessKey:'synthetic',pathStyle:true,syncMode:'immutable'}));
       },[SHARED,app]);

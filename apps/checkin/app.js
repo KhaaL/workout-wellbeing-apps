@@ -53,12 +53,13 @@
     }});
   }
   const record=(it,value)=>now=>C.setValue(S(),it.id,value,now,()=>newId('c-'));
-  function setMood(it,value){
+  // Tapping the chosen score again clears it.
+  function setScale(it,value){
     const cur=C.current(S(),Date.now())?.values[it.id],next=cur===value?null:value;
     change(record(it,next),next==null?it.name+' cleared.':it.name+' '+C.label(it,next)+' saved.');
   }
-  // A chip records mild, and the symptom moves to its row of levels.
-  function startSymptom(it){change(record(it,1),it.name+': mild. Pick another level in its row if needed.');}
+  // A chip records 1, and the symptom moves to its row of scores.
+  function startSymptom(it){change(record(it,1),it.name+': 1/5. Pick another score in its row if needed.');}
   // Row levels only set a level. Tapping the chosen level does nothing, so
   // trying levels never removes a symptom; × does that.
   function setLevel(it,value){
@@ -73,7 +74,7 @@
       const it=C.findActive(S(),'symptom',name)||C.addItem(S(),{kind:'symptom',name,pinned:false},newId('s-'));
       const cur=C.current(S(),now)?.values[it.id];
       if(!cur)C.setValue(S(),it.id,1,now,()=>newId('c-'));
-    },name.trim()+' recorded as mild. Pick another level in its row if needed.');
+    },name.trim()+' recorded as 1/5. Pick another score in its row if needed.');
   }
 
   /* Today. */
@@ -82,19 +83,21 @@
     const t=today();if(day===t)return 'today';if(day===C.shiftDate(t,-1))return 'yesterday';
     return 'on '+new Date(day+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
   }
-  const lastText=last=>'last '+C.LEVELS[last.value].toLowerCase()+' '+when(last.day)+(last.day===today()?' '+clock(last.at):'');
+  const lastText=last=>'last '+C.label(last.item,last.value)+' '+when(last.day)+(last.day===today()?' '+clock(last.at):'');
+  // Every score button carries its color tone (1 worst, 5 best) for the CSS.
+  const toned=(button,it,value)=>{const t=C.tone(it,value);if(t)button.dataset.tone=String(t);return button;};
   function renderRows(rows){
     $('symptomRows').replaceChildren(...rows.map(o=>{
       const it=o.item,levels=o.last?C.LEVELS.map((label,value)=>[label,value]):C.SEVERITY.map((label,index)=>[label,index+1]);
-      const group=el('div',{className:'levels'+(o.last?'':' three')});group.setAttribute('role','group');group.setAttribute('aria-label',it.name+' now');
+      const group=el('div',{className:'levels'+(o.last?'':' five')});group.setAttribute('role','group');group.setAttribute('aria-label',it.name+' now');
       for(const [label,value] of levels){
-        const button=el('button',{type:'button',className:'level-btn',textContent:label});button.dataset.value=String(value);
+        const button=toned(el('button',{type:'button',className:'level-btn',textContent:label}),it,value);button.dataset.value=String(value);
         button.setAttribute('aria-pressed',String(o.value===value));
         if(o.last?.value===value)button.dataset.last='true';
         button.setAttribute('aria-label',it.name+' '+label.toLowerCase()+(o.last?.value===value?' (last recorded)':''));
         button.addEventListener('click',()=>setLevel(it,value));group.append(button);
       }
-      const hint=o.last?(o.since===o.last.day?'':'Since '+when(o.since).replace(/^on /,'')+' · ')+lastText(o.last):'New in this check-in';
+      const hint=o.last?(o.since===o.last.day?'':'Since '+when(o.since).replace(/^on /,'')+' · ')+lastText({...o.last,item:it}):'New in this check-in';
       const head=el('div',{className:'ongoing-head'},el('strong',{textContent:it.name}),el('span',{className:'hint',textContent:hint}));
       if(o.value!=null){
         const remove=el('button',{type:'button',className:'remove-btn',textContent:'×'});remove.setAttribute('aria-label','Remove '+it.name+' from this check-in');
@@ -109,28 +112,29 @@
     $('windowState').textContent=cur?'Updating the '+clock(cur.at)+' check-in until '+clock(cur.at+S().settings.mergeMinutes*60000)+'.':'Your next tap starts a new check-in.';
     // Items with a value in the open check-in stay visible, so a value can always be cleared.
     const shown=kind=>S().items.filter(i=>i.kind===kind&&((i.pinned&&!i.archived)||i.id in values));
-    const moodBox=$('moodBox');moodBox.replaceChildren();
-    for(const it of shown('mood')){
-      const row=el('div',{className:'moods'});
-      C.MOOD.forEach((label,index)=>{
-        const value=index+1,button=el('button',{type:'button',className:'mood'},el('strong',{textContent:String(value)}),el('span',{textContent:label}));
-        button.setAttribute('aria-pressed',String(values[it.id]===value));button.setAttribute('aria-label',it.name+' '+value+', '+label);
-        button.addEventListener('click',()=>setMood(it,value));row.append(button);
-      });
-      moodBox.append(el('fieldset',{},el('legend',{textContent:it.name}),row));
-    }
+    // One row of 5 score buttons per scale item: sleep, mood, soreness, fatigue.
+    $('scaleBox').replaceChildren(...shown('scale').map(it=>{
+      const row=el('div',{className:'scores'});
+      for(let value=1;value<=C.SCORES;value++){
+        const word=it.words?.[value-1],button=toned(el('button',{type:'button',className:'score'},el('strong',{textContent:C.option(it,value)}),word?el('span',{textContent:word}):null),it,value);
+        button.setAttribute('aria-pressed',String(values[it.id]===value));
+        button.setAttribute('aria-label',it.name+' '+C.option(it,value)+(it.unit?' '+it.unit:'')+(word?', '+word:''));
+        button.addEventListener('click',()=>setScale(it,value));row.append(button);
+      }
+      return el('fieldset',{},el('legend',{textContent:it.name+(it.unit?' ('+it.unit+')':'')}),row);
+    }));
     // Recorded and ongoing symptoms get a row of levels and leave the chips.
     const rows=C.symptomRows(S(),now),inRow=new Set(rows.map(o=>o.item.id));renderRows(rows);
     const chips=$('symptomChips');chips.replaceChildren();
     for(const it of shown('symptom').filter(i=>!inRow.has(i.id))){
-      const button=el('button',{type:'button',className:'symptom'},it.name);button.setAttribute('aria-label','Record '+it.name+' as mild');
+      const button=el('button',{type:'button',className:'symptom'},it.name);button.setAttribute('aria-label','Record '+it.name+' as 1 of 5');
       button.addEventListener('click',()=>startSymptom(it));chips.append(button);
     }
     const add=el('button',{type:'button',className:'symptom add-symptom',textContent:'+ Other'});add.setAttribute('aria-label','Record another symptom');add.setAttribute('aria-expanded',String(!$('quickAdd').hidden));
     add.addEventListener('click',()=>{$('quickAdd').hidden=false;add.setAttribute('aria-expanded','true');$('quickName').focus();});chips.append(add);
     if(document.activeElement!==$('note'))$('note').value=cur?.note||'';
     const entries=C.entriesFor(S(),day).slice().reverse();
-    $('dayEmpty').hidden=!!entries.length;
+    $('dayEmpty').hidden=!!entries.length;$('copyToday').hidden=!entries.length;
     $('dayEntries').replaceChildren(...entries.map(entryRow));
   }
   $('quickAdd').addEventListener('submit',event=>{
@@ -138,6 +142,12 @@
     const name=$('quickName').value;$('quickName').value='';$('quickAdd').hidden=true;quickAdd(name);
   });
   $('quickCancel').addEventListener('click',()=>{$('quickName').value='';$('quickAdd').hidden=true;renderToday();});
+  // Copies the latest value of every item recorded today as plain text.
+  $('copyToday').addEventListener('click',async()=>{
+    const text=C.dayText(S(),today());
+    try{await navigator.clipboard.writeText(text);toast('Today’s state copied.');}
+    catch{toast('Copy failed. This browser blocked the clipboard.');}
+  });
   function entryRow(e){
     const parts=C.describe(S(),e);
     return el('li',{},el('time',{dateTime:new Date(e.at).toISOString(),textContent:clock(e.at)}),el('span',{textContent:parts||'Note only'}),e.note?el('span',{className:'note',textContent:e.note}):null);
@@ -177,11 +187,11 @@
   function archivedRow(it){
     const restore=el('button',{type:'button',className:'btn',textContent:'Restore'});restore.setAttribute('aria-label','Restore '+it.name);
     restore.addEventListener('click',()=>editItems(()=>C.archiveItem(S(),it.id,false),it.name+' restored.'));
-    return el('li',{className:'item-row'},el('span',{textContent:it.name+(it.kind==='mood'?' (mood)':'')}),restore);
+    return el('li',{className:'item-row'},el('span',{textContent:it.name+(it.kind==='scale'?' (scale)':'')}),restore);
   }
   function fillItems(){
-    $('itemRows').replaceChildren(...S().items.filter(i=>!i.archived&&['mood','symptom'].includes(i.kind)).map(itemRow));
-    const archived=S().items.filter(i=>i.archived&&['mood','symptom'].includes(i.kind));
+    $('itemRows').replaceChildren(...S().items.filter(i=>!i.archived&&['scale','symptom'].includes(i.kind)).map(itemRow));
+    const archived=S().items.filter(i=>i.archived&&['scale','symptom'].includes(i.kind));
     $('archivedBox').hidden=!archived.length;$('archivedRows').replaceChildren(...archived.map(archivedRow));
   }
   $('addItemForm').addEventListener('submit',event=>{

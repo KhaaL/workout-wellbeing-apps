@@ -179,6 +179,11 @@ The list matches the files the Foodlog commit (`f339907`) touched.
    version 2). A symptom recorded mild or worse in the last 7 days shows in an
    Ongoing row with all four levels, so one tap records it each day. **+
    Other** on Today records a new symptom as mild and adds it unpinned.
+   1 to 5 scores (data version 3, earlier versions refused): Sleep hours (5
+   bands), Sleep quality, Mood, Soreness and Fatigue are `scale` items with a
+   `better` end; symptoms score 0 gone or 1 to 5. Score buttons are colored
+   blue, teal, amber, orange, rose from the best end to the worst. **Copy
+   today's state** copies the latest value of each item recorded today.
 2. Usable daily: number and tag items, More… sheet, edit and remove a
    check-in, earlier days, a 7 versus 28 day comparison in History, CSV and
    JSON export.
@@ -190,7 +195,7 @@ The list matches the files the Foodlog commit (`f339907`) touched.
 
 - Name and id (`checkin` is a placeholder). Renaming later changes the
   storage namespace, so it needs a migration once real data exists.
-- Severity scale: decided, 3 levels.
+- Severity scale: decided, 1 to 5 (replaced 3 levels in data version 3).
 - Mood scale: 5 faces or labels, or a two-axis mood and energy grid.
 - Backup privacy: the shared engine uploads plain JSON to the user's own
   bucket. Client-side encryption would be a shared-engine change for every
